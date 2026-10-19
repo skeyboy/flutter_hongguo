@@ -11,6 +11,8 @@ import '../playback/prefetch_window.dart';
 import '../playback/local_playlist.dart';
 import 'settings_page.dart';
 
+const bool softwareVideo = bool.fromEnvironment('HONGGUO_SOFTWARE_VIDEO');
+
 class PlayerPage extends StatefulWidget {
   final AppRuntime runtime;
   final DramaDetail detail;
@@ -77,7 +79,16 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     );
     WidgetsBinding.instance.addObserver(this);
     player = Player();
-    controller = VideoController(player);
+    controller = VideoController(
+      player,
+      configuration: const VideoControllerConfiguration(
+        // GitHub-hosted macOS runners expose no accelerated OpenGL pixel format,
+        // and media_kit_video force-unwraps CGLChoosePixelFormat's result, which
+        // aborts the process. CPU rendering is the only native path available there.
+        enableHardwareAcceleration: !softwareVideo,
+        hwdec: softwareVideo ? 'no' : null,
+      ),
+    );
     subscriptions.add(
       player.stream.error.listen((value) {
         if (mounted && value.isNotEmpty) {

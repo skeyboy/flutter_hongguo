@@ -109,7 +109,10 @@ jobs:
       - name: Mac native playback and UI verification
         if: matrix.platform == 'macos'
         working-directory: packages/app
-        run: flutter test integration_test/offline_playback_test.dart -d macos --reporter expanded
+        # Hosted runners have no accelerated OpenGL pixel format, so media_kit_video's
+        # GPU texture path aborts on startup. CPU rendering keeps the native libmpv
+        # pipeline under test; the GPU path is covered by the on-device Mac run.
+        run: flutter test integration_test/offline_playback_test.dart -d macos --dart-define=HONGGUO_SOFTWARE_VIDEO=true --reporter expanded
       - name: Collect macOS crash diagnostics
         if: matrix.platform == 'macos' && failure()
         run: |
