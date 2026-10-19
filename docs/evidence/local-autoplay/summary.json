@@ -1,0 +1,27 @@
+{
+  "version": "0.2.4+6",
+  "date": "2026-10-19",
+  "appTests": 52,
+  "macosIntegrationTests": 5,
+  "analyze": "No issues found",
+  "offlineAutoplay": {
+    "episodes": 3,
+    "qualities": [
+      "720p",
+      "best",
+      "720p"
+    ],
+    "networkClosedDuringPlayback": true,
+    "autoplaySwitchPersisted": true,
+    "lastEpisodeStops": true,
+    "gapStops": true,
+    "removedFileNoDownload": true,
+    "releasedPins": true
+  },
+  "githubReleasePublished": false,
+  "releaseDirectory": "artifacts/macos/20261019-190733",
+  "macosReleaseBuilt": true,
+  "signatureVerified": true,
+  "releaseZipSha256": "0d0ce53dc39d903a4cce76c780b261d14de66cfded3ecc452633a4212ba687b1",
+  "packagingContractTests": 4
+}

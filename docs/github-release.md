@@ -9,7 +9,7 @@
 横向筛选已先完成：48 项 App 测试、3 项 Mac 原生集成通过，见 [实现与截图](design/horizontal-filter-panel.md)。随后配置 CI：
 
 1. main 推送或 PR：完整离线验证 → 五平台构建 → 保存构建附件，不创建 Release。
-2. main 提交的平台矩阵通过后，推送与 pubspec 对应的 `v0.2.3` 标签。
+2. main 提交的平台矩阵通过后，推送与 pubspec 对应的 `v0.2.4` 标签。
 3. 标签流程再次验证构建，恢复稳定 Android 发布密钥，检查安装包完整性。
 4. 汇总附件并生成 SHA256/manifest，创建草稿，上传成功后发布到私有仓库 Releases。
 

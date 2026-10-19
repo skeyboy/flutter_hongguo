@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:hongguo_api/hongguo_api.dart';
 
 import '../catalog/local_artwork.dart';
 import '../catalog/local_library.dart';
 import '../platform/runtime.dart';
+import '../playback/local_playlist.dart';
 import 'cache_metadata_page.dart';
 import 'library_page.dart';
 import 'player_page.dart';
@@ -310,19 +310,14 @@ class _LocalEpisodesPageState extends State<LocalEpisodesPage> {
   }
 
   Future<void> _play(LocalEpisode entry) async {
-    final episode =
-        group.episodeFor(entry) ?? Episode(vid: entry.vid, index: 1);
+    final queue = localPlaybackQueue(group, entry);
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
         builder: (_) => PlayerPage(
           runtime: widget.runtime,
-          detail: DramaDetail(
-            group.unidentified
-                ? Drama(id: entry.vid, title: '本地视频 ${entry.vid}')
-                : group.drama,
-            [episode],
-          ),
+          detail: queue.detail,
+          initialPosition: queue.initialPosition,
           cachedOnly: true,
           cachedQuality: entry.quality,
         ),

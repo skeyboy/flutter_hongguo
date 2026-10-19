@@ -21,7 +21,7 @@ notes.parent.mkdir(exist_ok=True)
 notes.write_text(f'''Native Flutter / shared Dart release {release}.
 
 - Horizontal filter panel, immediate switching and cached catalog refresh.
-- Local series library, offline episode playback and 3–5 episode prefetch.
+- Local series library, offline episode autoplay and 3–5 episode prefetch.
 - Android APKs use the repository's stable release key.
 - Windows x64 installer/portable ZIP; Linux x64 DEB/tar; macOS arm64 DMG/ZIP.
 - {ios}

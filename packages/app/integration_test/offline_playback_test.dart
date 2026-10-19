@@ -14,6 +14,8 @@ import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_api/hongguo_native_api.dart';
 import 'package:hongguo_app/bootstrap.dart';
 import 'package:hongguo_app/catalog/library_cache.dart';
+import 'package:hongguo_app/catalog/local_library.dart';
+import 'package:hongguo_app/playback/local_playlist.dart';
 import 'package:hongguo_app/features/local_cache_page.dart';
 import 'package:hongguo_app/main.dart';
 import 'package:hongguo_app/features/player_page.dart';
@@ -110,6 +112,7 @@ class _Runtime
   final Dio dio;
   final Directory directory;
   late final MediaCache cache;
+  final localRequests = <String>[];
   _Runtime(
     Uint8List bytes,
     this.directory, {
@@ -154,8 +157,11 @@ class _Runtime
     cache,
   );
   @override
-  PlaybackJob prepareLocal(String vid, {String quality = 'best'}) =>
-      _Job(cache.prepareCached(vid, quality: quality), cache);
+  PlaybackJob prepareLocal(String vid, {String quality = 'best'}) {
+    localRequests.add('$vid:$quality');
+    return _Job(cache.prepareCached(vid, quality: quality), cache);
+  }
+
   @override
   Future<List<LocalEpisode>> localEpisodes() async {
     return Future.wait(
@@ -472,6 +478,168 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'cached episodes auto-next across local qualities; switch and final episode stop correctly',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final asset = await rootBundle.load('assets/verification.cenc.mp4');
+      final runtime = _Runtime(
+        asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
+        Directory.systemTemp.createTempSync('hongguo-local-auto-'),
+        episodes: 3,
+        settings: const AppSettings(prefetchEnabled: false, autoNext: true),
+      );
+      final detail = await runtime.catalog.detail('123');
+      await runtime.libraryCache.rememberDetail(detail);
+      for (final pair in [('123', '720p'), ('124', 'best'), ('125', '720p')]) {
+        final job = runtime.prepare(pair.$1, quality: pair.$2);
+        await job.source;
+        job.release();
+      }
+      final files = await runtime.localEpisodes();
+      final queue = localPlaybackQueue(
+        groupLocalEpisodes(files).single,
+        files.firstWhere((e) => e.vid == '123'),
+      );
+      final downloads = (runtime.dio.httpClientAdapter as _Adapter).downloads;
+      runtime.dio.close(
+        force: true,
+      ); // Every subsequent playback operation must remain offline.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PlayerPage(
+            runtime: runtime,
+            detail: queue.detail,
+            initialPosition: queue.initialPosition,
+            cachedOnly: true,
+            cachedQuality: '720p',
+          ),
+        ),
+      );
+      await tester.pump();
+      final dynamic state = tester.state(find.byType(PlayerPage));
+      final player = state.player as Player;
+      await player.setVolume(0);
+      Future<void> waitReady(int position) async {
+        for (var i = 0; i < 150; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+          if (state.position == position &&
+              !state.preparing &&
+              state.error == null &&
+              player.state.duration > Duration.zero) {
+            return;
+          }
+        }
+        fail('Local episode $position did not become ready: ${state.error}');
+      }
+
+      await waitReady(0);
+      await waitReady(1);
+      await player.pause();
+      expect(state.quality, 'best');
+      expect(state.prefetch.total, 0);
+      await tester.tap(find.byType(Switch));
+      await tester.pump();
+      expect(runtime.settings.autoNext, isFalse);
+      await player.seek(Duration.zero);
+      await player.play();
+      for (var i = 0; i < 100 && !player.state.completed; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(player.state.completed, isTrue);
+      expect(state.position, 1);
+      expect(runtime.localRequests.length, 2);
+      await tester.tap(find.byType(Switch));
+      await tester.pump();
+      await waitReady(2);
+      expect(runtime.settings.autoNext, isTrue);
+      expect(state.quality, '720p');
+      for (var i = 0; i < 100 && !player.state.completed; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(player.state.completed, isTrue);
+      expect(state.position, 2);
+      expect(runtime.localRequests, ['123:720p', '124:best', '125:720p']);
+      expect((runtime.dio.httpClientAdapter as _Adapter).downloads, downloads);
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('本地连播'), findsOneWidget);
+      expect(tester.widget<Switch>(find.byType(Switch)).onChanged, isNotNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+      await runtime.dispose();
+      print(
+        'LOCAL_AUTOPLAY=3 local episodes; 720p→best→720p; switch persisted; final episode stopped; no network',
+      );
+    },
+  );
+
+  testWidgets(
+    'missing cached episode index stops autoplay; removed file never downloads',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final asset = await rootBundle.load('assets/verification.cenc.mp4');
+      final runtime = _Runtime(
+        asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
+        Directory.systemTemp.createTempSync('hongguo-local-gap-'),
+        episodes: 3,
+        settings: const AppSettings(prefetchEnabled: false, autoNext: true),
+      );
+      await runtime.libraryCache.rememberDetail(
+        await runtime.catalog.detail('123'),
+      );
+      for (final vid in ['123', '125']) {
+        final job = runtime.prepare(vid);
+        await job.source;
+        job.release();
+      }
+      final files = await runtime.localEpisodes();
+      final queue = localPlaybackQueue(
+        groupLocalEpisodes(files).single,
+        files.firstWhere((e) => e.vid == '123'),
+      );
+      final downloads = (runtime.dio.httpClientAdapter as _Adapter).downloads;
+      runtime.dio.close(force: true);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PlayerPage(
+            runtime: runtime,
+            detail: queue.detail,
+            cachedOnly: true,
+          ),
+        ),
+      );
+      await tester.pump();
+      final dynamic state = tester.state(find.byType(PlayerPage));
+      final player = state.player as Player;
+      await player.setVolume(0);
+      for (var i = 0; i < 150 && state.playbackNotice == null; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(state.position, 0);
+      expect(state.playbackNotice, contains('第 2 集尚未缓存'));
+      expect(runtime.localRequests, ['123:best']);
+      await runtime.evict('125');
+      await tester.tap(find.widgetWithText(FilledButton, '下一集'));
+      for (var i = 0; i < 100 && state.error == null; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(state.error, isNotNull);
+      expect((runtime.dio.httpClientAdapter as _Adapter).downloads, downloads);
+      expect(runtime.localRequests, ['123:best']);
+      expect((await runtime.cache.entries()).every((e) => !e.inUse), isTrue);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+      await runtime.dispose();
+      print(
+        'LOCAL_AUTOPLAY_GAP=stopped at missing index; removed file failed offline without download; pins released',
+      );
+    },
+  );
+
   testWidgets(
     'macOS system session vault round-trip uses only a disposable test record',
     (tester) async {

@@ -8,6 +8,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../platform/runtime.dart';
 import '../playback/prefetch_window.dart';
+import '../playback/local_playlist.dart';
 import 'settings_page.dart';
 
 class PlayerPage extends StatefulWidget {
@@ -39,7 +40,8 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   PreparationProgress? progress;
   final preparationStages = <String>[];
   Object? error;
-  String? audioNotice;
+  String? audioNotice, playbackNotice;
+  late final String cachedPreference;
   bool preparing = true, autoNext = true;
   late int position;
   int generation = 0;
@@ -63,8 +65,9 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     }
     position = widget.initialPosition;
     final preferences = settingsFor(widget.runtime);
-    quality = widget.cachedQuality ?? preferences.defaultQuality;
-    autoNext = !widget.cachedOnly && preferences.autoNext;
+    cachedPreference = widget.cachedQuality ?? preferences.defaultQuality;
+    quality = cachedPreference;
+    autoNext = preferences.autoNext;
     prefetch = PrefetchWindow(
       runtime: widget.runtime,
       episodes: widget.detail.episodes,
@@ -87,18 +90,29 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         }
       }),
     );
-    subscriptions.add(
-      player.stream.completed.listen((value) {
-        if (value &&
-            autoNext &&
-            mounted &&
-            position + 1 < widget.detail.episodes.length &&
-            !preparing) {
-          _play(position + 1);
-        }
-      }),
-    );
+    subscriptions.add(player.stream.completed.listen(_completed));
     _play(position);
+  }
+
+  void _completed(bool value) {
+    if (!value ||
+        !autoNext ||
+        !mounted ||
+        preparing ||
+        error != null ||
+        position + 1 >= widget.detail.episodes.length) {
+      return;
+    }
+    final current = widget.detail.episodes[position],
+        next = widget.detail.episodes[position + 1];
+    if (widget.cachedOnly && !localEpisodesAreConsecutive(current, next)) {
+      _redraw(
+        () =>
+            playbackNotice = '第 ${current.index + 1} 集尚未缓存，已停止连播。可手动选择其他已缓存分集。',
+      );
+      return;
+    }
+    _play(position + 1);
   }
 
   @override
@@ -122,6 +136,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
       preparing = true;
       error = null;
       audioNotice = null;
+      playbackNotice = null;
       progress = const PreparationProgress('正在准备');
       preparationStages.clear();
     });
@@ -136,6 +151,18 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         await widget.runtime.evict(oldVid, quality: oldQuality);
       }
       if (!mounted || ticket != generation) return;
+      if (widget.cachedOnly) {
+        final files = await (widget.runtime as LocalMediaRuntime)
+            .localEpisodes();
+        if (!mounted || ticket != generation) return;
+        final available = localQualityFor(
+          widget.detail.episodes[selected].vid,
+          files,
+          cachedPreference,
+        );
+        if (available == null) throw StateError('该集本地缓存已不存在，连播已停止；不会自动联网下载。');
+        quality = available;
+      }
       final active = widget.cachedOnly
           ? (widget.runtime as LocalMediaRuntime).prepareLocal(
               widget.detail.episodes[selected].vid,
@@ -198,7 +225,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     );
     if (!mounted) return;
     if (changed == true) {
-      autoNext = !widget.cachedOnly && settingsFor(widget.runtime).autoNext;
+      autoNext = settingsFor(widget.runtime).autoNext;
       prefetch.clear();
       _syncPrefetch();
       _redraw(() {});
@@ -220,6 +247,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         }
       }
     }
+    if (mounted && autoNext && player.state.completed) _completed(true);
   }
 
   @override
@@ -391,6 +419,11 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
             ),
           ),
         ),
+      if (playbackNotice != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: Text(playbackNotice!),
+        ),
       if (audioNotice != null)
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -416,7 +449,16 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
               value: quality,
               underline: const SizedBox(),
               items: widget.cachedOnly
-                  ? [DropdownMenuItem(value: quality, child: Text(quality))]
+                  ? [
+                      DropdownMenuItem(
+                        value: quality,
+                        child: Text(
+                          quality == 'best' || quality == 'auto'
+                              ? '自动'
+                              : quality,
+                        ),
+                      ),
+                    ]
                   : const [
                       DropdownMenuItem(value: 'best', child: Text('自动')),
                       DropdownMenuItem(value: '720p', child: Text('720p')),
@@ -431,10 +473,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
             ),
             const Spacer(),
             const Text('连播'),
-            Switch(
-              value: autoNext,
-              onChanged: widget.cachedOnly ? null : _setAutoNext,
-            ),
+            Switch(value: autoNext, onChanged: _setAutoNext),
           ],
         ),
       ),
@@ -488,11 +527,12 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text('${widget.detail.episodes[index].index}'),
-                if (prefetch.phaseFor(
-                      widget.detail.episodes[index].vid,
-                      quality,
-                    ) ==
-                    PrefetchPhase.ready)
+                if (widget.cachedOnly ||
+                    prefetch.phaseFor(
+                          widget.detail.episodes[index].vid,
+                          quality,
+                        ) ==
+                        PrefetchPhase.ready)
                   const Text('已缓存', style: TextStyle(fontSize: 9)),
               ],
             ),
@@ -528,6 +568,17 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
             ? Column(
                 children: [
                   Expanded(child: _touchVideo()),
+                  if (playbackNotice != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        playbackNotice!,
+                        style: const TextStyle(
+                          color: Colors.amber,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
                   if (audioNotice != null)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -546,6 +597,20 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (widget.cachedOnly)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text(
+                                  '本地连播',
+                                  style: TextStyle(color: Colors.white70),
+                                ),
+                                Switch(
+                                  value: autoNext,
+                                  onChanged: _setAutoNext,
+                                ),
+                              ],
+                            ),
                           if (prefetch.total > 0)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 8),
