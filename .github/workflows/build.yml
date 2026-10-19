@@ -96,6 +96,16 @@ jobs:
           FLUTTER_MACOS_ARM64_ONLY: 'true'
         working-directory: packages/app
         run: flutter build macos --release --target lib/main.dart
+      - name: Lift app sandbox for the CI test build
+        if: matrix.platform == 'macos'
+        run: |
+          # Hosted runners deny the com.apple.cmio.registerassistant mach lookup that
+          # CoreAudio needs during HAL init, which deadlocks mpv's audio thread.
+          # Local debug builds keep the sandbox; this patch lives in the CI checkout only.
+          /usr/libexec/PlistBuddy -c "Delete :com.apple.security.app-sandbox" \
+            packages/app/macos/Runner/DebugProfile.entitlements
+          echo "== resulting entitlements =="
+          /usr/libexec/PlistBuddy -c "Print" packages/app/macos/Runner/DebugProfile.entitlements
       - name: Mac native playback and UI verification
         if: matrix.platform == 'macos'
         working-directory: packages/app
