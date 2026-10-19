@@ -1,0 +1,9 @@
+test_android_secret_restore_fails_closed_and_writes_private_file (test_release.ReleaseContractTest) ... ok
+test_checksums_use_portable_asset_names (test_release.ReleaseContractTest) ... ok
+test_release_gate_rejects_missing_installers (test_release.ReleaseContractTest) ... ok
+test_tag_must_match_actual_app_version (test_release.ReleaseContractTest) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.010s
+
+OK

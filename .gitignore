@@ -18,3 +18,8 @@ artifacts/
 *.pfx
 *.mobileprovision
 *.provisionprofile
+
+# CI packaging and Python bytecode
+dist/
+__pycache__/
+*.pyc

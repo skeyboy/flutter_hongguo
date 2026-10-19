@@ -1,0 +1,81 @@
+name: Publish installable release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      release-build: true
+    secrets: inherit
+  ios-signed:
+    needs: build
+    if: vars.IOS_SIGNING_ENABLED == 'true'
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/flutter
+      - name: Restore distribution identity and provisioning profile
+        env:
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+          IOS_EXPORT_OPTIONS_BASE64: ${{ secrets.IOS_EXPORT_OPTIONS_BASE64 }}
+        run: python3 tool/ci/setup_ios_signing.py
+      - name: Build signed device-installable IPA
+        working-directory: packages/app
+        run: flutter build ipa --release --export-options-plist="$RUNNER_TEMP/ExportOptions.plist"
+      - name: Package IPA
+        run: |
+          mkdir -p dist
+          version=$(python3 tool/ci/release_meta.py version)
+          cp packages/app/build/ios/ipa/*.ipa "dist/Hongguo-$version-ios-arm64.ipa"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-ios-signed
+          path: dist/*.ipa
+          if-no-files-found: error
+      - name: Remove temporary signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/hongguo-signing.keychain-db" || true
+          rm -f "$RUNNER_TEMP/signing.p12" "$RUNNER_TEMP/app.mobileprovision" "$RUNNER_TEMP/ExportOptions.plist"
+  publish:
+    needs: [build, ios-signed]
+    if: ${{ !cancelled() && needs.build.result == 'success' && (needs.ios-signed.result == 'success' || needs.ios-signed.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: dist
+      - name: Verify required installers and describe iOS status
+        env:
+          IOS_SIGNED: ${{ needs.ios-signed.result == 'success' }}
+        run: python3 tool/ci/validate_release.py
+      - name: Generate checksums and release manifest
+        run: python3 tool/ci/release_meta.py checksums dist
+      - name: Publish completed assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --target "$GITHUB_SHA" --draft --title "Hongguo $GITHUB_REF_NAME" --notes-file build/release-notes.md
+          fi
+          gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --notes-file build/release-notes.md

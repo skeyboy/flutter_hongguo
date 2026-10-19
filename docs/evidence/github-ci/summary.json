@@ -1,0 +1,35 @@
+{
+  "version": "0.2.3+5",
+  "gitSubmodule": {
+    "url": "https://github.com/sunnysky123/hongguo-web.git",
+    "path": "references/hongguo-web",
+    "commit": "2d88d4855d679cbed59c9237e1672bc5decf3d57"
+  },
+  "workspaceTests": {
+    "core": 113,
+    "api": 28,
+    "app": 48
+  },
+  "packagingContractTests": 4,
+  "macosNativeTests": 3,
+  "portableVectorsPerTarget": 103,
+  "mediaSamplesDecrypted": 84,
+  "actionlint": "passed",
+  "localPackages": {
+    "macos": [
+      "DMG",
+      "ZIP"
+    ],
+    "android": [
+      "Hongguo-0.2.3-android-arm64-v8a.apk",
+      "Hongguo-0.2.3-android-armeabi-v7a.apk",
+      "Hongguo-0.2.3-android-x86_64.apk"
+    ]
+  },
+  "androidStableCertificateSha256": "ca20e0760134e1dfffbffa1e40e845292061f438a4fcee9420b11dda9f4f5b56",
+  "githubAuthentication": "not configured",
+  "remoteCIExecuted": false,
+  "remoteReleasePublished": false,
+  "iOSInstallableIpa": "requires Apple distribution signing secrets",
+  "localAssetManifest": "dist/release-manifest.json"
+}

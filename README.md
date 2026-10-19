@@ -11,7 +11,7 @@ Flutter UI → 共享 Dart 核心 → 本地普通 MP4 → 原生播放器的第
 
 原生 App 不运行 Node 或 ffmpeg。Node/ffmpeg 仅用于开发机的离线对拍和测试素材生成。实际内容接口需可用上游返回，不保证所有格式/内容可播放。
 
-本轮验证：42 项 App 单元/页面测试、3 项 macOS 原生离线集成通过。此前共享核心 113 项、API 28 项通过。此前 1 项真实预缓存验收以及 macOS 与 iOS 模拟器实际播放/seek 集成通过；Android 调试包、macOS 与 Web 均构建成功。iOS 模拟器音频输出有设备初始化告警，真机声音仍需独立验收。当前 Mac 已进一步通过真实上游第 1 集 1080p 播放与 seek POC。
+本轮验证：48 项 App 单元/页面测试、3 项 macOS 原生离线集成通过。此前共享核心 113 项、API 28 项通过。此前 1 项真实预缓存验收以及 macOS 与 iOS 模拟器实际播放/seek 集成通过；Android 调试包、macOS 与 Web 均构建成功。iOS 模拟器音频输出有设备初始化告警，真机声音仍需独立验收。当前 Mac 已进一步通过真实上游第 1 集 1080p 播放与 seek POC。
 
 Android 调试包：`packages/app/build/app/outputs/flutter-apk/app-debug.apk`。
 
@@ -23,6 +23,12 @@ Android 调试包：`packages/app/build/app/outputs/flutter-apk/app-debug.apk`�
 - [分析结论与代码目录对应表](docs/project-map.md)：每项流程对应的源码、测试与工具。
 - 主工程源码：[共享核心](packages/core/README.md)、[API/缓存](packages/api/README.md)、[Flutter App](packages/app/README.md)。
 - [持久化验收证据](docs/evidence/README.md)：清理 build 后仍保留的结果快照。
+
+## 0.2.3：横向筛选与 GitHub 发布
+
+发现/分类使用入口下方的统一横向面板，点击即切换，连续选择 250ms 合并请求。[筛选实现与截图](docs/design/horizontal-filter-panel.md)。
+
+已接入上游 submodule 并配置五端 CI、安装包与 Release 附件；[私有仓库上传与签名说明](docs/github-release.md)。
 
 ## 0.2.2：本地剧目库
 
@@ -60,7 +66,7 @@ Android 调试包：`packages/app/build/app/outputs/flutter-apk/app-debug.apk`�
 
 ## 当前 Mac 独立 App
 
-已构建并启动 [macOS arm64 Release App](artifacts/macos/20261019-182611/Hongguo.app)，以及 [ZIP](artifacts/macos/20261019-182611/Hongguo-macos-arm64.zip)。不需要另启 Node 或开发服务。
+已构建并启动 [macOS arm64 Release App](artifacts/macos/20261019-185523/Hongguo.app)，以及 [ZIP](artifacts/macos/20261019-185523/Hongguo-macos-arm64.zip)。不需要另启 Node 或开发服务。
 
 算法 103 个原生向量通过；真实《十年恩，一生还》第 1 集已完成下载、本地解密、1080×1920 原生播放、音轨识别和 10 秒 seek。详见 [Mac 独立 App 验收报告](docs/macos-independent-app-poc.md)。
 

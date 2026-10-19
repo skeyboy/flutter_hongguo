@@ -2,7 +2,12 @@
 
 本项目的分析文档、主工程代码、参考实现与验收证据均集中在 `flutter_hongguo/` 内。日常开发和运行以根 workspace 的 `packages/core`、`packages/api`、`packages/app` 为主。
 
-## 当前本地剧目库
+## 当前筛选与发布
+
+- [横向筛选面板实现](design/horizontal-filter-panel.md)
+- [私有仓库、五端 CI 与 Release](github-release.md)
+
+## 本地剧目库
 
 - [本地缓存按剧目展示与验证](local-library-grouping.md)
 - [实施前设计](design/local-library-grouping.md)

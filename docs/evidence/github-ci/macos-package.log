@@ -1,0 +1,2 @@
+created: /Users/lee/Desktop/flutter_hongguo/dist/Hongguo-0.2.3-macos-arm64.dmghdiutil: WARNING: 'hdiutil create -volname -format ...' is deprecated. Please use 'diskutil image create from/blank --volumeName --format ...' instead.
+

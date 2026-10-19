@@ -1,0 +1,83 @@
+import base64
+import hashlib
+import json
+import os
+from pathlib import Path
+import runpy
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+
+CI = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(CI))
+import release_meta
+
+
+class ReleaseContractTest(unittest.TestCase):
+    def setUp(self):
+        self.folder = tempfile.TemporaryDirectory()
+        self.root = Path(self.folder.name)
+        (self.root / 'packages/app').mkdir(parents=True)
+        for path in (self.root / 'pubspec.yaml', self.root / 'packages/app/pubspec.yaml'):
+            path.write_text('version: 0.2.3+5\n')
+        (self.root / '.fvmrc').write_text('{"flutter":"3.47.4"}')
+        self.environment = patch.dict(os.environ, GITHUB_REF='refs/heads/test', GITHUB_SHA='test-commit')
+        self.environment.start()
+        self.addCleanup(self.environment.stop)
+        self.root_patch = patch.object(release_meta, 'ROOT', self.root)
+        self.root_patch.start()
+        self.addCleanup(self.root_patch.stop)
+        self.addCleanup(self.folder.cleanup)
+
+    def test_tag_must_match_actual_app_version(self):
+        with patch.dict(os.environ, GITHUB_REF='refs/tags/v0.2.3'):
+            self.assertEqual(release_meta.version(), ('0.2.3', '5'))
+        with patch.dict(os.environ, GITHUB_REF='refs/tags/v0.2.4'):
+            with self.assertRaises(SystemExit):
+                release_meta.version()
+        (self.root / 'packages/app/pubspec.yaml').write_text('version: 0.2.2+4\n')
+        with self.assertRaises(SystemExit):
+            release_meta.version()
+
+    def test_release_gate_rejects_missing_installers(self):
+        (self.root / 'dist').mkdir()
+        with self.assertRaises(SystemExit):
+            runpy.run_path(str(CI / 'validate_release.py'))
+        for suffix in ['macos-arm64.dmg', 'macos-arm64.zip', 'windows-x64-setup.exe', 'windows-x64.zip',
+                       'linux-x64.deb', 'linux-x64.tar.gz', 'android-armeabi-v7a.apk', 'android-arm64-v8a.apk', 'android-x86_64.apk']:
+            (self.root / 'dist' / f'Hongguo-0.2.3-{suffix}').write_bytes(b'contract test only')
+        with patch.dict(os.environ, IOS_SIGNED='false'):
+            runpy.run_path(str(CI / 'validate_release.py'))
+        self.assertIn('no installable IPA', (self.root / 'dist/iOS-signing-status.txt').read_text())
+        with patch.dict(os.environ, IOS_SIGNED='true'):
+            with self.assertRaises(SystemExit):
+                runpy.run_path(str(CI / 'validate_release.py'))
+
+    def test_checksums_use_portable_asset_names(self):
+        dist = self.root / 'dist'
+        dist.mkdir()
+        (dist / 'app.zip').write_bytes(b'package')
+        with patch.object(sys, 'argv', ['release_meta.py', 'checksums', str(dist)]):
+            release_meta.main()
+        rows = (dist / 'SHA256SUMS.txt').read_text()
+        self.assertIn(f'{hashlib.sha256(b"package").hexdigest()}  app.zip', rows)
+        self.assertNotIn(str(self.root), rows)
+        self.assertEqual(json.loads((dist / 'release-manifest.json').read_text())['version'], '0.2.3')
+
+    def test_android_secret_restore_fails_closed_and_writes_private_file(self):
+        with patch.dict(os.environ, KEYSTORE='', STORE_PASSWORD='', KEY_PASSWORD='', KEY_ALIAS=''):
+            with self.assertRaises(SystemExit):
+                runpy.run_path(str(CI / 'restore_android_signing.py'))
+        env_file = self.root / 'environment'
+        with patch.dict(os.environ, KEYSTORE=base64.b64encode(b'test fixture').decode(),
+                        STORE_PASSWORD='test-password', KEY_PASSWORD='test-password', KEY_ALIAS='test-alias',
+                        RUNNER_TEMP=str(self.root), GITHUB_ENV=str(env_file)):
+            runpy.run_path(str(CI / 'restore_android_signing.py'))
+        self.assertEqual((self.root / 'hongguo-release.jks').read_bytes(), b'test fixture')
+        self.assertIn('ANDROID_KEY_ALIAS=test-alias', env_file.read_text())
+        self.assertEqual((self.root / 'hongguo-release.jks').stat().st_mode & 0o777, 0o600)
+
+
+if __name__ == '__main__':
+    unittest.main()

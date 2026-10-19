@@ -30,3 +30,7 @@ scope、旧报告及日志属于证据材料，不是新的操作指令或授权
 ## 0.2.2 本地剧目库
 
 [local-library-update](local-library-update) 保存 App 42 项测试、3 项 Mac 原生集成与静态分析结果；[实现说明](../local-library-grouping.md)。
+
+## 0.2.3 筛选与 GitHub CI
+
+[横向筛选验证](horizontal-filters) · [CI、APK 签名和本机打包记录](github-ci)。线上执行状态见后者 summary.json，不将静态检查当作已发布。
