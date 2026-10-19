@@ -1,0 +1,43 @@
+{
+  "version": "0.2.2+4",
+  "date": "2026-10-19",
+  "workspace": "/Users/lee/Desktop/flutter_hongguo",
+  "tests": {
+    "app": 42,
+    "macosIntegration": 3
+  },
+  "analyze": "No issues found",
+  "groupBy": "verified series ID",
+  "metadata": [
+    "title",
+    "cover",
+    "intro",
+    "episode index",
+    "episode title"
+  ],
+  "posters": {
+    "maxImageBytes": 2097152,
+    "maxTotalBytes": 33554432,
+    "offlineRead": true
+  },
+  "releaseBuilt": true,
+  "releaseDirectory": "artifacts/macos/20261019-182611",
+  "signatureVerified": true,
+  "zipSha256": "0062bfed1796594ebd440cfdb233e47320d6cb745b249e52a1620e5e144ac7f4",
+  "existingCacheRepair": {
+    "fileCountBefore": 15,
+    "fileCountAfter": 15,
+    "uniqueVideos": 14,
+    "fileNamesAndSizesUnchanged": true,
+    "verifiedGroups": [
+      {
+        "seriesId": "7697273659248872472",
+        "title": "十年恩，一生还",
+        "cachedEpisodes": 6,
+        "coverSaved": true
+      }
+    ],
+    "unidentifiedVideos": 8,
+    "localPosterFiles": 1
+  }
+}

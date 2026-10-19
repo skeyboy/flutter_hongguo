@@ -1,0 +1,14 @@
+{
+  "archivedFiles": 35,
+  "sha256Verified": true,
+  "localLinksChecked": 105,
+  "brokenLinks": [],
+  "businessCodeChanged": false,
+  "testsRerun": false,
+  "primaryWorkspace": [
+    "packages/core",
+    "packages/api",
+    "packages/app"
+  ],
+  "referenceImport": "imports/hongguo_web_1_1_1"
+}

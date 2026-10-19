@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-19",
+  "flutter": "3.47.4",
+  "dart": "3.13.3",
+  "implemented": [
+    "catalog",
+    "search",
+    "genres",
+    "episodes",
+    "signing",
+    "url_decode",
+    "spade_v1",
+    "stream_download",
+    "mp4_cenc_ctr",
+    "cache",
+    "flutter_ui",
+    "native_file_player"
+  ],
+  "tests": {
+    "core": 111,
+    "api": 19,
+    "flutter_widget": 4,
+    "macos_playback_integration": 1,
+    "ios_simulator_playback_integration": 1
+  },
+  "oracle": {
+    "six_header_cases": 96,
+    "native_aot_vectors": 103,
+    "dart2js_vectors": 103
+  },
+  "media": {
+    "video_codec": "h264",
+    "audio_codec": "aac",
+    "width": 160,
+    "height": 288,
+    "video_samples": 18,
+    "audio_samples": 66,
+    "encrypted_samples_remaining": 0,
+    "ffmpeg_full_decode_errors": 0
+  },
+  "macos": {
+    "video_decode": true,
+    "audio_track_recognized": true,
+    "seek": true,
+    "audio_output_warning": false,
+    "debug_build": true
+  },
+  "ios_simulator": {
+    "video_decode": true,
+    "audio_track_recognized": true,
+    "seek": true,
+    "audio_output_warning": true,
+    "physical_device_audio_verified": false
+  },
+  "web_release_build": true,
+  "upstream_live_requests_verified": false,
+  "physical_device_install_performed": false,
+  "android_debug_build": true,
+  "android_apk": "packages/app/build/app/outputs/flutter-apk/app-debug.apk"
+}

@@ -1,0 +1,552 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:dio/dio.dart';
+import 'package:hongguo_core/hongguo_core.dart';
+import 'package:hongguo_core/hongguo_native.dart';
+
+import 'video_model_client.dart';
+
+enum MediaStage {
+  queued,
+  resolving,
+  downloading,
+  decrypting,
+  validating,
+  ready,
+}
+
+class MediaProgress {
+  final MediaStage stage;
+  final int received, total;
+  const MediaProgress(this.stage, {this.received = 0, this.total = 0});
+  double? get fraction => total > 0 ? received / total : null;
+}
+
+class MediaCancelled implements Exception {
+  const MediaCancelled();
+  @override
+  String toString() => '准备已取消';
+}
+
+class MediaPreparation {
+  final _result = Completer<String>();
+  final void Function(MediaProgress)? onProgress;
+  void Function()? _release;
+  Future<String> get result => _result.future;
+  MediaPreparation(this.onProgress);
+  void cancel() {
+    if (_result.isCompleted) return;
+    _release?.call();
+    _result.completeError(const MediaCancelled());
+  }
+}
+
+class _Job {
+  final String key, vid, quality;
+  final token = CancelToken();
+  final leases = <MediaPreparation>{};
+  bool background;
+  MediaProgress? latest;
+  _Job(this.key, this.vid, this.quality, this.background);
+  void progress(MediaProgress p) {
+    latest = p;
+    for (final lease in leases.toList()) {
+      // UI observation cannot corrupt a download or make it fail.
+      try {
+        lease.onProgress?.call(p);
+      } catch (_) {}
+    }
+  }
+}
+
+/// Streams ciphertext to private working files. Only verified, atomically
+/// renamed files with a size manifest become cache hits. Same-key work shares
+/// a job, while each consumer owns an independent cancellation lease.
+class MediaCache {
+  final Directory directory;
+  final Dio dio;
+  final Future<VideoTrack> Function(String vid, String quality) resolve;
+  int maxFiles, maxBytes, maxConcurrent;
+  final _jobs = <String, _Job>{};
+  final _pins = <String, int>{};
+  final _pinSizes = <String, int>{};
+  final _reserved = <_Job, int>{};
+  final _pending = <_Job>[];
+  final _active = <_Job>{};
+  bool _closed = false;
+  int _serial = 0;
+  MediaCache({
+    required this.directory,
+    required this.dio,
+    required this.resolve,
+    this.maxFiles = 30,
+    this.maxBytes = 512 * 1024 * 1024,
+    this.maxConcurrent = 2,
+  });
+  String _key(String vid, String quality) {
+    if (!RegExp(r'^\d{1,30}$').hasMatch(vid) ||
+        !RegExp(r'^(best|auto|\d{3,4}p)$').hasMatch(quality)) {
+      throw ArgumentError('Invalid video ID or quality');
+    }
+    return '${vid}_$quality';
+  }
+
+  MediaPreparation prepare(
+    String vid, {
+    String quality = 'best',
+    void Function(MediaProgress)? onProgress,
+    bool background = false,
+  }) {
+    if (_closed) throw StateError('Media cache is closed');
+    final key = _key(vid, quality);
+    final lease = MediaPreparation(onProgress);
+    var job = _jobs[key];
+    final isNew = job == null;
+    job ??= _Job(key, vid, quality, background);
+    if (!background) {
+      job.background = false;
+      _reserved.remove(job);
+    }
+    _jobs[key] = job;
+    job.leases.add(lease);
+    final active = job;
+    lease._release = () {
+      active.leases.remove(lease);
+      if (active.leases.isEmpty) {
+        active.token.cancel('No active consumers');
+        if (identical(_jobs[key], active)) _jobs.remove(key);
+        _pending.remove(active);
+        _pump();
+      }
+    };
+    if (isNew) {
+      active.progress(const MediaProgress(MediaStage.queued));
+      _pending.add(active);
+    } else if (active.latest != null) {
+      try {
+        onProgress?.call(active.latest!);
+      } catch (_) {
+        /* observer only */
+      }
+    }
+    _pump();
+    return lease;
+  }
+
+  /// Pins before any asynchronous validation. Never resolves or downloads.
+  MediaPreparation prepareCached(String vid, {String quality = 'best'}) {
+    if (_closed) throw StateError('Media cache is closed');
+    final output = File('${directory.path}/${_key(vid, quality)}.mp4');
+    final lease = MediaPreparation(null);
+    _pins[output.path] = (_pins[output.path] ?? 0) + 1;
+    lease._release = () {
+      final count = (_pins[output.path] ?? 1) - 1;
+      if (count <= 0) {
+        _pins.remove(output.path);
+        _pinSizes.remove(output.path);
+      } else {
+        _pins[output.path] = count;
+      }
+      lease._release = null;
+    };
+    unawaited(() async {
+      try {
+        if (!await _cacheHit(output, File('${output.path}.json'))) {
+          throw StateError('本地缓存已失效，请返回列表重新下载。');
+        }
+        if (lease._result.isCompleted) return;
+        _pinSizes[output.path] = output.lengthSync();
+        lease._result.complete(output.path);
+      } catch (error, stack) {
+        release(lease);
+        if (!lease._result.isCompleted) {
+          lease._result.completeError(error, stack);
+        }
+      }
+    }());
+    return lease;
+  }
+
+  void _pump() {
+    if (_closed) return;
+    _pending.removeWhere((job) => job.token.isCancelled || job.leases.isEmpty);
+    while (_active.length < maxConcurrent && _pending.isNotEmpty) {
+      var index = _pending.indexWhere((job) => !job.background);
+      if (index < 0) {
+        final backgroundLimit = maxConcurrent > 1 ? maxConcurrent - 1 : 1;
+        if (_active.where((job) => job.background).length >= backgroundLimit) {
+          break;
+        }
+        index = 0;
+      }
+      final job = _pending.removeAt(index);
+      _active.add(job);
+      unawaited(
+        _run(job).whenComplete(() {
+          _active.remove(job);
+          _pump();
+        }),
+      );
+    }
+  }
+
+  Future<void> configure({
+    required int files,
+    required int bytes,
+    required int concurrency,
+  }) async {
+    if (files < 1 || bytes < 1 || concurrency < 1 || concurrency > 3) {
+      throw ArgumentError('Invalid cache limits');
+    }
+    maxFiles = files;
+    maxBytes = bytes;
+    maxConcurrent = concurrency;
+    _pump();
+    await prune();
+  }
+
+  void cancelBackground() {
+    for (final job in _jobs.values.where((j) => j.background).toList()) {
+      job.token.cancel('Background prefetch stopped');
+      _pending.remove(job);
+      if (identical(_jobs[job.key], job)) _jobs.remove(job.key);
+      for (final lease in job.leases.toList()) {
+        if (!lease._result.isCompleted) {
+          lease._result.completeError(const MediaCancelled());
+        }
+      }
+    }
+    _pump();
+  }
+
+  void close() {
+    _closed = true;
+    for (final job in _jobs.values.toList()) {
+      job.token.cancel('Cache disposed');
+      for (final lease in job.leases.toList()) {
+        if (!lease._result.isCompleted) {
+          lease._result.completeError(const MediaCancelled());
+        }
+      }
+    }
+    _pending.clear();
+    _jobs.clear();
+  }
+
+  Future<void> _run(_Job job) async {
+    String? working;
+    try {
+      _check(job);
+      await directory.create(recursive: true);
+      final output = File('${directory.path}/${job.key}.mp4');
+      final manifest = File('${output.path}.json');
+      final cached = await _cacheHit(output, manifest);
+      if (!cached) {
+        _check(job);
+        job.progress(const MediaProgress(MediaStage.resolving));
+        final track = await resolve(job.vid, job.quality);
+        _check(job);
+        if (job.background && maxBytes > 0) {
+          _reserved[job] = track.size > 0 ? track.size : 0;
+          if (_pinSizes.values.fold<int>(0, (a, b) => a + b) +
+                  _reserved.values.fold<int>(0, (a, b) => a + b) >
+              maxBytes) {
+            _reserved.remove(job);
+            throw StateError('缓存空间不足，已暂停该集预缓存');
+          }
+        }
+        MediaUrlDecoder.checked(track.url.toString(), [
+          'qznovelvod.com',
+          'fqnovelvod.com',
+          'douyinvod.com',
+        ]);
+        working =
+            '${output.path}.${DateTime.now().microsecondsSinceEpoch}.${_serial++}.part';
+        job.progress(const MediaProgress(MediaStage.downloading));
+        await dio.download(
+          track.url.toString(),
+          working,
+          cancelToken: job.token,
+          deleteOnError: true,
+          options: Options(
+            followRedirects: false,
+            headers: {'User-Agent': 'Mozilla/5.0'},
+            receiveTimeout: const Duration(seconds: 120),
+          ),
+          onReceiveProgress: (received, total) {
+            if (job.background && maxBytes > 0) {
+              if (received > (_reserved[job] ?? 0)) _reserved[job] = received;
+              final allocated =
+                  _pinSizes.values.fold<int>(0, (a, b) => a + b) +
+                  _reserved.values.fold<int>(0, (a, b) => a + b);
+              if (allocated > maxBytes) {
+                job.token.cancel('Background cache budget exceeded');
+              }
+            }
+            job.progress(
+              MediaProgress(
+                MediaStage.downloading,
+                received: received,
+                total: total,
+              ),
+            );
+          },
+        );
+        _check(job);
+        if (track.encrypted) {
+          job.progress(const MediaProgress(MediaStage.decrypting));
+          await FileDecryptor.decrypt(working, track.spadeA);
+        }
+        _check(job);
+        job.progress(const MediaProgress(MediaStage.validating));
+        await FileDecryptor.validateClear(working);
+        _check(job);
+        final length = await File(working).length();
+        final temporaryManifest = File('$working.json');
+        await temporaryManifest.writeAsString(
+          jsonEncode({
+            'version': 1,
+            'size': length,
+            'vid': job.vid,
+            'quality': job.quality,
+          }),
+          flush: true,
+        );
+        // No await between cancellation check and atomic file publication.
+        _check(job);
+        if (output.existsSync()) output.deleteSync();
+        File(working).renameSync(output.path);
+        if (manifest.existsSync()) manifest.deleteSync();
+        temporaryManifest.renameSync(manifest.path);
+        working = null;
+      }
+      _check(job);
+      if (identical(_jobs[job.key], job)) _jobs.remove(job.key);
+      _reserved.remove(job);
+      // A ready result stays pinned while its consumer/player is using it.
+      for (final lease in job.leases.toList()) {
+        if (lease._result.isCompleted) continue;
+        _pins[output.path] = (_pins[output.path] ?? 0) + 1;
+        _pinSizes[output.path] = output.lengthSync();
+        lease._release = () {
+          final count = (_pins[output.path] ?? 1) - 1;
+          if (count <= 0) {
+            _pins.remove(output.path);
+            _pinSizes.remove(output.path);
+          } else {
+            _pins[output.path] = count;
+          }
+          lease._release = null;
+        };
+        lease._result.complete(output.path);
+      }
+      job.progress(const MediaProgress(MediaStage.ready));
+      await prune();
+    } catch (error, stack) {
+      if (identical(_jobs[job.key], job)) _jobs.remove(job.key);
+      for (final lease in job.leases.toList()) {
+        if (!lease._result.isCompleted) {
+          lease._result.completeError(
+            job.token.isCancelled ? const MediaCancelled() : error,
+            stack,
+          );
+        }
+      }
+    } finally {
+      _reserved.remove(job);
+      if (working != null) {
+        for (final path in [working, '$working.json']) {
+          try {
+            await File(path).delete();
+          } on FileSystemException {
+            /* already removed */
+          }
+        }
+      }
+      if (identical(_jobs[job.key], job)) _jobs.remove(job.key);
+    }
+  }
+
+  static void _check(_Job job) {
+    if (job.token.isCancelled || job.leases.isEmpty) {
+      throw const MediaCancelled();
+    }
+  }
+
+  Future<bool> _cacheHit(File file, File manifest) async {
+    try {
+      final record = jsonDecode(await manifest.readAsString()) as Map;
+      if (record['version'] != 1 ||
+          record['size'] != await file.length() ||
+          (record['size'] as int) <= 0) {
+        return false;
+      }
+      await FileDecryptor.validateClear(file.path);
+      await file.setLastModified(DateTime.now());
+      return true;
+    } on Object {
+      return false;
+    }
+  }
+
+  /// Release a ready lease on player disposal. Call release() for ready pins.
+  void release(MediaPreparation lease) {
+    lease._release?.call();
+    lease._release = null;
+  }
+
+  Future<void> prune() async {
+    if (!await directory.exists()) return;
+    final files = await directory
+        .list()
+        .where((f) => f is File && f.path.endsWith('.mp4'))
+        .cast<File>()
+        .toList();
+    final stats = <String, FileStat>{};
+    for (final file in files) {
+      try {
+        final stat = await file.stat();
+        if (stat.type == FileSystemEntityType.file) stats[file.path] = stat;
+      } on FileSystemException {
+        /* concurrently removed */
+      }
+    }
+    files.removeWhere((file) => !stats.containsKey(file.path));
+    files.sort(
+      (a, b) => stats[b.path]!.modified.compareTo(stats[a.path]!.modified),
+    );
+    bool protected(File f) =>
+        _pins.containsKey(f.path) ||
+        _jobs.values.any((job) => f.path == '${directory.path}/${job.key}.mp4');
+    var kept = files.where(protected).length;
+    var keptBytes = files
+        .where(protected)
+        .fold<int>(0, (sum, f) => sum + stats[f.path]!.size);
+    for (final file in files.where((f) => !protected(f))) {
+      final size = stats[file.path]!.size;
+      if ((maxFiles > 0 && kept >= maxFiles) ||
+          (maxBytes > 0 && keptBytes + size > maxBytes)) {
+        try {
+          await file.delete();
+          await File('${file.path}.json').delete();
+        } on FileSystemException {
+          /* concurrent cleanup */
+        }
+      } else {
+        kept++;
+        keptBytes += size;
+      }
+    }
+  }
+
+  Future<void> evict(String vid, {String quality = 'best'}) async {
+    final path = '${directory.path}/${_key(vid, quality)}.mp4';
+    if (_pins.containsKey(path)) return;
+    for (final name in [path, '$path.json']) {
+      try {
+        await File(name).delete();
+      } on FileSystemException {
+        /* absent */
+      }
+    }
+  }
+
+  /// Lists only atomically published MP4s with a matching completion manifest.
+  Future<List<CachedMediaEntry>> entries() async {
+    final values = <CachedMediaEntry>[];
+    if (!await directory.exists()) return values;
+    await for (final entity in directory.list()) {
+      if (entity is! File || !entity.path.endsWith('.mp4')) continue;
+      try {
+        final record =
+            jsonDecode(await File('${entity.path}.json').readAsString()) as Map;
+        final vid = record['vid'] as String,
+            quality = record['quality'] as String;
+        if (entity.path != '${directory.path}/${_key(vid, quality)}.mp4') {
+          continue;
+        }
+        final stat = await entity.stat();
+        if (record['version'] != 1 ||
+            record['size'] != stat.size ||
+            stat.size <= 0) {
+          continue;
+        }
+        values.add(
+          CachedMediaEntry(
+            vid,
+            quality,
+            stat.size,
+            stat.modified,
+            _pins.containsKey(entity.path) ||
+                _jobs.containsKey(_key(vid, quality)),
+          ),
+        );
+      } catch (_) {
+        /* Incomplete, removed or invalid entries are not ready. */
+      }
+    }
+    values.sort((a, b) => b.modified.compareTo(a.modified));
+    return values;
+  }
+
+  Future<int> cacheBytes() async {
+    if (!await directory.exists()) return 0;
+    var total = 0;
+    await for (final file in directory.list()) {
+      if (file is File && file.path.endsWith('.mp4')) {
+        total += await file.length();
+      }
+    }
+    return total;
+  }
+
+  Future<void> clear() async {
+    if (!await directory.exists()) return;
+    await for (final file in directory.list()) {
+      if (file is! File) continue;
+      if (file.path.endsWith('.part') || file.path.endsWith('.part.json')) {
+        final active = _jobs.values.any(
+          (job) => file.path.startsWith('${directory.path}/${job.key}.mp4.'),
+        );
+        if (!active) {
+          try {
+            await file.delete();
+          } on FileSystemException {
+            /* already removed */
+          }
+        }
+        continue;
+      }
+      final target = file.path.endsWith('.json')
+          ? file.path.substring(0, file.path.length - 5)
+          : file.path;
+      if (_pins.containsKey(target) ||
+          _jobs.keys.any((key) => target == '${directory.path}/$key.mp4')) {
+        continue;
+      }
+      if (file.path.endsWith('.mp4') || file.path.endsWith('.mp4.json')) {
+        try {
+          await file.delete();
+        } on FileSystemException {
+          /* concurrently removed */
+        }
+      }
+    }
+  }
+}
+
+class CachedMediaEntry {
+  final String vid, quality;
+  final int bytes;
+  final DateTime modified;
+  final bool inUse;
+  const CachedMediaEntry(
+    this.vid,
+    this.quality,
+    this.bytes,
+    this.modified,
+    this.inUse,
+  );
+}

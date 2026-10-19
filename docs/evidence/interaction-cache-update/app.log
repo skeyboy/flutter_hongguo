@@ -1,0 +1,36 @@
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart
+00:00 +0: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: feed order, fields and cursor survive restart; keys and expiry are isolated
+00:00 +1: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:00 +2: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +3: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +4: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +5: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +6: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +7: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +8: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +9: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +10: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +11: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +12: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +13: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +14: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +15: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:01 +16: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:01 +17: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:01 +18: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:01 +19: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:01 +20: /Users/lee/Desktop/flutter_hongguo/packages/app/test/widget_test.dart: mobile catalog → series → episodes without layout exceptions
+00:01 +21: /Users/lee/Desktop/flutter_hongguo/packages/app/test/widget_test.dart: mobile catalog → series → episodes without layout exceptions
+00:02 +22: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:02 +23: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:02 +24: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:02 +25: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:02 +26: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:03 +27: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:03 +28: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:03 +29: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:03 +30: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: theme applies immediately, preserves draft and rolls back failed save
+00:03 +31: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: theme applies immediately, preserves draft and rolls back failed save
+00:04 +32: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: settings lists local episodes, protects used file and supports deletion
+00:04 +33: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: cache and playback switches and limits save; disabled auto paging stays manual
+00:05 +34: All tests passed!

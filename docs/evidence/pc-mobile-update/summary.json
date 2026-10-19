@@ -1,0 +1,49 @@
+{
+  "date": "2026-10-19",
+  "appVersion": "0.2.0+2",
+  "mainWorkspace": [
+    "packages/core",
+    "packages/api",
+    "packages/app"
+  ],
+  "design": "docs/design/pc-mobile-ui.md",
+  "tests": {
+    "core": 113,
+    "api": 25,
+    "app": 22,
+    "macosOfflineIntegration": 3,
+    "macosLivePrefetch": 1
+  },
+  "prefetchRange": [
+    3,
+    4,
+    5
+  ],
+  "defaultPrefetch": 3,
+  "liveCachedEpisodes": 3,
+  "liveSwitchMs": 99,
+  "liveSwitchStages": [
+    "正在排队",
+    "已就绪"
+  ],
+  "testedViewports": [
+    [
+      390,
+      844
+    ],
+    [
+      800,
+      900
+    ],
+    [
+      1280,
+      900
+    ]
+  ],
+  "systemVaultRoundTrip": true,
+  "releaseBuilt": true,
+  "releaseDirectory": "artifacts/macos/20261019-173741",
+  "releaseVersion": "0.2.0",
+  "releaseSignatureVerified": true,
+  "releaseZipSha256": "5f3ea2e99fc64550d4eef5c060b7656f8e31e6866321ce8ff69352eff922b7c5"
+}

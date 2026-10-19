@@ -1,0 +1,20 @@
+.dart_tool/
+build/
+.fvm/
+.flutter-plugins-dependencies
+**/ephemeral/
+**/.DS_Store
+.env
+
+artifacts/
+
+# Local signing material and personal configuration
+.env.*
+!.env.example
+**/key.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.mobileprovision
+*.provisionprofile

@@ -1,0 +1,33 @@
+{
+  "platform": "macos",
+  "nativeDart": true,
+  "localServerUsed": false,
+  "steps": [
+    {
+      "stage": "catalog",
+      "items": 17
+    },
+    {
+      "stage": "episodes",
+      "count": 48
+    },
+    {
+      "stage": "video_model",
+      "encrypted": true,
+      "definition": "1080p",
+      "size": 9763991
+    },
+    {
+      "stage": "prepare",
+      "bytes": 9763991
+    }
+  ],
+  "selection": {
+    "seriesId": "7697273659248872472",
+    "title": "十年恩，一生还",
+    "vid": "7697275565593611289",
+    "index": 1
+  },
+  "localFile": "/Users/lee/Desktop/flutter_hongguo/build/mac-poc/media/7697275565593611289_best.mp4",
+  "ok": true
+}

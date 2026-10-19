@@ -1,0 +1,5 @@
+name: hongguo_web_port
+description: Independently migrated hongguo-web Dart and Flutter implementation.
+publish_to: none
+environment:
+  sdk: ">=3.11.0 <4.0.0"

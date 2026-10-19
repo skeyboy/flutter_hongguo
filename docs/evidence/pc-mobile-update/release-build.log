@@ -1,0 +1,47 @@
+The following plugins do not support Swift Package Manager for macos:
+  - media_kit_libs_macos_video
+  - media_kit_video
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Building macOS application...                                   
+/Users/lee/Desktop/flutter_hongguo/packages/app/macos/Pods/Pods.xcodeproj: media_kit_libs_macos_video: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.iAlJoY/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Users/lee/Desktop/flutter_hongguo/packages/app/macos/Pods/Pods.xcodeproj: wakelock_plus: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.iAlJoY/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Users/lee/Desktop/flutter_hongguo/packages/app/macos/Pods/Pods.xcodeproj: flutter_secure_storage_darwin: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.iAlJoY/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Users/lee/Desktop/flutter_hongguo/packages/app/macos/Pods/Pods.xcodeproj: media_kit_video: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.iAlJoY/Metal.xctoolchain/usr/lib/swift/macosx' not found
+1 | #import "Headers/media_kit_video-umbrella.h"
+2 | #import "Headers/media_kit_video-Swift.h"
+3 | 
+
+/Users/lee/Desktop/flutter_hongguo/packages/app/build/macos/Build/Products/Release/media_kit_video/media_kit_video.framework/Headers/media_kit_video-Swift.h:387:31: warning: 'objc_ownership' only applies to Objective-C object or block pointer types; type here is 'CVPixelBufferRef _Nullable' (aka 'struct __CVBuffer *')
+385 | SWIFT_CLASS("_TtC15media_kit_video20SafeResizableTexture")
+386 | @interface SafeResizableTexture : NSObject <FlutterTexture>
+387 | - (CVPixelBufferRef _Nullable __unsafe_unretained)copyPixelBuffer SWIFT_WARN_UNUSED_RESULT;
+    |                               `- warning: 'objc_ownership' only applies to Objective-C object or block pointer types; type here is 'CVPixelBufferRef _Nullable' (aka 'struct __CVBuffer *')
+388 | - (nonnull instancetype)init SWIFT_UNAVAILABLE;
+389 | + (nonnull instancetype)new SWIFT_UNAVAILABLE_MSG("-init is unavailable");
+
+1 | #import "Headers/media_kit_video-umbrella.h"
+2 | #import "Headers/media_kit_video-Swift.h"
+3 | 
+
+/Users/lee/Desktop/flutter_hongguo/packages/app/build/macos/Build/Products/Release/media_kit_video/media_kit_video.framework/Headers/media_kit_video-Swift.h:394:31: warning: 'objc_ownership' only applies to Objective-C object or block pointer types; type here is 'CVPixelBufferRef _Nullable' (aka 'struct __CVBuffer *')
+392 | SWIFT_CLASS("_TtC15media_kit_video9TextureHW")
+393 | @interface TextureHW : NSObject <FlutterTexture>
+394 | - (CVPixelBufferRef _Nullable __unsafe_unretained)copyPixelBuffer SWIFT_WARN_UNUSED_RESULT;
+    |                               `- warning: 'objc_ownership' only applies to Objective-C object or block pointer types; type here is 'CVPixelBufferRef _Nullable' (aka 'struct __CVBuffer *')
+395 | - (nonnull instancetype)init SWIFT_UNAVAILABLE;
+396 | + (nonnull instancetype)new SWIFT_UNAVAILABLE_MSG("-init is unavailable");
+
+1 | #import "Headers/media_kit_video-umbrella.h"
+2 | #import "Headers/media_kit_video-Swift.h"
+3 | 
+
+3 warnings generated.
+/Users/lee/Desktop/flutter_hongguo/packages/app/build/macos/Build/Products/Release/media_kit_video/media_kit_video.framework/Headers/media_kit_video-Swift.h:401:31: warning: 'objc_ownership' only applies to Objective-C object or block pointer types; type here is 'CVPixelBufferRef _Nullable' (aka 'struct __CVBuffer *')
+399 | SWIFT_CLASS("_TtC15media_kit_video9TextureSW")
+400 | @interface TextureSW : NSObject <FlutterTexture>
+401 | - (CVPixelBufferRef _Nullable __unsafe_unretained)copyPixelBuffer SWIFT_WARN_UNUSED_RESULT;
+    |                               `- warning: 'objc_ownership' only applies to Objective-C object or block pointer types; type here is 'CVPixelBufferRef _Nullable' (aka 'struct __CVBuffer *')
+402 | - (nonnull instancetype)init SWIFT_UNAVAILABLE;
+403 | + (nonnull instancetype)new SWIFT_UNAVAILABLE_MSG("-init is unavailable");
+/Users/lee/Desktop/flutter_hongguo/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.iAlJoY/Metal.xctoolchain/usr/lib/swift/macosx' not found
+✓ Built build/macos/Build/Products/Release/hongguo_app.app (48.6MB)

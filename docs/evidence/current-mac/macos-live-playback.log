@@ -1,0 +1,23 @@
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/packages/app/integration_test/macos_live_poc_test.dart
+The following plugins do not support Swift Package Manager for macos:
+  - media_kit_libs_macos_video
+  - media_kit_video
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Building macOS application...                                   
+/Users/lee/Desktop/flutter_hongguo/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.iAlJoY/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Users/lee/Desktop/flutter_hongguo/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.iAlJoY/Metal.xctoolchain/usr/lib/swift/macosx' not found
+✓ Built build/macos/Build/Products/Debug/hongguo_app.app
+Failed to foreground app; open returned 1
+00:00 +0: current Mac: native Dart algorithms → real first episode → local player
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/packages/app/integration_test/macos_live_poc_test.dart
+media_kit: NativeReferenceHolder: Allocated 534073298944
+00:01 +0: current Mac: native Dart algorithms → real first episode → local player
+VideoOutput.Resize
+{handle: 534082800848, id: 534081892960, rect: {height: 0.0, left: 0.0, width: 0.0, top: 0.0}}
+NativeVideoController: Texture ID: 534081892960
+VideoOutput.Resize
+{rect: {width: 1080.0, left: 0.0, top: 0.0, height: 1920.0}, id: 534081892960, handle: 534082800848}
+MAC_LIVE_POC_RESULT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/Library/Application Support/com.example.hongguoApp/mac-live-poc-result.json
+MAC_LIVE_POC_SUMMARY={"ok":true,"platform":"macos","nativeDart":true,"localServerUsed":false,"seriesId":"7697273659248872472","vid":"7697275565593611289","episodeIndex":1,"title":"十年恩，一生还","localFile":"/Users/lee/Library/Containers/com.example.hongguoApp/Data/Library/Application Support/com.example.hongguoApp/media-cache/7697275565593611289_best.mp4","bytes":9763991,"width":1080,"height":1920,"durationMs":66780,"seekTargetMs":10000,"seekPositionMs":10000,"audioTrackRecognized":true,"audioOutputWarning":null,"frameBytes":1707245}
+00:04 +1: (tearDownAll)
+00:04 +1: All tests passed!

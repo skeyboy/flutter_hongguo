@@ -1,0 +1,50 @@
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/packages/app/test/horizontal_filters_test.dart
+00:00 +0: /Users/lee/Desktop/flutter_hongguo/packages/app/test/local_library_test.dart: one card per series; variants count once and episodes sort by index
+00:00 +1: /Users/lee/Desktop/flutter_hongguo/packages/app/test/local_library_test.dart: same title different series stay separate; unknown or contradictory mapping is isolated
+00:00 +2: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +3: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +4: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +5: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:01 +6: /Users/lee/Desktop/flutter_hongguo/packages/app/test/horizontal_filters_test.dart: horizontal panel anchors below toolbar without overflow at Size(390.0, 600.0)
+00:01 +7: /Users/lee/Desktop/flutter_hongguo/packages/app/test/horizontal_filters_test.dart: horizontal panel anchors below toolbar without overflow at Size(390.0, 600.0)
+00:01 +8: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:01 +9: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:01 +10: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:01 +11: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:02 +12: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:02 +13: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:02 +14: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:02 +15: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:02 +16: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:02 +17: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:03 +18: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:03 +19: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:03 +20: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:03 +21: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:03 +22: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:03 +23: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:03 +24: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:03 +25: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:03 +26: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:03 +27: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:03 +28: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:03 +29: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:04 +30: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:04 +31: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:04 +32: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:04 +33: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:04 +34: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:04 +35: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:04 +36: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:04 +37: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:04 +38: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:04 +39: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:04 +40: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 1280.0
+00:04 +41: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: cached list appears before network; failure retains it and refresh replaces cursor
+00:04 +42: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: old response cannot overwrite switched list
+00:04 +43: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: theme applies immediately, preserves draft and rolls back failed save
+00:05 +44: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: settings lists local episodes, protects used file and supports deletion
+00:05 +45: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: cache and playback switches and limits save; disabled auto paging stays manual
+00:05 +46: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: detail saves merged title before any video starts
+00:06 +47: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: metadata repair rejects mismatching IDs and groups verified matches
+00:06 +48: All tests passed!

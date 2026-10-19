@@ -1,0 +1,21 @@
+00:00 +0: loading test/media_cache_test.dart
+00:00 +0: test/media_cache_test.dart: stream download → spade → all tracks → clear MP4 → restart cache hit
+00:00 +1: test/media_cache_test.dart: stream download → spade → all tracks → clear MP4 → restart cache hit
+00:00 +2: test/media_cache_test.dart: stream download → spade → all tracks → clear MP4 → restart cache hit
+00:00 +3: test/media_cache_test.dart: stream download → spade → all tracks → clear MP4 → restart cache hit
+00:00 +4: test/media_cache_test.dart: stream download → spade → all tracks → clear MP4 → restart cache hit
+00:00 +5: test/media_cache_test.dart: stream download → spade → all tracks → clear MP4 → restart cache hit
+00:00 +6: test/media_cache_test.dart: stream download → spade → all tracks → clear MP4 → restart cache hit
+00:00 +7: test/media_cache_test.dart: stream download → spade → all tracks → clear MP4 → restart cache hit
+00:00 +8: test/media_cache_test.dart: stream download → spade → all tracks → clear MP4 → restart cache hit
+00:00 +9: test/catalog_test.dart: signed details sorted, cached, and ID remains a string
+00:00 +10: test/video_model_client_test.dart: untrusted fallback never gets a second request
+00:00 +11: test/media_cache_test.dart: same-key work deduplicates and one lease cancellation does not cancel another
+00:00 +12: test/media_cache_test.dart: same-key work deduplicates and one lease cancellation does not cancel another
+00:00 +13: test/media_cache_test.dart: same-key work deduplicates and one lease cancellation does not cancel another
+00:00 +14: test/media_cache_test.dart: same-key work deduplicates and one lease cancellation does not cancel another
+00:00 +15: test/media_cache_test.dart: all consumers cancel during resolution: no file is published
+00:00 +16: test/media_cache_test.dart: wrong key never enters cache and retry succeeds
+00:00 +17: test/media_cache_test.dart: playing files remain pinned during cache clear; released files can be removed
+00:00 +18: test/media_cache_test.dart: truncated ready file with old manifest is re-downloaded
+00:00 +19: All tests passed!

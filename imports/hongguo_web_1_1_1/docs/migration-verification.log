@@ -1,0 +1,151 @@
+Resolving dependencies...
+Downloading packages...
+Got dependencies!
+Formatted 22 files (0 changed) in 0.06 seconds.
+Analyzing hongguo_core...
+No issues found!
+00:00 +0: loading test/repository_test.dart
+00:00 +0: test/repository_test.dart: Signed POST body is serialized once, exact query and stub are sent
+00:00 +1: test/repository_test.dart: Signed POST body is serialized once, exact query and stub are sent
+00:00 +2: test/repository_test.dart: Signed POST body is serialized once, exact query and stub are sent
+00:00 +3: test/repository_test.dart: Signed POST body is serialized once, exact query and stub are sent
+00:00 +4: test/repository_test.dart: Signed POST body is serialized once, exact query and stub are sent
+00:00 +5: test/repository_test.dart: Signed POST body is serialized once, exact query and stub are sent
+00:00 +6: test/repository_test.dart: Signed POST body is serialized once, exact query and stub are sent
+00:00 +7: test/repository_test.dart: Signed POST body is serialized once, exact query and stub are sent
+00:00 +8: test/repository_test.dart: Signed POST body is serialized once, exact query and stub are sent
+00:00 +9: test/repository_test.dart: Signed POST body is serialized once, exact query and stub are sent
+00:00 +10: test/sign_test.dart: Node six headers branch 1 ts 1780000000
+00:00 +11: test/sign_test.dart: Node six headers branch 1 ts 1780000000
+00:00 +12: test/sign_test.dart: Node six headers branch 1 ts 1780000000
+00:00 +13: test/sign_test.dart: Node six headers branch 1 ts 1780000000
+00:00 +14: test/sign_test.dart: Node six headers branch 1 ts 1780000000
+00:00 +15: test/sign_test.dart: Node six headers branch 1 ts 1780000000
+00:00 +16: test/sign_test.dart: Node six headers branch 1 ts 1780000000
+00:00 +17: test/sign_test.dart: Node six headers branch 1 ts 1780000000
+00:00 +18: test/sign_test.dart: Node six headers branch 1 ts 1780000000
+00:00 +19: test/algorithms_test.dart: SSR scanner respects escaped delimiters and strings
+00:00 +20: test/repository_test.dart: Detail persists across repository instances and serves stale metadata offline
+00:00 +21: test/sign_test.dart: Node six headers branch 2 ts 1780000001
+00:00 +22: test/repository_test.dart: Scheduler bounds concurrency and releases failed task
+00:00 +23: test/sign_test.dart: Node six headers branch 0 ts 1780000002
+00:00 +24: test/sign_test.dart: Node six headers branch 0 ts 1780000003
+00:00 +25: test/sign_test.dart: Node six headers branch 2 ts 1780000004
+00:00 +26: test/sign_test.dart: Node six headers branch 2 ts 1780000005
+00:00 +27: test/sign_test.dart: Node six headers branch 1 ts 1780000006
+00:00 +28: test/sign_test.dart: Node six headers branch 0 ts 1780000007
+00:00 +29: test/sign_test.dart: Node six headers branch 0 ts 1780000008
+00:00 +30: test/sign_test.dart: Node six headers branch 2 ts 1780000009
+00:00 +31: test/sign_test.dart: Node six headers branch 0 ts 1780000010
+00:00 +32: test/sign_test.dart: Node six headers branch 0 ts 1780000011
+00:00 +33: test/sign_test.dart: Node six headers branch 2 ts 1780000012
+00:00 +34: test/sign_test.dart: Node six headers branch 0 ts 1780000013
+00:00 +35: test/sign_test.dart: Node six headers branch 1 ts 1780000014
+00:00 +36: test/sign_test.dart: Node six headers branch 1 ts 1780000015
+00:00 +37: test/sign_test.dart: Node six headers branch 2 ts 1780000016
+00:00 +38: test/sign_test.dart: Node six headers branch 2 ts 1780000017
+00:00 +39: test/sign_test.dart: Node six headers branch 1 ts 1780000018
+00:00 +40: test/sign_test.dart: Node six headers branch 1 ts 1780000019
+00:00 +41: test/sign_test.dart: Node six headers branch 1 ts 1780000020
+00:00 +42: test/sign_test.dart: Node six headers branch 2 ts 1780000021
+00:00 +43: test/sign_test.dart: Node six headers branch 2 ts 1780000022
+00:00 +44: test/sign_test.dart: Node six headers branch 0 ts 1780000023
+00:00 +45: test/sign_test.dart: Node six headers branch 0 ts 0
+00:00 +46: test/sign_test.dart: Node six headers branch 1 ts 1
+00:00 +47: test/sign_test.dart: Node six headers branch 0 ts 2147483647
+00:00 +48: test/sign_test.dart: Node six headers branch 2 ts 2147483648
+00:00 +49: test/sign_test.dart: Node six headers branch 2 ts 4294967295
+00:00 +50: test/sign_test.dart: Node six headers branch 0 ts 4294967296
+00:00 +51: test/sign_test.dart: Node six headers branch 0 ts 0
+00:00 +52: test/sign_test.dart: Node six headers branch 0 ts 1
+00:00 +53: test/sign_test.dart: Node six headers branch 1 ts 2147483647
+00:00 +54: test/sign_test.dart: Node six headers branch 2 ts 2147483648
+00:00 +55: test/sign_test.dart: Node six headers branch 0 ts 4294967295
+00:00 +56: test/sign_test.dart: Node six headers branch 1 ts 4294967296
+00:00 +57: test/sign_test.dart: Node six headers branch 1 ts 0
+00:00 +58: test/sign_test.dart: Node six headers branch 1 ts 1
+00:00 +59: test/sign_test.dart: Node six headers branch 2 ts 2147483647
+00:00 +60: test/sign_test.dart: Node six headers branch 2 ts 2147483648
+00:00 +61: test/sign_test.dart: Node six headers branch 1 ts 4294967295
+00:00 +62: test/sign_test.dart: Node six headers branch 1 ts 4294967296
+00:00 +63: test/sign_test.dart: Node six headers branch 0 ts 0
+00:00 +64: test/sign_test.dart: Node six headers branch 0 ts 1
+00:00 +65: test/sign_test.dart: Node six headers branch 1 ts 2147483647
+00:00 +66: test/sign_test.dart: Node six headers branch 2 ts 2147483648
+00:00 +67: test/sign_test.dart: Node six headers branch 0 ts 4294967295
+00:00 +68: test/sign_test.dart: Node six headers branch 2 ts 4294967296
+00:00 +69: All tests passed!
+Resolving dependencies...
+Downloading packages...
+  clock 1.1.2 (1.1.3 available)
+  code_assets 1.2.1 (2.1.0 available)
+  dbus 0.7.15 (0.8.0 available)
+  hooks 2.0.2 (2.2.0 available)
+> matcher 0.12.20 (was 0.12.19)
+  material_color_utilities 0.13.0 (0.13.1 available)
+> meta 1.19.0 (was 1.17.0)
+  objective_c 9.5.0 (9.6.2 available)
+  petitparser 7.0.2 (7.1.0 available)
+  platform 3.1.6 (3.2.0 available)
+  record_use 0.6.0 (1.1.1 available)
+  shared_preferences_android 2.4.23 (2.5.0 available)
+  shared_preferences_foundation 2.5.7 (2.6.0 available)
+  stack_trace 1.12.1 (1.12.2 available)
+  synchronized 3.4.0+1 (3.5.0 available)
+> test_api 0.7.12 (was 0.7.10) (0.7.15 available)
+> vector_math 2.4.3 (was 2.2.0)
+  wakelock_plus 1.7.0 (1.8.1 available)
+  wakelock_plus_platform_interface 1.6.0 (1.7.0 available)
+  xml 7.0.1 (7.1.0 available)
+Changed 4 dependencies!
+17 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Upgrading analysis_options.yaml to exclude build and platform directories.
+Formatted 17 files (0 changed) in 0.03 seconds.
+Analyzing hongguo_flutter...                                    
+No issues found! (ran in 4.4s)
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/native_media_test.dart
+00:00 +0: /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/native_media_test.dart: Native streaming download, isolate decrypt, publish, restart cache hit
+00:00 +1: /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/native_media_test.dart: Concurrent same-key requests share completed artifact
+00:00 +2: /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/native_media_test.dart: Invalid MP4 is never published and retry fetches again
+00:00 +3: /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/native_media_test.dart: Cancellation during download removes partial files
+00:00 +4: /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/native_media_test.dart: Cancellation before queued task prevents a source request
+00:00 +5: /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/native_media_test.dart: Cache eviction removes old artifact and marker
+00:00 +6: /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/native_media_test.dart: An untrusted media redirect is rejected before another request
+00:02 +7: /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/catalog_test.dart: Browse genres, search, favorites and history use shared repository
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following _Exception was thrown running a test:
+Exception: Asset 'shaders/ink_sparkle.frag' manifest could not be decoded: INVALID_ARGUMENT: Runtime
+stages buffer failed verification.
+
+When the exception was thrown, this was the stack:
+#0      new FragmentProgram._fromAsset (dart:ui/painting.dart:5415:7)
+#1      FragmentProgram.fromAsset.<anonymous closure> (dart:ui/painting.dart:5443:39)
+#12     FakeAsync.run.<anonymous closure>.<anonymous closure> (package:fake_async/fake_async.dart:189:18)
+#13     FakeAsync.flushMicrotasks (package:fake_async/fake_async.dart:200:32)
+#14     AutomatedTestWidgetsFlutterBinding.runTest.<anonymous closure> (package:flutter_test/src/binding.dart:2507:17)
+(elided 25 frames from dart:async and package:stack_trace)
+
+The test description was:
+  Browse genres, search, favorites and history use shared repository
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:03 +7 -1: /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/catalog_test.dart: Browse genres, search, favorites and history use shared repository [E]
+  Test failed. See exception logs above.
+  The test description was: Browse genres, search, favorites and history use shared repository
+  
+00:03 +7 -1: Some tests failed.
+
+Failing tests:
+  /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/catalog_test.dart: Browse genres, search, favorites and history use shared repository
+
+After clearing old-SDK test assets, Flutter regression rerun:
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/native_media_test.dart
+00:00 +0: /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/native_media_test.dart: Native streaming download, isolate decrypt, publish, restart cache hit
+00:00 +1: /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/native_media_test.dart: Concurrent same-key requests share completed artifact
+00:00 +2: /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/native_media_test.dart: Invalid MP4 is never published and retry fetches again
+00:00 +3: /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/native_media_test.dart: Cancellation during download removes partial files
+00:00 +4: /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/native_media_test.dart: Cancellation before queued task prevents a source request
+00:00 +5: /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/native_media_test.dart: Cache eviction removes old artifact and marker
+00:00 +6: /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/native_media_test.dart: An untrusted media redirect is rejected before another request
+00:02 +7: /Users/lee/Desktop/flutter_hongguo/imports/hongguo_web_1_1_1/apps/hongguo_flutter/test/catalog_test.dart: Browse genres, search, favorites and history use shared repository
+00:03 +8: All tests passed!

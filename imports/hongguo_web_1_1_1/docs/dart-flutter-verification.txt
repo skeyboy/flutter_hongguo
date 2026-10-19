@@ -1,0 +1,49 @@
+Date: 2026-10-19 Asia/Shanghai
+Toolchain: Flutter 3.41.4 / Dart 3.11.1 / macOS arm64 / Xcode 27.1
+
+Architecture boundary:
+  No Flutter, dart:io or dart:isolate imports in packages/hongguo_core/lib.
+
+Core:
+  dart analyze: No issues found.
+  dart test: 69 tests passed.
+  Included 48 deterministic Node six-header comparisons (branches 0/1/2,
+  UTF-8, empty/null bodies and 32-bit timestamp boundaries), 5 Spade truths,
+  URL CBC decoding, MP4 sample/plaintext/IV/strip validation and repository tests.
+
+Flutter:
+  flutter analyze: No issues found.
+  flutter test: 8 tests passed.
+  Native media pipeline: streaming file download -> isolate decryption ->
+  validation -> atomic cache publication; restart, deduplication, cancellation,
+  failures, eviction and redirect rejection covered. Catalog/library widget covered.
+
+Builds:
+  flutter build web --release: PASS (including Wasm dry run).
+  flutter build macos --release: PASS, regular lib/main.dart entry restored.
+  Android debug APK: NOT VERIFIED; build failed from disk exhaustion during
+  Gradle native-library extraction/cache writes (No space left on device).
+  Regular macOS app preserved at ../artifacts/macos/hongguo_flutter.app;
+  generated native build intermediates cleaned afterwards.
+
+Synthetic media:
+  Clear and Dart-decrypted H.264/AAC decoded SHA256:
+  54f0bc28384487fa4972c550cddaea2ab8aee43655bc76916ecbea2acb47fd26
+  Release app playback:
+  HONGGUO_PLAYBACK_PASS duration_ms=3021 audio_tracks=3 video_tracks=3 seek_ms=1866 frame_bytes=38999
+  Track counts include the player's auto/no selection entries.
+  Decoded video frame: assets/dart-decrypted-frame.png
+
+Read-only online smoke (temporary upstream media deleted after validation):
+  browse: count=1, has_more=true
+  search: count=1
+  detail: episode_count=48
+  model: definition=1080p, encrypted=true, size=9763991
+  prepare: queued -> downloading -> decrypting -> remuxing -> ready
+  prepare: validated_bytes=9763991
+  Observed redirect domain added explicitly: idouyinvod.com
+
+Not validated:
+  Other operating systems/devices, release phone performance/power,
+  full production Web API deployment, long-duration playback and low-disk stress.
+  Spade v2, fragmented MP4 and CENC subsample/pattern encryption are unsupported.

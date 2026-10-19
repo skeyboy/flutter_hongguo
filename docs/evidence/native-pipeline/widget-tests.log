@@ -1,0 +1,6 @@
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/packages/app/test/widget_test.dart
+00:00 +0: mobile catalog → series → episodes without layout exceptions
+00:00 +1: category and search use the shared repository
+00:00 +2: error retry can recover and diagnostics remain available
+00:00 +3: desktop catalog and pagination stay responsive
+00:01 +4: All tests passed!

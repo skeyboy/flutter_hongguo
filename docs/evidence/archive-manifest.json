@@ -1,0 +1,216 @@
+{
+  "archivedDate": "2026-10-19",
+  "description": "Analysis documents and existing validation snapshots; no new tests run during archival.",
+  "files": [
+    {
+      "source": "/Users/lee/Downloads/hongguo-web-1.1.1-macOS-arm/docs/2026-10-19_流程与签名-hongguo-report.md",
+      "destination": "docs/analysis/2026-10-19_流程与签名-hongguo-report.md",
+      "sha256": "e9c10b2f03e903b4f4432acc60fd8264c5c7121abf2c5c4a3fc897772c068773",
+      "bytes": 17331
+    },
+    {
+      "source": "/Users/lee/Downloads/hongguo-web-1.1.1-macOS-arm/docs/API-reference.md",
+      "destination": "docs/analysis/API-reference.md",
+      "sha256": "120d595b2b7b740f620f2ab264b7f7f13029ba2f5067f9c4258ad00fcfe34d20",
+      "bytes": 11461
+    },
+    {
+      "source": "/Users/lee/Downloads/hongguo-web-1.1.1-macOS-arm/docs/AI-workflow.md",
+      "destination": "docs/analysis/AI-workflow.md",
+      "sha256": "6192374c6e429dd28c0300da929488613ab9a4892df1729fbbc7f4a5ec23d8be",
+      "bytes": 6594
+    },
+    {
+      "source": "/Users/lee/Downloads/hongguo-web-1.1.1-macOS-arm/docs/Flutter-Dart-feasibility.md",
+      "destination": "docs/analysis/Flutter-Dart-feasibility.md",
+      "sha256": "87bff0b79dbdd80986c69f4447c70187dd26504fd79236f1e31ef664e95cdf48",
+      "bytes": 12199
+    },
+    {
+      "source": "/Users/lee/Downloads/hongguo-web-1.1.1-macOS-arm/work/hongguo-analysis/README.md",
+      "destination": "docs/evidence/source-analysis/README.md",
+      "sha256": "e60457c077f8177eaa0bc7a34d85cdf2537dc675c150b1c00ad39d1a2dec4c7f",
+      "bytes": 354
+    },
+    {
+      "source": "/Users/lee/Downloads/hongguo-web-1.1.1-macOS-arm/work/hongguo-analysis/analysis-journal.md",
+      "destination": "docs/evidence/source-analysis/analysis-journal.md",
+      "sha256": "cfa21d2ab8f5bede5036a0b844daa54ba43a26034da43d96e8431084f623198e",
+      "bytes": 996
+    },
+    {
+      "source": "/Users/lee/Downloads/hongguo-web-1.1.1-macOS-arm/work/hongguo-analysis/route/route-scope.md",
+      "destination": "docs/evidence/source-analysis/route/route-scope.md",
+      "sha256": "8ad6f84ac996805e5e87e382dfb634d78b8ec9e4916663508e2280b8e922c231",
+      "bytes": 449
+    },
+    {
+      "source": "/Users/lee/Downloads/hongguo-web-1.1.1-macOS-arm/work/hongguo-analysis/scope.md",
+      "destination": "docs/evidence/source-analysis/scope.md",
+      "sha256": "ba495c7b08b03f9a977d138283d8ab7c702c0ed0f95e0bcf46a37dbf2304bb93",
+      "bytes": 1502
+    },
+    {
+      "source": "/Users/lee/Downloads/hongguo-web-1.1.1-macOS-arm/work/hongguo-analysis/selftest.log",
+      "destination": "docs/evidence/source-analysis/selftest.log",
+      "sha256": "5d5f479429a8ccbbf12ab2d81c4c39edf26f3dd51b1eebeb5b16951111ef9c54",
+      "bytes": 8636
+    },
+    {
+      "source": "/Users/lee/Downloads/hongguo-web-1.1.1-macOS-arm/work/hongguo-analysis/source-sha256.json",
+      "destination": "docs/evidence/source-analysis/source-sha256.json",
+      "sha256": "ac96fa35613fca93296bddd763af1c0a0dfaa5cbe73710ed8f14f94e0d30c2ef",
+      "bytes": 2265
+    },
+    {
+      "source": "/Users/lee/Downloads/hongguo-web-1.1.1-macOS-arm/work/hongguo-analysis/timeline.md",
+      "destination": "docs/evidence/source-analysis/timeline.md",
+      "sha256": "0e4169511f04facb364fcb5baeed769dcb4ce3b1a4ef663e79e0a0d37c72cf5e",
+      "bytes": 380
+    },
+    {
+      "source": "/Users/lee/Downloads/hongguo-web-1.1.1-macOS-arm/work/hongguo-analysis/workitems.md",
+      "destination": "docs/evidence/source-analysis/workitems.md",
+      "sha256": "02b69f8ebf118f7c82aa737a7771b71b57367ba49aae38d8fdf3a41a2d8d348f",
+      "bytes": 634
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/analyze.log",
+      "destination": "docs/evidence/native-pipeline/analyze.log",
+      "sha256": "3c73e2efb3e2345c965072d85d3ae9772a9b489a11496851683e7f517ce6ee7c",
+      "bytes": 46
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/core-tests.log",
+      "destination": "docs/evidence/native-pipeline/core-tests.log",
+      "sha256": "5e04af5cfe6139db34f972bddd82f0045efd0e5dbb75f874614f0c5d43db8d4c",
+      "bytes": 8775
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/api-tests.log",
+      "destination": "docs/evidence/native-pipeline/api-tests.log",
+      "sha256": "2d0ccadaac22b8dcf1c7b8f9e4a12800cfcde7ad020dd2c6e3793b2331e82a21",
+      "bytes": 2158
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/widget-tests.log",
+      "destination": "docs/evidence/native-pipeline/widget-tests.log",
+      "sha256": "4896a51f69626ccee227c4ad3cfb0c15b4315f16b7ad7cd31799fd23ac5e4547",
+      "bytes": 371
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/aot.log",
+      "destination": "docs/evidence/native-pipeline/aot.log",
+      "sha256": "fe770c253ac9d0ac235450b8fe2a8b1724a11fa73f6bb264144d8dc0fd27a486",
+      "bytes": 79
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/js.log",
+      "destination": "docs/evidence/native-pipeline/js.log",
+      "sha256": "fe770c253ac9d0ac235450b8fe2a8b1724a11fa73f6bb264144d8dc0fd27a486",
+      "bytes": 79
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/media-summary.json",
+      "destination": "docs/evidence/native-pipeline/media-summary.json",
+      "sha256": "c896e1fcc0945c097627399c580c98be286641525c92af0d235e35f4482aebb2",
+      "bytes": 211
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/ffprobe-media.json",
+      "destination": "docs/evidence/native-pipeline/ffprobe-media.json",
+      "sha256": "292314534f7bc79c63c24349897a299b9ff4e7125afb638e190282217fb2ee6b",
+      "bytes": 313
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/ffmpeg-decode.log",
+      "destination": "docs/evidence/native-pipeline/ffmpeg-decode.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/phase2-summary.json",
+      "destination": "docs/evidence/native-pipeline/phase2-summary.json",
+      "sha256": "e14c822772170c00a9ac2f0e73b11a38e0eba5107352f9ff656772537e217f1b",
+      "bytes": 1361
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/offline-native-playback.log",
+      "destination": "docs/evidence/native-pipeline/offline-native-playback.log",
+      "sha256": "e7437947305a0eb2da70012e186c5ba2cb1d658af10d2ce5b80650cf60f3067d",
+      "bytes": 2093
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/offline-ios-playback.log",
+      "destination": "docs/evidence/native-pipeline/offline-ios-playback.log",
+      "sha256": "b628f0ec280cd5ccff157d627230e4f2c9ad1ed540b71f976620e344e177988e",
+      "bytes": 1883
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/macos-algorithm-poc.log",
+      "destination": "docs/evidence/current-mac/macos-algorithm-poc.log",
+      "sha256": "fe770c253ac9d0ac235450b8fe2a8b1724a11fa73f6bb264144d8dc0fd27a486",
+      "bytes": 79
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/macos-live-playback.log",
+      "destination": "docs/evidence/current-mac/macos-live-playback.log",
+      "sha256": "3fe609eaac2a01327bcbb831fd47f4ea723c703e426d1127749aa8f9efddc676",
+      "bytes": 2414
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/macos-poc-analyze.log",
+      "destination": "docs/evidence/current-mac/macos-poc-analyze.log",
+      "sha256": "3c73e2efb3e2345c965072d85d3ae9772a9b489a11496851683e7f517ce6ee7c",
+      "bytes": 46
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/macos-release-binary.txt",
+      "destination": "docs/evidence/current-mac/macos-release-binary.txt",
+      "sha256": "d1fc23a36c6fdb4e744ea086b60894121b4f3e5486ab801744f06c2318903237",
+      "bytes": 138
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/macos-package.log",
+      "destination": "docs/evidence/current-mac/macos-package.log",
+      "sha256": "88fec9e8dbbd75e7504a5951b594ddd1e6ecfb6fe459ef97c4236db97185f3c9",
+      "bytes": 192
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/mac-poc/live-probe.json",
+      "destination": "docs/evidence/current-mac/live-probe.json",
+      "sha256": "15127c7bb328ce6d1a7a50ec7518902aa2377dfece69311f1e0c5775506100dd",
+      "bytes": 653
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/mac-poc/app-live-result.json",
+      "destination": "docs/evidence/current-mac/app-live-result.json",
+      "sha256": "1349dca2897f3cd152c2e73e365ca710ac06e53a4e672967aa40b0114cf2089e",
+      "bytes": 601
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/mac-poc/mac-acceptance.json",
+      "destination": "docs/evidence/current-mac/mac-acceptance.json",
+      "sha256": "ebc393a6f843efa84d6062fc7c04c693f743442e812891900cb0549d412621af",
+      "bytes": 1221
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/hongguo-library-ui.png",
+      "destination": "docs/assets/hongguo-library-ui.png",
+      "sha256": "248d9bb30ded686b4db8b62c33e8e6e000dd892c49f68e8d76831b153cbdd83c",
+      "bytes": 78483
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/hongguo-detail-ui.png",
+      "destination": "docs/assets/hongguo-detail-ui.png",
+      "sha256": "98d7a6b578577010c0808ff0d33a77bb99f6de3ffbd83698daebb5095ffb68e6",
+      "bytes": 60296
+    },
+    {
+      "source": "/Users/lee/Desktop/flutter_hongguo/build/verification/hongguo-native-frame.png",
+      "destination": "docs/assets/hongguo-native-frame.png",
+      "sha256": "54654c20d40bf8a8982001db5154bf56767e330c3121656f96c29c76b26b9510",
+      "bytes": 15067
+    }
+  ]
+}

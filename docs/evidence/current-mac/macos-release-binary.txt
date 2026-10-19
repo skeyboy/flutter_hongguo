@@ -1,0 +1,1 @@
+/Users/lee/Desktop/flutter_hongguo/artifacts/macos/20261019-162900/Hongguo.app/Contents/MacOS/hongguo_app: Mach-O 64-bit executable arm64

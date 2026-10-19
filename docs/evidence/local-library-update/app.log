@@ -1,0 +1,44 @@
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart
+00:00 +0: /Users/lee/Desktop/flutter_hongguo/packages/app/test/local_library_test.dart: one card per series; variants count once and episodes sort by index
+00:00 +1: /Users/lee/Desktop/flutter_hongguo/packages/app/test/local_library_test.dart: same title different series stay separate; unknown or contradictory mapping is isolated
+00:00 +2: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +3: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +4: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:00 +5: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:02 +6: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:02 +7: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:02 +8: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:02 +9: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:02 +10: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:03 +11: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:03 +12: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:04 +13: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:04 +14: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:04 +15: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:04 +16: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:04 +17: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:04 +18: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:04 +19: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:04 +20: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:04 +21: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:04 +22: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:04 +23: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:04 +24: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:04 +25: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:04 +26: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:04 +27: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:05 +28: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:05 +29: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:05 +30: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:05 +31: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:05 +32: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:06 +33: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:06 +34: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: cached list appears before network; failure retains it and refresh replaces cursor
+00:06 +35: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: session fields are masked, saved explicitly, and signing refresh is independent
+00:06 +36: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: session fields are masked, saved explicitly, and signing refresh is independent
+00:06 +37: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: theme applies immediately, preserves draft and rolls back failed save
+00:07 +38: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: settings lists local episodes, protects used file and supports deletion
+00:08 +39: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: cache and playback switches and limits save; disabled auto paging stays manual
+00:08 +40: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: detail saves merged title before any video starts
+00:08 +41: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: metadata repair rejects mismatching IDs and groups verified matches
+00:08 +42: All tests passed!

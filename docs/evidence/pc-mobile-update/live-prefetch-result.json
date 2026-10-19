@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "platform": "macos",
+  "nativeDart": true,
+  "localServerUsed": false,
+  "seriesId": "7697273659248872472",
+  "initialVid": "7697275565593611289",
+  "vid": "7697275511717760025",
+  "episodeIndex": 2,
+  "prefetchedEpisodes": 3,
+  "switchMs": 99,
+  "switchStages": [
+    "正在排队",
+    "已就绪"
+  ],
+  "title": "十年恩，一生还",
+  "localFile": "/Users/lee/Library/Containers/com.example.hongguoApp/Data/Library/Application Support/com.example.hongguoApp/media-cache/7697275511717760025_best.mp4",
+  "bytes": 6997279,
+  "width": 1080,
+  "height": 1920,
+  "durationMs": 66700,
+  "seekTargetMs": 10000,
+  "seekPositionMs": 10000,
+  "audioTrackRecognized": true,
+  "audioOutputWarning": null,
+  "frameBytes": 1644986
+}

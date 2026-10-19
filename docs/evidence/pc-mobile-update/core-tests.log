@@ -1,0 +1,115 @@
+00:00 +0: loading test/settings_test.dart
+00:00 +0: test/settings_test.dart: 3–5 episode window and native preferences round-trip
+00:00 +1: test/settings_test.dart: untrusted hosts, header injection and invalid limits are rejected
+00:00 +2: test/mp4_test.dart: decrypt head moov, preserve offsets and remove signaling
+00:00 +3: test/mp4_test.dart: decrypt tail moov, preserve offsets and remove signaling
+00:00 +4: test/mp4_test.dart: wrong key is rejected before changing ciphertext
+00:00 +5: test/mp4_test.dart: standard real CENC H264/AAC subsamples match every original sample
+00:00 +6: test/oracle_test.dart: six headers match Node: seed 42, branch 0
+00:00 +7: test/oracle_test.dart: six headers match Node: seed 42, branch 0
+00:00 +8: test/mp4_test.dart: malformed box lengths and truncated samples fail closed
+00:00 +9: test/oracle_test.dart: six headers match Node: seed 43, branch 1
+00:00 +10: test/mp4_test.dart: overlapping chunk offsets are rejected before decryption
+00:00 +11: test/mp4_test.dart: overlapping chunk offsets are rejected before decryption
+00:00 +12: test/mp4_test.dart: overlapping chunk offsets are rejected before decryption
+00:00 +13: test/mp4_test.dart: overlapping chunk offsets are rejected before decryption
+00:00 +14: test/oracle_test.dart: six headers match Node: seed 47, branch 1
+00:00 +15: test/oracle_test.dart: six headers match Node: seed 48, branch 1
+00:00 +16: test/oracle_test.dart: six headers match Node: seed 49, branch 2
+00:00 +17: test/oracle_test.dart: six headers match Node: seed 50, branch 2
+00:00 +18: test/oracle_test.dart: six headers match Node: seed 51, branch 0
+00:00 +19: test/oracle_test.dart: six headers match Node: seed 52, branch 1
+00:00 +20: test/oracle_test.dart: six headers match Node: seed 53, branch 0
+00:00 +21: test/oracle_test.dart: six headers match Node: seed 54, branch 1
+00:00 +22: test/oracle_test.dart: six headers match Node: seed 55, branch 2
+00:00 +23: test/oracle_test.dart: six headers match Node: seed 56, branch 2
+00:00 +24: test/oracle_test.dart: six headers match Node: seed 57, branch 2
+00:00 +25: test/oracle_test.dart: six headers match Node: seed 58, branch 0
+00:00 +26: test/oracle_test.dart: six headers match Node: seed 59, branch 0
+00:00 +27: test/oracle_test.dart: six headers match Node: seed 60, branch 1
+00:00 +28: test/oracle_test.dart: six headers match Node: seed 61, branch 0
+00:00 +29: test/oracle_test.dart: six headers match Node: seed 62, branch 0
+00:00 +30: test/oracle_test.dart: six headers match Node: seed 63, branch 2
+00:00 +31: test/oracle_test.dart: six headers match Node: seed 64, branch 1
+00:00 +32: test/oracle_test.dart: six headers match Node: seed 65, branch 0
+00:00 +33: test/oracle_test.dart: six headers match Node: seed 66, branch 1
+00:00 +34: test/oracle_test.dart: six headers match Node: seed 67, branch 1
+00:00 +35: test/oracle_test.dart: six headers match Node: seed 68, branch 0
+00:00 +36: test/oracle_test.dart: six headers match Node: seed 69, branch 2
+00:00 +37: test/oracle_test.dart: six headers match Node: seed 70, branch 2
+00:00 +38: test/oracle_test.dart: six headers match Node: seed 71, branch 2
+00:00 +39: test/oracle_test.dart: six headers match Node: seed 72, branch 2
+00:00 +40: test/oracle_test.dart: six headers match Node: seed 73, branch 2
+00:00 +41: test/oracle_test.dart: six headers match Node: seed 74, branch 1
+00:00 +42: test/oracle_test.dart: six headers match Node: seed 75, branch 0
+00:00 +43: test/oracle_test.dart: six headers match Node: seed 76, branch 0
+00:00 +44: test/oracle_test.dart: six headers match Node: seed 77, branch 2
+00:00 +45: test/oracle_test.dart: six headers match Node: seed 78, branch 1
+00:00 +46: test/oracle_test.dart: six headers match Node: seed 79, branch 2
+00:00 +47: test/oracle_test.dart: six headers match Node: seed 80, branch 1
+00:00 +48: test/oracle_test.dart: six headers match Node: seed 81, branch 2
+00:00 +49: test/oracle_test.dart: six headers match Node: seed 82, branch 2
+00:00 +50: test/oracle_test.dart: six headers match Node: seed 83, branch 0
+00:00 +51: test/oracle_test.dart: six headers match Node: seed 84, branch 0
+00:00 +52: test/oracle_test.dart: six headers match Node: seed 85, branch 1
+00:00 +53: test/oracle_test.dart: six headers match Node: seed 86, branch 2
+00:00 +54: test/oracle_test.dart: six headers match Node: seed 87, branch 0
+00:00 +55: test/oracle_test.dart: six headers match Node: seed 88, branch 1
+00:00 +56: test/oracle_test.dart: six headers match Node: seed 89, branch 0
+00:00 +57: test/oracle_test.dart: six headers match Node: seed 90, branch 1
+00:00 +58: test/oracle_test.dart: six headers match Node: seed 91, branch 0
+00:00 +59: test/oracle_test.dart: six headers match Node: seed 92, branch 0
+00:00 +60: test/oracle_test.dart: six headers match Node: seed 93, branch 0
+00:00 +61: test/oracle_test.dart: six headers match Node: seed 94, branch 2
+00:00 +62: test/oracle_test.dart: six headers match Node: seed 95, branch 2
+00:00 +63: test/oracle_test.dart: six headers match Node: seed 96, branch 2
+00:00 +64: test/oracle_test.dart: six headers match Node: seed 97, branch 0
+00:00 +65: test/oracle_test.dart: six headers match Node: seed 98, branch 0
+00:00 +66: test/oracle_test.dart: six headers match Node: seed 99, branch 0
+00:00 +67: test/oracle_test.dart: six headers match Node: seed 100, branch 1
+00:00 +68: test/oracle_test.dart: six headers match Node: seed 101, branch 2
+00:00 +69: test/oracle_test.dart: six headers match Node: seed 102, branch 0
+00:00 +70: test/oracle_test.dart: six headers match Node: seed 103, branch 0
+00:00 +71: test/oracle_test.dart: six headers match Node: seed 104, branch 1
+00:00 +72: test/oracle_test.dart: six headers match Node: seed 105, branch 2
+00:00 +73: test/oracle_test.dart: six headers match Node: seed 106, branch 1
+00:00 +74: test/oracle_test.dart: six headers match Node: seed 107, branch 1
+00:00 +75: test/oracle_test.dart: six headers match Node: seed 108, branch 0
+00:00 +76: test/oracle_test.dart: six headers match Node: seed 109, branch 0
+00:00 +77: test/oracle_test.dart: six headers match Node: seed 110, branch 0
+00:00 +78: test/oracle_test.dart: six headers match Node: seed 111, branch 2
+00:00 +79: test/oracle_test.dart: six headers match Node: seed 112, branch 2
+00:00 +80: test/oracle_test.dart: six headers match Node: seed 113, branch 1
+00:00 +81: test/oracle_test.dart: six headers match Node: seed 114, branch 1
+00:00 +82: test/oracle_test.dart: six headers match Node: seed 115, branch 2
+00:00 +83: test/oracle_test.dart: six headers match Node: seed 116, branch 0
+00:00 +84: test/oracle_test.dart: six headers match Node: seed 117, branch 2
+00:00 +85: test/oracle_test.dart: six headers match Node: seed 118, branch 2
+00:00 +86: test/oracle_test.dart: six headers match Node: seed 119, branch 0
+00:00 +87: test/oracle_test.dart: six headers match Node: seed 120, branch 2
+00:00 +88: test/oracle_test.dart: six headers match Node: seed 121, branch 1
+00:00 +89: test/oracle_test.dart: six headers match Node: seed 122, branch 2
+00:00 +90: test/oracle_test.dart: six headers match Node: seed 123, branch 1
+00:00 +91: test/oracle_test.dart: six headers match Node: seed 124, branch 1
+00:00 +92: test/oracle_test.dart: six headers match Node: seed 125, branch 1
+00:00 +93: test/oracle_test.dart: six headers match Node: seed 126, branch 2
+00:00 +94: test/oracle_test.dart: six headers match Node: seed 127, branch 2
+00:00 +95: test/oracle_test.dart: six headers match Node: seed 128, branch 2
+00:00 +96: test/oracle_test.dart: six headers match Node: seed 129, branch 1
+00:00 +97: test/oracle_test.dart: six headers match Node: seed 130, branch 2
+00:00 +98: test/oracle_test.dart: six headers match Node: seed 131, branch 0
+00:00 +99: test/oracle_test.dart: six headers match Node: seed 132, branch 2
+00:00 +100: test/oracle_test.dart: six headers match Node: seed 133, branch 1
+00:00 +101: test/oracle_test.dart: six headers match Node: seed 134, branch 1
+00:00 +102: test/oracle_test.dart: six headers match Node: seed 135, branch 1
+00:00 +103: test/oracle_test.dart: six headers match Node: seed 136, branch 2
+00:00 +104: test/oracle_test.dart: six headers match Node: seed 137, branch 0
+00:00 +105: test/oracle_test.dart: spade v1 287216bfa89e662a0f748120c305e199
+00:00 +106: test/oracle_test.dart: spade v1 d742b28967e4e6c92b699f4375add27f
+00:00 +107: test/oracle_test.dart: spade v1 113fb30d9767d80e3edbb905b052204f
+00:00 +108: test/oracle_test.dart: spade v1 b5674a8384f25d757585dadf343274d5
+00:00 +109: test/oracle_test.dart: spade v1 121846f9d5829130ebc0397023feaf8c
+00:00 +110: test/oracle_test.dart: URL SHA512 derivation and AES-CBC match Node
+00:00 +111: test/oracle_test.dart: AES-CTR matches Node across block boundaries
+00:00 +112: test/oracle_test.dart: reject invalid keys, URL hosts and truncated envelopes
+00:00 +113: All tests passed!

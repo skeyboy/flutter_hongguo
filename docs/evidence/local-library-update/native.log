@@ -1,0 +1,72 @@
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/packages/app/integration_test/offline_playback_test.dart
+The following plugins do not support Swift Package Manager for macos:
+  - media_kit_libs_macos_video
+  - media_kit_video
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Building macOS application...                                   
+/Users/lee/Desktop/flutter_hongguo/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.iAlJoY/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Users/lee/Desktop/flutter_hongguo/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.iAlJoY/Metal.xctoolchain/usr/lib/swift/macosx' not found
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+✓ Built build/macos/Build/Products/Debug/hongguo_app.app
+Failed to foreground app; open returned 1
+00:00 +0: catalog → episode → streamed CENC → Dart decrypt → native local playback and seek
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/packages/app/integration_test/offline_playback_test.dart
+media_kit: NativeReferenceHolder: Allocated 514113486848
+00:01 +0: catalog → episode → streamed CENC → Dart decrypt → native local playback and seek
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-library-pc-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-settings-pc-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-library-mobile-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-settings-mobile-ui.png
+THEME_ACCEPTANCE=selection applied dark immediately without pressing save
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-theme-dark-mobile-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-library-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-detail-ui.png
+VideoOutput.Resize
+{rect: {width: 0.0, top: 0.0, left: 0.0, height: 0.0}, handle: 514082813136, id: 514117723328}
+NativeVideoController: Texture ID: 514117723328
+VideoOutput.Resize
+{id: 514117723328, handle: 514082813136, rect: {top: 0.0, left: 0.0, height: 288.0, width: 160.0}}
+PLAYER_STATE_ERROR=null
+AUDIO_OUTPUT_WARNING=null
+NATIVE_FRAME_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-native-frame.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-local-cache-mobile-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-local-cache-pc-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-local-episodes-mobile-ui.png
+VideoOutput.Resize
+{id: 514106790912, rect: {top: 0.0, left: 0.0, height: 0.0, width: 0.0}, handle: 514082812496}
+NativeVideoController: Texture ID: 514106790912
+VideoOutput.Resize
+{id: 514106790912, handle: 514082812496, rect: {top: 0.0, height: 288.0, left: 0.0, width: 160.0}}
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-local-player-mobile-ui.png
+LOCAL_CACHE_ACCEPTANCE=listed named episode; decoded local MP4 without another request; no prefetch
+00:11 +1: five future files stay ready and next episode reuses cache across layouts
+00:11 +1: catalog → episode → streamed CENC → Dart decrypt → native local playback and seek
+VideoOutput.Resize
+{handle: 514081990096, id: 514106212992, rect: {height: 0.0, width: 0.0, left: 0.0, top: 0.0}}
+NativeVideoController: Texture ID: 514106212992
+VideoOutput.Resize
+{rect: {left: 0.0, top: 0.0, width: 160.0, height: 288.0}, handle: 514081990096, id: 514106212992}
+00:13 +1: five future files stay ready and next episode reuses cache across layouts
+PREFETCH_ACCEPTANCE=5 ready; switching reused file without another download; player survived compact layout
+00:13 +2: macOS system session vault round-trip uses only a disposable test record
+00:13 +3: (tearDownAll)
+00:13 +3: All tests passed!

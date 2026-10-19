@@ -1,0 +1,227 @@
+
+  ============================================
+    hongguo-api 自检
+  ============================================
+
+=== 1. spade -> content key 解包（对齐 5 组真值） ===
+2026-10-19 15:14:10 [INFO] spade 解包自检：5/5 全部通过
+  ✓ spade 解包 5 组真值
+  ✓ 输出为 32 位十六进制  287216bfa89e662a0f748120c305e199
+  ✓ ver2 类型被拒绝
+
+=== 2. AES-128-CTR 计数器构造 ===
+  ✓ counter 长度 16 字节
+  ✓ index=0 高位保留  00000000000000010000000000000000
+  ✓ index=1 进位到高 64 位  00000000000000020000000000000000
+  ✓ 0xff + 1 进位正确  00000000000001000000000000000000
+
+=== 3. 逐样本 IV -> CTR 计数器 ===
+  ✓ 8 字节 IV 长度 16
+  ✓ 8 字节 IV 位于高 64 位  ebbde5029bbf3f290000000000000000
+  ✓ 与 ctrCounter(baseIv,0) 等价
+  ✓ 16 字节 IV 原样保留  00112233445566778899aabbccddeeff
+  ✓ counterFor 优先用逐样本 IV
+  ✓ counterFor 无 IV 时回退 base_iv
+
+=== 4. AVCC / NAL 自证 ===
+  ✓ Annex-B 起始码识别
+  ✓ AVCC 长度前缀识别
+  ✓ 随机数据拒绝
+  ✓ 多 NAL 样本整链自证
+  ✓ nal_unit_type=0 非 IDR 分片通过
+  ✓ 长度越界拒绝
+  ✓ forbidden_zero_bit 置位拒绝
+  ✓ 探测样本含 index 0 且在范围内  共 6 个
+
+=== 5. AES-128-CTR 加解密往返一致性 ===
+  ✓ 解密还原原文
+  ✓ 密文与原文不同
+
+=== 6. MP4 盒解析（构造最小合法 moov） ===
+  ✓ 解析出加密轨  1 条
+  ✓ handler 为 vide  vide
+  ✓ 样本数为 2  2
+  ✓ 逐样本 IV 已解析
+  ✓ IV 长度为 16 字节  16
+  ✓ KID 不参与解密链路（content key 来自 spade）
+  ✓ 顶层含 ftyp 与 moov
+
+=== 7. 端到端：content key + 逐样本 IV 解密 ===
+  ✓ verifyVideoIv 通过逐样本 IV 自证  00000000000000010000000000000000
+  ✓ 全部样本解密完成  2/2
+  ✓ 解密后每个样本 AVCC 自洽
+  ✓ 解密逐字节还原夹具明文
+  ✓ 错误 content key 被拒绝  null
+
+=== 8. JSON 往返与数字语义 ===
+  ✓ 整型往返为数值
+  ✓ 字符串转义往返
+  ✓ 小数保持精度
+  ✓ skipNulls 省略 null 字段  {"keep":"v"}
+  ✓ 1.0 输出为 1  {"x":1}
+
+=== 9. 播放缓存路径：.play.mp4 变体必须参与命中判定 ===
+  ✓ remux 产出名与 play 路径一致  7688396322021329982_best.play.mp4
+  ✓ play 与 out 是不同文件
+  ✓ raw 命名带 .raw 段  7688396322021329982_best.raw.mp4
+  ✓ 空目录时 cachedPath 为空
+  ✓ 仅 .play.mp4 存在即命中
+  ✓ 仅 .mp4 存在即命中
+
+=== 10. 设备身份 device_id（搜索接口必需） ===
+  ✓ device_id 为 16 位数字  3510557817024327
+  ✓ 来源已标记  stored
+  ✓ 已注入 base_query
+  ✓ base_query 无注释键泄漏
+  ✓ session_headers 无注释键泄漏
+  ✓ device_id 已写入 apikeys.json（单例）  stored
+  ✓ apikeys.json 文件内容含 device_id
+  ✓ iid 保持 0（随机 iid 会触发风控）  null
+
+=== 11. 本地纯代码签名（PureSign） ===
+  ✓ 六个签名头齐全  [x-gorgon, x-khronos, x-ladon, x-argus, x-helios, x-medusa]
+  ✓ 含 x-gorgon
+  ✓ 含 x-khronos
+  ✓ 含 x-ladon
+  ✓ 含 x-argus
+  ✓ 含 x-helios
+  ✓ 含 x-medusa
+  ✓ x-khronos 与指定时间戳一致  1700000000
+  ✓ 无 body 也可签名  [x-gorgon, x-khronos, x-ladon, x-argus, x-helios, x-medusa]
+  ✓ branchOf 取值在 0/1/2  b0=9 b1=13 b2=10
+  ✓ 32 个 _rticket 中可避开 branch==1  safe=19/32
+
+=== 12. 剧集解析：title 清洗（上游 title 实为简介） ===
+  ✓ 解析出 2 集  2
+  ✓ 与简介相同的 title 被置空
+  ✓ 正常集名保留
+  ✓ meta 标题取 series_title
+  ✓ 按 index 升序排列
+
+=== 13. 解码兼容性：默认不转码（直出 HEVC） ===
+  ✓ ffmpeg 可用
+  ✓ 默认关闭转码
+  · 转码已关闭（HG_TRANSCODE=1 可开启 HEVC -> H.264）
+
+=== 14. 本地链路密钥 ===
+  ✓ 至少一把启用密钥  1
+  ✓ 首把密钥格式为 hg_ 前缀
+  ✓ 无效密钥被拒绝
+  ✓ 空密钥被拒绝
+  ✓ 管理口令已生成（64 位 hex）  len=64
+  ✓ 管理口令持久化到 apikeys.json
+
+=== 15. moov 定位：尾部 moov 也能找到（流式解密前置） ===
+  ✓ 头部形态能定位 moov  start=24 size=630
+  ✓ 头部形态 moov 紧跟 ftyp  start=24
+  ✓ 尾部形态能定位 moov  start=62 size=630
+  ✓ 尾部形态 moov 排在 mdat 之后  moov@62 > mdat@24
+  ✓ moov 末端与文件末端一致  692==692
+  ✓ 头部形态解析出加密轨
+  ✓ 尾部形态解析出加密轨
+  ✓ 尾部形态 base-offset 视图可解析
+  ✓ 尾部形态样本偏移落在文件范围内（base 换算正确）
+
+=== 16. 流式解密与整文件解密结果一致 ===
+  ✓ 流式路径能定位 moov
+  ✓ 流式路径解析出加密轨
+  ✓ 两种路径样本数一致  2==2
+  ✓ 两种路径样本偏移一致
+  ✓ 流式路径 IV 自证通过  00000000000000010000000000000000
+  ✓ 流式路径解密样本数一致  2/2
+  ✓ 流式解密结果与整文件解密逐字节一致
+  ✓ 流式解密逐字节还原夹具明文
+
+=== 17. 缓存上限与过期清扫 ===
+  ✓ 缓存写入后可读回
+  ✓ 过期条目视为 miss（TTL 生效）
+  ✓ 后台清扫线程已启动且为 daemon
+  ✓ weigh 对空结构返回合理值  48
+
+=== 18. stream-cache 数量上限（超出按修改时间淘汰最旧） ===
+  ✓ 上限配置键已登记（runtime.cache.max_files）
+  ✓ 超出上限时删除最旧文件  删除 2 个
+  ✓ 最旧的 v0 已删除
+  ✓ 最旧的 v1 已删除
+  ✓ 最新 3 个被保留
+  ✓ 清理后数量等于上限  3
+  ✓ 下载临时文件 .part 不被删除
+  ✓ 密文临时文件 .enc 不被删除
+  ✓ 恰好等于上限时不删除  删除 0 个
+  ✓ 上限设为 0 时不清理
+  ✓ 上限设为负数时不清理
+  ✓ 空目录清理不报错
+  ✓ 目录不存在时不报错
+
+=== 19. 搜索分页切片（skip 生效且 has_more 判据正确） ===
+  ✓ 首屏返回 30 条  30
+  ✓ 首屏为第 0..29 条
+  ✓ 首屏 nextSkip=30  30
+  ✓ 上游有后续时 has_more=true
+  ✓ 续页返回 30 条  30
+  ✓ 续页从 item30 开始
+  ✓ 续页与首页无重复条目
+  ✓ 续页 nextSkip=60  60
+  ✓ 续页 has_more=true
+  ✓ 第 3 页返回剩余 15 条  15
+  ✓ 第 3 页从 item60 开始
+  ✓ 末页 has_more=false（攒不满即到末尾）
+  ✓ 末页 nextSkip=75  75
+  ✓ 上游 has_more=false 时不谎报有更多
+  ✓ skip 越界返回空列表  0
+  ✓ skip 越界 has_more=false
+  ✓ 空结果返回空列表
+  ✓ 空结果 has_more=false
+  ✓ null 结果不抛异常
+
+=== 20. App 取址链路：合成身份 / query 编码 / URL 白名单 ===
+  ✓ pyEncode: * 编码为 %2A（resolution=1280*2772）  1280%2A2772
+  ✓ pyEncode: !'() 编码为 %21%27%28%29  a%21b%27c%28d%29e
+  ✓ pyEncode: 字母数字与 .-_~ 原样  novelread-7.1.3_32~x
+  ✓ 设备身份: version_code=71332
+  ✓ 设备身份: channel=update_64
+  ✓ 设备身份: device_type=25053RT47C
+  ✓ 设备身份: device_id 为 16 位数字  1086420223831707
+  ✓ 设备身份: iid 为 16 位数字  1093894446499583
+  ✓ 设备身份: iid 与 device_id 不同
+  ✓ checkedUrl: 白名单子域放行  https://p3.qznovelvod.com/a/b.mp4
+  ✓ checkedUrl: http 被拒绝
+  ✓ checkedUrl: 白名单外被拒绝
+  ✓ cleanUrl: 转义还原
+  ✓ pixelsOf: 取第一组数字
+  ✓ pixelsOf: 无数字返回 0
+  ✓ decryptSpadeUrl: 非法布局被拒绝
+
+=== 21. CENC 信令纯 JS 减壳（sinf/senc 移除、stco 平移、mdat 原样） ===
+  ✓ 夹具含 sinf 与 senc  sinf@453 senc@606
+  ✓ 信令尺寸非零  delta=125
+  ✓ 头部形态减壳成功
+  ✓ 输出尺寸 = 原尺寸 - 信令字节  567 vs 567
+  ✓ 输出仍含 mdat  @529
+  ✓ mdat 负载逐字节一致
+  ✓ stco 偏移平移量正确  537 vs 537
+  ✓ stco 指向新 mdat 负载起点  537 vs 537
+  ✓ 输出盒链完整（末盒为 mdat 且收尾）
+  ✓ sinf 与 senc 已除净
+  ✓ 条目类型改回 hvc1  hvc1
+  ✓ 尾部 moov 形态被拒（回落 ffmpeg）
+  ✓ 垃圾输入被拒
+  ✓ 垃圾输入不产生输出
+  ✓ co64 形态减壳成功
+  ✓ co64 偏移平移且指向新 mdat  chunk=541 mdat=541
+  ✓ 无 frma 时减壳成功（子盒推断）
+  ✓ 无 frma 时按 hvcC 推断为 hvc1  hvc1
+
+=== 运行环境 ===
+  上游 host     api5-normal-sinfonlinea.fqnovel.com
+  App 源 host   api5-normal-sinfonlineb.fqnovel.com
+  设备身份     stored（device_id=3510557817024327）
+  托管模式     false
+  列表免签     false
+  签名方式     本地纯代码签名（PureSign）
+  ffmpeg       true
+  转码         false
+  Node         v24.22.0
+
+  结果：165/165 全部通过
+

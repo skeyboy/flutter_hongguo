@@ -1,0 +1,35 @@
+name: hongguo_app
+description: Flutter host for shared Dart core verification.
+publish_to: none
+resolution: workspace
+version: 0.2.3+5
+environment:
+  sdk: '>=3.13.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  media_kit: any
+  media_kit_video: any
+  media_kit_libs_video: any
+  flutter_secure_storage: any
+  path_provider: any
+  cupertino_icons: any
+  dio: any
+  flutter_riverpod: any
+  get_it: any
+  hongguo_core:
+    path: ../core
+  hongguo_api:
+    path: ../api
+dev_dependencies:
+  integration_test:
+    sdk: flutter
+  flutter_test:
+    sdk: flutter
+  lints: any
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/verification.cenc.mp4

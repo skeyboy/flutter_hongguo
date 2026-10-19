@@ -1,0 +1,12 @@
+name: hongguo_core
+description: Platform independent Hongguo protocol, cryptography and media services.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: '>=3.11.0 <4.0.0'
+dependencies:
+  crypto: ^3.0.6
+  pointycastle: ^4.0.0
+dev_dependencies:
+  test: ^1.25.15
+  lints: ^6.0.0

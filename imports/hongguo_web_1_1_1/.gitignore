@@ -1,0 +1,11 @@
+# Dart and Flutter generated files
+**/.dart_tool/
+**/.packages
+**/build/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/coverage/
+**/.DS_Store
+
+# Local packaged deliverables
+/artifacts/

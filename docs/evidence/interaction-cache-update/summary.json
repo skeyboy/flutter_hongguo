@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-19",
+  "version": "0.2.1+3",
+  "workspace": "/Users/lee/Desktop/flutter_hongguo",
+  "tests": {
+    "core": 113,
+    "api": 28,
+    "app": 34,
+    "macosIntegration": 3
+  },
+  "analyze": "No issues found",
+  "verified": [
+    "scroll-pinned filters at 390 and 1280",
+    "cache-first then network refresh with offline fallback",
+    "stale responses rejected",
+    "snapshot restart and expiry",
+    "theme immediate/system/rollback",
+    "native settings persistence and client rebuild",
+    "ready local episode listing and deletion",
+    "local decode without additional download",
+    "five-episode prefetch retained"
+  ],
+  "screenshots": "docs/assets/interaction-cache",
+  "releaseBuilt": true,
+  "releaseDirectory": "artifacts/macos/20261019-180911",
+  "releaseVersion": "0.2.1",
+  "releaseBuild": "3",
+  "releaseZipSha256": "ff047fc19a41703c865bfdd5e1a486989a4dc562b6f1f22f7f7ca0c2dad039c8",
+  "signatureVerified": true,
+  "releaseUIVerified": "Settings and local cache list opened; 15 pre-existing completed files listed; no existing files deleted or played"
+}

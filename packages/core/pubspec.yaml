@@ -1,0 +1,13 @@
+name: hongguo_core
+description: Pure Dart signing, key unwrapping and media crypto primitives.
+resolution: workspace
+publish_to: none
+version: 0.2.0
+environment:
+  sdk: '>=3.13.0 <4.0.0'
+dependencies:
+  crypto: any
+  pointycastle: any
+dev_dependencies:
+  test: any
+  lints: any
