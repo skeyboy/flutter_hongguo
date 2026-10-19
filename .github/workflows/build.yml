@@ -100,6 +100,40 @@ jobs:
         if: matrix.platform == 'macos'
         working-directory: packages/app
         run: flutter test integration_test/offline_playback_test.dart -d macos --reporter expanded
+      - name: Collect macOS crash diagnostics
+        if: matrix.platform == 'macos' && failure()
+        run: |
+          set +e
+          mkdir -p macos-diagnostics
+          APP=packages/app/build/macos/Build/Products/Debug/hongguo_app.app
+          { echo "== codesign --verify --deep --strict =="
+            codesign --verify --deep --strict --verbose=2 "$APP"
+            echo "== embedded signature of native player libs =="
+            find "$APP/Contents/Frameworks" -maxdepth 3 \( -name '*.dylib' -o -name '*.framework' \) \
+              -exec codesign --verify --verbose=2 {} \; 2>&1 | tail -60
+            echo "== otool -L main executable =="
+            otool -L "$APP/Contents/MacOS/hongguo_app"
+            echo "== entitlements =="
+            codesign -d --entitlements - "$APP"
+          } > macos-diagnostics/signing.txt 2>&1
+          { echo "== DiagnosticReports listing =="
+            ls -la ~/Library/Logs/DiagnosticReports/
+          } > macos-diagnostics/reports-list.txt 2>&1
+          find ~/Library/Logs/DiagnosticReports -name '*.ips' -mmin -20 \
+            -exec cp -f {} macos-diagnostics/ \; 2>/dev/null
+          log show --last 15m --style compact \
+            --predicate 'process == "hongguo_app" OR eventMessage CONTAINS "hongguo_app" OR eventMessage CONTAINS "mpv"' \
+            > macos-diagnostics/syslog.txt 2>&1
+          echo "== collected =="
+          ls -la macos-diagnostics
+          du -sh macos-diagnostics
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: matrix.platform == 'macos' && failure()
+        with:
+          name: macos-crash-diagnostics
+          path: macos-diagnostics/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Build Windows
         if: matrix.platform == 'windows'
         working-directory: packages/app
