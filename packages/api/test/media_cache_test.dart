@@ -236,4 +236,73 @@ void main() {
       expect(adapter.downloads, 1);
     },
   );
+  test(
+    'native download transport shares decrypt, manifest and completion cleanup',
+    () async {
+      var downloads = 0, finishes = 0;
+      final native = MediaCache(
+        directory: temp,
+        dio: dio,
+        resolve: (_, _) async => track,
+        download: (vid, quality, value, path, token, progress) async {
+          downloads++;
+          expect(vid, '123');
+          expect(quality, 'best');
+          expect(value.spadeA, spade);
+          final cipher = File('../core/test/fixtures/media/real.cenc.mp4')
+              .readAsBytesSync();
+          await File(path).writeAsBytes(cipher);
+          progress(cipher.length, cipher.length);
+        },
+        onFinished: (_, _) async => finishes++,
+      );
+      final lease = native.prepare('123');
+      final path = await lease.result;
+      await FileDecryptor.validateClear(path);
+      native.release(lease);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(downloads, 1);
+      expect(adapter.downloads, 0);
+      expect(finishes, 1);
+    },
+  );
+  test(
+    'recovery publishes completed ciphertext without resolving or downloading',
+    () async {
+      final raw = File('${temp.path}/123_best.mp4.100.0.part');
+      await raw.writeAsBytes(
+        File('../core/test/fixtures/media/real.cenc.mp4').readAsBytesSync(),
+      );
+      final recovered = MediaCache(
+        directory: temp,
+        dio: dio,
+        resolve: (_, _) => throw StateError('no network'),
+      );
+      await recovered.adoptDownloaded('123', 'best', raw.path, spade);
+      expect((await recovered.entries()).single.vid, '123');
+      expect(await raw.exists(), isFalse);
+      final lease = recovered.prepareCached('123');
+      await FileDecryptor.validateClear(await lease.result);
+      recovered.release(lease);
+      expect(adapter.downloads, 0);
+      await expectLater(
+        recovered.adoptDownloaded(
+          '123',
+          'best',
+          '${temp.parent.path}/outside.part',
+          spade,
+        ),
+        throwsArgumentError,
+      );
+    },
+  );
+  test('recovery never lists a partial or corrupt video as ready', () async {
+    final raw = File('${temp.path}/123_best.mp4.100.0.part')
+      ..writeAsBytesSync([1, 2, 3]);
+    await expectLater(
+      cache.adoptDownloaded('123', 'best', raw.path, null),
+      throwsA(anything),
+    );
+    expect(await cache.entries(), isEmpty);
+  });
 }

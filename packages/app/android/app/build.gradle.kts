@@ -4,6 +4,14 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Device acceptance builds only its ABI; release/CI packaging stays unchanged.
+val deviceTestAbi = System.getenv("HONGGUO_TEST_ABI")
+if (!deviceTestAbi.isNullOrBlank()) {
+    require(deviceTestAbi in listOf("arm64-v8a", "armeabi-v7a", "x86_64"))
+    require(gradle.startParameter.taskNames.none { it.contains("release", ignoreCase = true) })
+    project.extensions.extraProperties["disable-abi-filtering"] = true
+}
+
 android {
     namespace = "com.example.hongguo_app"
     compileSdk = flutter.compileSdkVersion
@@ -15,6 +23,12 @@ android {
     }
 
     defaultConfig {
+        if (!deviceTestAbi.isNullOrBlank()) {
+            ndk {
+                abiFilters.clear()
+                abiFilters.add(deviceTestAbi)
+            }
+        }
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.hongguo_app"
         // You can update the following values to match your application needs.

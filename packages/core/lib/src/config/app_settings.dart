@@ -1,6 +1,10 @@
 /// Preferences shared by native runtimes. Secret session data is stored separately.
 class AppSettings {
   final bool prefetchEnabled, autoNext, autoLoadMore, signLists;
+  final bool backgroundPlayback,
+      backgroundDownloads,
+      floatingPlayback,
+      backgroundWifiOnly;
   final int prefetchEpisodes,
       maxCacheFiles,
       maxCacheMb,
@@ -20,6 +24,10 @@ class AppSettings {
       'Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 '
       'QuicVersion:c67e9834 2025-09-08)';
   const AppSettings({
+    this.backgroundPlayback = false,
+    this.backgroundDownloads = false,
+    this.floatingPlayback = false,
+    this.backgroundWifiOnly = true,
     this.prefetchEnabled = true,
     this.prefetchEpisodes = 3,
     this.autoNext = true,
@@ -53,6 +61,10 @@ class AppSettings {
   };
   Map<String, dynamic> toJson() => {
     ...protocolJson(),
+    'backgroundPlayback': backgroundPlayback,
+    'backgroundDownloads': backgroundDownloads,
+    'floatingPlayback': floatingPlayback,
+    'backgroundWifiOnly': backgroundWifiOnly,
     'prefetchEnabled': prefetchEnabled,
     'prefetchEpisodes': prefetchEpisodes,
     'autoNext': autoNext,
@@ -68,6 +80,19 @@ class AppSettings {
     T read<T>(String key, T fallback) =>
         json[key] is T ? json[key] as T : fallback;
     return AppSettings(
+      backgroundPlayback: read(
+        'backgroundPlayback',
+        defaults.backgroundPlayback,
+      ),
+      backgroundDownloads: read(
+        'backgroundDownloads',
+        defaults.backgroundDownloads,
+      ),
+      floatingPlayback: read('floatingPlayback', defaults.floatingPlayback),
+      backgroundWifiOnly: read(
+        'backgroundWifiOnly',
+        defaults.backgroundWifiOnly,
+      ),
       prefetchEnabled: read('prefetchEnabled', defaults.prefetchEnabled),
       prefetchEpisodes: read('prefetchEpisodes', defaults.prefetchEpisodes),
       autoNext: read('autoNext', defaults.autoNext),
@@ -95,6 +120,10 @@ class AppSettings {
     );
   }
   AppSettings copyWith({
+    bool? backgroundPlayback,
+    bool? backgroundDownloads,
+    bool? floatingPlayback,
+    bool? backgroundWifiOnly,
     bool? prefetchEnabled,
     int? prefetchEpisodes,
     bool? autoNext,
@@ -115,6 +144,10 @@ class AppSettings {
     String? videoUserAgent,
   }) => AppSettings.fromJson({
     ...toJson(),
+    'backgroundPlayback': backgroundPlayback ?? this.backgroundPlayback,
+    'backgroundDownloads': backgroundDownloads ?? this.backgroundDownloads,
+    'floatingPlayback': floatingPlayback ?? this.floatingPlayback,
+    'backgroundWifiOnly': backgroundWifiOnly ?? this.backgroundWifiOnly,
     'prefetchEnabled': prefetchEnabled ?? this.prefetchEnabled,
     'prefetchEpisodes': prefetchEpisodes ?? this.prefetchEpisodes,
     'autoNext': autoNext ?? this.autoNext,

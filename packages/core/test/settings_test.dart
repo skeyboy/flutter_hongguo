@@ -48,4 +48,25 @@ void main() {
       throwsFormatException,
     );
   });
+  test('background capabilities are opt-in and survive copy and restart', () {
+    final old = AppSettings.fromJson({'themeMode': 'dark'});
+    expect(old.backgroundPlayback, isFalse);
+    expect(old.backgroundDownloads, isFalse);
+    expect(old.floatingPlayback, isFalse);
+    expect(old.backgroundWifiOnly, isTrue);
+    final settings = old.copyWith(
+      backgroundPlayback: true,
+      backgroundDownloads: true,
+      floatingPlayback: true,
+      backgroundWifiOnly: false,
+    );
+    settings.validate();
+    final restored = AppSettings.fromJson(settings.toJson())
+        .copyWith(prefetchEpisodes: 5);
+    expect(restored.backgroundPlayback, isTrue);
+    expect(restored.backgroundDownloads, isTrue);
+    expect(restored.floatingPlayback, isTrue);
+    expect(restored.backgroundWifiOnly, isFalse);
+    expect(restored.protocolJson(), old.protocolJson());
+  });
 }

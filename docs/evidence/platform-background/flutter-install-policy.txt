@@ -1,0 +1,6 @@
+Flutter 3.47.4 local source:
+packages/flutter_tools/lib/src/commands/test.dart:309
+  uninstall flag defaultsTo: true
+Project runner now passes --no-uninstall explicitly.
+Project temporary ADB wrapper rejects uninstall commands, including failure fallback.
+One successful ADB push install does not prove OEM will permit repeated unattended installs.

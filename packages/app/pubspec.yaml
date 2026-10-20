@@ -2,7 +2,7 @@ name: hongguo_app
 description: Flutter host for shared Dart core verification.
 publish_to: none
 resolution: workspace
-version: 0.2.5+7
+version: 0.2.6+8
 environment:
   sdk: '>=3.13.0 <4.0.0'
 dependencies:
@@ -14,6 +14,10 @@ dependencies:
   media_kit_video: any
   media_kit_libs_video: any
   flutter_secure_storage: any
+  audio_service: any
+  audio_session: any
+  background_downloader: any
+  window_manager: any
   path_provider: any
   cupertino_icons: any
   dio: any

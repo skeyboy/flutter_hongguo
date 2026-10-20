@@ -20,12 +20,26 @@ import 'package:hongguo_app/features/local_cache_page.dart';
 import 'package:hongguo_app/main.dart';
 import 'package:hongguo_app/features/player_page.dart';
 import 'package:hongguo_app/platform/runtime.dart';
+import 'package:hongguo_app/platform/background/native_downloads.dart';
+import 'package:hongguo_app/settings/settings_store.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:hongguo_app/settings/settings_store_native.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 import 'package:media_kit/media_kit.dart' hide VideoTrack;
 
+bool get _mobileDevice => Platform.isAndroid || Platform.isIOS;
+
+Future<void> _resizeDesktop(WidgetTester tester, Size? size) async {
+  if (_mobileDevice) {
+    return;
+  }
+  await tester.binding.setSurfaceSize(size);
+}
+
 class _Adapter implements HttpClientAdapter {
   final Uint8List bytes;
+  Completer<void>? gate;
   int downloads = 0;
   _Adapter(this.bytes);
   @override
@@ -35,6 +49,7 @@ class _Adapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     downloads++;
+    await gate?.future;
     return ResponseBody.fromBytes(
       bytes,
       200,
@@ -208,6 +223,21 @@ class _Job implements PlaybackJob {
   void release() => cache.release(lease);
 }
 
+class _DownloadVault implements SessionVault {
+  final values = <String, String>{};
+  @override
+  Future<String?> read(String key) async => values[key];
+  @override
+  Future<void> write(String key, String value) async {
+    values[key] = value;
+  }
+
+  @override
+  Future<void> delete(String key) async {
+    values.remove(key);
+  }
+}
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
@@ -233,6 +263,19 @@ void main() {
         final boundary =
             captureKey.currentContext!.findRenderObject()!
                 as RenderRepaintBoundary;
+        if (_mobileDevice) {
+          expect(
+            boundary.size,
+            tester.view.physicalSize / tester.view.devicePixelRatio,
+            reason: 'Mobile UI must use actual device window dimensions',
+          );
+        }
+        if (Platform.isAndroid) {
+          // Capture native textures through the device compositor, not GPU readback.
+          print('DEVICE_SCREENSHOT=$name');
+          await Future<void>.delayed(const Duration(seconds: 1));
+          return;
+        }
         final image = await boundary.toImage(pixelRatio: 1);
         final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
         final file = File(
@@ -244,22 +287,29 @@ void main() {
       }
 
       await tester.pumpAndSettle();
-      await tester.binding.setSurfaceSize(const Size(1280, 900));
-      await tester.pumpAndSettle();
-      await capture('library-pc');
-      await tester.tap(find.byKey(const ValueKey('sticky-genre')));
-      await tester.pumpAndSettle();
-      await capture('horizontal-filters-pc');
-      await tester.tap(find.text('收起筛选'));
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '设置'),
-      );
-      await tester.pumpAndSettle();
-      await capture('settings-pc');
-      await tester.tap(find.widgetWithText(ListTile, '发现'));
-      await tester.pumpAndSettle();
-      await tester.binding.setSurfaceSize(const Size(390, 844));
+      if (!_mobileDevice) {
+        await _resizeDesktop(tester, const Size(1280, 900));
+        await tester.pumpAndSettle();
+        await capture('library-pc');
+        await tester.tap(find.byKey(const ValueKey('sticky-genre')));
+        await tester.pumpAndSettle();
+        await capture('horizontal-filters-pc');
+        await tester.tap(find.text('收起筛选'));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '设置'),
+        );
+        await tester.pumpAndSettle();
+        await capture('settings-pc');
+        await tester.tap(find.widgetWithText(ListTile, '发现'));
+        await tester.pumpAndSettle();
+      } else {
+        final view = tester.view;
+        print(
+          'REAL_MOBILE_VIEWPORT=platform=${Platform.operatingSystem}; physical=${view.physicalSize}; dpr=${view.devicePixelRatio}; surfaceOverride=none',
+        );
+      }
+      await _resizeDesktop(tester, const Size(390, 844));
       await tester.pumpAndSettle();
       await capture('library-mobile');
       await tester.tap(find.byKey(const ValueKey('sticky-genre')));
@@ -296,7 +346,7 @@ void main() {
       await tester.tap(find.text('深色').last);
       await tester.pumpAndSettle();
       expect(
-        Theme.of(tester.element(find.byType(NavigationBar))).brightness,
+        Theme.of(tester.element(find.text('后台播放'))).brightness,
         Brightness.dark,
       );
       print(
@@ -363,54 +413,89 @@ void main() {
       )..writeAsBytesSync(frame);
       print('NATIVE_FRAME_ARTIFACT=${frameFile.path}');
       final pictureHandle = await player.handle;
-      await tester.binding.setSurfaceSize(const Size(1280, 900));
+      if (!_mobileDevice) {
+        await _resizeDesktop(tester, const Size(1280, 900));
+        await tester.pumpAndSettle();
+        final pictureRect = tester.getRect(
+          find.byKey(const ValueKey('player-picture')),
+        );
+        await capture('player-pc-picture');
+        await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
+        await tester.pumpAndSettle();
+        expect(
+          tester.getRect(find.byKey(const ValueKey('player-picture'))),
+          pictureRect,
+        );
+        await capture('player-pc-overlay');
+        await tester.tap(find.byTooltip('隐藏选集'));
+        await tester.pumpAndSettle();
+        await _resizeDesktop(tester, const Size(800, 600));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
+        await tester.pumpAndSettle();
+        await capture('player-medium-overlay');
+        await tester.tap(find.byTooltip('隐藏选集'));
+        await tester.pumpAndSettle();
+      }
+      await _resizeDesktop(tester, const Size(390, 844));
       await tester.pumpAndSettle();
-      final pictureRect = tester.getRect(
-        find.byKey(const ValueKey('player-picture')),
-      );
-      await capture('player-pc-picture');
-      await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
-      await tester.pumpAndSettle();
-      expect(
-        tester.getRect(find.byKey(const ValueKey('player-picture'))),
-        pictureRect,
-      );
-      await capture('player-pc-overlay');
-      await tester.tap(find.byTooltip('隐藏选集'));
-      await tester.pumpAndSettle();
-      await tester.binding.setSurfaceSize(const Size(800, 600));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
-      await tester.pumpAndSettle();
-      await capture('player-medium-overlay');
-      await tester.tap(find.byTooltip('隐藏选集'));
-      await tester.pumpAndSettle();
-      await tester.binding.setSurfaceSize(const Size(390, 844));
-      await tester.pumpAndSettle();
-      final compactPicture = tester.getRect(
-        find.byKey(const ValueKey('compact-player-picture')),
-      );
-      await capture('player-mobile-controls');
-      await tester.tap(find.byTooltip('隐藏播放操作'));
-      await tester.pumpAndSettle();
-      expect(
-        tester.getRect(find.byKey(const ValueKey('compact-player-picture'))),
-        compactPicture,
-      );
-      expect(
-        find.byKey(const ValueKey('compact-playback-controls')),
-        findsNothing,
-      );
-      await capture('player-mobile-picture');
-      await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
-      await tester.pumpAndSettle();
-      expect(find.text('选择剧集'), findsOneWidget);
-      await capture('player-mobile-episodes');
-      await tester.tap(find.byTooltip('关闭选集'));
-      await tester.pumpAndSettle();
+      if (find
+          .byKey(const ValueKey('compact-player-picture'))
+          .evaluate()
+          .isNotEmpty) {
+        final compactPicture = tester.getRect(
+          find.byKey(const ValueKey('compact-player-picture')),
+        );
+        await capture('player-mobile-controls');
+        await tester.tap(find.byTooltip('隐藏播放操作'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.getRect(find.byKey(const ValueKey('compact-player-picture'))),
+          compactPicture,
+        );
+        expect(
+          find.byKey(const ValueKey('compact-playback-controls')),
+          findsNothing,
+        );
+        await capture('player-mobile-picture');
+        await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
+        await tester.pumpAndSettle();
+        expect(find.text('选择剧集'), findsOneWidget);
+        await capture('player-mobile-episodes');
+        if (Platform.isAndroid &&
+            const bool.fromEnvironment('HONGGUO_DEVICE_GESTURES')) {
+          print('MOBILE_BACK_WINDOW=bottom episode sheet open');
+          await Future<void>.delayed(const Duration(seconds: 4));
+          await tester.pumpAndSettle();
+          expect(
+            find.text('选择剧集'),
+            findsNothing,
+            reason: 'Actual Android Back must dismiss the sheet',
+          );
+          print('MOBILE_BACK_ACCEPTANCE=system Back dismissed episode sheet');
+        } else {
+          await tester.tap(find.byTooltip('关闭选集'));
+          await tester.pumpAndSettle();
+        }
+      } else {
+        // A real tablet uses the wide overlay, without pretending to be a phone.
+        final rect = tester.getRect(
+          find.byKey(const ValueKey('player-picture')),
+        );
+        await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('episode-panel')), findsOneWidget);
+        expect(
+          tester.getRect(find.byKey(const ValueKey('player-picture'))),
+          rect,
+        );
+        await capture('player-tablet-overlay');
+        await tester.tap(find.byTooltip('隐藏选集'));
+        await tester.pumpAndSettle();
+      }
       expect(await player.handle, pictureHandle);
       print(
-        'OVERLAY_ACCEPTANCE=full video rectangle stable; overlay hide/show and PC/mobile resize preserved Player handle',
+        'OVERLAY_ACCEPTANCE=video rectangle stable; device-appropriate selector; player preserved; desktopResize=${!_mobileDevice}',
       );
 
       await tester.tap(find.byType(BackButton));
@@ -428,11 +513,13 @@ void main() {
       expect(find.byType(LocalCachePage), findsOneWidget);
       expect(find.byKey(const ValueKey('local-drama-123')), findsOneWidget);
       await capture('local-cache-mobile');
-      await tester.binding.setSurfaceSize(const Size(1280, 900));
-      await tester.pumpAndSettle();
-      await capture('local-cache-pc');
-      await tester.binding.setSurfaceSize(const Size(390, 844));
-      await tester.pumpAndSettle();
+      if (!_mobileDevice) {
+        await _resizeDesktop(tester, const Size(1280, 900));
+        await tester.pumpAndSettle();
+        await capture('local-cache-pc');
+        await _resizeDesktop(tester, const Size(390, 844));
+        await tester.pumpAndSettle();
+      }
       await tester.tap(find.byKey(const ValueKey('local-drama-123')));
       await tester.pumpAndSettle();
       expect(find.byType(LocalEpisodesPage), findsOneWidget);
@@ -469,15 +556,15 @@ void main() {
 
       await tester.pumpWidget(const SizedBox());
       await tester.pumpAndSettle();
-      await tester.binding.setSurfaceSize(null);
+      await _resizeDesktop(tester, null);
       await runtime.dispose();
     },
   );
   testWidgets(
     'five future files stay ready and next episode reuses cache across layouts',
     (tester) async {
-      await tester.binding.setSurfaceSize(const Size(1280, 900));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await _resizeDesktop(tester, const Size(1280, 900));
+      addTearDown(() => _resizeDesktop(tester, null));
       final asset = await rootBundle.load('assets/verification.cenc.mp4');
       final runtime = _Runtime(
         asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
@@ -502,47 +589,77 @@ void main() {
       expect(state.prefetch.ready, 5);
       expect((runtime.dio.httpClientAdapter as _Adapter).downloads, 6);
       final originalHandle = await player.handle;
-      final picture = find.byKey(const ValueKey('player-picture'));
-      final pictureWidth = tester.getSize(picture).width;
-      expect(find.byKey(const ValueKey('episode-panel')), findsNothing);
-      await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('隐藏选集'));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('episode-panel')), findsNothing);
-      expect(tester.getSize(picture).width, pictureWidth);
-      expect(await player.handle, originalHandle);
-      await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('episode-panel')), findsOneWidget);
-      await tester.tap(find.widgetWithText(FilledButton, '下一集'));
-      for (var i = 0; i < 100; i++) {
-        await tester.pump(const Duration(milliseconds: 100));
-        if (state.position == 1 && !state.preparing) break;
+      if (_mobileDevice) {
+        final compact = find
+            .byKey(const ValueKey('compact-player-picture'))
+            .evaluate()
+            .isNotEmpty;
+        final picture = find.byKey(
+          ValueKey(compact ? 'compact-player-picture' : 'player-picture'),
+        );
+        final rect = tester.getRect(picture);
+        await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
+        await tester.pumpAndSettle();
+        if (compact) {
+          expect(find.text('选择剧集'), findsOneWidget);
+        } else {
+          expect(find.byKey(const ValueKey('episode-panel')), findsOneWidget);
+        }
+        await tester.tap(find.widgetWithText(FilledButton, '下一集'));
+        for (var i = 0; i < 100; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+          if (state.position == 1 && !state.preparing) break;
+        }
+        expect(state.position, 1);
+        expect(state.sourceVid, '124');
+        expect((runtime.dio.httpClientAdapter as _Adapter).downloads, 6);
+        await tester.tap(find.byTooltip(compact ? '关闭选集' : '隐藏选集'));
+        await tester.pumpAndSettle();
+        expect(tester.getRect(picture), rect);
+        expect(await player.handle, originalHandle);
+      } else {
+        final picture = find.byKey(const ValueKey('player-picture'));
+        final pictureWidth = tester.getSize(picture).width;
+        expect(find.byKey(const ValueKey('episode-panel')), findsNothing);
+        await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('隐藏选集'));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('episode-panel')), findsNothing);
+        expect(tester.getSize(picture).width, pictureWidth);
+        expect(await player.handle, originalHandle);
+        await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('episode-panel')), findsOneWidget);
+        await tester.tap(find.widgetWithText(FilledButton, '下一集'));
+        for (var i = 0; i < 100; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+          if (state.position == 1 && !state.preparing) break;
+        }
+        expect(state.position, 1);
+        expect(state.preparing, isFalse);
+        expect(state.sourceVid, '124');
+        expect((runtime.dio.httpClientAdapter as _Adapter).downloads, 6);
+        final handle = await player.handle;
+        await _resizeDesktop(tester, const Size(800, 600));
+        await tester.pumpAndSettle();
+        final overlayPicture = tester.getRect(picture);
+        await tester.tap(find.byTooltip('隐藏选集'));
+        await tester.pumpAndSettle();
+        expect(tester.getRect(picture), overlayPicture);
+        expect(await player.handle, handle);
+        expect((runtime.dio.httpClientAdapter as _Adapter).downloads, 6);
+        await _resizeDesktop(tester, const Size(390, 844));
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(find.text('第 2 集 · 选集'), findsOneWidget);
+        expect(await player.handle, handle);
+        await tester.tap(find.text('第 2 集 · 选集'));
+        await tester.pumpAndSettle();
+        expect(find.text('已缓存'), findsWidgets);
+        await tester.tapAt(const Offset(10, 70));
+        await tester.pumpAndSettle();
       }
-      expect(state.position, 1);
-      expect(state.preparing, isFalse);
-      expect(state.sourceVid, '124');
-      expect((runtime.dio.httpClientAdapter as _Adapter).downloads, 6);
-      final handle = await player.handle;
-      await tester.binding.setSurfaceSize(const Size(800, 600));
-      await tester.pumpAndSettle();
-      final overlayPicture = tester.getRect(picture);
-      await tester.tap(find.byTooltip('隐藏选集'));
-      await tester.pumpAndSettle();
-      expect(tester.getRect(picture), overlayPicture);
-      expect(await player.handle, handle);
-      expect((runtime.dio.httpClientAdapter as _Adapter).downloads, 6);
-      await tester.binding.setSurfaceSize(const Size(390, 844));
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('第 2 集 · 选集'), findsOneWidget);
-      expect(await player.handle, handle);
-      await tester.tap(find.text('第 2 集 · 选集'));
-      await tester.pumpAndSettle();
-      expect(find.text('已缓存'), findsWidgets);
-      await tester.tapAt(const Offset(10, 70));
-      await tester.pumpAndSettle();
-      await tester.binding.setSurfaceSize(null);
+      await _resizeDesktop(tester, null);
       await tester.pumpWidget(const SizedBox());
       await tester.pumpAndSettle();
       await runtime.dispose();
@@ -555,8 +672,8 @@ void main() {
   testWidgets(
     'cached episodes auto-next across local qualities; switch and final episode stop correctly',
     (tester) async {
-      await tester.binding.setSurfaceSize(const Size(1280, 900));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await _resizeDesktop(tester, const Size(1280, 900));
+      addTearDown(() => _resizeDesktop(tester, null));
       final asset = await rootBundle.load('assets/verification.cenc.mp4');
       final runtime = _Runtime(
         asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
@@ -610,23 +727,33 @@ void main() {
 
       await waitReady(0);
       await waitReady(1);
-      await player.pause();
+      print('LOCAL_AUTO_STAGE=second-ready');
+      await player.pause().timeout(const Duration(seconds: 5));
+      print('LOCAL_AUTO_STAGE=paused');
       await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(
+        const Duration(milliseconds: 100),
+        EnginePhase.sendSemanticsUpdate,
+        const Duration(seconds: 5),
+      );
       expect(state.quality, 'best');
       expect(state.prefetch.total, 0);
-      await tester.tap(find.byType(Switch));
+      print('LOCAL_AUTO_STAGE=panel-open');
+      await tester.tap(find.byKey(const ValueKey('episode-auto-next')));
       await tester.pump();
+      print('LOCAL_AUTO_STAGE=disabled');
       expect(runtime.settings.autoNext, isFalse);
-      await player.seek(Duration.zero);
-      await player.play();
+      await player.seek(Duration.zero).timeout(const Duration(seconds: 5));
+      print('LOCAL_AUTO_STAGE=seeked');
+      await player.play().timeout(const Duration(seconds: 5));
+      print('LOCAL_AUTO_STAGE=playing');
       for (var i = 0; i < 100 && !player.state.completed; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
       expect(player.state.completed, isTrue);
       expect(state.position, 1);
       expect(runtime.localRequests.length, 2);
-      await tester.tap(find.byType(Switch));
+      await tester.tap(find.byKey(const ValueKey('episode-auto-next')));
       await tester.pump();
       await waitReady(2);
       expect(runtime.settings.autoNext, isTrue);
@@ -638,12 +765,30 @@ void main() {
       expect(state.position, 2);
       expect(runtime.localRequests, ['123:720p', '124:best', '125:720p']);
       expect((runtime.dio.httpClientAdapter as _Adapter).downloads, downloads);
-      await tester.binding.setSurfaceSize(const Size(390, 844));
+      await _resizeDesktop(tester, const Size(390, 844));
       await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('本地连播'), findsOneWidget);
-      expect(tester.widget<Switch>(find.byType(Switch)).onChanged, isNotNull);
+      final compactLayout = find
+          .byKey(const ValueKey('compact-player-picture'))
+          .evaluate()
+          .isNotEmpty;
+      expect(find.text(compactLayout ? '本地连播' : '连播'), findsOneWidget);
+      final episodeSwitch = find.byKey(const ValueKey('episode-auto-next'));
+      expect(
+        tester
+            .widget<Switch>(
+              episodeSwitch.evaluate().isEmpty
+                  ? find.byType(Switch)
+                  : episodeSwitch,
+            )
+            .onChanged,
+        isNotNull,
+      );
       await tester.pumpWidget(const SizedBox());
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(
+        const Duration(milliseconds: 100),
+        EnginePhase.sendSemanticsUpdate,
+        const Duration(seconds: 5),
+      );
       await runtime.dispose();
       print(
         'LOCAL_AUTOPLAY=3 local episodes; 720p→best→720p; switch persisted; final episode stopped; no network',
@@ -654,8 +799,8 @@ void main() {
   testWidgets(
     'missing cached episode index stops autoplay; removed file never downloads',
     (tester) async {
-      await tester.binding.setSurfaceSize(const Size(1280, 900));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await _resizeDesktop(tester, const Size(1280, 900));
+      addTearDown(() => _resizeDesktop(tester, null));
       final asset = await rootBundle.load('assets/verification.cenc.mp4');
       final runtime = _Runtime(
         asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
@@ -718,6 +863,177 @@ void main() {
   );
 
   testWidgets(
+    'desktop floating window restores original bounds and background preference controls pause',
+    (tester) async {
+      if (!Platform.isMacOS && !Platform.isWindows && !Platform.isLinux) return;
+      await _resizeDesktop(tester, const Size(1280, 900));
+      addTearDown(() => _resizeDesktop(tester, null));
+      final asset = await rootBundle.load('assets/verification.cenc.mp4');
+      final runtime = _Runtime(
+        asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
+        Directory.systemTemp.createTempSync('hongguo-platform-'),
+        settings: const AppSettings(
+          prefetchEnabled: false,
+          autoNext: false,
+          floatingPlayback: true,
+          backgroundPlayback: true,
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PlayerPage(
+            runtime: runtime,
+            detail: await runtime.catalog.detail('123'),
+          ),
+        ),
+      );
+      await tester.pump();
+      final dynamic state = tester.state(find.byType(PlayerPage));
+      final player = state.player as Player;
+      await player.setVolume(0);
+      for (var i = 0; i < 150 && state.preparing; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await state.platformUpdates;
+      await windowManager.ensureInitialized();
+      final original = await windowManager.getBounds();
+      final originalTop = await windowManager.isAlwaysOnTop();
+      final handle = await player.handle;
+      try {
+        await tester.tap(find.byTooltip('悬浮播放'));
+        for (
+          var i = 0;
+          i < 100 && !state.platformPlayback.floating.value;
+          i++
+        ) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(state.platformPlayback.floating.value, isTrue);
+        expect(await windowManager.isAlwaysOnTop(), isTrue);
+        final mini = await windowManager.getBounds();
+        expect(mini.width, lessThanOrEqualTo(525));
+        expect(find.byTooltip('退出悬浮播放'), findsOneWidget);
+        await tester.tap(find.byTooltip('退出悬浮播放'));
+        for (var i = 0; i < 100 && state.platformPlayback.floating.value; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(state.platformPlayback.floating.value, isFalse);
+        final restored = await windowManager.getBounds();
+        expect(restored.width, closeTo(original.width, 3));
+        expect(restored.height, closeTo(original.height, 3));
+        expect(await windowManager.isAlwaysOnTop(), originalTop);
+        expect(await player.handle, handle);
+        await player.seek(Duration.zero);
+        await player.play();
+        state.didChangeAppLifecycleState(AppLifecycleState.paused);
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(player.state.playing, isTrue);
+        state.didChangeAppLifecycleState(AppLifecycleState.resumed);
+        await runtime.saveSettings(
+          runtime.settings.copyWith(backgroundPlayback: false),
+        );
+        await tester.pump();
+        state.didChangeAppLifecycleState(AppLifecycleState.paused);
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(player.state.playing, isFalse);
+        state.didChangeAppLifecycleState(AppLifecycleState.resumed);
+        print(
+          'BACKGROUND_DESKTOP=topmost mini window restored; same player; lifecycle background switch applied',
+        );
+      } finally {
+        await state.platformPlayback.exit(player);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+        await runtime.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'native background transport downloads private ciphertext and stores key only in vault',
+    (tester) async {
+      final asset = await rootBundle.load('assets/verification.cenc.mp4');
+      final bytes = asset.buffer.asUint8List(
+        asset.offsetInBytes,
+        asset.lengthInBytes,
+      );
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final requests = server.listen((request) async {
+        request.response.contentLength = bytes.length;
+        if (const bool.fromEnvironment('HONGGUO_TEST_BACKGROUND')) {
+          print('NATIVE_DOWNLOAD_BACKGROUND_WINDOW=request started');
+          final chunkSize = (bytes.length / 8).ceil();
+          for (var start = 0; start < bytes.length; start += chunkSize) {
+            final end = (start + chunkSize).clamp(0, bytes.length);
+            request.response.add(bytes.sublist(start, end));
+            await request.response.flush();
+            await Future<void>.delayed(const Duration(milliseconds: 600));
+          }
+        } else {
+          request.response.add(bytes);
+        }
+        await request.response.close();
+      });
+      final root = await getApplicationSupportDirectory();
+      final vid = '9${DateTime.now().microsecondsSinceEpoch}';
+      final target = File(
+        '${root.path}/media-cache/${vid}_best.mp4.100.0.part',
+      );
+      final vault = _DownloadVault();
+      final dio = Dio();
+      final downloads = NativeDownloads(
+        () => const AppSettings(
+          backgroundDownloads: true,
+          backgroundWifiOnly: false,
+        ),
+        dio,
+        vault: vault,
+      );
+      try {
+        await downloads
+            .download(
+              vid,
+              'best',
+              VideoTrack(
+                url: Uri.parse('http://127.0.0.1:${server.port}/fixture'),
+                spadeA: 'synthetic-secret-for-downloader-test',
+                definition: 'test',
+                size: bytes.length,
+              ),
+              target.path,
+              CancelToken(),
+              (_, _) {},
+            )
+            .timeout(const Duration(seconds: 45));
+        expect(await target.readAsBytes(), bytes);
+        final journal = File('${root.path}/download-journal/${vid}_best.json');
+        expect(await journal.exists(), isTrue);
+        expect(
+          await journal.readAsString(),
+          isNot(contains('synthetic-secret-for-downloader-test')),
+        );
+        expect(
+          vault.values.values.single,
+          'synthetic-secret-for-downloader-test',
+        );
+        await downloads.finish(vid, 'best');
+        expect(vault.values, isEmpty);
+        expect(await journal.exists(), isFalse);
+        print(
+          'NATIVE_BACKGROUND_DOWNLOAD=native transport completed; bytes matched; journal contained only key reference',
+        );
+      } finally {
+        await downloads.cancel();
+        await downloads.finish(vid, 'best');
+        if (await target.exists()) await target.delete();
+        dio.close(force: true);
+        await requests.cancel();
+        await server.close(force: true);
+      }
+    },
+  );
+
+  testWidgets(
     'macOS system session vault round-trip uses only a disposable test record',
     (tester) async {
       if (!Platform.isMacOS) return;
@@ -734,4 +1050,178 @@ void main() {
       expect(await vault.read(key), isNull);
     },
   );
+  testWidgets(
+    'background preparation never starts playback when background playback is disabled',
+    (tester) async {
+      final asset = await rootBundle.load('assets/verification.cenc.mp4');
+      final runtime = _Runtime(
+        asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
+        Directory.systemTemp.createTempSync('hongguo-hidden-prepare-'),
+        settings: const AppSettings(
+          backgroundDownloads: true,
+          backgroundPlayback: false,
+          prefetchEnabled: false,
+          autoNext: false,
+        ),
+      );
+      final gate = Completer<void>();
+      (runtime.dio.httpClientAdapter as _Adapter).gate = gate;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PlayerPage(
+            runtime: runtime,
+            detail: await runtime.catalog.detail('123'),
+          ),
+        ),
+      );
+      await tester.pump();
+      final dynamic state = tester.state(find.byType(PlayerPage));
+      final player = state.player as Player;
+      try {
+        expect(state.preparing, isTrue);
+        state.didChangeAppLifecycleState(AppLifecycleState.paused);
+        gate.complete();
+        for (var i = 0; i < 150 && state.preparing; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(state.error, isNull);
+        expect(state.preparing, isFalse);
+        expect(player.state.playlist.medias, hasLength(1));
+        expect(await runtime.cacheBytes(), greaterThan(0));
+        expect(
+          player.state.playing,
+          isFalse,
+          reason: 'Finishing a background download must not opt into background playback',
+        );
+        state.didChangeAppLifecycleState(AppLifecycleState.resumed);
+        await tester.pump();
+        expect(player.state.playing, isFalse);
+        print(
+          'BACKGROUND_PREPARATION=completed cached source without background autoplay; lifecycle simulated',
+        );
+      } finally {
+        if (!gate.isCompleted) gate.complete();
+        state.didChangeAppLifecycleState(AppLifecycleState.resumed);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+        await runtime.dispose();
+      }
+    },
+  );
+
+  testWidgets('mobile system media and picture-in-picture smoke', (
+    tester,
+  ) async {
+    if (!Platform.isAndroid && !Platform.isIOS) return;
+    final asset = await rootBundle.load('assets/verification.cenc.mp4');
+    final runtime = _Runtime(
+      asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
+      Directory.systemTemp.createTempSync('hongguo-mobile-system-'),
+      settings: const AppSettings(
+        prefetchEnabled: false,
+        autoNext: false,
+        backgroundPlayback: true,
+        floatingPlayback: true,
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PlayerPage(
+          runtime: runtime,
+          detail: await runtime.catalog.detail('123'),
+        ),
+      ),
+    );
+    await tester.pump();
+    final dynamic state = tester.state(find.byType(PlayerPage));
+    final player = state.player as Player;
+    try {
+      for (var i = 0; i < 200 && state.preparing; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await state.platformUpdates;
+      expect(state.error, isNull);
+      expect(
+        state.playbackNotice,
+        isNull,
+        reason: 'System media handler must initialize without fallback',
+      );
+      await player.setPlaylistMode(PlaylistMode.loop);
+      await player.seek(Duration.zero);
+      await player.play();
+      print(
+        'MOBILE_MEDIA_READY=system handler configured; platform=${Platform.operatingSystem}; audioWarning=${state.audioNotice}',
+      );
+      state.didChangeAppLifecycleState(AppLifecycleState.paused);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(player.state.playing, isTrue);
+      state.didChangeAppLifecycleState(AppLifecycleState.resumed);
+      print(
+        'MOBILE_BACKGROUND_WINDOW=ready for external Home/resume verification',
+      );
+      await Future<void>.delayed(const Duration(seconds: 8));
+      expect(player.state.playing, isTrue);
+      print(
+        'MOBILE_BACKGROUND_AFTER=playing=${player.state.playing}; position=${player.state.position.inMilliseconds}',
+      );
+      final source = player.state.playlist.medias.single.uri;
+      Object? pipError;
+      var pipDone = false;
+      final entering =
+          state.platformPlayback.enter(player, source) as Future<void>;
+      unawaited(
+        entering
+            .then((_) {
+              pipDone = true;
+            })
+            .catchError((Object e) {
+              pipError = e;
+              pipDone = true;
+            }),
+      );
+      for (var i = 0; i < 120 && !pipDone; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(
+        pipDone,
+        isTrue,
+        reason: 'PiP transition must complete or report unsupported',
+      );
+      if (pipError != null) {
+        print('MOBILE_PIP_UNAVAILABLE=$pipError');
+        if (Platform.isAndroid) fail('Android device PiP failed: $pipError');
+      } else {
+        expect(state.platformPlayback.floating.value, isTrue);
+        print('MOBILE_PIP_ACTIVE=system picture-in-picture entered');
+        await Future<void>.delayed(const Duration(seconds: 2));
+        if (Platform.isAndroid) {
+          expect(
+            player.state.playing,
+            isTrue,
+            reason: 'System PiP must keep playing rather than only showing a frozen window',
+          );
+        }
+        await state.platformPlayback.exit(player);
+        for (var i = 0; i < 80 && state.platformPlayback.floating.value; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(state.platformPlayback.floating.value, isFalse);
+        print('MOBILE_PIP_RESTORED=system picture-in-picture exited');
+      }
+      await runtime.saveSettings(
+        runtime.settings.copyWith(backgroundPlayback: false),
+      );
+      await tester.pump();
+      await state.platformUpdates;
+      state.didChangeAppLifecycleState(AppLifecycleState.paused);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(player.state.playing, isFalse);
+      state.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    } finally {
+      await state.platformPlayback.exit(player);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+      await runtime.dispose();
+    }
+  });
 }

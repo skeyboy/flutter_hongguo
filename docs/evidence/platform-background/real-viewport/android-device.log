@@ -1,0 +1,125 @@
+Resolving dependencies in `/Users/lee/Desktop/flutter_hongguo`...
+Downloading packages...
+  _fe_analyzer_shared 103.0.0 (109.0.0 available)
+  analyzer 13.3.0 (14.5.0 available)
+! audio_service 0.18.19 (overridden)
+! audio_session 0.2.4 (overridden)
+! background_downloader 9.6.4 (overridden)
+! crypto 3.0.7 (overridden)
+! cupertino_icons 1.0.9 (overridden) (2.0.0 available)
+! dio 5.11.1 (overridden)
+! flutter_riverpod 3.4.3 (overridden)
+! flutter_secure_storage 11.2.0 (overridden)
+! get_it 8.3.0 (overridden) (9.3.0 available)
+! lints 6.1.0 (overridden)
+  material_color_utilities 0.13.0 (0.13.1 available)
+! media_kit 1.2.6 (overridden)
+! media_kit_libs_video 1.0.7 (overridden)
+! media_kit_video 2.0.1 (overridden)
+  package_config 2.2.0 (3.0.0 available)
+! path_provider 2.1.6 (overridden)
+! pointycastle 4.0.0 (overridden)
+  screen_retriever 0.2.2 (0.3.0 available)
+! test 1.31.1 (overridden) (1.33.0 available)
+  test_api 0.7.12 (0.7.15 available)
+  test_core 0.6.18 (0.6.21 available)
+! window_manager 0.5.2 (overridden)
+Got dependencies in `/Users/lee/Desktop/flutter_hongguo`!
+10 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/packages/app/integration_test/offline_playback_test.dart
+Running Gradle task 'assembleDebug'...                             35.4s
+✓ Built build/app/outputs/flutter-apk/app-debug.apk
+Installing build/app/outputs/flutter-apk/app-debug.apk...           8.8s
+00:00 +0: catalog → episode → streamed CENC → Dart decrypt → native local playback and seek
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/packages/app/integration_test/offline_playback_test.dart
+media_kit: NativeReferenceHolder: Allocated -5476376616937361968
+00:01 +0: catalog → episode → streamed CENC → Dart decrypt → native local playback and seek
+REAL_MOBILE_VIEWPORT=platform=android; physical=Size(1440.0, 3200.0); dpr=3.5; surfaceOverride=none
+DEVICE_SCREENSHOT=library-mobile
+DEVICE_SCREENSHOT=horizontal-filters-mobile
+DEVICE_SCREENSHOT=settings-mobile
+THEME_ACCEPTANCE=selection applied dark immediately without pressing save
+DEVICE_SCREENSHOT=theme-dark-mobile
+DEVICE_SCREENSHOT=library
+DEVICE_SCREENSHOT=detail
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 15270, handle: -5476376619889690912, id: 0}
+PLAYER_STATE_ERROR=null
+AUDIO_OUTPUT_WARNING=null
+NATIVE_FRAME_ARTIFACT=/data/user/0/com.example.hongguo_app/code_cache/hongguo-native-frame.png
+DEVICE_SCREENSHOT=player-mobile-controls
+DEVICE_SCREENSHOT=player-mobile-picture
+DEVICE_SCREENSHOT=player-mobile-episodes
+OVERLAY_ACCEPTANCE=video rectangle stable; device-appropriate selector; player preserved; desktopResize=false
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 0, handle: -5476376619889690912, id: 0}
+DEVICE_SCREENSHOT=local-cache-mobile
+DEVICE_SCREENSHOT=local-episodes-mobile
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 15338, handle: -5476376619889161664, id: 1}
+DEVICE_SCREENSHOT=local-player-mobile
+LOCAL_CACHE_ACCEPTANCE=listed named episode; decoded local MP4 without another request; no prefetch
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 0, handle: -5476376619889161664, id: 1}
+00:25 +1: five future files stay ready and next episode reuses cache across layouts
+00:26 +1: catalog → episode → streamed CENC → Dart decrypt → native local playback and seek
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 15370, handle: -5476376619890491888, id: 2}
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 0, handle: -5476376619890491888, id: 2}
+00:27 +1: five future files stay ready and next episode reuses cache across layouts
+PREFETCH_ACCEPTANCE=5 ready; switching reused file without another download; player survived compact layout
+00:27 +2: cached episodes auto-next across local qualities; switch and final episode stop correctly
+00:28 +2: catalog → episode → streamed CENC → Dart decrypt → native local playback and seek
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 14570, handle: -5476376619890742896, id: 3}
+00:29 +2: cached episodes auto-next across local qualities; switch and final episode stop correctly
+LOCAL_AUTO_STAGE=second-ready
+LOCAL_AUTO_STAGE=paused
+LOCAL_AUTO_STAGE=panel-open
+LOCAL_AUTO_STAGE=disabled
+LOCAL_AUTO_STAGE=seeked
+LOCAL_AUTO_STAGE=playing
+00:34 +2: catalog → episode → streamed CENC → Dart decrypt → native local playback and seek
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 0, handle: -5476376619890742896, id: 3}
+00:34 +2: cached episodes auto-next across local qualities; switch and final episode stop correctly
+LOCAL_AUTOPLAY=3 local episodes; 720p→best→720p; switch persisted; final episode stopped; no network
+00:34 +3: missing cached episode index stops autoplay; removed file never downloads
+00:34 +3: catalog → episode → streamed CENC → Dart decrypt → native local playback and seek
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 14446, handle: -5476376619890494848, id: 4}
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 0, handle: -5476376619890494848, id: 4}
+00:37 +3: missing cached episode index stops autoplay; removed file never downloads
+LOCAL_AUTOPLAY_GAP=stopped at missing index; removed file failed offline without download; pins released
+00:37 +4: desktop floating window restores original bounds and background preference controls pause
+00:37 +5: native background transport downloads private ciphertext and stores key only in vault
+NATIVE_DOWNLOAD_BACKGROUND_WINDOW=request started
+NATIVE_DOWNLOAD_BACKGROUND_WINDOW=request started
+NATIVE_DOWNLOAD_BACKGROUND_WINDOW=request started
+NATIVE_BACKGROUND_DOWNLOAD=native transport completed; bytes matched; journal contained only key reference
+00:47 +6: macOS system session vault round-trip uses only a disposable test record
+00:47 +7: background preparation never starts playback when background playback is disabled
+BACKGROUND_PREPARATION=completed cached source without background autoplay; lifecycle simulated
+00:47 +7: catalog → episode → streamed CENC → Dart decrypt → native local playback and seek
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 15590, handle: -5476376619890259824, id: 5}
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 0, handle: -5476376619890259824, id: 5}
+00:48 +8: mobile system media and picture-in-picture smoke
+00:48 +8: catalog → episode → streamed CENC → Dart decrypt → native local playback and seek
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 15782, handle: -5476376619890480048, id: 6}
+00:48 +8: mobile system media and picture-in-picture smoke
+MOBILE_MEDIA_READY=system handler configured; platform=android; audioWarning=null
+MOBILE_BACKGROUND_WINDOW=ready for external Home/resume verification
+MOBILE_BACKGROUND_AFTER=playing=true; position=1333
+MOBILE_PIP_ACTIVE=system picture-in-picture entered
+MOBILE_PIP_RESTORED=system picture-in-picture exited
+00:59 +8: catalog → episode → streamed CENC → Dart decrypt → native local playback and seek
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 0, handle: -5476376619890480048, id: 6}
+00:59 +9: (tearDownAll)
+00:59 +9: All tests passed!

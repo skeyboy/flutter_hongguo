@@ -7,6 +7,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../platform/runtime.dart';
+import '../platform/background/playback_platform.dart';
 import '../playback/prefetch_window.dart';
 import '../playback/local_playlist.dart';
 import '../playback/episode_workspace.dart';
@@ -35,6 +36,10 @@ class PlayerPage extends StatefulWidget {
 
 class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   late final Player player;
+  final platformPlayback = PlaybackPlatform();
+  Future<void> platformUpdates = Future.value();
+  bool appBackground = false, preparationInterrupted = false;
+
   late final VideoController controller;
   final subscriptions = <StreamSubscription<dynamic>>[];
   PlaybackJob? job;
@@ -110,6 +115,23 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         if (mounted && value != playing) _redraw(() => playing = value);
       }),
     );
+    platformPlayback.onExternalCompleted = () => _completed(true);
+    platformPlayback.floating.addListener(_platformChanged);
+    platformPlayback.platformPip.addListener(_platformChanged);
+    if (runtime is ConfigurableRuntime) {
+      subscriptions.add(
+        runtime.settingsChanges.listen((_) {
+          _configurePlatform();
+          if (appBackground &&
+              !settingsFor(runtime).backgroundPlayback &&
+              !platformPlayback.floating.value) {
+            player.pause();
+          }
+          if (mounted) _redraw(() {});
+        }),
+      );
+    }
+    _configurePlatform();
     subscriptions.add(player.stream.completed.listen(_completed));
     _play(position);
   }
@@ -135,12 +157,79 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     _play(position + 1);
   }
 
+  void _platformChanged() {
+    if (mounted) _redraw(() {});
+  }
+
+  void _configurePlatform() {
+    platformUpdates = platformUpdates.catchError((Object _) {}).then((_) async {
+      if (!mounted) return;
+      try {
+        await platformPlayback.configure(
+          player,
+          settingsFor(widget.runtime),
+          '${widget.detail.drama.title} · 第 ${widget.detail.episodes[position].index} 集',
+          step: (offset) async => _step(offset),
+        );
+      } catch (_) {
+        if (mounted) {
+          _redraw(() => playbackNotice = '后台媒体控制暂不可用，请检查系统权限或返回设置重试。');
+        }
+      }
+    });
+  }
+
+  Future<void> _floating() async {
+    if (preparing || sourceVid == null) return;
+    try {
+      if (platformPlayback.floating.value) {
+        await platformPlayback.exit(player);
+      } else {
+        await platformPlayback.enter(
+          player,
+          player.state.playlist.medias.single.uri,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e is StateError ? e.message : '当前设备无法进入悬浮模式，请检查画中画权限或系统支持。',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
-      player.pause();
+    if (state == AppLifecycleState.resumed) {
+      appBackground = false;
+      if (preparationInterrupted) {
+        preparationInterrupted = false;
+        _play(position);
+      } else {
+        _syncPrefetch();
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      appBackground = true;
+      final preferences = settingsFor(widget.runtime);
+      if (!preferences.backgroundDownloads) {
+        prefetch.clear();
+        if (preparing && !preferences.backgroundPlayback) {
+          preparationInterrupted = true;
+          job?.cancel();
+        }
+      }
+      if (!preferences.backgroundPlayback && !platformPlayback.floating.value) {
+        player.pause();
+      }
     }
+    // inactive also covers notification permission dialogs and brief window
+    // transitions; it must not interrupt audio or a PiP hand-off.
   }
 
   Future<void> _play(int selected) async {
@@ -212,10 +301,17 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         active.release();
         return;
       }
-      await player.open(Media(source));
+      bool mayPlay() =>
+          !appBackground ||
+          settingsFor(widget.runtime).backgroundPlayback ||
+          platformPlayback.floating.value;
+      await player.open(Media(source), play: mayPlay());
+      // The app can become hidden while the native player is opening a file.
+      if (!mayPlay()) await player.pause();
       if (!mounted || ticket != generation) return;
       _redraw(() => preparing = false);
       _syncPrefetch();
+      _configurePlatform();
     } catch (e) {
       previous?.release();
       if (mounted && ticket == generation) {
@@ -234,7 +330,10 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
       position: position,
       quality: quality,
       count: preferences.prefetchEpisodes,
-      enabled: !widget.cachedOnly && preferences.prefetchEnabled,
+      enabled:
+          !widget.cachedOnly &&
+          preferences.prefetchEnabled &&
+          (!appBackground || preferences.backgroundDownloads),
     );
   }
 
@@ -282,7 +381,20 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     final active = job;
     // Cancel preparation now, release a playing file only after player closes.
     if (preparing) active?.cancel();
-    player.dispose().whenComplete(() => active?.release());
+    platformPlayback.floating.removeListener(_platformChanged);
+    platformPlayback.platformPip.removeListener(_platformChanged);
+    unawaited(
+      platformUpdates
+          .catchError((Object _) {})
+          .then((_) async {
+            await platformPlayback.dispose(player);
+          })
+          .catchError((Object _) {})
+          .whenComplete(() async {
+            await player.dispose();
+            active?.release();
+          }),
+    );
     super.dispose();
   }
 
@@ -362,7 +474,17 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     color: Colors.black,
     child: Stack(
       children: [
-        Positioned.fill(child: Video(controller: controller)),
+        Positioned.fill(
+          child: Video(
+            controller: controller,
+            // This page owns the background/PiP policy. Video's default
+            // lifecycle observer would otherwise pause even when enabled.
+            pauseUponEnteringBackgroundMode: false,
+            controls: platformPlayback.platformPip.value
+                ? NoVideoControls
+                : AdaptiveVideoControls,
+          ),
+        ),
         if (playbackNotice != null || audioNotice != null)
           Positioned(
             top: 16,
@@ -560,7 +682,11 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Text('连播'),
-                      Switch(value: autoNext, onChanged: _setAutoNext),
+                      Switch(
+                        key: const ValueKey('episode-auto-next'),
+                        value: autoNext,
+                        onChanged: _setAutoNext,
+                      ),
                     ],
                   ),
                 ],
@@ -642,6 +768,32 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     builder: (context, viewport) {
       final size = Size(viewport.maxWidth, viewport.maxHeight);
       final compact = size.width < 720 && size.height >= size.width;
+      final floating = platformPlayback.floating.value;
+      final pip = platformPlayback.platformPip.value;
+      // Android may restore the Activity before its PiP-sized constraints grow.
+      if (pip || (platformPlayback.restoringPip && size.width < 280)) {
+        return Scaffold(backgroundColor: Colors.black, body: _video());
+      }
+      if (floating && !platformPlayback.mobile) {
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            children: [
+              Positioned.fill(child: _video()),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: IconButton(
+                  tooltip: '退出悬浮播放',
+                  onPressed: _floating,
+                  icon: const Icon(Icons.fullscreen_exit),
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
       final scaffold = Scaffold(
         backgroundColor: compact ? Colors.black : null,
         appBar: AppBar(
@@ -653,6 +805,12 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
             overflow: TextOverflow.ellipsis,
           ),
           actions: [
+            if (settingsFor(widget.runtime).floatingPlayback)
+              IconButton(
+                tooltip: floating ? '退出悬浮播放' : '悬浮播放',
+                onPressed: preparing ? null : _floating,
+                icon: const Icon(Icons.picture_in_picture_alt),
+              ),
             IconButton(
               key: const ValueKey('toggle-episodes'),
               tooltip: '显示或隐藏选集',

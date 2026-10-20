@@ -1,0 +1,33 @@
+00:00 +0: loading test/media_cache_test.dart
+00:00 +0: test/media_cache_test.dart: stream download → spade → all tracks → clear MP4 → restart cache hit
+00:00 +1: test/media_cache_test.dart: same-key work deduplicates and one lease cancellation does not cancel another
+00:00 +2: test/media_cache_test.dart: all consumers cancel during resolution: no file is published
+00:00 +3: test/media_cache_test.dart: wrong key never enters cache and retry succeeds
+00:00 +4: test/media_cache_test.dart: playing files remain pinned during cache clear; released files can be removed
+00:00 +5: test/media_cache_test.dart: truncated ready file with old manifest is re-downloaded
+00:00 +6: test/media_cache_test.dart: local browser lists only complete manifests and reflects active pins
+00:00 +7: test/prefetch_scheduler_test.dart: foreground promotion skips queued prefetch and shares the same download
+00:00 +8: test/prefetch_scheduler_test.dart: foreground promotion skips queued prefetch and shares the same download
+00:00 +9: test/prefetch_scheduler_test.dart: foreground promotion skips queued prefetch and shares the same download
+00:00 +10: test/prefetch_scheduler_test.dart: foreground promotion skips queued prefetch and shares the same download
+00:00 +11: test/media_cache_test.dart: native download transport shares decrypt, manifest and completion cleanup
+00:00 +12: test/video_model_client_test.dart: frozen body bytes, MD5 stub and six headers agree
+00:00 +13: test/video_model_client_test.dart: frozen body bytes, MD5 stub and six headers agree
+00:00 +14: test/media_cache_test.dart: recovery publishes completed ciphertext without resolving or downloading
+00:00 +15: test/media_cache_test.dart: recovery publishes completed ciphertext without resolving or downloading
+00:00 +16: test/video_model_client_test.dart: Dio exact bytes and fallback envelope String
+00:00 +17: test/video_model_client_test.dart: Dio exact bytes and fallback envelope String
+00:00 +18: test/prefetch_scheduler_test.dart: prefetch respects the budget even when the model omits size
+00:00 +19: test/video_model_client_test.dart: Dio exact bytes and fallback envelope List<String>
+00:00 +20: test/video_model_client_test.dart: Dio exact bytes and fallback envelope _Map<String, String>
+00:00 +21: test/video_model_client_test.dart: Dio exact bytes and fallback envelope String
+00:00 +22: test/catalog_test.dart: awaits HTML before parsing and preserves >53-bit IDs
+00:00 +23: test/catalog_test.dart: awaits HTML before parsing and preserves >53-bit IDs
+00:00 +24: test/catalog_test.dart: awaits HTML before parsing and preserves >53-bit IDs
+00:00 +25: test/catalog_test.dart: awaits HTML before parsing and preserves >53-bit IDs
+00:00 +26: test/catalog_test.dart: AI classification and seen IDs map to proper landpage fields
+00:00 +27: test/catalog_test.dart: signed details sorted, cached, and ID remains a string
+00:00 +28: test/catalog_test.dart: App errors fall back to awaited website episodes
+00:00 +29: test/catalog_test.dart: HTML scanner respects brackets and escaped quotes inside strings
+00:00 +30: test/catalog_test.dart: rank uses the real comic board and upstream pagination cursor
+00:00 +31: All tests passed!

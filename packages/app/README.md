@@ -25,3 +25,9 @@
 [0.2.1 交互、主题与缓存验收](../../docs/interaction-cache-validation.md)
 
 [0.2.2 按剧目展示本地缓存](../../docs/local-library-grouping.md)
+
+## 后台与平台验收
+
+0.2.6 新增默认关闭的后台播放、后台下载与悬浮播放开关。移动端系统通知/媒体控制、Android/iOS PiP、桌面置顶小窗按平台实现；系统后台限制和真机验收范围见 [功能文档](../../docs/platform-background.md)。
+
+[按真实窗口执行移动自动化及 ADB 安装](../../docs/mobile-testing.md)。测试保留 App（`--no-uninstall`），不再每轮当作首次安装；厂商授权不足时明确报错。

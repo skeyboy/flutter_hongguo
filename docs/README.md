@@ -2,6 +2,13 @@
 
 本项目的分析文档、主工程代码、参考实现与验收证据均集中在 `flutter_hongguo/` 内。日常开发和运行以根 workspace 的 `packages/core`、`packages/api`、`packages/app` 为主。
 
+## 后台与悬浮能力
+
+- [真实移动端测试与 ADB 安装](mobile-testing.md)
+- [平台设计](design/platform-background.md)
+- [实现与使用限制](platform-background.md)
+- [0.2.6 验收记录](evidence/platform-background/README.md)
+
 ## 当前浮层与播放空间
 
 - [设计与平台交互](design/overlay-playback.md)

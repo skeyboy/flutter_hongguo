@@ -1,9 +1,10 @@
 # 持久化分析与验收证据
 
-本目录保存已有结果快照，随项目源码保留；本次整理未重新运行算法、网络请求、下载或播放器测试。原始 `build/` 运行产物仍可用于复测，但清理构建目录不影响这些记录。
+本目录保存已有结果快照，随项目源码保留；各轮实际验证范围以对应目录记录为准。原始 `build/` 运行产物仍可用于复测，但清理构建目录不影响这些记录。
 
 | 目录 | 内容 |
 |---|---|
+| [platform-background](platform-background/README.md) | 0.2.6 后台播放、原生下载、置顶小窗与移动端编译验收 |
 | [source-analysis](source-analysis) | 原分析的 scope、时间线、workitems、日志、源码摘要与 Node 自检输出 |
 | [native-pipeline](native-pipeline) | 核心/API/页面测试、AOT/JS 对拍、MP4 解码结果、macOS 与 iOS 模拟器离线播放日志 |
 | [current-mac](current-mac) | 当前 Mac 原生算法、真实单集播放、Release 架构/打包与验收 JSON |

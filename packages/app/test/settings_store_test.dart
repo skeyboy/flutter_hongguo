@@ -59,7 +59,13 @@ void main() {
     () async {
       await store.load();
       await store.save(
-        store.settings.copyWith(prefetchEpisodes: 5, themeMode: 'dark'),
+        store.settings.copyWith(
+          prefetchEpisodes: 5,
+          themeMode: 'dark',
+          backgroundPlayback: true,
+          backgroundDownloads: true,
+          floatingPlayback: true,
+        ),
         session: const SessionCredentials(
           cookie: 'cookie-for-test',
           ttToken: 'token-for-test',
@@ -75,6 +81,9 @@ void main() {
       await restart.load();
       expect(restart.settings.prefetchEpisodes, 5);
       expect(restart.settings.themeMode, 'dark');
+      expect(restart.settings.backgroundPlayback, isTrue);
+      expect(restart.settings.backgroundDownloads, isTrue);
+      expect(restart.settings.floatingPlayback, isTrue);
       expect(restart.credentials.cookie, 'cookie-for-test');
       expect(restart.deviceId, '1234567890123456');
     },

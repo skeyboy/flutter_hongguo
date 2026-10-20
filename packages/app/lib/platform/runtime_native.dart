@@ -9,6 +9,7 @@ import 'package:hongguo_core/hongguo_core.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../settings/settings_store.dart';
+import 'background/native_downloads.dart';
 import '../catalog/library_cache.dart';
 import '../catalog/artwork_cache_native.dart';
 import '../settings/settings_store_native.dart';
@@ -31,7 +32,9 @@ Future<AppRuntime> createRuntime() async {
     deviceId: id,
   );
   await store.load();
-  return NativeRuntime(root, store);
+  final runtime = NativeRuntime(root, store);
+  if (store.settings.backgroundDownloads) await runtime.restoreDownloads();
+  return runtime;
 }
 
 class NativeRuntime
@@ -48,6 +51,8 @@ class NativeRuntime
   late CatalogClient _catalog;
   late VideoModelClient _model;
   late final MediaCache _cache;
+  late final NativeDownloads _downloads;
+  final _retained = <String>{};
   late final ArtworkCache _artwork;
   NativeRuntime(Directory root, this.store) {
     libraryCache = LibraryCache(
@@ -55,15 +60,26 @@ class NativeRuntime
     );
     _artwork = ArtworkCache(Directory('${root.path}/artwork-cache'));
     _rebuildClients();
+    _downloads = NativeDownloads(() => settings, _dio);
     _cache = MediaCache(
       directory: Directory('${root.path}/media-cache'),
       dio: _dio,
+      download: _downloads.download,
+      onFinished: _downloads.finish,
       maxFiles: settings.maxCacheFiles,
       maxBytes: settings.maxCacheMb * 1024 * 1024,
       maxConcurrent: settings.concurrentPreparations,
       resolve: (vid, quality) => _model.fetchTrack(vid, quality: quality),
     );
   }
+  Future<void> restoreDownloads() async {
+    try {
+      await _downloads.restore(_cache.adoptDownloaded);
+    } catch (_) {
+      store.warning = '后台任务恢复暂未完成，进入应用后可重试缓存。';
+    }
+  }
+
   @override
   CatalogRepository get catalog => _catalog;
   @override
@@ -101,7 +117,11 @@ class NativeRuntime
   }) async {
     final oldProtocol = jsonEncode(settings.protocolJson()),
         oldSession = jsonEncode(this.credentials.toJson());
+    if (value.backgroundDownloads && !settings.backgroundDownloads) {
+      await _downloads.initialize(requestNotification: true);
+    }
     await store.save(value, session: credentials);
+    if (!value.backgroundDownloads) await _downloads.cancel();
     _settingsEvents.add(settings);
     if (oldProtocol != jsonEncode(settings.protocolJson()) ||
         oldSession != jsonEncode(this.credentials.toJson())) {
@@ -152,6 +172,7 @@ class NativeRuntime
           MediaStage.queued => '正在排队',
           MediaStage.resolving => '正在获取片源',
           MediaStage.downloading => '正在下载',
+          MediaStage.waitingNetwork => '等待 Wi-Fi 或网络',
           MediaStage.decrypting => '正在处理视频',
           MediaStage.validating => '即将播放',
           MediaStage.ready => '已就绪',
@@ -159,6 +180,27 @@ class NativeRuntime
         onProgress?.call(PreparationProgress(label, p.fraction));
       },
     );
+    if (background &&
+        settings.backgroundDownloads &&
+        _retained.length < settings.maxCacheFiles) {
+      final key = '$vid:$quality';
+      if (_retained.add(key)) {
+        final retained = _cache.prepare(
+          vid,
+          quality: quality,
+          background: true,
+        );
+        unawaited(
+          retained.result
+              .then<void>((_) {})
+              .catchError((Object _) {})
+              .whenComplete(() {
+                _cache.release(retained);
+                _retained.remove(key);
+              }),
+        );
+      }
+    }
     unawaited(
       lease.result
           .then((_) async {
@@ -226,6 +268,7 @@ class NativeRuntime
   @override
   Future<void> dispose() async {
     _cache.close();
+    await _downloads.cancel();
     _artwork.close();
     _dio.close(force: true);
     await _settingsEvents.close();

@@ -1,0 +1,22 @@
+[
+  {
+    "kind": "system_back",
+    "status": "not_tested",
+    "reason": "OEM denies shell INJECT_EVENTS permission"
+  },
+  {
+    "kind": "download",
+    "home_intent_started": true,
+    "target_not_foreground": true,
+    "wait_seconds": 3,
+    "system_job_present": true
+  },
+  {
+    "kind": "playback",
+    "home_intent_started": true,
+    "target_not_foreground": true,
+    "wait_seconds": 3,
+    "media_session_present": true,
+    "service_running": true
+  }
+]

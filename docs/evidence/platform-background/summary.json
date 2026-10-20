@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-20",
+  "version": "0.2.6+8",
+  "core_tests": 114,
+  "api_tests": 31,
+  "app_tests": 65,
+  "mac_native_tests": 8,
+  "ci_contract_tests": 5,
+  "paid_ci_dispatched": false,
+  "android": {
+    "shared_native_regression": 9,
+    "actual_executed": 7,
+    "system_pip": "entered, kept playing, restored",
+    "final_real_viewport_test": "passed; 1440x3200 / DPR 3.5",
+    "shell_input": "denied INJECT_EVENTS",
+    "old_home_claim": "invalidated; old helper failed to check command errors",
+    "installation_fix": "--no-uninstall; two install/update successes; automatic uninstall forbidden",
+    "background_download": "verified with Launcher Intent and actual foreground check",
+    "background_playback": "kept playing after actual Home and return"
+  },
+  "ios_simulator": {
+    "iphone": {
+      "tests_passed": 8,
+      "actual_executed": 6,
+      "real_viewport": true,
+      "system_pip": "unsupported",
+      "audible_audio": "not_verified; simulator audio output warning"
+    },
+    "ipad": {
+      "tests_passed": 8,
+      "actual_executed": 6,
+      "real_viewport": true,
+      "system_pip": "unsupported"
+    },
+    "normal_app_restored": true,
+    "latest_boundary_tests": 2
+  },
+  "not_verified": [
+    "iOS real device",
+    "long lockscreen playback",
+    "Doze or battery restrictions",
+    "multi-hour downloads",
+    "force-quit recovery on mobile device",
+    "physical system Back when OEM input permission denied"
+  ],
+  "mac_actual_executed": 7,
+  "mac_latest_boundary_tests": 2
+}

@@ -1,0 +1,63 @@
+Resolving dependencies in `/Users/lee/Desktop/flutter_hongguo`...
+Downloading packages...
+  _fe_analyzer_shared 103.0.0 (109.0.0 available)
+  analyzer 13.3.0 (14.5.0 available)
+! audio_service 0.18.19 (overridden)
+! audio_session 0.2.4 (overridden)
+! background_downloader 9.6.4 (overridden)
+! crypto 3.0.7 (overridden)
+! cupertino_icons 1.0.9 (overridden) (2.0.0 available)
+! dio 5.11.1 (overridden)
+! flutter_riverpod 3.4.3 (overridden)
+! flutter_secure_storage 11.2.0 (overridden)
+! get_it 8.3.0 (overridden) (9.3.0 available)
+! lints 6.1.0 (overridden)
+  material_color_utilities 0.13.0 (0.13.1 available)
+! media_kit 1.2.6 (overridden)
+! media_kit_libs_video 1.0.7 (overridden)
+! media_kit_video 2.0.1 (overridden)
+  package_config 2.2.0 (3.0.0 available)
+! path_provider 2.1.6 (overridden)
+! pointycastle 4.0.0 (overridden)
+  screen_retriever 0.2.2 (0.3.0 available)
+! test 1.31.1 (overridden) (1.33.0 available)
+  test_api 0.7.12 (0.7.15 available)
+  test_core 0.6.18 (0.6.21 available)
+! window_manager 0.5.2 (overridden)
+Got dependencies in `/Users/lee/Desktop/flutter_hongguo`!
+10 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/packages/app/integration_test/offline_playback_test.dart
+The following plugins do not support Swift Package Manager for ios:
+  - media_kit_libs_ios_video
+  - media_kit_video
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Running pod install...                                           2,391ms
+Running Xcode build...
+Xcode build done.                                           39.3s
+00:00 +0: background preparation never starts playback when background playback is disabled
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/packages/app/integration_test/offline_playback_test.dart
+media_kit: NativeReferenceHolder: Allocated 4440612864
+00:00 +0: background preparation never starts playback when background playback is disabled
+VideoOutput.Resize
+{id: 0, rect: {height: 0.0, top: 0.0, left: 0.0, width: 0.0}, handle: 4818575568}
+NativeVideoController: Texture ID: 0
+BACKGROUND_PREPARATION=completed cached source without background autoplay; lifecycle simulated
+VideoOutput.Resize
+{id: 0, handle: 4818575568, rect: {left: 0.0, top: 0.0, width: 160.0, height: 288.0}}
+00:00 +1: mobile system media and picture-in-picture smoke
+00:01 +1: background preparation never starts playback when background playback is disabled
+VideoOutput.Resize
+{handle: 5027404752, rect: {width: 0.0, top: 0.0, height: 0.0, left: 0.0}, id: 1}
+NativeVideoController: Texture ID: 1
+00:02 +1: mobile system media and picture-in-picture smoke
+MOBILE_MEDIA_READY=system handler configured; platform=ios; audioWarning=声音暂不可用，画面可以继续播放。请检查音频输出设备。
+00:02 +1: background preparation never starts playback when background playback is disabled
+VideoOutput.Resize
+{id: 1, handle: 5027404752, rect: {height: 288.0, left: 0.0, width: 160.0, top: 0.0}}
+00:02 +1: mobile system media and picture-in-picture smoke
+MOBILE_BACKGROUND_WINDOW=ready for external Home/resume verification
+MOBILE_BACKGROUND_AFTER=playing=true; position=750
+MOBILE_PIP_UNAVAILABLE=PlatformException(pip_unavailable, 当前设备无法进入画中画, null, null)
+00:11 +2: (tearDownAll)
+00:11 +2: All tests passed!

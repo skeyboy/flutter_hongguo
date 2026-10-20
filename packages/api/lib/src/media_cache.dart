@@ -12,6 +12,7 @@ enum MediaStage {
   queued,
   resolving,
   downloading,
+  waitingNetwork,
   decrypting,
   validating,
   ready,
@@ -67,6 +68,16 @@ class _Job {
 class MediaCache {
   final Directory directory;
   final Dio dio;
+  final Future<void> Function(
+    String vid,
+    String quality,
+    VideoTrack track,
+    String path,
+    CancelToken token,
+    void Function(int, int) progress,
+  )?
+  download;
+  final Future<void> Function(String vid, String quality)? onFinished;
   final Future<VideoTrack> Function(String vid, String quality) resolve;
   int maxFiles, maxBytes, maxConcurrent;
   final _jobs = <String, _Job>{};
@@ -80,6 +91,8 @@ class MediaCache {
   MediaCache({
     required this.directory,
     required this.dio,
+    this.download,
+    this.onFinished,
     required this.resolve,
     this.maxFiles = 30,
     this.maxBytes = 512 * 1024 * 1024,
@@ -265,35 +278,48 @@ class MediaCache {
         working =
             '${output.path}.${DateTime.now().microsecondsSinceEpoch}.${_serial++}.part';
         job.progress(const MediaProgress(MediaStage.downloading));
-        await dio.download(
-          track.url.toString(),
-          working,
-          cancelToken: job.token,
-          deleteOnError: true,
-          options: Options(
-            followRedirects: false,
-            headers: {'User-Agent': 'Mozilla/5.0'},
-            receiveTimeout: const Duration(seconds: 120),
-          ),
-          onReceiveProgress: (received, total) {
-            if (job.background && maxBytes > 0) {
-              if (received > (_reserved[job] ?? 0)) _reserved[job] = received;
-              final allocated =
-                  _pinSizes.values.fold<int>(0, (a, b) => a + b) +
-                  _reserved.values.fold<int>(0, (a, b) => a + b);
-              if (allocated > maxBytes) {
-                job.token.cancel('Background cache budget exceeded');
-              }
+        void report(int received, int total) {
+          if (job.background && maxBytes > 0) {
+            if (received > (_reserved[job] ?? 0)) _reserved[job] = received;
+            final allocated =
+                _pinSizes.values.fold<int>(0, (a, b) => a + b) +
+                _reserved.values.fold<int>(0, (a, b) => a + b);
+            if (allocated > maxBytes) {
+              job.token.cancel('Background cache budget exceeded');
             }
-            job.progress(
-              MediaProgress(
-                MediaStage.downloading,
-                received: received,
-                total: total,
-              ),
-            );
-          },
-        );
+          }
+          job.progress(
+            MediaProgress(
+              total == -1 ? MediaStage.waitingNetwork : MediaStage.downloading,
+              received: received,
+              total: total,
+            ),
+          );
+        }
+
+        if (download != null) {
+          await download!(
+            job.vid,
+            job.quality,
+            track,
+            working,
+            job.token,
+            report,
+          );
+        } else {
+          await dio.download(
+            track.url.toString(),
+            working,
+            cancelToken: job.token,
+            deleteOnError: true,
+            options: Options(
+              followRedirects: false,
+              headers: {'User-Agent': 'Mozilla/5.0'},
+              receiveTimeout: const Duration(seconds: 120),
+            ),
+            onReceiveProgress: report,
+          );
+        }
         _check(job);
         if (track.encrypted) {
           job.progress(const MediaProgress(MediaStage.decrypting));
@@ -355,6 +381,11 @@ class MediaCache {
         }
       }
     } finally {
+      try {
+        await onFinished?.call(job.vid, job.quality);
+      } catch (_) {
+        /* Retry journal cleanup on next launch. */
+      }
       _reserved.remove(job);
       if (working != null) {
         for (final path in [working, '$working.json']) {
@@ -373,6 +404,58 @@ class MediaCache {
     if (job.token.isCancelled || job.leases.isEmpty) {
       throw const MediaCancelled();
     }
+  }
+
+  /// Startup recovery of an already downloaded private working file. Never
+  /// resolves a URL. The caller must serialize this before exposing the runtime.
+  Future<void> adoptDownloaded(
+    String vid,
+    String quality,
+    String path,
+    String? spade,
+  ) async {
+    final key = _key(vid, quality);
+    final file = File(path);
+    if (file.parent.path != directory.path ||
+        !file.uri.pathSegments.last.startsWith('$key.mp4.') ||
+        !path.endsWith('.part')) {
+      throw ArgumentError('Invalid recovered cache path');
+    }
+    final output = File('${directory.path}/$key.mp4');
+    if (_closed || _jobs.containsKey(key) || _pins.containsKey(output.path)) {
+      throw StateError('Cache entry is in use');
+    }
+    if (await _cacheHit(output, File('${output.path}.json'))) {
+      if (await file.exists()) await file.delete();
+      return;
+    }
+    if (await file.length() > maxBytes) {
+      throw StateError('Recovered cache exceeds budget');
+    }
+    var clear = false;
+    try {
+      await FileDecryptor.validateClear(path);
+      clear = true;
+    } catch (_) {}
+    if (!clear) await FileDecryptor.decrypt(path, spade ?? '');
+    await FileDecryptor.validateClear(path);
+    final length = await file.length();
+    final manifest = File('${output.path}.json');
+    final temporary = File('$path.json');
+    await temporary.writeAsString(
+      jsonEncode({
+        'version': 1,
+        'size': length,
+        'vid': vid,
+        'quality': quality,
+      }),
+      flush: true,
+    );
+    if (output.existsSync()) output.deleteSync();
+    file.renameSync(output.path);
+    if (manifest.existsSync()) manifest.deleteSync();
+    temporary.renameSync(manifest.path);
+    await prune();
   }
 
   Future<bool> _cacheHit(File file, File manifest) async {

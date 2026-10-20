@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 
 import '../platform/runtime.dart';
+import '../platform/background/host_policy.dart';
 import 'local_cache_page.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -33,7 +34,14 @@ class _SettingsPageState extends State<SettingsPage> {
   int? bytes;
   String? error, status;
   final anchors = <String, GlobalKey>{
-    for (final name in ['播放与提前缓存', '缓存管理', '签名与设备', '会话凭据', '高级接口与签名参数'])
+    for (final name in [
+      '后台与悬浮播放',
+      '播放与提前缓存',
+      '缓存管理',
+      '签名与设备',
+      '会话凭据',
+      '高级接口与签名参数',
+    ])
       name: GlobalKey(),
   };
   ConfigurableRuntime? get configurable => widget.runtime is ConfigurableRuntime
@@ -116,6 +124,32 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _save() async {
     final runtime = configurable;
     if (runtime == null) return;
+    if (mobileHost &&
+        ((draft.backgroundPlayback && !runtime.settings.backgroundPlayback) ||
+            (draft.backgroundDownloads &&
+                !runtime.settings.backgroundDownloads) ||
+            (draft.floatingPlayback && !runtime.settings.floatingPlayback))) {
+      final accept = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('开启后台能力'),
+          content: const Text(
+            '后台播放会使用系统媒体控制；下载会显示进度通知，并可能增加耗电和流量。iOS 下载完成后的解密可能需返回 App；系统或用户强制结束应用时不保证继续。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('开启并保存'),
+            ),
+          ],
+        ),
+      );
+      if (accept != true || !mounted) return;
+    }
     await _action(() async {
       final next = draft.copyWith(
         apiHost: apiHost.text.trim(),
@@ -356,6 +390,36 @@ class _SettingsPageState extends State<SettingsPage> {
                         padding: const EdgeInsets.only(bottom: 16),
                         child: Text(status!),
                       ),
+                    _section('后台与悬浮播放', [
+                      _switch(
+                        '后台播放',
+                        mobileHost
+                            ? '切到其他应用或锁屏后继续声音播放，使用系统媒体控制与播放提醒。'
+                            : '启用后最小化继续播放；关闭时隐藏窗口会暂停，短暂失焦不打断播放。关闭播放页仍会停止。',
+                        draft.backgroundPlayback,
+                        (v) => draft = draft.copyWith(backgroundPlayback: v),
+                      ),
+                      _switch(
+                        '后台下载',
+                        backgroundDownloadDescription,
+                        draft.backgroundDownloads,
+                        (v) => draft = draft.copyWith(backgroundDownloads: v),
+                      ),
+                      if (mobileHost)
+                        _switch(
+                          '后台下载仅 Wi-Fi',
+                          '只作用于开启后台下载后的新系统任务；关闭后可能使用移动数据。',
+                          draft.backgroundWifiOnly,
+                          (v) => draft = draft.copyWith(backgroundWifiOnly: v),
+                        ),
+                      _switch(
+                        '悬浮播放',
+                        floatingDescription,
+                        draft.floatingPlayback,
+                        (v) => draft = draft.copyWith(floatingPlayback: v),
+                      ),
+                      const Text('保存后生效。悬浮播放通过播放器的画中画按钮手动进入，不会自动抢占屏幕。'),
+                    ]),
                     _section('播放与提前缓存', [
                       _switch(
                         '提前缓存后续剧集',
