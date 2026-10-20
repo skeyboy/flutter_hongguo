@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Hongguo
+Name[zh_CN]=红果
+Comment=Short dramas, comics and AI series
+Exec=hongguo_app
+Icon=com.example.hongguo_app
+Terminal=false
+Categories=AudioVideo;Video;
+StartupWMClass=com.example.hongguo_app

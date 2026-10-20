@@ -1,0 +1,5 @@
+<gresources>
+  <gresource prefix="/com/hongguo/icons">
+    <file>hongguo.png</file>
+  </gresource>
+</gresources>

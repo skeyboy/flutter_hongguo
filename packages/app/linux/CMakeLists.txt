@@ -1,6 +1,6 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.13)
-project(runner LANGUAGES CXX)
+project(runner LANGUAGES C CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
@@ -126,3 +126,9 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+# Ship freedesktop launcher metadata and hicolor assets alongside the bundle.
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/icons/hicolor"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons" COMPONENT Runtime)
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/com.example.hongguo_app.desktop"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}/share/applications" COMPONENT Runtime)
