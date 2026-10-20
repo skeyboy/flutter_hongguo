@@ -7,7 +7,7 @@ on:
       platforms:
         description: 'Platforms JSON array; others are not rebuilt'
         type: string
-        default: '["android","macos","windows","linux"]'
+        default: '["android","android-tv","macos","windows","linux"]'
         required: true
       ios:
         description: 'Build signed iOS IPA (requires Apple signing secrets)'
@@ -47,7 +47,7 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       release-build: true
-      platforms: ${{ inputs.platforms || '["android","macos","windows","linux"]' }}
+      platforms: ${{ inputs.platforms || '["android","android-tv","macos","windows","linux"]' }}
     secrets: inherit
   ios-signed:
     needs: build
@@ -108,7 +108,7 @@ jobs:
       - name: Verify required installers and describe iOS status
         env:
           IOS_SIGNED: ${{ needs.ios-signed.result == 'success' }}
-          RELEASE_PLATFORMS: ${{ inputs.platforms || '["android","macos","windows","linux"]' }}
+          RELEASE_PLATFORMS: ${{ inputs.platforms || '["android","android-tv","macos","windows","linux"]' }}
         run: python3 tool/ci/validate_release.py
       - name: Generate checksums and release manifest
         run: python3 tool/ci/release_meta.py checksums dist

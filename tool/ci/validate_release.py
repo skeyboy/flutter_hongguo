@@ -23,6 +23,8 @@ signed = os.environ.get('IOS_SIGNED') == 'true'
 if signed and not (folder / f'Hongguo-{release}-ios-arm64.ipa').is_file():
     raise SystemExit('Signed iOS job succeeded but IPA is missing')
 ios = 'Signed IPA included; install only on devices covered by its provisioning profile.' if signed else 'iOS was not built in this run. Enable signed iOS explicitly to attach an installable IPA.'
+tv = ('Android TV APKs carry a leanback launcher, a home-screen banner and no touchscreen requirement; '
+      'every attached TV APK was checked against its own badging before upload.') if 'android-tv' in platforms else 'Android TV was not built in this run.'
 (folder / 'iOS-signing-status.txt').write_text(ios + '\n')
 notes = ROOT / 'build/release-notes.md'
 notes.parent.mkdir(exist_ok=True)
@@ -35,6 +37,7 @@ notes.write_text(f'''Native Flutter / shared Dart release {release}.
 - Application names follow the system language (English, Simplified and Traditional Chinese).
 - Only the selected platforms are built in this run; see the platform list below.
 - Android APKs, when selected, use the repository's stable release key.
+- {tv}
 - {ios}
 - macOS is ad-hoc signed, not Apple-notarized; Windows is not Authenticode-signed.
 

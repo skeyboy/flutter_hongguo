@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import runpy
 import sys
 import tempfile
@@ -10,8 +11,22 @@ import unittest
 from unittest.mock import patch
 
 CI = Path(__file__).resolve().parents[1]
+REPO = CI.parents[1]
 sys.path.insert(0, str(CI))
 import release_meta
+
+# Captured from `aapt2 dump badging` on a real tv-flavor build.
+TV_BADGING = """package: name='com.example.hongguo_app.tv' versionCode='10' versionName='0.2.8' platformBuildVersionName='16'
+minSdkVersion:'24'
+targetSdkVersion:'36'
+application: label='Hongguo TV' icon='res/mipmap-anydpi-v33/ic_launcher.xml' banner='res/drawable-xhdpi-v4/tv_banner.png'
+launchable-activity: name='com.example.hongguo_app.MainActivity'  label='' icon=''
+leanback-launchable-activity: name='com.example.hongguo_app.MainActivity'  label='' icon='' banner=''
+feature-group: label=''
+  uses-feature-not-required: name='android.hardware.touchscreen'
+  uses-feature: name='android.software.leanback'
+  uses-feature: name='android.hardware.screen.landscape'
+"""
 
 
 class ReleaseContractTest(unittest.TestCase):
@@ -80,6 +95,40 @@ class ReleaseContractTest(unittest.TestCase):
             for abi in ['armeabi-v7a', 'arm64-v8a', 'x86_64']:
                 (dist / f'Hongguo-0.2.3-android-tv-{abi}.apk').write_bytes(b'tv fixture')
             runpy.run_path(str(CI / 'validate_release.py'))
+
+    def test_tv_badging_gate_accepts_a_real_tv_build(self):
+        from tv_package import badging_problems
+        self.assertEqual(badging_problems(TV_BADGING), [])
+
+    def test_tv_badging_gate_rejects_builds_that_cannot_run_on_tv(self):
+        from tv_package import badging_problems
+        mobile = TV_BADGING.replace("name='com.example.hongguo_app.tv'", "name='com.example.hongguo_app'")
+        self.assertTrue(any('applicationId' in p for p in badging_problems(mobile)))
+        no_banner = TV_BADGING.replace("banner='res/drawable-xhdpi-v4/tv_banner.png'", "banner=''")
+        self.assertTrue(any('banner' in p for p in badging_problems(no_banner)))
+        phone_only = '\n'.join(line for line in TV_BADGING.splitlines() if 'leanback-launchable' not in line)
+        self.assertTrue(any('LEANBACK_LAUNCHER' in p for p in badging_problems(phone_only)))
+        touch_required = TV_BADGING.replace(
+            "uses-feature-not-required: name='android.hardware.touchscreen'",
+            "uses-feature: name='android.hardware.touchscreen'")
+        self.assertTrue(any('touchscreen' in p for p in badging_problems(touch_required)))
+        leanback_optional = TV_BADGING.replace(
+            "uses-feature: name='android.software.leanback'",
+            "uses-feature-not-required: name='android.software.leanback'")
+        self.assertTrue(any('leanback' in p for p in badging_problems(leanback_optional)))
+        self.assertEqual(badging_problems(''),
+                         ['badging output has no package line, so the APK could not be read'])
+
+    def test_default_release_matrix_includes_android_tv(self):
+        from plan_build import selected_platforms
+        rows = []
+        for name in ('.github/workflows/build.yml', '.github/workflows/release.yml', 'tool/publish_github.sh'):
+            rows += [(name, raw) for raw in re.findall(r"'(\[\"[^\]]*\])'", (REPO / name).read_text())]
+        self.assertGreaterEqual(len(rows), 5)
+        for name, raw in rows:
+            platforms = selected_platforms(raw)
+            if {'android', 'macos', 'windows', 'linux'} <= set(platforms):
+                self.assertIn('android-tv', platforms, f'{name} default matrix dropped Android TV: {raw}')
 
     def test_checksums_use_portable_asset_names(self):
         dist = self.root / 'dist'
