@@ -27,7 +27,7 @@ The following plugins do not support Swift Package Manager for macos:
   - media_kit_libs_macos_video
   - media_kit_video
 This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
-Building macOS application...                                   
+Building macOS application...
 /Users/lee/Desktop/flutter_hongguo/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.iAlJoY/Metal.xctoolchain/usr/lib/swift/macosx' not found
 /Users/lee/Desktop/flutter_hongguo/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.iAlJoY/Metal.xctoolchain/usr/lib/swift/macosx' not found
 ✓ Built build/macos/Build/Products/Debug/hongguo_app.app
