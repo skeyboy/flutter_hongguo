@@ -86,3 +86,7 @@ python3 -m unittest discover -s tool/ci/tests -v
 ## 优化后远端实测
 
 [运行 39353376221](https://github.com/skeyboy/flutter_hongguo/actions/runs/39353376221) 已成功，只运行预检与 Linux 打包两个 job。预检 6 秒、Linux job 3 分 1 秒，每 job 向上取整合计 5 个 Linux 分钟，标准超额价约 **$0.030**，未扣免费额度。`release-linux` 约 20.2 MB，打包及上传步骤成功，GitHub API 确认附件存在并保留 1 天；未额外下载验包或启动安装器。未另跑四端或覆盖现有 Release。[机器可读证据](evidence/ci-cost/optimized-run.json)。
+
+## Android TV 首次进入 Release
+
+[运行 39422751606](https://github.com/skeyboy/flutter_hongguo/actions/runs/39422751606)（v0.2.8 首次尝试）中 `android-tv` 与另三端成功、macOS 失败，发布 job 被跳过；单平台复跑 [运行 39424798548](https://github.com/skeyboy/flutter_hongguo/actions/runs/39424798548) 证明改用 Xcode 26 后 macOS 可编译。重打标签后的 [运行 39426117212](https://github.com/skeyboy/flutter_hongguo/actions/runs/39426117212) 五端全部成功，Release `v0.2.8` 附 15 个附件，其中 `Hongguo-0.2.8-android-tv-{armeabi-v7a,arm64-v8a,x86_64}.apk` 三个为 TV 包。下载 `android-tv-arm64-v8a` 与 `android-arm64-v8a` 逐个复核：TV 包通过 badging 门禁，手机包被同一门禁的 5 条断言全部拒绝（说明门禁不是空断言），两者签名证书 SHA-256 相同（`ca20e076…f5b56`），即稳定发布密钥。[机器可读证据](evidence/release/v0.2.8.json)。

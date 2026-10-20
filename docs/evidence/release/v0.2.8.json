@@ -1,0 +1,54 @@
+{
+  "version": "0.2.8+10",
+  "commit": "2ce8fe1d",
+  "tag": "v0.2.8",
+  "releaseId": 418411200,
+  "runId": 39426117212,
+  "runUrl": "https://github.com/skeyboy/flutter_hongguo/actions/runs/39426117212",
+  "publishedAt": "2026-10-20T13:07:17Z",
+  "releasePublished": true,
+  "requestedPlatforms": [
+    "android",
+    "android-tv",
+    "macos",
+    "windows",
+    "linux"
+  ],
+  "jobs": {
+    "preflight": "success",
+    "build / plan": "success",
+    "build / verify": "success",
+    "build / native (macos, macos-15)": "success",
+    "build / native (windows, windows-2022)": "success",
+    "build / native (android, ubuntu-24.04)": "success",
+    "build / native (android-tv, ubuntu-24.04)": "success",
+    "build / native (linux, ubuntu-24.04)": "success",
+    "publish": "success",
+    "ios-signed": "skipped"
+  },
+  "assets": {
+    "Hongguo-0.2.8-android-arm64-v8a.apk": "sha256:380045f6306454a12aa1fa28092758a26be6a969d7aa928a0fd0804169e547fd",
+    "Hongguo-0.2.8-android-armeabi-v7a.apk": "sha256:930bca71aa23fd8878fe3144be5692f0747d80700b4a98529d039934166438b6",
+    "Hongguo-0.2.8-android-tv-arm64-v8a.apk": "sha256:067ddf991a63a680f249a587e0c8d8267e39d03aed8405762f6bc618b045a072",
+    "Hongguo-0.2.8-android-tv-armeabi-v7a.apk": "sha256:afe9ef26c0e8bc30c503be8e05dc20a36485d9a9e12ba317ee832a5698805e5b",
+    "Hongguo-0.2.8-android-tv-x86_64.apk": "sha256:57967b0165a742e6a758c87896872e044da5d4528e4473af4ae4c8a08bbc5757",
+    "Hongguo-0.2.8-android-x86_64.apk": "sha256:d2c4694daf0a35cad8f064838af0242414cc8e247926b08a38af285abbc96ac7",
+    "Hongguo-0.2.8-linux-x64.deb": "sha256:6cb4368e6b3f82184838e31cd6f27e6c369eebfd8aff099c6577be42a52cb15f",
+    "Hongguo-0.2.8-linux-x64.tar.gz": "sha256:b799b75da835edff623d68af9e9abc9e71060158e4a70020d6bda06aecd4dda0",
+    "Hongguo-0.2.8-macos-arm64.dmg": "sha256:ec183549fc399111a79071f3bc16ac2db8cec08eeb8f786d55081950f49116f7",
+    "Hongguo-0.2.8-macos-arm64.zip": "sha256:5449229ef3293e2bc9edd5d33724f3a727480f4de7a01cdfa52bf983063d0173",
+    "Hongguo-0.2.8-windows-x64-setup.exe": "sha256:5edb9a5518356c6e751a2a322a2fd435d9f2354cca6e3612990e711cff4e678d",
+    "Hongguo-0.2.8-windows-x64.zip": "sha256:f7c8d1b5b371790a816c655de014e0de95c3142786b0897a6b543bbe76dedbee",
+    "SHA256SUMS.txt": "sha256:4bab2eefa0afe04bd722894a6196abd944840b746761a50b4a5cc73263151492",
+    "iOS-signing-status.txt": "sha256:ab8303a7773a042a6c87c2ff9fea3292e155dcefea8f9265ecc4f56b7f5fac4a",
+    "release-manifest.json": "sha256:32016b2b1f886996eabceae7ca9a6cb34315c6630ac52a4074807d81c0b2daee"
+  },
+  "androidTvVerification": {
+    "arm64V8aDigestMatchesDownload": true,
+    "badgingGateOnPublishedArtifact": "pass",
+    "mobileApkSameGate": "rejected by all five assertions",
+    "signerCertificateSha256": "ca20e0760134e1dfffbffa1e40e845292061f438a4fcee9420b11dda9f4f5b56",
+    "sharedWithMobileApk": true
+  },
+  "notes": "macOS required selecting Xcode 26 on the runner; connectivity_plus 7.3.2 uses NWPathMonitor.isUltraConstrained, absent from the default Xcode 16.4 macOS 15 SDK. iOS not requested."
+}
