@@ -1,10 +1,14 @@
+import '../downloads/download_selection.dart';
+import '../navigation/app_navigation.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 
 import '../platform/runtime.dart';
-import 'library_page.dart';
+import '../widgets/drama_cover.dart';
+import '../personal/favorite_button.dart';
 import 'player_page.dart';
 
 class DetailPage extends StatefulWidget {
@@ -17,6 +21,7 @@ class DetailPage extends StatefulWidget {
 
 class _DetailPageState extends State<DetailPage> {
   late Future<DramaDetail> detail;
+  bool offlineSnapshot = false;
   @override
   void initState() {
     super.initState();
@@ -24,7 +29,19 @@ class _DetailPageState extends State<DetailPage> {
   }
 
   Future<DramaDetail> _load() async {
-    final result = await widget.runtime.catalog.detail(widget.initial.id);
+    DramaDetail result;
+    try {
+      result = await widget.runtime.catalog.detail(widget.initial.id);
+      offlineSnapshot = false;
+    } catch (_) {
+      final runtime = widget.runtime;
+      final cached = runtime is LibraryCacheRuntime
+          ? await runtime.libraryCache.readDetail(widget.initial.id)
+          : null;
+      if (cached == null) rethrow;
+      result = cached;
+      offlineSnapshot = true;
+    }
     final initial = widget.initial, drama = result.drama;
     final merged = DramaDetail(
       Drama(
@@ -38,6 +55,11 @@ class _DetailPageState extends State<DetailPage> {
       ),
       result.episodes,
     );
+    try {
+      await personalLibraryFor(widget.runtime).load();
+    } catch (_) {
+      // Unavailable progress must not prevent browsing or a fresh playback.
+    }
     unawaited(
       rememberDramaMetadata(widget.runtime, merged).catchError((Object _) {}),
     );
@@ -46,7 +68,10 @@ class _DetailPageState extends State<DetailPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.initial.title)),
+    appBar: AppBar(
+      title: Text(widget.initial.title),
+      actions: [FavoriteButton(runtime: widget.runtime, drama: widget.initial)],
+    ),
     body: FutureBuilder<DramaDetail>(
       future: detail,
       builder: (context, snapshot) {
@@ -62,7 +87,9 @@ class _DetailPageState extends State<DetailPage> {
                   Text('${snapshot.error}', textAlign: TextAlign.center),
                   const SizedBox(height: 16),
                   OutlinedButton(
-                    onPressed: () => setState(() => detail = _load()),
+                    onPressed: () => setState(() {
+                      detail = _load();
+                    }),
                     child: const Text('重试'),
                   ),
                 ],
@@ -81,21 +108,55 @@ class _DetailPageState extends State<DetailPage> {
           intro: drama.intro,
           episodeCount: data.episodes.length,
         );
-        void play(int position) => Navigator.push(
-          context,
-          MaterialPageRoute<void>(
-            builder: (_) => PlayerPage(
+        final saved = personalLibraryFor(widget.runtime).latestFor(drama.id);
+        final resumable =
+            saved != null && data.episodes.any((e) => e.vid == saved.vid);
+        Future<void> play(int? position) async {
+          await pushAppPage<void>(
+            context,
+            AppScreen.player,
+            (_) => PlayerPage(
               runtime: widget.runtime,
               detail: data,
-              initialPosition: position,
+              initialPosition: position ?? 0,
+              resumeLastEpisode: position == null,
             ),
-          ),
-        );
+          );
+          await personalLibraryFor(widget.runtime).flush();
+          if (mounted) setState(() {});
+        }
+
         return Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 960),
             child: CustomScrollView(
               slivers: [
+                if (offlineSnapshot)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Row(
+                        children: [
+                          const Expanded(child: Text('网络加载失败，正在显示已保存的剧集信息')),
+                          TextButton(
+                            onPressed:
+                                snapshot.connectionState ==
+                                    ConnectionState.waiting
+                                ? null
+                                : () => setState(() {
+                                    detail = _load();
+                                  }),
+                            child: Text(
+                              snapshot.connectionState ==
+                                      ConnectionState.waiting
+                                  ? '正在刷新…'
+                                  : '重试刷新',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
@@ -131,12 +192,48 @@ class _DetailPageState extends State<DetailPage> {
                                     ),
                                   ),
                                   const SizedBox(height: 24),
-                                  FilledButton.icon(
-                                    onPressed: data.episodes.isEmpty
-                                        ? null
-                                        : () => play(0),
-                                    icon: const Icon(Icons.play_arrow_rounded),
-                                    label: const Text('开始观看'),
+                                  if (resumable)
+                                    Text(
+                                      '上次看到第 ${saved.episode} 集',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall,
+                                    ),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      FilledButton.icon(
+                                        onPressed: data.episodes.isEmpty
+                                            ? null
+                                            : () => play(null),
+                                        icon: const Icon(
+                                          Icons.play_arrow_rounded,
+                                        ),
+                                        label: Text(
+                                          !resumable
+                                              ? '开始观看'
+                                              : saved.completed
+                                              ? '重新观看'
+                                              : '继续观看',
+                                        ),
+                                      ),
+                                      if (widget.runtime is DownloadRuntime)
+                                        OutlinedButton.icon(
+                                          key: const ValueKey('download-drama'),
+                                          onPressed: data.episodes.isEmpty
+                                              ? null
+                                              : () => showDownloadSelection(
+                                                  context,
+                                                  widget.runtime,
+                                                  data,
+                                                ),
+                                          icon: const Icon(
+                                            Icons.download_outlined,
+                                          ),
+                                          label: const Text('下载'),
+                                        ),
+                                    ],
                                   ),
                                 ],
                               ),

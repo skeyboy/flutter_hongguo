@@ -130,3 +130,17 @@ cd packages/app
 ## 迁入的 hongguo-web 实现
 
 本次从参考项目迁入的独立 Dart / Flutter 实现位于 [imports/hongguo_web_1_1_1](imports/hongguo_web_1_1_1/README.md)。保留其分层与测试，不与上述 workspace 的同名核心包混用。
+
+## Android TV 适配规划
+
+[Android TV 遥控器适配分析与方案](docs/design/android-tv-adaptation.md)：基于当前 PC 宽屏与 Android 播放链路，规划 mobile/tv 双 flavor、遥控器焦点、播放器状态机与验收矩阵。TV flavor 已实施，后续修复与验收见下方实施记录。
+
+## TV flavor 与遥控操作
+
+已新增独立 `packages/tv` 交互模块，主 App 以 `--flavor tv` 启用 TV 目录、焦点导航与播放操作；普通 Android 使用 `--flavor mobile`。构建、测试和设备验收边界见 [TV 实施记录](docs/design/android-tv-implementation.md)。
+
+### 我的与个人片库
+
+主导航“我的”聚合收藏、观看历史、断点续播和本地缓存观看；设置位于页面右上角。个人记录保存在本机，独立于视频缓存清理。详见[交互与存储设计](docs/design/my-library.md)。
+
+TV 题材现为常驻水平栏，遥控焦点切换自动筛选并保持标题可见；三类内容自动续页，移除加载按钮。排序改为设置中的全局项，TV 分类每页可选 30/50 条。见 [题材与分页实现说明](docs/design/tv-topic-pagination.md)。

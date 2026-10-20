@@ -1,19 +1,25 @@
+import '../navigation/app_navigation.dart';
+
+import 'package:hongguo_tv/hongguo_tv.dart';
 import 'package:flutter/material.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 
 import '../platform/runtime.dart';
 import '../platform/background/host_policy.dart';
+import '../playback/capability_preferences.dart';
 import 'local_cache_page.dart';
 
 class SettingsPage extends StatefulWidget {
   final AppRuntime runtime;
   final bool embedded;
   final VoidCallback? onSaved;
+  final bool closeOnSave;
   const SettingsPage({
     super.key,
     required this.runtime,
     this.embedded = false,
     this.onSaved,
+    this.closeOnSave = true,
   });
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -51,6 +57,14 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     draft = settingsFor(widget.runtime);
+    if (tvBuild) {
+      draft = draft.copyWith(
+        backgroundPlayback: false,
+        backgroundDownloads: false,
+        floatingPlayback: false,
+        concurrentPreparations: 1,
+      );
+    }
     apiHost = TextEditingController(text: draft.apiHost);
     videoHost = TextEditingController(text: draft.videoHost);
     catalogVersion = TextEditingController(text: draft.catalogVersion);
@@ -124,34 +138,23 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _save() async {
     final runtime = configurable;
     if (runtime == null) return;
-    if (mobileHost &&
-        ((draft.backgroundPlayback && !runtime.settings.backgroundPlayback) ||
-            (draft.backgroundDownloads &&
-                !runtime.settings.backgroundDownloads) ||
-            (draft.floatingPlayback && !runtime.settings.floatingPlayback))) {
-      final accept = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('开启后台能力'),
-          content: const Text(
-            '后台播放会使用系统媒体控制；下载会显示进度通知，并可能增加耗电和流量。iOS 下载完成后的解密可能需返回 App；系统或用户强制结束应用时不保证继续。',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('开启并保存'),
-            ),
-          ],
-        ),
-      );
-      if (accept != true || !mounted) return;
-    }
     await _action(() async {
       final next = draft.copyWith(
+        backgroundPlayback: mobileHost
+            ? runtime.settings.backgroundPlayback
+            : draft.backgroundPlayback,
+        backgroundDownloads: mobileHost
+            ? runtime.settings.backgroundDownloads
+            : draft.backgroundDownloads,
+        floatingPlayback: mobileHost
+            ? runtime.settings.floatingPlayback
+            : draft.floatingPlayback,
+        backgroundPlaybackPrompted:
+            runtime.settings.backgroundPlaybackPrompted ||
+            draft.backgroundPlaybackPrompted,
+        floatingPlaybackPrompted:
+            runtime.settings.floatingPlaybackPrompted ||
+            draft.floatingPlaybackPrompted,
         apiHost: apiHost.text.trim(),
         videoHost: videoHost.text.trim(),
         catalogVersion: catalogVersion.text.trim(),
@@ -171,8 +174,34 @@ class _SettingsPageState extends State<SettingsPage> {
             : null,
       );
       widget.onSaved?.call();
-      if (mounted && !widget.embedded) Navigator.pop(context, true);
+      if (mounted && !widget.embedded && widget.closeOnSave) {
+        Navigator.pop(context, true);
+      }
     }, '设置已保存');
+  }
+
+  Future<void> _capability(PlaybackCapability capability, bool value) async {
+    final runtime = configurable;
+    if (runtime == null || busy) return;
+    if (!mobileHost) {
+      setState(() => draft = capability.apply(draft, value));
+      return;
+    }
+    setState(() => busy = true);
+    final accepted = await confirmPlaybackCapability(
+      context,
+      capability,
+      value,
+    );
+    if (!mounted) return;
+    setState(() => busy = false);
+    if (!accepted) return;
+    await _action(() async {
+      // Commit only this capability; preserve unrelated unsaved form edits.
+      await runtime.saveSettings(capability.apply(runtime.settings, value));
+      if (mounted) setState(() => draft = capability.apply(draft, value));
+      widget.onSaved?.call();
+    }, '${capability.title}已${value ? '开启' : '关闭'}并生效');
   }
 
   Future<void> _theme(String value) async {
@@ -246,12 +275,21 @@ class _SettingsPageState extends State<SettingsPage> {
     value: value,
     onChanged: busy ? null : (v) => setState(() => update(v)),
   );
+  Widget _capabilitySwitch(PlaybackCapability capability, String subtitle) =>
+      SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        title: Text(capability.title),
+        subtitle: Text(subtitle),
+        value: capability.enabled(draft),
+        onChanged: busy ? null : (value) => _capability(capability, value),
+      );
   Widget _number(
     String label,
     int value,
     List<int> choices,
     void Function(int) update, {
     String suffix = '',
+    Key? key,
   }) {
     final options = {...choices, value}.toList()..sort();
     return Padding(
@@ -260,6 +298,7 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           Expanded(child: Text(label)),
           DropdownButton<int>(
+            key: key,
             value: value,
             items: [
               for (final item in options)
@@ -390,36 +429,40 @@ class _SettingsPageState extends State<SettingsPage> {
                         padding: const EdgeInsets.only(bottom: 16),
                         child: Text(status!),
                       ),
-                    _section('后台与悬浮播放', [
-                      _switch(
-                        '后台播放',
-                        mobileHost
-                            ? '切到其他应用或锁屏后继续声音播放，使用系统媒体控制与播放提醒。'
-                            : '启用后最小化继续播放；关闭时隐藏窗口会暂停，短暂失焦不打断播放。关闭播放页仍会停止。',
-                        draft.backgroundPlayback,
-                        (v) => draft = draft.copyWith(backgroundPlayback: v),
-                      ),
-                      _switch(
-                        '后台下载',
-                        backgroundDownloadDescription,
-                        draft.backgroundDownloads,
-                        (v) => draft = draft.copyWith(backgroundDownloads: v),
-                      ),
-                      if (mobileHost)
-                        _switch(
-                          '后台下载仅 Wi-Fi',
-                          '只作用于开启后台下载后的新系统任务；关闭后可能使用移动数据。',
-                          draft.backgroundWifiOnly,
-                          (v) => draft = draft.copyWith(backgroundWifiOnly: v),
+                    if (!tvBuild)
+                      _section('后台与悬浮播放', [
+                        _capabilitySwitch(
+                          PlaybackCapability.backgroundPlayback,
+                          mobileHost
+                              ? '切到其他应用或锁屏后继续声音播放，使用系统媒体控制与播放提醒。'
+                              : '启用后最小化继续播放；关闭时隐藏窗口会暂停，短暂失焦不打断播放。关闭播放页仍会停止。',
                         ),
-                      _switch(
-                        '悬浮播放',
-                        floatingDescription,
-                        draft.floatingPlayback,
-                        (v) => draft = draft.copyWith(floatingPlayback: v),
+                        _capabilitySwitch(
+                          PlaybackCapability.backgroundDownloads,
+                          backgroundDownloadDescription,
+                        ),
+                        if (mobileHost)
+                          _switch(
+                            '后台下载仅 Wi-Fi',
+                            '只作用于开启后台下载后的新系统任务；关闭后可能使用移动数据。',
+                            draft.backgroundWifiOnly,
+                            (v) =>
+                                draft = draft.copyWith(backgroundWifiOnly: v),
+                          ),
+                        _capabilitySwitch(
+                          PlaybackCapability.floatingPlayback,
+                          floatingDescription,
+                        ),
+                        Text(
+                          mobileHost
+                              ? '以上播放能力确认后立即生效；其他配置需保存。悬浮播放由播放器按钮手动进入。'
+                              : '保存后生效。悬浮播放由播放器按钮手动进入。',
+                        ),
+                      ]),
+                    if (tvBuild)
+                      const Text(
+                        'TV 模式：离开应用暂停播放，不启用画中画；最多提前缓存 1 集，同时准备 1 个任务。',
                       ),
-                      const Text('保存后生效。悬浮播放通过播放器的画中画按钮手动进入，不会自动抢占屏幕。'),
-                    ]),
                     _section('播放与提前缓存', [
                       _switch(
                         '提前缓存后续剧集',
@@ -427,20 +470,22 @@ class _SettingsPageState extends State<SettingsPage> {
                         draft.prefetchEnabled,
                         (v) => draft = draft.copyWith(prefetchEnabled: v),
                       ),
-                      _number(
-                        '提前缓存集数',
-                        draft.prefetchEpisodes,
-                        [3, 4, 5],
-                        (v) => draft = draft.copyWith(prefetchEpisodes: v),
-                        suffix: ' 集',
-                      ),
-                      _number(
-                        '同时准备数量',
-                        draft.concurrentPreparations,
-                        [1, 2, 3],
-                        (v) =>
-                            draft = draft.copyWith(concurrentPreparations: v),
-                      ),
+                      if (!tvBuild)
+                        _number(
+                          '提前缓存集数',
+                          draft.prefetchEpisodes,
+                          tvBuild ? [1] : [3, 4, 5],
+                          (v) => draft = draft.copyWith(prefetchEpisodes: v),
+                          suffix: ' 集',
+                        ),
+                      if (!tvBuild)
+                        _number(
+                          '同时准备数量',
+                          draft.concurrentPreparations,
+                          tvBuild ? [1] : [1, 2, 3],
+                          (v) =>
+                              draft = draft.copyWith(concurrentPreparations: v),
+                        ),
                       Text(
                         '当前播放优先于排队的预缓存任务。网络速度或空间不足时，后续剧集可能仍需等待。',
                         style: TextStyle(
@@ -516,12 +561,59 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                         ],
                       ),
-                      _switch(
-                        '自动加载下一页',
-                        '列表接近底部时自动加载更多内容。',
-                        draft.autoLoadMore,
-                        (v) => draft = draft.copyWith(autoLoadMore: v),
+                      if (!tvBuild)
+                        _switch(
+                          '自动加载下一页',
+                          '列表接近底部时自动加载更多内容。',
+                          draft.autoLoadMore,
+                          (v) => draft = draft.copyWith(autoLoadMore: v),
+                        ),
+                    ]),
+                    _section('内容列表', [
+                      Row(
+                        children: [
+                          const Expanded(child: Text('全局排序')),
+                          DropdownButton<String>(
+                            key: const ValueKey('catalog-sort-setting'),
+                            value: draft.catalogSort,
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'online_time',
+                                child: Text('最新上架'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'hot_score',
+                                child: Text('热度优先'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'hot_collect',
+                                child: Text('收藏最多'),
+                              ),
+                            ],
+                            onChanged: busy || runtime == null
+                                ? null
+                                : (value) => setState(
+                                    () => draft = draft.copyWith(
+                                      catalogSort: value,
+                                    ),
+                                  ),
+                          ),
+                        ],
                       ),
+                      const Text('短剧、漫剧、AI 短剧使用同一排序；保存后生效。搜索与榜单保留各自接口排序。'),
+                      if (tvBuild)
+                        _number(
+                          'TV 分类每页条数',
+                          draft.tvPageSize,
+                          [30, 50],
+                          (value) => draft = draft.copyWith(tvPageSize: value),
+                          suffix: ' 条',
+                          key: const ValueKey('tv-page-size-setting'),
+                        ),
+                      if (tvBuild)
+                        const Text(
+                          'TV 接近列表末尾自动加载下一页。每次请求 30 或 50 条，实际返回数量由上游决定。',
+                        ),
                     ]),
                     _section('缓存管理', [
                       ListTile(
@@ -531,12 +623,10 @@ class _SettingsPageState extends State<SettingsPage> {
                         subtitle: const Text('查看、离线播放与删除已完成的视频'),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () async {
-                          await Navigator.push<void>(
+                          await pushAppPage<void>(
                             context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  LocalCachePage(runtime: widget.runtime),
-                            ),
+                            AppScreen.cache,
+                            (_) => LocalCachePage(runtime: widget.runtime),
                           );
                           await _usage();
                         },
@@ -565,7 +655,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         suffix: ' MB',
                       ),
                       Text(
-                        '保留正在播放和预缓存窗口中的文件；被保留文件可能使使用量暂时超过上限。',
+                        '保留手动下载、正在播放和预缓存窗口中的文件；手动下载请在下载管理中删除。被保留文件可能使使用量暂时超过上限。',
                         style: TextStyle(
                           fontSize: 12,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,

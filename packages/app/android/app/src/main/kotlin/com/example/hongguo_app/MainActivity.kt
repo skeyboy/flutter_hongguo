@@ -5,17 +5,62 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.os.Build
 import android.util.Rational
+import android.view.KeyEvent
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : AudioServiceActivity() {
     private var playbackChannel: MethodChannel? = null
+    private var tvBackDown = false
+
+    @Suppress("DEPRECATION")
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // The TV flavor uses the .tv application id suffix. Route physical Back
+        // through Android once, rather than both Flutter focus keys and popRoute.
+        if (packageName.endsWith(".tv") && event.keyCode == KeyEvent.KEYCODE_BACK) {
+            when (event.action) {
+                KeyEvent.ACTION_DOWN -> if (event.repeatCount == 0) tvBackDown = true
+                KeyEvent.ACTION_UP -> {
+                    val shouldBack = tvBackDown && !event.isCanceled
+                    tvBackDown = false
+                    if (shouldBack) onBackPressed()
+                }
+            }
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        if (packageName.endsWith(".tv")) {
+            // Never let Activity's root fallback finish the TV task.
+            flutterEngine?.navigationChannel?.popRoute()
+            return
+        }
+        super.onBackPressed()
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "hongguo/tv-device")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "profile") {
+                    val manager = getSystemService(android.content.Context.UI_MODE_SERVICE) as android.app.UiModeManager
+                    val memory = getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+                    result.success(mapOf(
+                        "television" to (manager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION),
+                        "leanback" to packageManager.hasSystemFeature("android.software.leanback"),
+                        "lowRam" to memory.isLowRamDevice
+                    ))
+                } else result.notImplemented()
+            }
         playbackChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "hongguo/platform-playback")
         playbackChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
+                "available" -> result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                    packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE))
                 "enter" -> {
                     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
                         result.success(false)

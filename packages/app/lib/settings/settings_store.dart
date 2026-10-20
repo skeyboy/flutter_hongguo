@@ -45,7 +45,13 @@ class SettingsStore {
           Map<String, dynamic>.from(data['preferences'] as Map),
         );
         prefs.validate();
-        settings = prefs;
+        settings =
+            data['networkPolicyVersion'] == null && prefs.timeoutSeconds == 30
+            ? prefs.copyWith(timeoutSeconds: 60)
+            : prefs;
+        if (data['playbackPolicyVersion'] == null) {
+          settings = settings.copyWith(autoNext: true);
+        }
       }
     } catch (_) {
       warning = '设置文件无法读取，已使用默认偏好。';
@@ -98,6 +104,8 @@ class SettingsStore {
         await backend.write({
           'version': 1,
           'preferences': next.toJson(),
+          'networkPolicyVersion': 1,
+          'playbackPolicyVersion': 1,
           'deviceId': nextId,
           'sessionRef': newRef,
         });

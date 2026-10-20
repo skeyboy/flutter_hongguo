@@ -62,6 +62,7 @@ def main():
                'integration_test/offline_playback_test.dart', '--no-uninstall', '--timeout', '90s', '-d', args.device]
     native_back = False
     if args.platform == 'android':
+        command += ['--flavor', 'mobile']
         try:
             adb('shell', 'input', 'keyevent', 'KEYCODE_UNKNOWN')
             native_back = True

@@ -126,7 +126,7 @@ void main() {
       await mount(tester, runtime, const Size(390, 844));
       await tester.tap(find.text('分类'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('sticky-sort')));
+      await tester.tap(find.byKey(const ValueKey('sticky-theme')));
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('horizontal-filter-panel')),
@@ -145,8 +145,10 @@ void main() {
       final runtime = FakeRuntime();
       await mount(tester, runtime, const Size(390, 844));
       await tester.tap(
-        find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '设置'),
+        find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '我的'),
       );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('my-settings')));
       await tester.pumpAndSettle();
       expect(find.byType(SettingsPage), findsOneWidget);
       await tester.tap(find.text('3 集'));
@@ -168,6 +170,8 @@ void main() {
       expect(runtime.settings.prefetchEpisodes, 5);
       expect(runtime.saves, 2);
       expect(find.text('设置已保存'), findsOneWidget);
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
       expect(find.byType(NavigationBar), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
@@ -178,8 +182,10 @@ void main() {
       final runtime = FakeRuntime();
       await mount(tester, runtime, const Size(1280, 900));
       await tester.tap(
-        find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '设置'),
+        find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '我的'),
       );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('my-settings')));
       await tester.pumpAndSettle();
       final field = find.byWidgetPredicate(
         (w) => w is TextField && w.decoration?.labelText == 'Cookie',

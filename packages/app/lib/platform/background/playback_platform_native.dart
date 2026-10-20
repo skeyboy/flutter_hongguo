@@ -10,6 +10,7 @@ import 'package:media_kit/media_kit.dart' as mk;
 import 'package:window_manager/window_manager.dart';
 
 class _MediaHandler extends BaseAudioHandler {
+  bool foregroundOnly = false;
   mk.Player? player;
   Future<void> Function(int)? step;
   Future<void> Function(String, [int?])? external;
@@ -60,6 +61,10 @@ class _MediaHandler extends BaseAudioHandler {
 
   @override
   Future<void> play() async {
+    if (foregroundOnly &&
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
     if (external != null) {
       await external!('play');
     } else {
@@ -130,6 +135,16 @@ class PlaybackPlatform {
   final floating = ValueNotifier(false);
   final platformPip = ValueNotifier(false);
   bool get mobile => Platform.isAndroid || Platform.isIOS;
+  bool get transitioning => _transition;
+  Future<bool> supportsFloating() async {
+    if (!mobile) return true;
+    try {
+      return await _channel.invokeMethod<bool>('available') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   DateTime? _pipExitAt;
   bool get restoringPip =>
       Platform.isAndroid &&
@@ -152,13 +167,14 @@ class PlaybackPlatform {
     AppSettings settings,
     String title, {
     required Future<void> Function(int) step,
+    bool foregroundMedia = false,
   }) async {
     if (_closed) return;
     _player = player;
     _settings = settings;
     if (!settings.floatingPlayback && floating.value) await exit(player);
     if (!mobile) return;
-    if (!settings.backgroundPlayback && _media != null) {
+    if (!settings.backgroundPlayback && !foregroundMedia && _media != null) {
       await _media!.detach(player);
       _media = null;
       for (final event in _audioEvents) {
@@ -166,7 +182,7 @@ class PlaybackPlatform {
       }
       _audioEvents.clear();
     }
-    if (settings.backgroundPlayback && _media == null) {
+    if ((settings.backgroundPlayback || foregroundMedia) && _media == null) {
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.music());
       if (!await session.setActive(true)) throw StateError('系统音频会话暂不可用');
@@ -195,6 +211,7 @@ class PlaybackPlatform {
       await _media?.detach(player);
       return;
     }
+    _media?.foregroundOnly = foregroundMedia;
     _media?.bind(player, title, step);
   }
 

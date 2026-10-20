@@ -5,6 +5,9 @@ class AppSettings {
       backgroundDownloads,
       floatingPlayback,
       backgroundWifiOnly;
+  final bool backgroundPlaybackPrompted, floatingPlaybackPrompted;
+  final int tvPageSize;
+  final String catalogSort;
   final int prefetchEpisodes,
       maxCacheFiles,
       maxCacheMb,
@@ -24,10 +27,14 @@ class AppSettings {
       'Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 '
       'QuicVersion:c67e9834 2025-09-08)';
   const AppSettings({
+    this.catalogSort = 'hot_score',
+    this.tvPageSize = 30,
     this.backgroundPlayback = false,
     this.backgroundDownloads = false,
     this.floatingPlayback = false,
     this.backgroundWifiOnly = true,
+    this.backgroundPlaybackPrompted = false,
+    this.floatingPlaybackPrompted = false,
     this.prefetchEnabled = true,
     this.prefetchEpisodes = 3,
     this.autoNext = true,
@@ -37,7 +44,7 @@ class AppSettings {
     this.maxCacheFiles = 30,
     this.maxCacheMb = 512,
     this.concurrentPreparations = 2,
-    this.timeoutSeconds = 30,
+    this.timeoutSeconds = 60,
     this.signLists = false,
     this.apiHost = 'api5-normal-sinfonlinea.fqnovel.com',
     this.videoHost = 'api5-normal-sinfonlineb.fqnovel.com',
@@ -65,10 +72,14 @@ class AppSettings {
     'backgroundDownloads': backgroundDownloads,
     'floatingPlayback': floatingPlayback,
     'backgroundWifiOnly': backgroundWifiOnly,
+    'backgroundPlaybackPrompted': backgroundPlaybackPrompted,
+    'floatingPlaybackPrompted': floatingPlaybackPrompted,
     'prefetchEnabled': prefetchEnabled,
     'prefetchEpisodes': prefetchEpisodes,
     'autoNext': autoNext,
     'autoLoadMore': autoLoadMore,
+    'catalogSort': catalogSort,
+    'tvPageSize': tvPageSize,
     'themeMode': themeMode,
     'defaultQuality': defaultQuality,
     'maxCacheFiles': maxCacheFiles,
@@ -80,6 +91,8 @@ class AppSettings {
     T read<T>(String key, T fallback) =>
         json[key] is T ? json[key] as T : fallback;
     return AppSettings(
+      catalogSort: read('catalogSort', defaults.catalogSort),
+      tvPageSize: read('tvPageSize', defaults.tvPageSize),
       backgroundPlayback: read(
         'backgroundPlayback',
         defaults.backgroundPlayback,
@@ -89,6 +102,8 @@ class AppSettings {
         defaults.backgroundDownloads,
       ),
       floatingPlayback: read('floatingPlayback', defaults.floatingPlayback),
+      backgroundPlaybackPrompted: read('backgroundPlaybackPrompted', false),
+      floatingPlaybackPrompted: read('floatingPlaybackPrompted', false),
       backgroundWifiOnly: read(
         'backgroundWifiOnly',
         defaults.backgroundWifiOnly,
@@ -120,10 +135,14 @@ class AppSettings {
     );
   }
   AppSettings copyWith({
+    String? catalogSort,
+    int? tvPageSize,
     bool? backgroundPlayback,
     bool? backgroundDownloads,
     bool? floatingPlayback,
     bool? backgroundWifiOnly,
+    bool? backgroundPlaybackPrompted,
+    bool? floatingPlaybackPrompted,
     bool? prefetchEnabled,
     int? prefetchEpisodes,
     bool? autoNext,
@@ -144,10 +163,16 @@ class AppSettings {
     String? videoUserAgent,
   }) => AppSettings.fromJson({
     ...toJson(),
+    'catalogSort': catalogSort ?? this.catalogSort,
+    'tvPageSize': tvPageSize ?? this.tvPageSize,
     'backgroundPlayback': backgroundPlayback ?? this.backgroundPlayback,
     'backgroundDownloads': backgroundDownloads ?? this.backgroundDownloads,
     'floatingPlayback': floatingPlayback ?? this.floatingPlayback,
     'backgroundWifiOnly': backgroundWifiOnly ?? this.backgroundWifiOnly,
+    'backgroundPlaybackPrompted':
+        backgroundPlaybackPrompted ?? this.backgroundPlaybackPrompted,
+    'floatingPlaybackPrompted':
+        floatingPlaybackPrompted ?? this.floatingPlaybackPrompted,
     'prefetchEnabled': prefetchEnabled ?? this.prefetchEnabled,
     'prefetchEpisodes': prefetchEpisodes ?? this.prefetchEpisodes,
     'autoNext': autoNext ?? this.autoNext,
@@ -169,6 +194,12 @@ class AppSettings {
     'videoUserAgent': videoUserAgent ?? this.videoUserAgent,
   });
   void validate() {
+    if (!['online_time', 'hot_score', 'hot_collect'].contains(catalogSort)) {
+      throw const FormatException('目录排序无效');
+    }
+    if (![30, 50].contains(tvPageSize)) {
+      throw const FormatException('TV 每页条数应为 30 或 50');
+    }
     if (prefetchEpisodes < 3 || prefetchEpisodes > 5) {
       throw const FormatException('预缓存集数应为 3～5 集');
     }

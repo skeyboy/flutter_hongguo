@@ -1,3 +1,5 @@
+import 'package:hongguo_app/features/settings_page.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -132,7 +134,7 @@ void main() {
           findsOneWidget,
         );
         if (width < 720) {
-          await tester.tap(find.byKey(const ValueKey('sticky-sort')));
+          await tester.tap(find.byKey(const ValueKey('sticky-theme')));
           await tester.pumpAndSettle();
           expect(
             find.byKey(const ValueKey('horizontal-filter-panel')),
@@ -182,7 +184,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('旧缓存'), findsWidgets);
       expect(find.text('网络刷新失败，正在显示本地缓存。'), findsOneWidget);
-      await tester.tap(find.text('刷新'));
+      await tester.tap(find.text('重试刷新'));
       await tester.pump();
       await tester.pump();
       catalog.pending.last.complete(
@@ -221,7 +223,9 @@ void main() {
       final runtime = CacheRuntime();
       await mount(tester, runtime, const Size(390, 900));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('设置').last);
+      await tester.tap(find.text('我的').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('my-settings')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('3 集'));
       await tester.pumpAndSettle();
@@ -237,7 +241,7 @@ void main() {
       }
 
       await choose('浅色', '深色');
-      final settingsContext = tester.element(find.byType(NavigationBar));
+      final settingsContext = tester.element(find.byType(SettingsPage));
       expect(Theme.of(settingsContext).brightness, Brightness.dark);
       expect(runtime.settings.themeMode, 'dark');
       expect(runtime.settings.prefetchEpisodes, 3);
@@ -285,7 +289,9 @@ void main() {
         ];
       await mount(tester, runtime, const Size(390, 900));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('设置').last);
+      await tester.tap(find.text('我的').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('my-settings')));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('本地缓存剧集'));
       await tester.pumpAndSettle();
@@ -333,7 +339,9 @@ void main() {
       final runtime = CacheRuntime();
       await mount(tester, runtime, const Size(390, 900));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('设置').last);
+      await tester.tap(find.text('我的').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('my-settings')));
       await tester.pumpAndSettle();
       for (final title in ['提前缓存后续剧集', '自动连播', '自动加载下一页']) {
         final control = find.widgetWithText(SwitchListTile, title);
@@ -365,6 +373,10 @@ void main() {
       await tester.tap(find.text('清理未在使用的缓存'));
       await tester.pumpAndSettle();
       expect(runtime.clears, 1);
+      if (find.byType(SettingsPage).evaluate().isNotEmpty) {
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+      }
       await tester.tap(find.text('发现').last);
       await tester.pumpAndSettle();
       final calls = runtime.catalog.browseCalls;

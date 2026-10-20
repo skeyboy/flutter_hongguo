@@ -1,3 +1,8 @@
+import '../downloads/download_manager.dart';
+import '../personal/personal_library.dart';
+
+import 'package:hongguo_tv/hongguo_tv.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -33,17 +38,31 @@ Future<AppRuntime> createRuntime() async {
   );
   await store.load();
   final runtime = NativeRuntime(root, store);
-  if (store.settings.backgroundDownloads) await runtime.restoreDownloads();
+  try {
+    await runtime.downloads.load();
+    if (store.settings.backgroundDownloads) await runtime.restoreDownloads();
+    await runtime.downloads.reconcile();
+  } catch (_) {
+    store.warning = '手动下载记录暂时不可用，请在下载管理中重试；已保留现有文件。';
+  }
+  runtime.downloads.attachLifecycle();
   return runtime;
 }
 
 class NativeRuntime
     implements
         ConfigurableRuntime,
+        VideoQualityRuntime,
         LibraryCacheRuntime,
         LocalMediaRuntime,
-        DramaMetadataRuntime {
+        DramaMetadataRuntime,
+        PersonalLibraryRuntime,
+        DownloadRuntime {
   final SettingsStore store;
+  @override
+  late final DownloadManager downloads;
+  @override
+  late final PersonalLibrary personalLibrary;
   @override
   late final LibraryCache libraryCache;
   final _settingsEvents = StreamController<AppSettings>.broadcast();
@@ -55,12 +74,20 @@ class NativeRuntime
   final _retained = <String>{};
   late final ArtworkCache _artwork;
   NativeRuntime(Directory root, this.store) {
+    personalLibrary = PersonalLibrary(
+      backend: FilePreferencesBackend(
+        File('${root.path}/personal-library.json'),
+      ),
+    );
     libraryCache = LibraryCache(
       backend: FilePreferencesBackend(File('${root.path}/library-cache.json')),
     );
     _artwork = ArtworkCache(Directory('${root.path}/artwork-cache'));
     _rebuildClients();
-    _downloads = NativeDownloads(() => settings, _dio);
+    _downloads = NativeDownloads(
+      () => tvBuild ? settings.copyWith(backgroundDownloads: false) : settings,
+      _dio,
+    );
     _cache = MediaCache(
       directory: Directory('${root.path}/media-cache'),
       dio: _dio,
@@ -68,8 +95,50 @@ class NativeRuntime
       onFinished: _downloads.finish,
       maxFiles: settings.maxCacheFiles,
       maxBytes: settings.maxCacheMb * 1024 * 1024,
-      maxConcurrent: settings.concurrentPreparations,
+      maxConcurrent: tvBuild ? 1 : settings.concurrentPreparations,
+      retainFile: (vid, quality) => downloads.retains(vid, quality),
       resolve: (vid, quality) => _model.fetchTrack(vid, quality: quality),
+    );
+    downloads = DownloadManager(
+      backend: FilePreferencesBackend(
+        File('${root.path}/episode-downloads.json'),
+      ),
+      settings: () =>
+          tvBuild ? settings.copyWith(concurrentPreparations: 1) : settings,
+      files: localEpisodes,
+      remember: rememberDrama,
+      mobile: Platform.isAndroid || Platform.isIOS,
+      television: tvBuild,
+      deleteFile: (vid, quality) => _cache.evict(vid, quality: quality),
+      prepare: (task, progress) {
+        final lease = _cache.prepare(
+          task.episode.vid,
+          quality: task.quality,
+          background: true,
+          onProgress: (p) => progress(
+            PreparationProgress.bytes(
+              switch (p.stage) {
+                MediaStage.queued => '正在排队',
+                MediaStage.resolving => '正在获取片源',
+                MediaStage.downloading => '正在下载',
+                MediaStage.waitingNetwork => '等待 Wi-Fi 或网络',
+                MediaStage.decrypting => '正在处理视频',
+                MediaStage.validating => '正在校验',
+                MediaStage.ready => '即将完成',
+              },
+              p.fraction,
+              received: p.received,
+              total: p.total,
+            ),
+          ),
+        );
+        unawaited(
+          lease.result
+              .then((_) => _artwork.ensure(task.drama))
+              .catchError((Object _) {}),
+        );
+        return _NativeJob(lease, _cache);
+      },
     );
   }
   Future<void> restoreDownloads() async {
@@ -95,6 +164,7 @@ class NativeRuntime
   void _rebuildClients() {
     _dio.options.connectTimeout = Duration(seconds: settings.timeoutSeconds);
     _catalog = CatalogClient(
+      browsePageSize: tvBuild ? settings.tvPageSize : 18,
       dio: _dio,
       deviceId: deviceId,
       protocol: settings,
@@ -115,33 +185,50 @@ class NativeRuntime
     AppSettings value, {
     SessionCredentials? credentials,
   }) async {
+    final oldTvPageSize = settings.tvPageSize;
+    final changeDownloadPolicy =
+        value.backgroundDownloads != settings.backgroundDownloads;
     final oldProtocol = jsonEncode(settings.protocolJson()),
         oldSession = jsonEncode(this.credentials.toJson());
     if (value.backgroundDownloads && !settings.backgroundDownloads) {
       await _downloads.initialize(requestNotification: true);
     }
     await store.save(value, session: credentials);
-    if (!value.backgroundDownloads) await _downloads.cancel();
-    _settingsEvents.add(settings);
-    if (oldProtocol != jsonEncode(settings.protocolJson()) ||
-        oldSession != jsonEncode(this.credentials.toJson())) {
-      _cache.cancelBackground();
-      await libraryCache.clearFeeds().catchError((Object _) {
-        store.warning = '目录快照清理未写入磁盘，其他设置已保存。';
-      });
-      _rebuildClients();
+    if (changeDownloadPolicy) downloads.beginSettingsChange();
+    try {
+      if (changeDownloadPolicy && !value.backgroundDownloads) {
+        await _downloads.cancel();
+      }
+      if (oldTvPageSize != settings.tvPageSize ||
+          oldProtocol != jsonEncode(settings.protocolJson()) ||
+          oldSession != jsonEncode(this.credentials.toJson())) {
+        _cache.cancelBackground(keep: downloads.running);
+        await libraryCache.clearFeeds().catchError((Object _) {
+          store.warning = '目录快照清理未写入磁盘，其他设置已保存。';
+        });
+        _rebuildClients();
+      }
+      _settingsEvents.add(settings);
+      if (!settings.prefetchEnabled) {
+        _cache.cancelBackground(keep: downloads.running);
+      }
+      await _cache.configure(
+        files: settings.maxCacheFiles,
+        bytes: settings.maxCacheMb * 1024 * 1024,
+        concurrency: tvBuild ? 1 : settings.concurrentPreparations,
+      );
+    } finally {
+      if (changeDownloadPolicy) {
+        downloads.endSettingsChange();
+      } else {
+        downloads.policyChanged();
+      }
     }
-    if (!settings.prefetchEnabled) _cache.cancelBackground();
-    await _cache.configure(
-      files: settings.maxCacheFiles,
-      bytes: settings.maxCacheMb * 1024 * 1024,
-      concurrency: settings.concurrentPreparations,
-    );
   }
 
   @override
   Future<void> refreshSigning() async {
-    _cache.cancelBackground();
+    _cache.cancelBackground(keep: downloads.running);
     _rebuildClients();
   }
 
@@ -152,7 +239,7 @@ class NativeRuntime
     await libraryCache.clearFeeds().catchError((Object _) {
       store.warning = '目录快照清理未写入磁盘，其他设置已保存。';
     });
-    _cache.cancelBackground();
+    _cache.cancelBackground(keep: downloads.running);
     _rebuildClients();
   }
 
@@ -213,8 +300,20 @@ class NativeRuntime
   }
 
   @override
-  Future<void> evict(String vid, {String quality = 'best'}) =>
-      _cache.evict(vid, quality: quality);
+  Future<void> evict(String vid, {String quality = 'best'}) async {
+    final file = (await _cache.entries())
+        .where((f) => f.vid == vid && f.quality == quality)
+        .firstOrNull;
+    if (file?.inUse == true) throw StateError('正在使用该视频，请结束播放后再删除');
+    await _cache.evict(vid, quality: quality);
+    if ((await _cache.entries()).any(
+      (f) => f.vid == vid && f.quality == quality,
+    )) {
+      return;
+    }
+    await downloads.forget(vid, quality);
+  }
+
   @override
   PlaybackJob prepareLocal(String vid, {String quality = 'best'}) =>
       _NativeJob(_cache.prepareCached(vid, quality: quality), _cache);
@@ -262,11 +361,19 @@ class NativeRuntime
   }
 
   @override
+  Future<List<VideoQuality>> videoQualities(String vid) =>
+      _model.fetchQualities(vid);
+
+  @override
   Future<int> cacheBytes() => _cache.cacheBytes();
   @override
   Future<void> clearCache() => _cache.clear();
   @override
   Future<void> dispose() async {
+    await downloads.shutdown();
+    downloads.dispose();
+    await personalLibrary.flush();
+    personalLibrary.dispose();
     _cache.close();
     await _downloads.cancel();
     _artwork.close();

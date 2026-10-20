@@ -1,0 +1,187 @@
+TV feature commit snapshot verification — 2026-10-20:
+Validated the staged tree independently of unstaged platform changes.
+Core 116 / API 46 / TV module 32 / App 126 / TV settings 1 / packaging 6: PASS.
+Full staged-tree static analysis: no issues. Dart formatting: PASS.
+Logs: build/verification/tv-commit-*.log.
+
+TV HEVC green-edge FIX — 2026-10-20:
+TV production controller now uses video_player platformView / native SurfaceView.
+Original problem HEVC: production frame, menu overlay and real Home/resume screenshots
+have 0 green columns and visible video pixels (30.13%, 24.22%, 30.15%).
+Hardware 8-menu regression: PASS. HEVC menu/Up/background/position/Back: PASS.
+Native per-episode resume/completed restart/auto-next/disk persistence: PASS.
+App 122 tests: PASS. Changed playback/test files static analysis: no issues.
+Evidence: build/verification/tv-hevc-platform-device/ and tv-platform-menu-device/.
+Normal-entry fixed TV APK rebuilt, installed and launched.
+See design/tv-hevc-green-edge-analysis.md.
+
+TV HEVC green-edge analysis — 2026-10-20:
+Same 1080x1920 HEVC: textureView has a 38px green strip; platformView has none.
+Same content transcoded to H264: both renderers have no green strip.
+Original local MP4 decodes cleanly with FFmpeg. All 4 device comparisons passed.
+App static analysis: no issues. Production render path is unchanged (analysis only).
+Normal-entry original APK restored; diagnostic input copies removed from the device.
+Evidence: build/verification/tv-green-diagnostic-device/.
+See design/tv-hevc-green-edge-analysis.md.
+
+TV compact resource viewport / silent refresh — 2026-10-20:
+App 112 tests: PASS. Static analysis: no issues.
+No loading/updating/end footer when resources exist; fixed 40px footer removed.
+TV bottom margin 28px -> 12px; resource viewport gains 56 logical pixels.
+Refresh/pagination errors use a compact retry overlay without resizing the grid.
+Grid state/geometry retained through pending refresh, error and successful retry.
+Hardware theme rail + automatic pagination + compact geometry: PASS.
+Normal-entry TV APK rebuilt, installed and launched.
+Evidence: build/verification/tv-compact-feed-device/.
+
+TV playback controls idle / Up to picture — 2026-10-20:
+TV module 32 tests: PASS. App/TV static analysis: no issues.
+Controls hide after 30s idle; remote/button activity restarts the deadline.
+Up hides controls; held Up cannot reopen them through repeat events.
+No playback/pause/position/route changes. Panel/seek workflows retain their controls.
+Native hardware Up + real 31s idle wait: PASS, paused position and player route retained.
+Normal-entry TV APK rebuilt, installed and launched.
+Evidence: build/verification/tv-controls-idle-device/.
+
+TV first-page placeholder / three retries — 2026-10-20:
+App 111 / API 44 tests: PASS. App/API static analysis: no issues.
+First-page loading/empty/error states centered inside the right resource area.
+Existing lists remain visible on refresh/pagination failure, with a fixed footer.
+Initial request plus 3 retries (4 attempts); 1s/2s/4s delays.
+No error during retry attempts; exhausted errors expose a remote retry action.
+Native fault injection and hardware remote retry: PASS.
+Normal-entry TV APK rebuilt, installed and launched.
+Evidence: build/verification/tv-placeholder-retry-device/.
+
+TV per-episode progress / resume / auto-next — 2026-10-20:
+App 109 tests: PASS. Static analysis: no issues.
+Start watching restores latest episode; explicit selection resumes that episode only.
+Finished episodes restart at zero; near-end unfinished episodes still resume.
+Per-episode disk history survives reload; old records migrate and clear together.
+Auto-next enabled for old installations once; subsequent explicit opt-out persists.
+Native CENC/ExoPlayer test: PASS (resume, completed restart, auto-next, disk reload).
+Normal-entry TV APK rebuilt, installed and launched.
+Evidence: build/verification/tv-resume-device/.
+See design/playback-resume.md.
+
+TV catalog automatic network recovery — 2026-10-20:
+API 44 / Core 116 / App 106 tests: PASS. API/App static analysis: no issues.
+Default timeout 60s; old default 30s migrated once, custom settings preserved.
+Transient failures: 2 retries with 1s/2s backoff; bounded at 3 attempts.
+Independent theme/list loading, explicit theme retry, retained list/search page state.
+Hardware TV fault injection: PASS (theme timeout twice, list 503 once, automatic recovery).
+Normal-entry TV APK rebuilt, installed and launched.
+Evidence: build/verification/tv-network-recovery-device/.
+See design/catalog-network-recovery.md.
+
+TV global Back / stay in app — 2026-10-20:
+TV module 27 / App 102 tests: PASS. App/TV static analysis: no issues.
+Single in-flight return owner across focused nested and outer Navigators.
+One Back closes one dialog/layer/route; root Back is consumed without Activity exit.
+Normal-entry rebuilt app: 3 hardware Back presses keep Activity foreground.
+Evidence: build/verification/tv-global-back-normal-root.json.
+Hardware remote multi-push/dialog/root-repeat/reopen test: PASS.
+Existing real CENC player/seek/next/pause/back-to-detail-to-catalog test: PASS.
+Evidence: build/verification/tv-global-back-device/ and tv-global-back-player-device/.
+
+TV playback bottom menu — 2026-10-20:
+All eight operations verified by actual emulator remote input: PASS.
+Real track/local quality data; quality switching preserves position and pause.
+Seek commit/cancel, current episode selection, disabled edges and root-focus recovery covered.
+App 102 / API 37 / TV module 24: PASS. App/TV analysis: no issues.
+Evidence: build/verification/tv-menu-device-final/.
+See design/tv-player-rendering-fix.md.
+
+TV resource index navigation — 2026-10-20:
+Right/Left use Index+1/Index-1 across rows; only Index 0 exits left to sidebar.
+Horizontal end events stay inside the grid and never focus the theme/search bar.
+Pagination continuation, cancellation and rapid 24-key moves: PASS.
+App 102 / TV module 20 / static analysis: PASS.
+Hardware emulator remote: PASS; index_wrap_both_directions=true theme_unchanged=true.
+Evidence: build/verification/tv-index-device/.
+
+Shared cached artwork update — 2026-10-20:
+cached_network_image ^4.0.4 (resolved 4.0.4), shared widgets/drama_cover.dart.
+App 102 tests and static analysis: PASS.
+Native image-cache test: PASS; one HTTP request, cache file verified on disk,
+then memory cache cleared and HTTP server closed: cover still decodes from disk.
+Local-only and explicit local ImageProvider paths perform no network requests.
+Evidence: build/verification/cached-artwork-device/.
+
+TV Back navigation fix — 2026-10-20:
+App 102 / TV module 16: PASS. Native physical Back: PASS.
+One physical press pops one route; player -> detail -> catalog.
+Controls/panel close one layer first; repeated exits cannot pop the parent route.
+Evidence: build/verification/tv-back-device/; named-route pop observer assertions.
+
+TV sidebar route/focus update — 2026-10-20:
+Five sidebar entries now use retained auto_route pages, with per-genre nested theme routers.
+Up/down focus activates routes. Left returns to the selected sidebar entry;
+Right restores the previous right-pane focus without changing theme or reloading.
+App 102 / TV module 12 / static analysis: PASS.
+Hardware emulator remote: PASS; comic pane round trips, independent AI/local/My routes.
+Evidence: build/verification/tv-sidebar-device/.
+
+TV retained routes / native playback — 2026-10-20:
+App 99 / TV module 12 / workspace analysis: PASS.
+auto_route: separate retained theme pages; grid identity, scroll offset,
+loaded pages and fixed geometry verified across switches and refreshes.
+Hardware D-pad feed test: PASS (12 themes, visibility, automatic next page).
+Hardware player test: PASS (actual color bars, seek, next episode,
+pause/resume and return). Backend: Android ExoPlayer via video_player.
+See design/tv-player-rendering-fix.md and design/tv-topic-pagination.md.
+Latest logs: build/verification/tv-player-final-device/ and tv-routes-device/.
+Older entries below are historical and used media_kit for TV playback.
+
+TV topic/pagination update — 2026-10-20:
+Core 116 / API 34 / TV module 10 / App 91 / TV settings 1 / packaging 6: PASS.
+Native TV settings runtime 7: PASS (50-row client selected after save).
+Hardware TV feed integration: PASS; 12 focus selections, label visibility and automatic next page.
+See design/tv-topic-pagination.md and build/verification/tv-feed-device/.
+Normal-entry TV app rebuilt and installed; emulator remains running.
+
+Hardware remote follow-up: AVD hw.keyboard=yes / hw.keyboard.lid=no.
+qwerty2 keyboard/D-pad registered; 9 emulator-grpc-evdev events PASS.
+See android-tv-remote-fix.md for kernel evidence and normal-app screenshots.
+
+Latest follow-up: Android TV API34 arm64 system AVD hongguo_tv_api34 is running.
+television/leanback/leanback_only and UI mode 0x24 verified.
+9 actual ADB system D-pad/center/Back events: PASS.
+TV_NATIVE_PASS duration_ms=1523 audio_tracks=1 remote_seek=true
+Normal lib/main.dart app rebuilt/reinstalled and left in foreground.
+See android-tv-emulator-verification.md. Earlier phone-only record follows.
+
+Android TV adaptation — 2026-10-20
+SDK: Flutter 3.47.4 / Dart 3.13.3
+
+Workspace static analysis: No issues found.
+TV module tests: 9 passed.
+App regression: 81 passed; TV-flavor-only settings case skipped here and run separately.
+TV settings regression: 1 passed with HONGGUO_TV=true.
+Packaging contract tests: 6 passed.
+Native Android integration: 1 passed.
+TV_NATIVE_PASS duration_ms=1523 audio_tracks=1 remote_seek=true
+
+Native integration used the existing Android 15 arm64 phone emulator, TV flavor,
+landscape, injected D-pad events and the real CENC/media_kit pipeline.
+This is NOT a claim of Android TV OS or physical remote/device acceptance.
+
+Normal-entry TV and mobile arm64 debug APKs built successfully.
+TV package: com.example.hongguo_app.tv
+Mobile package: com.example.hongguo_app
+Min SDK from merged TV APK: 24
+TV APK: LEANBACK_LAUNCHER, compatible LAUNCHER, TV banner and leanback feature present.
+TV APK apksigner verification: PASS.
+Mobile APK identity verified and contains no LEANBACK_LAUNCHER (PASS).
+Normal-entry TV package preserved at artifacts/android-tv/Hongguo-0.2.7-tv-arm64-debug.apk.
+Its SHA256 and audit are in artifacts/android-tv/verification.json.
+Logs: build/verification/tv-tests.log, tv-native.log, tv-build.log,
+mobile-build.log and tv-apk-badging.txt.
+
+Android TV system-image test was attempted but blocked by host disk requirements;
+custom smaller data image did not boot reliably. Temporary added TV image/AVD
+and test disk removed. Existing unrelated projects and AVD snapshots preserved.
+
+Pending: physical television/box/remote acceptance, TV launcher/IME/HDMI behavior,
+HEVC/hardware decode, low-RAM soak, 32-bit target acceptance, 16KB ELF alignment
+and Google Play distribution compliance. No CI publish or remote push was performed.

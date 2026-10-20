@@ -14,6 +14,14 @@ if (!deviceTestAbi.isNullOrBlank()) {
 
 android {
     namespace = "com.example.hongguo_app"
+    flavorDimensions += "device"
+    productFlavors {
+        create("mobile") { dimension = "device" }
+        create("tv") {
+            dimension = "device"
+            applicationIdSuffix = ".tv"
+        }
+    }
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 

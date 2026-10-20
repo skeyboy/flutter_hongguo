@@ -80,6 +80,9 @@ class MediaCache {
   final Future<void> Function(String vid, String quality)? onFinished;
   final Future<VideoTrack> Function(String vid, String quality) resolve;
   int maxFiles, maxBytes, maxConcurrent;
+
+  /// Explicit user downloads survive ordinary LRU and cache clearing.
+  final bool Function(String vid, String quality)? retainFile;
   final _jobs = <String, _Job>{};
   final _pins = <String, int>{};
   final _pinSizes = <String, int>{};
@@ -97,6 +100,7 @@ class MediaCache {
     this.maxFiles = 30,
     this.maxBytes = 512 * 1024 * 1024,
     this.maxConcurrent = 2,
+    this.retainFile,
   });
   String _key(String vid, String quality) {
     if (!RegExp(r'^\d{1,30}$').hasMatch(vid) ||
@@ -220,8 +224,13 @@ class MediaCache {
     await prune();
   }
 
-  void cancelBackground() {
-    for (final job in _jobs.values.where((j) => j.background).toList()) {
+  void cancelBackground({bool Function(String vid, String quality)? keep}) {
+    for (final job
+        in _jobs.values
+            .where(
+              (j) => j.background && !(keep?.call(j.vid, j.quality) ?? false),
+            )
+            .toList()) {
       job.token.cancel('Background prefetch stopped');
       _pending.remove(job);
       if (identical(_jobs[job.key], job)) _jobs.remove(job.key);
@@ -480,6 +489,12 @@ class MediaCache {
     lease._release = null;
   }
 
+  bool _retainedPath(String path) {
+    final match = RegExp(r'^(\d{1,30})_(best|auto|\d{3,4}p)\.mp4$')
+        .firstMatch(File(path).uri.pathSegments.last);
+    return match != null && (retainFile?.call(match[1]!, match[2]!) ?? false);
+  }
+
   Future<void> prune() async {
     if (!await directory.exists()) return;
     final files = await directory
@@ -501,6 +516,7 @@ class MediaCache {
       (a, b) => stats[b.path]!.modified.compareTo(stats[a.path]!.modified),
     );
     bool protected(File f) =>
+        _retainedPath(f.path) ||
         _pins.containsKey(f.path) ||
         _jobs.values.any((job) => f.path == '${directory.path}/${job.key}.mp4');
     var kept = files.where(protected).length;
@@ -605,7 +621,8 @@ class MediaCache {
       final target = file.path.endsWith('.json')
           ? file.path.substring(0, file.path.length - 5)
           : file.path;
-      if (_pins.containsKey(target) ||
+      if (_retainedPath(target) ||
+          _pins.containsKey(target) ||
           _jobs.keys.any((key) => target == '${directory.path}/$key.mp4')) {
         continue;
       }

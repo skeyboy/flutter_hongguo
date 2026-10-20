@@ -2,10 +2,15 @@ name: hongguo_app
 description: Flutter host for shared Dart core verification.
 publish_to: none
 resolution: workspace
-version: 0.2.6+8
+version: 0.2.7+9
 environment:
   sdk: '>=3.13.0 <4.0.0'
 dependencies:
+  cached_network_image: any
+  video_player: any
+  auto_route: any
+  hongguo_tv:
+    path: ../tv
   flutter:
     sdk: flutter
   flutter_localizations:
@@ -28,6 +33,8 @@ dependencies:
   hongguo_api:
     path: ../api
 dev_dependencies:
+  file: any
+  flutter_cache_manager: any
   integration_test:
     sdk: flutter
   flutter_test:

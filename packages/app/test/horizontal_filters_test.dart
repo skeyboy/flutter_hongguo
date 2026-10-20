@@ -158,7 +158,7 @@ void main() {
       expect(find.byKey(const ValueKey('filter-sort-hot_score')), findsNothing);
       expect(
         find.byKey(const ValueKey('filter-sort-online_time')),
-        findsOneWidget,
+        findsNothing,
       );
       await tester.tap(find.byKey(const ValueKey('filter-view-rank')));
       await tester.pump(const Duration(milliseconds: 300));

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hongguo_core/hongguo_core.dart';
+import 'package:hongguo_tv/hongguo_tv.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_app/platform/runtime_native.dart';
 import 'package:hongguo_app/settings/settings_store.dart';
@@ -53,6 +54,33 @@ void main() {
       vault: vault,
       deviceId: '1234567890123456',
     );
+  });
+  test(
+    'playback upgrade enables auto-next once and keeps later explicit opt-out',
+    () async {
+      prefs.data = {'preferences': const AppSettings(autoNext: false).toJson()};
+      await store.load();
+      expect(store.settings.autoNext, isTrue);
+      await store.save(store.settings.copyWith(autoNext: false));
+      await store.load();
+      expect(store.settings.autoNext, isFalse);
+    },
+  );
+  test('old 30-second default migrates once; other and newly saved custom timeouts stay', () async {
+    expect(store.settings.timeoutSeconds, 60);
+    prefs.data = {
+      'preferences': const AppSettings(timeoutSeconds: 30).toJson(),
+    };
+    await store.load();
+    expect(store.settings.timeoutSeconds, 60);
+    await store.save(store.settings.copyWith(timeoutSeconds: 30));
+    await store.load();
+    expect(store.settings.timeoutSeconds, 30);
+    prefs.data = {
+      'preferences': const AppSettings(timeoutSeconds: 25).toJson(),
+    };
+    await store.load();
+    expect(store.settings.timeoutSeconds, 25);
   });
   test(
     'settings persist across restart; secrets never enter preference JSON',
@@ -219,9 +247,16 @@ void main() {
         signLists: true,
         catalogVersion: '7.2.2.33',
         catalogVersionCode: '72233',
+        catalogSort: 'hot_collect',
+        tvPageSize: 50,
       );
       await runtime.saveSettings(next);
       expect(events.last.themeMode, 'dark');
+      expect(events.last.catalogSort, 'hot_collect');
+      expect(
+        (runtime.catalog as CatalogClient).browsePageSize,
+        tvBuild ? 50 : 18,
+      );
       expect((runtime.catalog as CatalogClient).protocol.timeoutSeconds, 25);
       expect((runtime.catalog as CatalogClient).signLists, isTrue);
       expect(

@@ -8,11 +8,13 @@ void main() {
   late GlobalKey<EpisodeWorkspaceState> panel;
   late StateSetter update;
   bool playing = true, busy = false, accessible = false;
+  bool settingsOpened = false;
   Future<void> mount(WidgetTester tester, Size size) async {
     panel = GlobalKey<EpisodeWorkspaceState>();
     playing = true;
     busy = false;
     accessible = false;
+    settingsOpened = false;
     await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
@@ -37,6 +39,10 @@ void main() {
                   key: panel,
                   playing: playing,
                   busy: busy,
+                  onSettings: () {
+                    settingsOpened = true;
+                    panel.currentState!.hide();
+                  },
                   video: const ColoredBox(color: Colors.black),
                   episodes: ListView(
                     children: [
@@ -61,6 +67,24 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('settings lives inside the panel without resizing video', (
+    tester,
+  ) async {
+    await mount(tester, const Size(740, 400));
+    final picture = find.byKey(const ValueKey('player-picture'));
+    final before = tester.getRect(picture);
+    expect(find.byTooltip('播放设置'), findsNothing);
+    await tester.tap(find.byTooltip('选集入口'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('播放设置'), findsOneWidget);
+    expect(tester.getRect(picture), before);
+    await tester.tap(find.byTooltip('播放设置'));
+    await tester.pumpAndSettle();
+    expect(settingsOpened, isTrue);
+    expect(find.byKey(const ValueKey('episode-panel')), findsNothing);
+    expect(tester.getRect(picture), before);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets(
     'wide desktop always keeps full picture; holding and hiding only affect the overlay',
     (tester) async {

@@ -1,0 +1,14 @@
+name: hongguo_tv
+description: Independent D-pad focus and television playback interaction module.
+publish_to: none
+resolution: workspace
+version: 0.1.0
+environment:
+  sdk: '>=3.13.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: any

@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 
 import 'video_model_client.dart';
+import 'network_retry.dart';
 
 String _text(dynamic value) => value == null ? '' : '$value';
 int _int(dynamic value) =>
@@ -119,6 +120,8 @@ class CatalogError implements Exception {
 }
 
 class CatalogClient implements CatalogRepository, RankCatalogRepository {
+  final NetworkRetry retry;
+  final int browsePageSize;
   final Dio dio;
   final String deviceId;
   final PureSign signer;
@@ -129,14 +132,20 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
   Future<void> _queue = Future.value();
   final _details = <String, ({DateTime expires, DramaDetail value})>{};
   CatalogClient({
+    this.browsePageSize = 18,
+    NetworkRetry? retry,
     required this.dio,
     required this.deviceId,
     PureSign? signer,
     this.sessionHeaders = const {},
     this.signLists = false,
     this.protocol = const AppSettings(),
-  }) : signer = signer ?? PureSign() {
+  }) : retry = retry ?? NetworkRetry(),
+       signer = signer ?? PureSign() {
     protocol.validate();
+    if (browsePageSize < 1 || browsePageSize > 50) {
+      throw ArgumentError('Browse page size must be 1–50');
+    }
     if (!RegExp(r'^\d{10,20}$').hasMatch(deviceId)) {
       throw ArgumentError('Invalid device identity');
     }
@@ -147,79 +156,102 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
     Map<String, String> query = const {},
     bool signed = true,
   }) {
-    final result = _queue.then((_) async {
-      final wait =
-          const Duration(milliseconds: 260) -
-          DateTime.now().difference(_lastRequest);
-      if (wait > Duration.zero) await Future<void>.delayed(wait);
-      _lastRequest = DateTime.now();
-      final bytes = body == null
-          ? null
-          : Uint8List.fromList(utf8.encode(jsonEncode(body)));
-      final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      final now = DateTime.now().millisecondsSinceEpoch;
-      String url = '';
-      for (var attempt = 0; attempt < 32; attempt++) {
-        final params = {
-          'aid': '8662',
-          'app_name': 'novelread',
-          'version_code': protocol.catalogVersionCode,
-          'version_name': protocol.catalogVersion,
-          'channel': 'audit',
-          'device_platform': 'android',
-          'device_type': 'audit-windows',
-          'os_version': '12',
-          'update_version_code': protocol.catalogVersionCode,
-          'device_id': deviceId,
-          ...query,
-          '_rticket': '${now + attempt}',
-        };
-        url =
-            'https://${protocol.apiHost}$path?${params.entries.map((e) => '${encodeQueryPart(e.key)}=${encodeQueryPart(e.value)}').join('&')}';
-        if (!signed || signer.branchOf(url, bytes, ts) != 1) break;
-      }
-      if (signed && signer.branchOf(url, bytes, ts) == 1) {
-        throw const CatalogError('签名暂时无法生成，请重试');
-      }
-      final response = await dio.request<String>(
-        url,
-        data: bytes == null ? null : Stream<Uint8List>.value(bytes),
-        options: Options(
-          method: bytes == null ? 'GET' : 'POST',
-          followRedirects: false,
-          responseType: ResponseType.plain,
-          receiveTimeout: Duration(seconds: protocol.timeoutSeconds),
-          sendTimeout: Duration(seconds: protocol.timeoutSeconds),
-          headers: {
-            'user-agent': 'hongguo-web/1.0',
-            'x-tt-store-region': 'cn-sh',
-            'x-tt-store-region-src': 'uid',
-            'passport-sdk-version': '5051452',
-            'sdk-version': '2',
-            ...sessionHeaders,
-            if (bytes != null) ...{
-              'content-type': 'application/json; charset=utf-8',
-              'content-length': '${bytes.length}',
-              'x-ss-stub': hex(md5(bytes)).toUpperCase(),
-            },
-            if (signed) ...signer.sign(url, bytes, ts),
-          },
-        ),
-      );
-      if (response.statusCode != 200) {
-        throw CatalogError('内容接口 HTTP ${response.statusCode}');
-      }
-      final data = _map(jsonDecode(response.data ?? ''));
-      final code = data['code'] ?? data['Code'] ?? data['status_code'];
-      if (code != null && _int(code) != 0) {
-        throw CatalogError(
-          '内容接口返回 $code：${_first([data['message'], data['msg'], '暂时不可用'])}',
+    return retry.run(
+      () async {
+        // Serialize request starts only: a slow request must not block other genres.
+        final slot = _queue.then((_) async {
+          final wait =
+              const Duration(milliseconds: 260) -
+              DateTime.now().difference(_lastRequest);
+          if (wait > Duration.zero) await Future<void>.delayed(wait);
+          _lastRequest = DateTime.now();
+        });
+        _queue = slot;
+        await slot;
+        final bytes = body == null
+            ? null
+            : Uint8List.fromList(utf8.encode(jsonEncode(body)));
+        final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        final now = DateTime.now().millisecondsSinceEpoch;
+        String url = '';
+        for (var attempt = 0; attempt < 32; attempt++) {
+          final params = {
+            'aid': '8662',
+            'app_name': 'novelread',
+            'version_code': protocol.catalogVersionCode,
+            'version_name': protocol.catalogVersion,
+            'channel': 'audit',
+            'device_platform': 'android',
+            'device_type': 'audit-windows',
+            'os_version': '12',
+            'update_version_code': protocol.catalogVersionCode,
+            'device_id': deviceId,
+            ...query,
+            '_rticket': '${now + attempt}',
+          };
+          url =
+              'https://${protocol.apiHost}$path?${params.entries.map((e) => '${encodeQueryPart(e.key)}=${encodeQueryPart(e.value)}').join('&')}';
+          if (!signed || signer.branchOf(url, bytes, ts) != 1) break;
+        }
+        if (signed && signer.branchOf(url, bytes, ts) == 1) {
+          throw const CatalogError('签名暂时无法生成，请重试');
+        }
+        final response = await dio.fetch<String>(
+          Options(
+                method: bytes == null ? 'GET' : 'POST',
+                followRedirects: false,
+                responseType: ResponseType.plain,
+                receiveTimeout: Duration(seconds: protocol.timeoutSeconds),
+                sendTimeout: Duration(seconds: protocol.timeoutSeconds),
+                headers: {
+                  'user-agent': 'hongguo-web/1.0',
+                  'x-tt-store-region': 'cn-sh',
+                  'x-tt-store-region-src': 'uid',
+                  'passport-sdk-version': '5051452',
+                  'sdk-version': '2',
+                  ...sessionHeaders,
+                  if (bytes != null) ...{
+                    'content-type': 'application/json; charset=utf-8',
+                    'content-length': '${bytes.length}',
+                    'x-ss-stub': hex(md5(bytes)).toUpperCase(),
+                  },
+                  if (signed) ...signer.sign(url, bytes, ts),
+                },
+              )
+              .compose(
+                dio.options,
+                url,
+                data: bytes == null ? null : Stream<Uint8List>.value(bytes),
+              )
+              .copyWith(
+                connectTimeout: Duration(seconds: protocol.timeoutSeconds),
+              ),
         );
-      }
-      return data;
-    });
-    _queue = result.then<void>((_) {}).catchError((Object _) {});
-    return result;
+        if (response.statusCode != 200) {
+          throw CatalogError('内容接口 HTTP ${response.statusCode}');
+        }
+        final data = _map(jsonDecode(response.data ?? ''));
+        final code = data['code'] ?? data['Code'] ?? data['status_code'];
+        if (code != null && _int(code) != 0) {
+          throw CatalogError(
+            '内容接口返回 $code：${_first([data['message'], data['msg'], '暂时不可用'])}',
+          );
+        }
+        if (body?['need_selector_panel'] == true &&
+            _map(data['data'])['selector_rows'] is! List) {
+          throw const IncompleteCatalogResponse('题材响应不完整，请重试');
+        }
+        if (body?['req_type'] == 'only_content' &&
+            _map(data['data'])['video_data'] is! List) {
+          throw const IncompleteCatalogResponse('影视列表响应不完整，请重试');
+        }
+        return data;
+      },
+      shouldRetry: (error) =>
+          error is CatalogError ||
+          error is FormatException ||
+          NetworkRetry.transient(error),
+    );
   }
 
   static void _genre(String genre) {
@@ -262,7 +294,7 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
         'req_scene': genre == 'short_play' ? 'default' : genre,
         'offset': offset,
         'need_selector_panel': false,
-        'limit': 18,
+        'limit': browsePageSize,
         'select_items': _selection(genre, sort, theme),
         'session_id': '',
         'req_type': 'only_content',
@@ -277,7 +309,7 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
     final more =
         data['has_more'] == true ||
         data['has_more'] == 1 ||
-        (data['has_more'] == null && raw.length >= 18);
+        (data['has_more'] == null && raw.length >= browsePageSize);
     final next = _int(data['next_offset'] ?? data['offset']);
     return CatalogPage(
       _unique(items),
@@ -506,18 +538,24 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
   }
 
   Future<String> _html(String url) async {
-    final res = await dio.get<String>(
-      url,
-      options: Options(
-        responseType: ResponseType.plain,
-        followRedirects: false,
-        receiveTimeout: const Duration(seconds: 20),
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36',
-          'Accept': 'text/html',
-          'Accept-Language': 'zh-CN,zh;q=0.9',
-          'Referer': 'https://hongguoduanju.com/',
-        },
+    final res = await retry.run(
+      () => dio.fetch<String>(
+        Options(
+              responseType: ResponseType.plain,
+              followRedirects: false,
+              receiveTimeout: Duration(seconds: protocol.timeoutSeconds),
+              sendTimeout: Duration(seconds: protocol.timeoutSeconds),
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36',
+                'Accept': 'text/html',
+                'Accept-Language': 'zh-CN,zh;q=0.9',
+                'Referer': 'https://hongguoduanju.com/',
+              },
+            )
+            .compose(dio.options, url)
+            .copyWith(
+              connectTimeout: Duration(seconds: protocol.timeoutSeconds),
+            ),
       ),
     );
     if (res.statusCode != 200) throw CatalogError('官网 HTTP ${res.statusCode}');

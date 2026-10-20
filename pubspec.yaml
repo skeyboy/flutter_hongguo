@@ -1,15 +1,21 @@
 name: flutter_hongguo
 description: Hongguo Flutter client and independently testable shared Dart core.
 publish_to: none
-version: 0.2.6+8
+version: 0.2.7+9
 environment:
   sdk: '>=3.13.0 <4.0.0'
 workspace:
   - packages/core
   - packages/api
   - packages/app
+  - packages/tv
 # As in hack-news-flutter: members use any; dependency policy lives here.
 dependency_overrides:
+  file: 7.0.1
+  flutter_cache_manager: 3.4.5
+  cached_network_image: ^4.0.4
+  video_player: 2.11.1
+  auto_route: 11.2.0
   flutter_riverpod: 3.4.3
   get_it: 8.3.0
   media_kit: 1.2.6

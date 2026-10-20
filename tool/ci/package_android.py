@@ -5,6 +5,9 @@ import shutil
 import subprocess
 from release_meta import ROOT, version
 
+flavor=os.environ.get('ANDROID_FLAVOR','mobile')
+if flavor not in ('mobile','tv'):
+    raise SystemExit('Unsupported Android flavor')
 release, _ = version()
 folder = ROOT / 'dist'
 folder.mkdir(exist_ok=True)
@@ -13,6 +16,6 @@ signers = sorted(sdk.glob('build-tools/*/apksigner'))
 if not signers:
     raise SystemExit('Android SDK apksigner is missing')
 for abi in ('armeabi-v7a', 'arm64-v8a', 'x86_64'):
-    source = ROOT / f'packages/app/build/app/outputs/flutter-apk/app-{abi}-release.apk'
+    source = ROOT / f'packages/app/build/app/outputs/flutter-apk/app-{abi}-{flavor}-release.apk'
     subprocess.run([str(signers[-1]), 'verify', str(source)], check=True)
-    shutil.copy2(source, folder / f'Hongguo-{release}-android-{abi}.apk')
+    shutil.copy2(source, folder / f'Hongguo-{release}-android-{"tv-" if flavor == "tv" else ""}{abi}.apk')

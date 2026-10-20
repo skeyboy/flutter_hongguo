@@ -1,3 +1,6 @@
+import '../downloads/download_manager.dart';
+import '../personal/personal_library.dart';
+
 import 'package:hongguo_api/hongguo_api.dart';
 
 import '../catalog/library_cache.dart';
@@ -7,7 +10,16 @@ import 'package:hongguo_core/hongguo_core.dart';
 class PreparationProgress {
   final String label;
   final double? fraction;
-  const PreparationProgress(this.label, [this.fraction]);
+  final int received, total;
+  const PreparationProgress(this.label, [this.fraction])
+    : received = 0,
+      total = 0;
+  const PreparationProgress.bytes(
+    this.label,
+    this.fraction, {
+    this.received = 0,
+    this.total = 0,
+  });
 }
 
 abstract interface class PlaybackJob {
@@ -28,6 +40,10 @@ abstract interface class AppRuntime {
   Future<int> cacheBytes();
   Future<void> clearCache();
   Future<void> dispose();
+}
+
+abstract interface class VideoQualityRuntime implements AppRuntime {
+  Future<List<VideoQuality>> videoQualities(String vid);
 }
 
 /// Native user configuration without imposing storage plugins on test/Web runtimes.
@@ -90,4 +106,18 @@ Future<void> rememberDramaMetadata(AppRuntime runtime, DramaDetail detail) =>
 
 abstract interface class DramaMetadataRuntime implements AppRuntime {
   Future<void> rememberDrama(DramaDetail detail);
+}
+
+abstract interface class PersonalLibraryRuntime implements AppRuntime {
+  PersonalLibrary get personalLibrary;
+}
+
+final _sessionLibraries = Expando<PersonalLibrary>();
+PersonalLibrary personalLibraryFor(AppRuntime runtime) =>
+    runtime is PersonalLibraryRuntime
+    ? runtime.personalLibrary
+    : (_sessionLibraries[runtime] ??= PersonalLibrary());
+
+abstract interface class DownloadRuntime implements LocalMediaRuntime {
+  DownloadManager get downloads;
 }

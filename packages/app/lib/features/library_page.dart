@@ -1,3 +1,5 @@
+import '../navigation/app_navigation.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -7,9 +9,13 @@ import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 
 import '../platform/runtime.dart';
+import '../widgets/drama_cover.dart';
+
+export '../widgets/drama_cover.dart';
+import '../localization/application_name.dart';
 import '../catalog/library_cache.dart';
 import 'detail_page.dart';
-import 'settings_page.dart';
+import 'my_page.dart';
 
 class LibraryPage extends StatefulWidget {
   final AppRuntime runtime;
@@ -22,11 +28,13 @@ class _LibraryPageState extends State<LibraryPage> {
   final search = TextEditingController();
   final scroll = ScrollController();
   String genre = 'short_play',
-      sort = 'hot_score',
       query = '',
       view = 'recommend',
       board = 'recommend';
+  String get sort => settingsFor(widget.runtime).catalogSort;
   String? theme, cursor;
+  StreamSubscription<AppSettings>? sortEvents;
+  late String lastSort;
   List<Drama> items = [];
   List<CatalogFilter> themes = [];
   bool loading = true,
@@ -63,6 +71,15 @@ class _LibraryPageState extends State<LibraryPage> {
     feedCache = runtime is LibraryCacheRuntime
         ? runtime.libraryCache
         : LibraryCache();
+    lastSort = sort;
+    if (runtime is ConfigurableRuntime) {
+      sortEvents = runtime.settingsChanges.listen((value) {
+        if (!mounted || value.catalogSort == lastSort) return;
+        lastSort = value.catalogSort;
+        settingsChanged = true;
+        if (destination != 2 && query.isEmpty && !ranking) unawaited(_reload());
+      });
+    }
     scroll.addListener(_nearEnd);
     _reload();
   }
@@ -70,6 +87,7 @@ class _LibraryPageState extends State<LibraryPage> {
   @override
   void dispose() {
     revision++;
+    unawaited(sortEvents?.cancel());
     filterTimer?.cancel();
     scroll.dispose();
     search.dispose();
@@ -250,6 +268,8 @@ class _LibraryPageState extends State<LibraryPage> {
     _reload(refreshThemes: false);
   }
 
+  int _lastFeedDestination = 0;
+
   void _navigate(int value) {
     if (value == destination) return;
     final previous = destination;
@@ -258,19 +278,15 @@ class _LibraryPageState extends State<LibraryPage> {
       filterOpen = false;
     });
     if (value == 2) return;
-    if (previous == 2 && !settingsChanged) {
+    if (previous == 2 && !settingsChanged && value == _lastFeedDestination) {
       _scheduleMore();
       return;
     }
     settingsChanged = false;
+    _lastFeedDestination = value;
     query = '';
     search.clear();
     theme = null;
-    if (value == 1) {
-      sort = 'online_time';
-    } else {
-      sort = view == 'latest' ? 'online_time' : 'hot_score';
-    }
     _reload();
   }
 
@@ -323,13 +339,10 @@ class _LibraryPageState extends State<LibraryPage> {
           unawaited(_loadThemes(value));
         case 'theme':
           theme = value.isEmpty ? null : value;
-        case 'sort':
-          sort = value;
         case 'board':
           board = value;
         case 'view':
           view = value;
-          sort = value == 'latest' ? 'online_time' : 'hot_score';
           if (value == 'rank') {
             genre = 'comic_series';
             theme = null;
@@ -428,9 +441,9 @@ class _LibraryPageState extends State<LibraryPage> {
               icon: const Icon(Icons.verified_outlined),
             ),
             IconButton(
-              tooltip: '设置',
+              tooltip: '我的',
               onPressed: () => _navigate(2),
-              icon: const Icon(Icons.settings_outlined),
+              icon: const Icon(Icons.person_outline),
             ),
           ],
         ),
@@ -508,30 +521,15 @@ class _LibraryPageState extends State<LibraryPage> {
                       'ai_series': 'AI 短剧',
                     }[genre]!,
                   ),
-                  if (!compact)
-                    trigger(
-                      'theme',
-                      theme == null
-                          ? '全部题材'
-                          : themes
-                                    .where((e) => e.id == theme)
-                                    .firstOrNull
-                                    ?.name ??
-                                '已选题材',
-                    ),
                   trigger(
-                    'sort',
-                    compact
-                        ? '筛选 · ${sort == 'online_time'
-                              ? '最新'
-                              : sort == 'hot_score'
-                              ? '热度'
-                              : '收藏'}'
-                        : {
-                            'online_time': '最新上架',
-                            'hot_score': '热度优先',
-                            'hot_collect': '收藏最多',
-                          }[sort]!,
+                    'theme',
+                    theme == null
+                        ? '全部题材'
+                        : themes
+                                  .where((e) => e.id == theme)
+                                  .firstOrNull
+                                  ?.name ??
+                              '已选题材',
                   ),
                 ],
               ],
@@ -657,18 +655,6 @@ class _LibraryPageState extends State<LibraryPage> {
                           '': '全部',
                           for (final e in themes) e.id: e.name,
                         }),
-                      group(
-                        'sort',
-                        '排序',
-                        sort,
-                        view == 'latest' && destination == 0
-                            ? const {'online_time': '最新上架'}
-                            : const {
-                                'hot_score': '热度优先',
-                                'online_time': '最新上架',
-                                'hot_collect': '收藏最多',
-                              },
-                      ),
                     ],
                   ],
                 ),
@@ -727,8 +713,11 @@ class _LibraryPageState extends State<LibraryPage> {
                     ),
                     if (!refreshing)
                       TextButton(
-                        onPressed: () => _reload(refreshThemes: false),
-                        child: const Text('刷新'),
+                        onPressed: () => _reload(
+                          refreshThemes: false,
+                          preserveContent: true,
+                        ),
+                        child: Text(refreshError == null ? '刷新' : '重试刷新'),
                       ),
                   ],
                 ),
@@ -770,13 +759,12 @@ class _LibraryPageState extends State<LibraryPage> {
                 delegate: SliverChildBuilderDelegate(
                   (context, index) => DramaCard(
                     drama: items[index],
-                    onTap: () => Navigator.push(
+                    onTap: () => pushAppPage<void>(
                       context,
-                      MaterialPageRoute<void>(
-                        builder: (_) => DetailPage(
-                          runtime: widget.runtime,
-                          initial: items[index],
-                        ),
+                      AppScreen.detail,
+                      (_) => DetailPage(
+                        runtime: widget.runtime,
+                        initial: items[index],
                       ),
                     ),
                   ),
@@ -881,9 +869,9 @@ class _LibraryPageState extends State<LibraryPage> {
                         children: [
                           Expanded(child: _searchBox()),
                           IconButton(
-                            tooltip: '设置',
+                            tooltip: '我的',
                             onPressed: () => _navigate(2),
-                            icon: const Icon(Icons.settings_outlined),
+                            icon: const Icon(Icons.person_outline),
                           ),
                         ],
                       )
@@ -900,9 +888,9 @@ class _LibraryPageState extends State<LibraryPage> {
                                 icon: const Icon(Icons.verified_outlined),
                               ),
                               IconButton(
-                                tooltip: '设置',
+                                tooltip: '我的',
                                 onPressed: () => _navigate(2),
-                                icon: const Icon(Icons.settings_outlined),
+                                icon: const Icon(Icons.person_outline),
                               ),
                             ],
                           ),
@@ -931,9 +919,9 @@ class _LibraryPageState extends State<LibraryPage> {
                             icon: const Icon(Icons.verified_outlined),
                           ),
                           IconButton(
-                            tooltip: '设置',
+                            tooltip: '我的',
                             onPressed: () => _navigate(2),
-                            icon: const Icon(Icons.settings_outlined),
+                            icon: const Icon(Icons.person_outline),
                           ),
                         ],
                       ),
@@ -983,11 +971,10 @@ class _LibraryPageState extends State<LibraryPage> {
       final compact = size.maxWidth < 720, wide = size.maxWidth >= 1100;
       _scheduleMore();
       final body = destination == 2
-          ? SettingsPage(
-              key: const ValueKey('embedded-settings'),
+          ? MyPage(
+              key: const ValueKey('my-page'),
               runtime: widget.runtime,
-              embedded: true,
-              onSaved: () {
+              onSettingsChanged: () {
                 settingsChanged = true;
               },
             )
@@ -1007,9 +994,9 @@ class _LibraryPageState extends State<LibraryPage> {
           label: '分类',
         ),
         NavigationDestination(
-          icon: Icon(Icons.settings_outlined),
-          selectedIcon: Icon(Icons.settings),
-          label: '设置',
+          icon: Icon(Icons.person_outline),
+          selectedIcon: Icon(Icons.person),
+          label: '我的',
         ),
       ];
       return Scaffold(
@@ -1124,75 +1111,20 @@ class Brand extends StatelessWidget {
         ),
       ),
       const SizedBox(width: 10),
-      const Text(
-        '红果剧场',
-        style: TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.5,
+      Flexible(
+        child: Text(
+          ApplicationName.of(context),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
+          ),
         ),
       ),
     ],
   );
-}
-
-class DramaCover extends StatelessWidget {
-  final Drama drama;
-  final ImageProvider? imageProvider;
-  final bool allowNetwork;
-  const DramaCover({
-    super.key,
-    required this.drama,
-    this.imageProvider,
-    this.allowNetwork = true,
-  });
-  @override
-  Widget build(BuildContext context) {
-    Widget placeholder() => Container(
-      color: Color.lerp(
-        const Color(0xffe6d6c3),
-        const Color(0xffd1dce0),
-        (drama.id.hashCode & 255) / 255,
-      ),
-      alignment: Alignment.center,
-      padding: const EdgeInsets.all(16),
-      child: Text(
-        drama.title,
-        textAlign: TextAlign.center,
-        maxLines: 4,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-          color: Color(0xff615347),
-        ),
-      ),
-    );
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: imageProvider != null
-          ? Image(
-              image: imageProvider!,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-              errorBuilder: (_, _, _) => placeholder(),
-            )
-          : (!allowNetwork || drama.cover.isEmpty)
-          ? placeholder()
-          : Image.network(
-              drama.cover.startsWith('//')
-                  ? 'https:${drama.cover}'
-                  : drama.cover,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-              errorBuilder: (_, _, _) => placeholder(),
-              loadingBuilder: (context, child, progress) =>
-                  progress == null ? child : placeholder(),
-            ),
-    );
-  }
 }
 
 class DramaCard extends StatelessWidget {

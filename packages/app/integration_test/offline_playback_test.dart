@@ -1,3 +1,10 @@
+import 'package:hongguo_app/downloads/download_manager.dart';
+import 'package:hongguo_app/features/downloads_page.dart';
+import 'package:hongguo_app/navigation/app_navigation.dart';
+import 'package:hongguo_app/features/library_page.dart';
+import 'package:hongguo_app/features/detail_page.dart';
+import 'package:hongguo_app/personal/personal_library.dart';
+
 import 'dart:io';
 import 'dart:async';
 import 'dart:ui' as ui;
@@ -16,6 +23,8 @@ import 'package:hongguo_app/bootstrap.dart';
 import 'package:hongguo_app/catalog/library_cache.dart';
 import 'package:hongguo_app/catalog/local_library.dart';
 import 'package:hongguo_app/playback/local_playlist.dart';
+import 'package:hongguo_app/playback/capability_preferences.dart';
+import 'package:flutter/gestures.dart';
 import 'package:hongguo_app/features/local_cache_page.dart';
 import 'package:hongguo_app/main.dart';
 import 'package:hongguo_app/features/player_page.dart';
@@ -35,6 +44,16 @@ Future<void> _resizeDesktop(WidgetTester tester, Size? size) async {
     return;
   }
   await tester.binding.setSurfaceSize(size);
+}
+
+Future<void> _wakePlayerControls(WidgetTester tester) async {
+  if (find.byKey(const ValueKey('player-exit')).evaluate().isEmpty) {
+    final rect = tester.getRect(
+      find.byKey(const ValueKey('compact-player-picture')),
+    );
+    await tester.tapAt(rect.center);
+    await tester.pumpAndSettle();
+  }
 }
 
 class _Adapter implements HttpClientAdapter {
@@ -93,9 +112,15 @@ class _Catalog implements CatalogRepository, RankCatalogRepository {
 }
 
 class _Runtime
-    implements ConfigurableRuntime, LibraryCacheRuntime, LocalMediaRuntime {
+    implements
+        ConfigurableRuntime,
+        LibraryCacheRuntime,
+        LocalMediaRuntime,
+        PersonalLibraryRuntime {
   @override
   late final LibraryCache libraryCache;
+  @override
+  late final PersonalLibrary personalLibrary;
   @override
   AppSettings settings;
   @override
@@ -126,7 +151,7 @@ class _Runtime
   final _Catalog catalog;
   final Dio dio;
   final Directory directory;
-  late final MediaCache cache;
+  late MediaCache cache;
   final localRequests = <String>[];
   _Runtime(
     Uint8List bytes,
@@ -135,6 +160,9 @@ class _Runtime
     int episodes = 1,
   }) : catalog = _Catalog(episodes),
        dio = Dio()..httpClientAdapter = _Adapter(bytes) {
+    personalLibrary = PersonalLibrary(
+      backend: FilePreferencesBackend(File('${directory.path}/personal.json')),
+    );
     libraryCache = LibraryCache(
       backend: FilePreferencesBackend(File('${directory.path}/library.json')),
     );
@@ -204,10 +232,69 @@ class _Runtime
   Future<void> dispose() async {
     if (disposed) return;
     disposed = true;
+    await personalLibrary.flush();
+    personalLibrary.dispose();
     cache.close();
     dio.close(force: true);
     await events.close();
     if (await directory.exists()) await directory.delete(recursive: true);
+  }
+}
+
+class _ManualRuntime extends _Runtime implements DownloadRuntime {
+  @override
+  late final DownloadManager downloads;
+  _ManualRuntime(Uint8List bytes, Directory directory)
+    : super(
+        bytes,
+        directory,
+        episodes: 3,
+        settings: const AppSettings(
+          autoNext: false,
+          prefetchEnabled: false,
+          backgroundPlayback: true,
+          backgroundPlaybackPrompted: true,
+          floatingPlaybackPrompted: true,
+        ),
+      ) {
+    final resolver = cache.resolve;
+    cache.close();
+    downloads = DownloadManager(
+      backend: FilePreferencesBackend(File('${directory.path}/downloads.json')),
+      settings: () => settings,
+      files: localEpisodes,
+      remember: libraryCache.rememberDetail,
+      deleteFile: (vid, quality) => cache.evict(vid, quality: quality),
+      prepare: (task, progress) => _Job(
+        cache.prepare(
+          task.episode.vid,
+          quality: task.quality,
+          background: true,
+          onProgress: (p) => progress(
+            PreparationProgress.bytes(
+              p.stage.name,
+              p.fraction,
+              received: p.received,
+              total: p.total,
+            ),
+          ),
+        ),
+        cache,
+      ),
+    );
+    cache = MediaCache(
+      directory: directory,
+      dio: dio,
+      resolve: resolver,
+      retainFile: downloads.retains,
+    );
+  }
+  @override
+  Future<void> dispose() async {
+    if (disposed) return;
+    await downloads.shutdown();
+    downloads.dispose();
+    await super.dispose();
   }
 }
 
@@ -297,10 +384,14 @@ void main() {
         await tester.tap(find.text('收起筛选'));
         await tester.pumpAndSettle();
         await tester.tap(
-          find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '设置'),
+          find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '我的'),
         );
         await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('my-settings')));
+        await tester.pumpAndSettle();
         await capture('settings-pc');
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
         await tester.tap(find.widgetWithText(ListTile, '发现'));
         await tester.pumpAndSettle();
       } else {
@@ -318,8 +409,10 @@ void main() {
       await tester.tap(find.text('收起筛选'));
       await tester.pumpAndSettle();
       await tester.tap(
-        find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '设置'),
+        find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '我的'),
       );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('my-settings')));
       await tester.pumpAndSettle();
       await capture('settings-mobile');
       final currentTheme = runtime.settings.themeMode;
@@ -353,7 +446,8 @@ void main() {
         'THEME_ACCEPTANCE=selection applied dark immediately without pressing save',
       );
       await capture('theme-dark-mobile');
-
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('发现'));
       await tester.pumpAndSettle();
       await capture('library');
@@ -420,6 +514,7 @@ void main() {
           find.byKey(const ValueKey('player-picture')),
         );
         await capture('player-pc-picture');
+        await _wakePlayerControls(tester);
         await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
         await tester.pumpAndSettle();
         expect(
@@ -431,6 +526,7 @@ void main() {
         await tester.pumpAndSettle();
         await _resizeDesktop(tester, const Size(800, 600));
         await tester.pumpAndSettle();
+        await _wakePlayerControls(tester);
         await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
         await tester.pumpAndSettle();
         await capture('player-medium-overlay');
@@ -439,14 +535,16 @@ void main() {
       }
       await _resizeDesktop(tester, const Size(390, 844));
       await tester.pumpAndSettle();
-      if (find
-          .byKey(const ValueKey('compact-player-picture'))
-          .evaluate()
-          .isNotEmpty) {
+      if (find.byKey(const ValueKey('player-picture')).evaluate().isEmpty) {
         final compactPicture = tester.getRect(
           find.byKey(const ValueKey('compact-player-picture')),
         );
         await capture('player-mobile-controls');
+        // Paused controls intentionally stay visible; exercise manual hide while playing.
+        await player.setPlaylistMode(PlaylistMode.loop);
+        await player.setRate(.25);
+        await player.play();
+        await tester.pump(const Duration(milliseconds: 200));
         await tester.tap(find.byTooltip('隐藏播放操作'));
         await tester.pumpAndSettle();
         expect(
@@ -458,9 +556,10 @@ void main() {
           findsNothing,
         );
         await capture('player-mobile-picture');
+        await _wakePlayerControls(tester);
         await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
         await tester.pumpAndSettle();
-        expect(find.text('选择剧集'), findsOneWidget);
+        expect(find.text('选集'), findsOneWidget);
         await capture('player-mobile-episodes');
         if (Platform.isAndroid &&
             const bool.fromEnvironment('HONGGUO_DEVICE_GESTURES')) {
@@ -468,7 +567,7 @@ void main() {
           await Future<void>.delayed(const Duration(seconds: 4));
           await tester.pumpAndSettle();
           expect(
-            find.text('选择剧集'),
+            find.text('选集'),
             findsNothing,
             reason: 'Actual Android Back must dismiss the sheet',
           );
@@ -482,6 +581,7 @@ void main() {
         final rect = tester.getRect(
           find.byKey(const ValueKey('player-picture')),
         );
+        await _wakePlayerControls(tester);
         await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
         await tester.pumpAndSettle();
         expect(find.byKey(const ValueKey('episode-panel')), findsOneWidget);
@@ -503,8 +603,10 @@ void main() {
       await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
       await tester.tap(
-        find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '设置'),
+        find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '我的'),
       );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('my-settings')));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('本地缓存剧集'));
       await tester.pumpAndSettle();
@@ -591,17 +693,18 @@ void main() {
       final originalHandle = await player.handle;
       if (_mobileDevice) {
         final compact = find
-            .byKey(const ValueKey('compact-player-picture'))
+            .byKey(const ValueKey('player-picture'))
             .evaluate()
-            .isNotEmpty;
+            .isEmpty;
         final picture = find.byKey(
           ValueKey(compact ? 'compact-player-picture' : 'player-picture'),
         );
         final rect = tester.getRect(picture);
+        await _wakePlayerControls(tester);
         await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
         await tester.pumpAndSettle();
         if (compact) {
-          expect(find.text('选择剧集'), findsOneWidget);
+          expect(find.text('选集'), findsOneWidget);
         } else {
           expect(find.byKey(const ValueKey('episode-panel')), findsOneWidget);
         }
@@ -621,6 +724,7 @@ void main() {
         final picture = find.byKey(const ValueKey('player-picture'));
         final pictureWidth = tester.getSize(picture).width;
         expect(find.byKey(const ValueKey('episode-panel')), findsNothing);
+        await _wakePlayerControls(tester);
         await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
         await tester.pumpAndSettle();
         await tester.tap(find.byTooltip('隐藏选集'));
@@ -628,6 +732,7 @@ void main() {
         expect(find.byKey(const ValueKey('episode-panel')), findsNothing);
         expect(tester.getSize(picture).width, pictureWidth);
         expect(await player.handle, originalHandle);
+        await _wakePlayerControls(tester);
         await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
         await tester.pumpAndSettle();
         expect(find.byKey(const ValueKey('episode-panel')), findsOneWidget);
@@ -730,6 +835,7 @@ void main() {
       print('LOCAL_AUTO_STAGE=second-ready');
       await player.pause().timeout(const Duration(seconds: 5));
       print('LOCAL_AUTO_STAGE=paused');
+      await _wakePlayerControls(tester);
       await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
       await tester.pumpAndSettle(
         const Duration(milliseconds: 100),
@@ -767,11 +873,12 @@ void main() {
       expect((runtime.dio.httpClientAdapter as _Adapter).downloads, downloads);
       await _resizeDesktop(tester, const Size(390, 844));
       await tester.pump(const Duration(milliseconds: 300));
-      final compactLayout = find
-          .byKey(const ValueKey('compact-player-picture'))
-          .evaluate()
-          .isNotEmpty;
-      expect(find.text(compactLayout ? '本地连播' : '连播'), findsOneWidget);
+      if (find.byKey(const ValueKey('episode-auto-next')).evaluate().isEmpty) {
+        await _wakePlayerControls(tester);
+        await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
+        await tester.pumpAndSettle();
+      }
+      expect(find.text('连播'), findsOneWidget);
       final episodeSwitch = find.byKey(const ValueKey('episode-auto-next'));
       expect(
         tester
@@ -843,6 +950,7 @@ void main() {
       expect(state.playbackNotice, contains('第 2 集尚未缓存'));
       expect(runtime.localRequests, ['123:best']);
       await runtime.evict('125');
+      await _wakePlayerControls(tester);
       await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilledButton, '下一集'));
@@ -900,6 +1008,7 @@ void main() {
       final originalTop = await windowManager.isAlwaysOnTop();
       final handle = await player.handle;
       try {
+        await _wakePlayerControls(tester);
         await tester.tap(find.byTooltip('悬浮播放'));
         for (
           var i = 0;
@@ -1224,4 +1333,501 @@ void main() {
       await runtime.dispose();
     }
   });
+  testWidgets(
+    'manual download from detail survives navigation and plays offline from My',
+    (tester) async {
+      final asset = await rootBundle.load('assets/verification.cenc.mp4');
+      final runtime = _ManualRuntime(
+        asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
+        Directory.systemTemp.createTempSync('hongguo-manual-download-'),
+      );
+      await runtime.downloads.load();
+      final detail = await runtime.catalog.detail('123');
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [runtimeProvider.overrideWith((_) async => runtime)],
+          child: const HongguoApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      if (!_mobileDevice) {
+        await windowManager.ensureInitialized();
+        await windowManager.show();
+        await windowManager.focus();
+      }
+      try {
+        await tester.tap(find.text('离线播放验证').last);
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('download-drama')),
+        );
+        await tester.tap(find.byKey(const ValueKey('download-drama')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('download-episode-0')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('confirm-download')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+        for (var i = 0; i < 150 && runtime.downloads.readyCount == 0; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(runtime.downloads.readyCount, 1);
+        final stored = jsonDecode(
+          await File('${runtime.directory.path}/downloads.json').readAsString(),
+        ) as Map;
+        expect((stored['tasks'] as List).single['phase'], 'ready');
+        await tester.tap(
+          find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '我的'),
+        );
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.byKey(const ValueKey('my-downloads')));
+        await tester.tap(find.byKey(const ValueKey('my-downloads')));
+        await tester.pumpAndSettle();
+        expect(find.byType(DownloadsPage), findsOneWidget);
+        await tester.tap(find.byTooltip('离线观看'));
+        await tester.pumpAndSettle();
+        final dynamic state = tester.state(find.byType(PlayerPage));
+        final player = state.player as Player;
+        await player.setVolume(0);
+        for (
+          var i = 0;
+          i < 150 && (state.preparing || player.state.width == null);
+          i++
+        ) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(state.error, isNull);
+        expect(
+          (tester.widget(find.byType(PlayerPage)) as PlayerPage).cachedOnly,
+          isTrue,
+        );
+        expect(
+          runtime.localRequests,
+          contains('${detail.episodes.first.vid}:best'),
+        );
+        expect(player.state.width, 160);
+        await player.pause();
+        await tester.pump(const Duration(milliseconds: 200));
+        await expectLater(
+          runtime.downloads.remove('${detail.episodes.first.vid}_best'),
+          throwsStateError,
+        );
+        await tester.tap(find.byKey(const ValueKey('player-exit')));
+        await tester.pumpAndSettle();
+        for (
+          var i = 0;
+          i < 50 && (await runtime.localEpisodes()).any((e) => e.inUse);
+          i++
+        ) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        await runtime.clearCache();
+        expect(
+          (await runtime.localEpisodes()).length,
+          1,
+          reason: 'Manual file survives ordinary cache cleanup after player releases it',
+        );
+        print(
+          'MANUAL_DOWNLOAD_ACCEPTANCE=platform=${Platform.operatingSystem}; detail selection -> persisted ready -> My -> offline texture; preserved after cache cleanup',
+        );
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        await runtime.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'PC/mobile routed playback restores progress and returns without losing catalog',
+    (tester) async {
+      final asset = await rootBundle.load('assets/verification.cenc.mp4');
+      final runtime = _Runtime(
+        asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
+        Directory.systemTemp.createTempSync('hongguo-routed-'),
+        episodes: 3,
+        settings: const AppSettings(
+          backgroundPlayback: true,
+          autoNext: false,
+          prefetchEnabled: false,
+          backgroundPlaybackPrompted: true,
+          floatingPlaybackPrompted: true,
+        ),
+      );
+      final detail = await runtime.catalog.detail('123');
+      await runtime.personalLibrary.record(
+        WatchRecord(
+          drama: detail.drama,
+          vid: detail.episodes[1].vid,
+          episode: detail.episodes[1].index,
+          positionMs: 700,
+          durationMs: 2000,
+          updated: DateTime.now(),
+        ),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [runtimeProvider.overrideWith((_) async => runtime)],
+          child: const HongguoApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      if (!_mobileDevice) {
+        await windowManager.ensureInitialized();
+        await windowManager.show();
+        await windowManager.focus();
+      }
+      final catalogState = tester.state(find.byType(LibraryPage));
+      final router = AppNavigation.maybeOf(
+        tester.element(find.byType(LibraryPage)),
+      )!.router;
+      try {
+        await tester.tap(find.text('离线播放验证').last);
+        await tester.pumpAndSettle();
+        expect(router.current.name, AppScreen.detail.routeName);
+        expect(find.byType(DetailPage), findsOneWidget);
+        expect(find.text('继续观看'), findsOneWidget);
+        await tester.tap(find.text('继续观看'));
+        await tester.pumpAndSettle();
+        expect(router.current.name, AppScreen.player.routeName);
+        final dynamic state = tester.state(find.byType(PlayerPage));
+        final player = state.player as Player;
+        await player.setVolume(0);
+        for (var i = 0; i < 150 && state.preparing; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(state.error, isNull);
+        expect(state.position, 1);
+        for (
+          var i = 0;
+          i < 40 && player.state.position.inMilliseconds < 600;
+          i++
+        ) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(player.state.position.inMilliseconds, greaterThanOrEqualTo(600));
+        await player.pause();
+        await tester.pump(const Duration(milliseconds: 200));
+        await runtime.personalLibrary.flush();
+        print(
+          'ROUTED_PLAYBACK_ACCEPTANCE=platform=${Platform.operatingSystem}; route=${router.current.name}; episode=2; savedMs=${runtime.personalLibrary.episodeFor(detail.drama.id, detail.episodes[1].vid)?.positionMs}',
+        );
+        await tester.tap(find.byKey(const ValueKey('player-exit')));
+        await tester.pumpAndSettle();
+        expect(router.current.name, AppScreen.detail.routeName);
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+        expect(router.current.name, 'Catalog');
+        expect(tester.state(find.byType(LibraryPage)), same(catalogState));
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        await runtime.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'personal library records real playback and resumes exact episode',
+    (tester) async {
+      final asset = await rootBundle.load('assets/verification.cenc.mp4');
+      final runtime = _Runtime(
+        asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
+        Directory.systemTemp.createTempSync('hongguo-personal-'),
+        episodes: 3,
+        settings: const AppSettings(
+          backgroundPlayback: true,
+          autoNext: false,
+          prefetchEnabled: false,
+          backgroundPlaybackPrompted: true,
+          floatingPlaybackPrompted: true,
+        ),
+      );
+      final detail = await runtime.catalog.detail('123');
+      final library = personalLibraryFor(runtime);
+      await library.toggleFavorite(detail.drama);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PlayerPage(
+                      runtime: runtime,
+                      detail: detail,
+                      initialPosition: 1,
+                      initialOffset: const Duration(milliseconds: 700),
+                    ),
+                  ),
+                ),
+                child: const Text('open saved episode'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open saved episode'));
+      await tester.pumpAndSettle();
+      final dynamic state = tester.state(find.byType(PlayerPage));
+      final player = state.player as Player;
+      for (var i = 0; i < 150 && state.preparing; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(state.error, isNull);
+      expect(state.position, 1);
+      for (
+        var i = 0;
+        i < 40 && player.state.position.inMilliseconds < 600;
+        i++
+      ) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(player.state.position.inMilliseconds, greaterThanOrEqualTo(600));
+      await player.pause();
+      await tester.pump(const Duration(milliseconds: 200));
+      await library.flush();
+      expect(library.history.single.vid, detail.episodes[1].vid);
+      expect(library.history.single.positionMs, greaterThanOrEqualTo(600));
+      expect(library.favorites.single.id, detail.drama.id);
+      final restored = PersonalLibrary(
+        backend: FilePreferencesBackend(
+          File('${runtime.directory.path}/personal.json'),
+        ),
+      );
+      await restored.load();
+      expect(restored.history.single.vid, detail.episodes[1].vid);
+      expect(restored.favorites.single.id, detail.drama.id);
+      restored.dispose();
+      print(
+        'PERSONAL_HISTORY_NATIVE=episode=2; savedMs=${library.history.single.positionMs}; favorite retained',
+      );
+      state.didChangeAppLifecycleState(AppLifecycleState.paused);
+      await tester.pump(const Duration(milliseconds: 100));
+      await library.flush();
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await runtime.dispose();
+    },
+  );
+
+  testWidgets(
+    'immersive player hides all chrome and restores exit using actual platform input',
+    (tester) async {
+      final asset = await rootBundle.load('assets/verification.cenc.mp4');
+      final runtime = _Runtime(
+        asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
+        Directory.systemTemp.createTempSync('hongguo-immersive-'),
+        settings: AppSettings(
+          backgroundPlayback: !_mobileDevice,
+          autoNext: false,
+          prefetchEnabled: false,
+          backgroundPlaybackPrompted: true,
+          floatingPlaybackPrompted: true,
+        ),
+      );
+      final detail = await runtime.catalog.detail('123');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        PlayerPage(runtime: runtime, detail: detail),
+                  ),
+                ),
+                child: const Text('open immersive'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open immersive'));
+      await tester.pumpAndSettle();
+      final dynamic state = tester.state(find.byType(PlayerPage));
+      final player = state.player as Player;
+      try {
+        if (!_mobileDevice) {
+          await windowManager.ensureInitialized();
+          await windowManager.show();
+          await windowManager.focus();
+        }
+        await player.setVolume(0);
+        for (var i = 0; i < 150 && state.preparing; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(state.error, isNull);
+        await player.setRate(
+          .25,
+        ); // Keep the short fixture playing through the idle interval.
+        await player.setPlaylistMode(PlaylistMode.loop);
+        await player.seek(Duration.zero);
+        await player.play();
+        await tester.pump(const Duration(milliseconds: 200));
+        final handle = await player.handle;
+        final picture = find.byKey(const ValueKey('compact-player-picture'));
+        final rect = tester.getRect(picture);
+        expect(
+          rect.size,
+          tester.view.physicalSize / tester.view.devicePixelRatio,
+        );
+        expect(find.byType(AppBar), findsNothing);
+        await tester.pump(const Duration(seconds: 4));
+        await tester.pumpAndSettle();
+        print(
+          'IMMERSIVE_IDLE=visible=${state.compactControls.currentState.visible}; playing=${player.state.playing}; parentPlaying=${state.playing}; background=${state.appBackground}; busy=${state.compactControls.currentState.widget.busy}; keyboard=${state.compactControls.currentState.keyboardFocus}',
+        );
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(find.byKey(const ValueKey('player-exit')), findsNothing);
+        expect(
+          find.byKey(const ValueKey('compact-playback-controls')),
+          findsNothing,
+        );
+        if (Platform.isAndroid) {
+          print('DEVICE_SCREENSHOT=immersive-hidden');
+          await Future<void>.delayed(const Duration(seconds: 1));
+        }
+        if (_mobileDevice) {
+          await tester.tapAt(rect.center);
+        } else {
+          final mouse = await tester.createGesture(
+            kind: PointerDeviceKind.mouse,
+          );
+          await mouse.addPointer(location: const Offset(-1, -1));
+          await mouse.moveTo(rect.center);
+          await mouse.moveTo(rect.center + const Offset(5, 0));
+          await mouse.removePointer();
+        }
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('player-exit')), findsOneWidget);
+        expect(tester.getRect(picture), rect);
+        expect(await player.handle, handle);
+        if (Platform.isAndroid) {
+          print('DEVICE_SCREENSHOT=immersive-visible');
+          await Future<void>.delayed(const Duration(seconds: 1));
+        }
+        await player.pause();
+        await tester.pump(const Duration(milliseconds: 200));
+        await tester.pump(const Duration(seconds: 4));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('player-exit')), findsOneWidget);
+        await tester.tap(find.byTooltip('全屏'));
+        for (var i = 0; i < 40 && !state.fullscreen; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(state.fullscreen, isTrue);
+        if (!_mobileDevice) {
+          for (var i = 0; i < 40 && !await windowManager.isFullScreen(); i++) {
+            await tester.pump(const Duration(milliseconds: 100));
+          }
+          expect(await windowManager.isFullScreen(), isTrue);
+        }
+        await tester.pump(const Duration(milliseconds: 500));
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        for (var i = 0; i < 40 && state.fullscreen; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(state.fullscreen, isFalse);
+        if (!_mobileDevice) {
+          for (var i = 0; i < 40 && await windowManager.isFullScreen(); i++) {
+            await tester.pump(const Duration(milliseconds: 100));
+          }
+          expect(await windowManager.isFullScreen(), isFalse);
+        }
+        expect(await player.handle, handle);
+        await tester.tap(find.byKey(const ValueKey('player-exit')));
+        await tester.pumpAndSettle();
+        expect(find.byType(PlayerPage), findsNothing);
+        print(
+          'IMMERSIVE_ACCEPTANCE=real viewport; no AppBar; all chrome hidden; platform reveal; pause keeps exit; fullscreen preserves player; exit returns',
+        );
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+        await runtime.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'mobile return recommendations are durable, separated and respect hardware capability',
+    (tester) async {
+      if (!_mobileDevice) return;
+      final asset = await rootBundle.load('assets/verification.cenc.mp4');
+      var clock = DateTime(2026, 10, 20);
+      final policy = PlaybackReturnRecommendations(now: () => clock);
+      final runtime = _Runtime(
+        asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
+        Directory.systemTemp.createTempSync('hongguo-recommend-'),
+        settings: const AppSettings(prefetchEnabled: false, autoNext: false),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PlayerPage(
+            runtime: runtime,
+            detail: await runtime.catalog.detail('123'),
+            returnRecommendations: policy,
+          ),
+        ),
+      );
+      await tester.pump();
+      final dynamic state = tester.state(find.byType(PlayerPage));
+      final player = state.player as Player;
+      Future<void> returned() async {
+        state.didChangeAppLifecycleState(AppLifecycleState.paused);
+        state.didChangeAppLifecycleState(AppLifecycleState.resumed);
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pumpAndSettle();
+      }
+
+      try {
+        await player.setVolume(0);
+        for (var i = 0; i < 150 && state.preparing; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        await player.play();
+        await tester.pump(const Duration(milliseconds: 200));
+        await returned();
+        expect(find.text('试试后台播放？'), findsOneWidget);
+        expect(find.text('试试悬浮播放？'), findsNothing);
+        await tester.tap(find.text('暂不开启'));
+        await tester.pumpAndSettle();
+        expect(runtime.settings.backgroundPlaybackPrompted, isTrue);
+        expect(runtime.settings.backgroundPlayback, isFalse);
+        await returned();
+        expect(find.byType(AlertDialog), findsNothing);
+        clock = clock.add(const Duration(seconds: 61));
+        await returned();
+        final supported =
+            await state.platformPlayback.supportsFloating() as bool;
+        if (supported) {
+          expect(find.text('试试悬浮播放？'), findsOneWidget);
+          await tester.tap(find.text('开启并生效'));
+          await tester.pumpAndSettle();
+          expect(runtime.settings.floatingPlayback, isTrue);
+          expect(runtime.settings.floatingPlaybackPrompted, isTrue);
+          expect(state.platformPlayback.floating.value, isFalse);
+        } else {
+          expect(find.byType(AlertDialog), findsNothing);
+          expect(runtime.settings.floatingPlaybackPrompted, isFalse);
+        }
+        expect(player.state.playing, isFalse);
+        print(
+          'RETURN_PROMPT_ACCEPTANCE=first return offers background; decline remembered; cooldown; next return offers only supported PiP; lifecycle simulated',
+        );
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+        await runtime.dispose();
+      }
+    },
+  );
 }

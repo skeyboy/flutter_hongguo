@@ -1,3 +1,9 @@
+import '../navigation/app_navigation.dart';
+import '../personal/personal_library.dart';
+import '../personal/favorite_button.dart';
+
+import 'package:hongguo_tv/hongguo_tv.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -9,9 +15,12 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../platform/runtime.dart';
 import '../platform/background/playback_platform.dart';
 import '../playback/prefetch_window.dart';
+import '../playback/tv_video_view.dart';
 import '../playback/local_playlist.dart';
 import '../playback/episode_workspace.dart';
 import '../playback/compact_controls.dart';
+import '../playback/playback_transport.dart';
+import '../playback/capability_preferences.dart';
 import 'settings_page.dart';
 
 const bool softwareVideo = bool.fromEnvironment('HONGGUO_SOFTWARE_VIDEO');
@@ -20,15 +29,20 @@ class PlayerPage extends StatefulWidget {
   final AppRuntime runtime;
   final DramaDetail detail;
   final int initialPosition;
-  final bool cachedOnly;
+  final Duration initialOffset;
+  final bool cachedOnly, resumeLastEpisode;
   final String? cachedQuality;
+  final PlaybackReturnRecommendations? returnRecommendations;
   const PlayerPage({
     super.key,
     required this.runtime,
     required this.detail,
     this.initialPosition = 0,
+    this.initialOffset = Duration.zero,
     this.cachedOnly = false,
+    this.resumeLastEpisode = false,
     this.cachedQuality,
+    this.returnRecommendations,
   });
   @override
   State<PlayerPage> createState() => _PlayerPageState();
@@ -39,8 +53,59 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   final platformPlayback = PlaybackPlatform();
   Future<void> platformUpdates = Future.value();
   bool appBackground = false, preparationInterrupted = false;
+  bool fullscreen = false, menuOpen = false;
+  bool hasPlayed = false, returnEligible = false, recommendationOpen = false;
+  Timer? returnTimer;
+  String? _historyVid;
+  bool _episodePlayed = false, _episodeCompleted = false;
+  DateTime? _historySaved;
+  late Duration _resumeOffset;
+  Duration _resumeSnapshotOffset = Duration.zero;
+
+  void _saveHistory({bool force = false}) {
+    if (!_episodePlayed ||
+        _historyVid == null ||
+        _historyVid != sourceVid ||
+        preparing) {
+      return;
+    }
+    final at = DateTime.now();
+    if (!force &&
+        _historySaved != null &&
+        at.difference(_historySaved!).inSeconds < 10) {
+      return;
+    }
+    _historySaved = at;
+    final episode = widget.detail.episodes[position];
+    final record = WatchRecord(
+      drama: widget.detail.drama,
+      vid: episode.vid,
+      episode: episode.index,
+      positionMs:
+          (tvBuild ? tvPlayback.position : player.state.position) ==
+              Duration.zero
+          ? _resumeSnapshotOffset.inMilliseconds
+          : (tvBuild ? tvPlayback.position : player.state.position)
+                .inMilliseconds,
+      durationMs: (tvBuild ? tvPlayback.duration : player.state.duration)
+          .inMilliseconds,
+      updated: at,
+      quality: quality,
+      local: widget.cachedOnly,
+      finished: _episodeCompleted,
+    );
+    unawaited(
+      personalLibraryFor(widget.runtime).record(record).catchError((Object _) {
+        if (mounted) _redraw(() => playbackNotice = '观看记录保存失败，请检查本地存储空间');
+      }),
+    );
+  }
+
+  static final recommendations = PlaybackReturnRecommendations();
 
   late final VideoController controller;
+  final tvPlayback = TvPlaybackController();
+  bool tvCompletionReported = false;
   final subscriptions = <StreamSubscription<dynamic>>[];
   PlaybackJob? job;
   late final PrefetchWindow prefetch;
@@ -56,6 +121,103 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   final compactControls = GlobalKey<CompactControlsState>();
   late int position;
   int generation = 0;
+  List<TvQualityOption> tvQualities = const [TvQualityOption('best', '自动')];
+  final tvQualityCache = <String, List<TvQualityOption>>{};
+  bool tvQualitiesLoading = false;
+  String? tvQualitiesError;
+  int tvQualityTicket = 0;
+
+  Future<void> _loadTvQualities() async {
+    final vid = widget.detail.episodes[position].vid;
+    final ticket = ++tvQualityTicket;
+    _redraw(() {
+      tvQualitiesLoading = true;
+      tvQualitiesError = null;
+    });
+    try {
+      final runtime = widget.runtime;
+      final List<TvQualityOption> values;
+      if (widget.cachedOnly && runtime is LocalMediaRuntime) {
+        final files = await runtime.localEpisodes();
+        final available =
+            files
+                .where((f) => f.vid == vid)
+                .map((f) => f.quality)
+                .toSet()
+                .toList()
+              ..sort();
+        values = [
+          for (final q in available)
+            TvQualityOption(
+              q,
+              q == 'best' || q == 'auto' ? '自动（已缓存）' : '$q（已缓存）',
+            ),
+        ];
+      } else if (tvQualityCache.containsKey(vid)) {
+        values = tvQualityCache[vid]!;
+      } else if (runtime is VideoQualityRuntime) {
+        values = [
+          for (final q in await runtime.videoQualities(vid))
+            TvQualityOption(
+              q.value,
+              q.label,
+              detail: q.width > 0 && q.height > 0
+                  ? '${q.width}×${q.height}'
+                  : '',
+            ),
+        ];
+        tvQualityCache[vid] = values;
+      } else {
+        throw StateError('当前播放来源未提供清晰度信息');
+      }
+      if (!mounted ||
+          ticket != tvQualityTicket ||
+          widget.detail.episodes[position].vid != vid) {
+        return;
+      }
+      _redraw(() {
+        tvQualities = [
+          if (!values.any((q) => q.value == quality))
+            TvQualityOption(
+              quality,
+              quality == 'best' ? '自动（当前）' : '$quality（当前）',
+            ),
+          ...values,
+        ];
+        tvQualitiesLoading = false;
+      });
+    } catch (_) {
+      if (mounted && ticket == tvQualityTicket) {
+        _redraw(() {
+          tvQualitiesLoading = false;
+          tvQualitiesError = '清晰度信息暂不可用，可重试';
+        });
+      }
+    }
+  }
+
+  Future<void> _changeTvQuality(String value) async {
+    if (value == quality || !tvQualities.any((q) => q.value == value)) return;
+    final offset = tvPlayback.position;
+    final resume = error != null || tvPlayback.playing;
+    quality = value;
+    _resumeOffset = offset;
+    await _play(position, resumePlaying: resume);
+  }
+
+  Future<void> _seekTv(Duration target) async {
+    if (preparing || tvDuration == Duration.zero) return;
+    try {
+      await tvPlayback.seek(target);
+      _resumeSnapshotOffset = Duration.zero;
+      if (target < tvDuration) _episodeCompleted = false;
+      _saveHistory(force: true);
+    } catch (_) {
+      if (mounted) _redraw(() => playbackNotice = '进度调整失败，请重试');
+    }
+  }
+
+  Duration tvPosition = Duration.zero, tvDuration = Duration.zero;
   final panelRevision = ValueNotifier<int>(0);
   bool sheetOpen = false;
   double verticalDrag = 0;
@@ -69,15 +231,23 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     final runtime = widget.runtime;
+    if (runtime is DownloadRuntime) runtime.downloads.playbackEntered();
     if (!widget.cachedOnly && runtime is LibraryCacheRuntime) {
       unawaited(
         rememberDramaMetadata(runtime, widget.detail).catchError((Object _) {}),
       );
     }
     position = widget.initialPosition;
+    _resumeOffset = widget.initialOffset;
     final preferences = settingsFor(widget.runtime);
     cachedPreference = widget.cachedQuality ?? preferences.defaultQuality;
     quality = cachedPreference;
+    tvQualities = [
+      TvQualityOption(
+        quality,
+        quality == 'best' || quality == 'auto' ? '自动' : quality,
+      ),
+    ];
     autoNext = preferences.autoNext;
     prefetch = PrefetchWindow(
       runtime: widget.runtime,
@@ -88,16 +258,19 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     );
     WidgetsBinding.instance.addObserver(this);
     player = Player();
-    controller = VideoController(
-      player,
-      configuration: const VideoControllerConfiguration(
-        // GitHub-hosted macOS runners expose no accelerated OpenGL pixel format,
-        // and media_kit_video force-unwraps CGLChoosePixelFormat's result, which
-        // aborts the process. CPU rendering is the only native path available there.
-        enableHardwareAcceleration: !softwareVideo,
-        hwdec: softwareVideo ? 'no' : null,
-      ),
-    );
+    if (tvBuild) tvPlayback.addListener(_tvChanged);
+    if (!tvBuild) {
+      controller = VideoController(
+        player,
+        configuration: const VideoControllerConfiguration(
+          // GitHub-hosted macOS runners expose no accelerated OpenGL pixel format,
+          // and media_kit_video force-unwraps CGLChoosePixelFormat's result, which
+          // aborts the process. CPU rendering is the only native path available there.
+          enableHardwareAcceleration: !softwareVideo,
+          hwdec: softwareVideo ? 'no' : null,
+        ),
+      );
+    }
     subscriptions.add(
       player.stream.error.listen((value) {
         if (mounted && value.isNotEmpty) {
@@ -112,7 +285,18 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     );
     subscriptions.add(
       player.stream.playing.listen((value) {
+        if (value) {
+          hasPlayed = true;
+          _episodePlayed = true;
+        }
+        if (!value) _saveHistory(force: true);
         if (mounted && value != playing) _redraw(() => playing = value);
+      }),
+    );
+    subscriptions.add(
+      player.stream.position.listen((value) {
+        if (value > Duration.zero) _resumeSnapshotOffset = Duration.zero;
+        if (player.state.playing) _saveHistory();
       }),
     );
     platformPlayback.onExternalCompleted = () => _completed(true);
@@ -121,11 +305,12 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     if (runtime is ConfigurableRuntime) {
       subscriptions.add(
         runtime.settingsChanges.listen((_) {
+          autoNext = settingsFor(runtime).autoNext;
           _configurePlatform();
           if (appBackground &&
-              !settingsFor(runtime).backgroundPlayback &&
+              (tvBuild || !settingsFor(runtime).backgroundPlayback) &&
               !platformPlayback.floating.value) {
-            player.pause();
+            _pausePlayback();
           }
           if (mounted) _redraw(() {});
         }),
@@ -133,18 +318,17 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     }
     _configurePlatform();
     subscriptions.add(player.stream.completed.listen(_completed));
-    _play(position);
+    _play(position, resumeSeries: widget.resumeLastEpisode);
   }
 
   void _completed(bool value) {
-    if (!value ||
-        !autoNext ||
-        !mounted ||
-        preparing ||
-        error != null ||
-        position + 1 >= widget.detail.episodes.length) {
-      return;
+    if (!value || !mounted || preparing || error != null) return;
+    if (!_episodeCompleted) {
+      _episodeCompleted = true;
+      _episodePlayed = true;
+      _saveHistory(force: true);
     }
+    if (!autoNext || position + 1 >= widget.detail.episodes.length) return;
     final current = widget.detail.episodes[position],
         next = widget.detail.episodes[position + 1];
     if (widget.cachedOnly && !localEpisodesAreConsecutive(current, next)) {
@@ -161,15 +345,49 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     if (mounted) _redraw(() {});
   }
 
+  void _tvChanged() {
+    if (!mounted) return;
+    final value = tvPlayback;
+    final wasPlaying = playing;
+    if (value.playing) {
+      hasPlayed = true;
+      _episodePlayed = true;
+    }
+    if (value.position > Duration.zero) _resumeSnapshotOffset = Duration.zero;
+    _redraw(() {
+      tvPosition = value.position;
+      tvDuration = value.duration;
+      playing = value.playing;
+      if (value.error != null) error = value.error;
+    });
+    if (playing) _saveHistory();
+    if (wasPlaying && !playing) _saveHistory(force: true);
+    if (value.completed && !tvCompletionReported) {
+      tvCompletionReported = true;
+      _completed(true);
+    }
+  }
+
+  Future<void> _pausePlayback() =>
+      tvBuild ? tvPlayback.pause() : player.pause();
+
   void _configurePlatform() {
+    if (tvBuild) return;
     platformUpdates = platformUpdates.catchError((Object _) {}).then((_) async {
       if (!mounted) return;
       try {
         await platformPlayback.configure(
           player,
-          settingsFor(widget.runtime),
+          tvBuild
+              ? settingsFor(widget.runtime).copyWith(
+                  backgroundPlayback: false,
+                  backgroundDownloads: false,
+                  floatingPlayback: false,
+                )
+              : settingsFor(widget.runtime),
           '${widget.detail.drama.title} · 第 ${widget.detail.episodes[position].index} 集',
           step: (offset) async => _step(offset),
+          foregroundMedia: tvBuild,
         );
       } catch (_) {
         if (mounted) {
@@ -182,6 +400,8 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   Future<void> _floating() async {
     if (preparing || sourceVid == null) return;
     try {
+      episodeWorkspace.currentState?.hide();
+      if (fullscreen) await _setFullscreen(false);
       if (platformPlayback.floating.value) {
         await platformPlayback.exit(player);
       } else {
@@ -205,7 +425,9 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _saveHistory(force: true);
     if (state == AppLifecycleState.resumed) {
+      final returned = appBackground && returnEligible;
       appBackground = false;
       if (preparationInterrupted) {
         preparationInterrupted = false;
@@ -213,26 +435,59 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
       } else {
         _syncPrefetch();
       }
+      if (returned) {
+        returnEligible = false;
+        returnTimer?.cancel();
+        returnTimer = Timer(
+          const Duration(milliseconds: 800),
+          _recommendCapability,
+        );
+      }
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
       appBackground = true;
+      returnTimer?.cancel();
+      returnEligible =
+          hasPlayed &&
+          !platformPlayback.floating.value &&
+          !platformPlayback.transitioning;
       final preferences = settingsFor(widget.runtime);
-      if (!preferences.backgroundDownloads) {
+      if ((tvBuild || !preferences.backgroundDownloads)) {
         prefetch.clear();
-        if (preparing && !preferences.backgroundPlayback) {
+        if (preparing && (tvBuild || !preferences.backgroundPlayback)) {
           preparationInterrupted = true;
           job?.cancel();
         }
       }
-      if (!preferences.backgroundPlayback && !platformPlayback.floating.value) {
-        player.pause();
+      if ((tvBuild || !preferences.backgroundPlayback) &&
+          !platformPlayback.floating.value) {
+        _pausePlayback();
       }
     }
     // inactive also covers notification permission dialogs and brief window
     // transitions; it must not interrupt audio or a PiP hand-off.
   }
 
-  Future<void> _play(int selected) async {
+  Future<void> _play(
+    int selected, {
+    bool? resumePlaying,
+    bool resumeSeries = false,
+  }) async {
+    if (selected < 0 || selected >= widget.detail.episodes.length) return;
+    if (selected != position) {
+      _resumeOffset = Duration.zero;
+      tvQualityTicket++;
+      tvQualitiesLoading = false;
+      tvQualitiesError = null;
+      tvQualities = [
+        TvQualityOption(quality, quality == 'best' ? '自动' : quality),
+      ];
+    }
+    _saveHistory(force: true);
+    _historyVid = null;
+    _episodePlayed = false;
+    _episodeCompleted = false;
+    tvCompletionReported = false;
     final ticket = ++generation;
     final previous = job;
     final discard = error != null;
@@ -251,13 +506,33 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     });
     try {
       // Close the old data source before releasing the cache pin (Windows too).
-      await player.stop();
+      if (tvBuild) {
+        await tvPlayback.close();
+      } else {
+        await player.stop();
+      }
       previous?.release();
       if (!widget.cachedOnly &&
           discard &&
           oldVid != null &&
           oldQuality != null) {
         await widget.runtime.evict(oldVid, quality: oldQuality);
+      }
+      if (!mounted || ticket != generation) return;
+      try {
+        final library = personalLibraryFor(widget.runtime);
+        await library.flush();
+        await library.load();
+        if (!mounted || ticket != generation) return;
+        final start = library.playbackStart(
+          widget.detail,
+          selected: resumeSeries ? null : selected,
+        );
+        selected = start.index;
+        if (_resumeOffset == Duration.zero) _resumeOffset = start.offset;
+        if (position != selected) _redraw(() => position = selected);
+      } catch (_) {
+        if (mounted) _redraw(() => playbackNotice = '观看记录暂不可用，将从头播放');
       }
       if (!mounted || ticket != generation) return;
       if (widget.cachedOnly) {
@@ -267,7 +542,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         final available = localQualityFor(
           widget.detail.episodes[selected].vid,
           files,
-          cachedPreference,
+          quality,
         );
         if (available == null) throw StateError('该集本地缓存已不存在，连播已停止；不会自动联网下载。');
         quality = available;
@@ -302,14 +577,30 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         return;
       }
       bool mayPlay() =>
-          !appBackground ||
-          settingsFor(widget.runtime).backgroundPlayback ||
-          platformPlayback.floating.value;
-      await player.open(Media(source), play: mayPlay());
+          (resumePlaying ?? true) &&
+          (!appBackground ||
+              (!tvBuild && settingsFor(widget.runtime).backgroundPlayback) ||
+              platformPlayback.floating.value);
+      final offset = _resumeOffset;
+      _resumeSnapshotOffset = offset;
+      // Media.start is applied by the native file-loaded hook; an immediate
+      // seek after open can run before the demuxer has loaded the timeline.
+      if (tvBuild) {
+        await tvPlayback.open(source, offset: offset, play: mayPlay());
+      } else {
+        await player.open(
+          Media(source, start: offset > Duration.zero ? offset : null),
+          play: mayPlay(),
+        );
+      }
+      if (!mounted || ticket != generation) return;
+      _resumeOffset = Duration.zero;
       // The app can become hidden while the native player is opening a file.
-      if (!mayPlay()) await player.pause();
+      if (!mayPlay()) await _pausePlayback();
       if (!mounted || ticket != generation) return;
       _redraw(() => preparing = false);
+      _historyVid = sourceVid;
+      if (playing) _saveHistory(force: true);
       _syncPrefetch();
       _configurePlatform();
     } catch (e) {
@@ -329,7 +620,9 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     prefetch.sync(
       position: position,
       quality: quality,
-      count: preferences.prefetchEpisodes,
+      count: tvBuild
+          ? preferences.prefetchEpisodes.clamp(0, 1)
+          : preferences.prefetchEpisodes,
       enabled:
           !widget.cachedOnly &&
           preferences.prefetchEnabled &&
@@ -338,11 +631,20 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   }
 
   Future<void> _settings() async {
-    final changed = await Navigator.push<bool>(
+    // Dismiss the transient panel before navigating so Back returns to video.
+    episodeWorkspace.currentState?.hide();
+    if (sheetOpen) {
+      Navigator.of(context).pop();
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+    }
+    final changed = await pushAppPage<bool>(
       context,
-      MaterialPageRoute(builder: (_) => SettingsPage(runtime: widget.runtime)),
+      AppScreen.settings,
+      (_) => SettingsPage(runtime: widget.runtime),
     );
     if (!mounted) return;
+    compactControls.currentState?.show();
     if (changed == true) {
       autoNext = settingsFor(widget.runtime).autoNext;
       prefetch.clear();
@@ -366,11 +668,20 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         }
       }
     }
-    if (mounted && autoNext && player.state.completed) _completed(true);
+    if (mounted &&
+        autoNext &&
+        (tvBuild ? tvPlayback.completed : player.state.completed)) {
+      _completed(true);
+    }
   }
 
   @override
   void dispose() {
+    tvQualityTicket++;
+    tvPlayback.removeListener(_tvChanged);
+    _saveHistory(force: true);
+    returnTimer?.cancel();
+    if (fullscreen) unawaited(defaultExitNativeFullscreen());
     generation++;
     WidgetsBinding.instance.removeObserver(this);
     prefetch.dispose();
@@ -391,6 +702,8 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
           })
           .catchError((Object _) {})
           .whenComplete(() async {
+            await tvPlayback.close();
+            tvPlayback.dispose();
             await player.dispose();
             active?.release();
           }),
@@ -408,7 +721,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         useSafeArea: true,
         showDragHandle: true,
         builder: (context) => SizedBox(
-          height: MediaQuery.sizeOf(context).height * 0.72,
+          height: MediaQuery.sizeOf(context).height * 0.65,
           child: ValueListenableBuilder<int>(
             valueListenable: panelRevision,
             builder: (_, _, _) => Column(
@@ -416,7 +729,13 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
                 Row(
                   children: [
                     const SizedBox(width: 20),
-                    const Expanded(child: Text('选择剧集')),
+                    const Expanded(child: Text('选集')),
+                    IconButton(
+                      key: const ValueKey('episode-settings'),
+                      tooltip: '播放设置',
+                      onPressed: _settings,
+                      icon: const Icon(Icons.settings_outlined, size: 20),
+                    ),
                     IconButton(
                       tooltip: '关闭选集',
                       onPressed: () => Navigator.pop(context),
@@ -477,33 +796,11 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         Positioned.fill(
           child: Video(
             controller: controller,
-            // This page owns the background/PiP policy. Video's default
-            // lifecycle observer would otherwise pause even when enabled.
+            // This page owns the background/PiP policy.
             pauseUponEnteringBackgroundMode: false,
-            controls: platformPlayback.platformPip.value
-                ? NoVideoControls
-                : AdaptiveVideoControls,
+            controls: NoVideoControls,
           ),
         ),
-        if (playbackNotice != null || audioNotice != null)
-          Positioned(
-            top: 16,
-            left: 16,
-            right: 16,
-            child: IgnorePointer(
-              child: Material(
-                color: Colors.black.withValues(alpha: .7),
-                borderRadius: BorderRadius.circular(10),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(
-                    playbackNotice ?? audioNotice!,
-                    style: const TextStyle(color: Colors.amber, fontSize: 13),
-                  ),
-                ),
-              ),
-            ),
-          ),
         if (preparing)
           Positioned.fill(
             child: ColoredBox(
@@ -591,6 +888,13 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: FavoriteButton(
+                runtime: widget.runtime,
+                drama: widget.detail.drama,
+              ),
+            ),
             if (prefetch.total > 0)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -672,8 +976,9 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
                         onChanged: widget.cachedOnly
                             ? null
                             : (value) {
+                                final resume = playing;
                                 quality = value!;
-                                _play(position);
+                                _play(position, resumePlaying: resume);
                               },
                       ),
                     ],
@@ -763,198 +1068,293 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
       ),
     ],
   );
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, viewport) {
-      final size = Size(viewport.maxWidth, viewport.maxHeight);
-      final compact = size.width < 720 && size.height >= size.width;
-      final floating = platformPlayback.floating.value;
-      final pip = platformPlayback.platformPip.value;
-      // Android may restore the Activity before its PiP-sized constraints grow.
-      if (pip || (platformPlayback.restoringPip && size.width < 280)) {
-        return Scaffold(backgroundColor: Colors.black, body: _video());
+  Future<void> _recommendCapability() async {
+    if (tvBuild) return;
+    final runtime = widget.runtime;
+    if (!mounted ||
+        !platformPlayback.mobile ||
+        appBackground ||
+        preparing ||
+        error != null ||
+        sheetOpen ||
+        recommendationOpen ||
+        runtime is! ConfigurableRuntime ||
+        ModalRoute.of(context)?.isCurrent != true) {
+      return;
+    }
+    final policy = widget.returnRecommendations ?? recommendations;
+    final candidate = policy.next(runtime.settings);
+    if (candidate == null) return;
+    if (candidate == PlaybackCapability.floatingPlayback &&
+        !await platformPlayback.supportsFloating()) {
+      return;
+    }
+    if (!mounted ||
+        appBackground ||
+        ModalRoute.of(context)?.isCurrent != true) {
+      return;
+    }
+    _redraw(() => recommendationOpen = true);
+    try {
+      await runtime.saveSettings(policy.markAsked(runtime.settings, candidate));
+      if (!mounted ||
+          appBackground ||
+          ModalRoute.of(context)?.isCurrent != true) {
+        return;
       }
-      if (floating && !platformPlayback.mobile) {
-        return Scaffold(
-          backgroundColor: Colors.black,
-          body: Stack(
-            children: [
-              Positioned.fill(child: _video()),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: IconButton(
-                  tooltip: '退出悬浮播放',
-                  onPressed: _floating,
-                  icon: const Icon(Icons.fullscreen_exit),
-                  color: Colors.white,
+      final enable = await confirmPlaybackCapability(
+        context,
+        candidate,
+        true,
+        recommendation: true,
+      );
+      if (enable) {
+        await runtime.saveSettings(candidate.apply(runtime.settings, true));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('设置未能保存，请在设置页重试。')));
+      }
+    } finally {
+      if (mounted) _redraw(() => recommendationOpen = false);
+    }
+  }
+
+  Future<void> _setFullscreen(bool value) async {
+    if (value == fullscreen) return;
+    if (value && platformPlayback.floating.value) {
+      await platformPlayback.exit(player);
+    }
+    if (platformPlayback.mobile) {
+      await SystemChrome.setEnabledSystemUIMode(
+        value ? SystemUiMode.immersiveSticky : SystemUiMode.edgeToEdge,
+      );
+    } else {
+      if (value) {
+        await defaultEnterNativeFullscreen();
+      } else {
+        await defaultExitNativeFullscreen();
+      }
+    }
+    if (mounted) _redraw(() => fullscreen = value);
+    compactControls.currentState?.show();
+  }
+
+  void _back() {
+    if (episodeWorkspace.currentState?.visible == true) {
+      episodeWorkspace.currentState?.hide();
+    } else if (fullscreen) {
+      _setFullscreen(false);
+    } else {
+      compactControls.currentState?.show();
+    }
+  }
+
+  bool routeExitPending = false;
+  Future<void> _exitPage() async {
+    if (!mounted || routeExitPending) return;
+    final route = ModalRoute.of(context);
+    if (route?.isCurrent == false) return;
+    routeExitPending = true;
+    try {
+      episodeWorkspace.currentState?.hide();
+      if (fullscreen) await _setFullscreen(false);
+      if (platformPlayback.floating.value) await platformPlayback.exit(player);
+      if (!mounted) return;
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted && route?.isCurrent != false) {
+        await Navigator.of(context).maybePop();
+      }
+    } finally {
+      if (mounted && route?.isCurrent != false) routeExitPending = false;
+    }
+  }
+
+  Widget _title() => DecoratedBox(
+    decoration: const BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0x80000000), Color(0x00000000)],
+      ),
+    ),
+    child: SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(4, 0, 16, 8),
+        child: Row(
+          children: [
+            BackButton(
+              key: const ValueKey('player-exit'),
+              color: Colors.white,
+              onPressed: _exitPage,
+            ),
+            Expanded(
+              child: Semantics(
+                header: true,
+                child: Text(
+                  widget.detail.drama.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
               ),
-            ],
-          ),
-        );
-      }
-      final scaffold = Scaffold(
-        backgroundColor: compact ? Colors.black : null,
-        appBar: AppBar(
-          backgroundColor: compact ? Colors.black : null,
-          foregroundColor: compact ? Colors.white : null,
-          title: Text(
-            widget.detail.drama.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          actions: [
-            if (settingsFor(widget.runtime).floatingPlayback)
-              IconButton(
-                tooltip: floating ? '退出悬浮播放' : '悬浮播放',
-                onPressed: preparing ? null : _floating,
-                icon: const Icon(Icons.picture_in_picture_alt),
-              ),
-            IconButton(
-              key: const ValueKey('toggle-episodes'),
-              tooltip: '显示或隐藏选集',
-              onPressed: compact
-                  ? _openEpisodes
-                  : () => episodeWorkspace.currentState?.toggle(),
-              icon: const Icon(Icons.view_sidebar_outlined),
-            ),
-            IconButton(
-              tooltip: '设置',
-              onPressed: _settings,
-              icon: const Icon(Icons.settings_outlined),
             ),
           ],
         ),
-        body: compact
-            ? CompactControls(
-                key: compactControls,
-                video: _touchVideo(),
-                playing: playing,
-                busy: preparing || error != null || sheetOpen,
-                controls: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (playbackNotice != null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          playbackNotice!,
-                          style: const TextStyle(
-                            color: Colors.amber,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    if (audioNotice != null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          audioNotice!,
-                          style: const TextStyle(
-                            color: Colors.amber,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    SafeArea(
-                      top: false,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (widget.cachedOnly)
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Text(
-                                    '本地连播',
-                                    style: TextStyle(color: Colors.white70),
-                                  ),
-                                  Switch(
-                                    value: autoNext,
-                                    onChanged: _setAutoNext,
-                                  ),
-                                ],
-                              ),
-                            if (prefetch.total > 0)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: Text(
-                                  '已提前缓存 ${prefetch.ready} / ${prefetch.total} 集',
-                                  style: const TextStyle(
-                                    color: Colors.white60,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            Row(
-                              children: [
-                                IconButton(
-                                  tooltip: '上一集',
-                                  onPressed: position > 0
-                                      ? () => _step(-1)
-                                      : null,
-                                  icon: const Icon(Icons.skip_previous_rounded),
-                                  color: Colors.white,
-                                  disabledColor: Colors.white24,
-                                ),
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: Colors.white,
-                                      side: const BorderSide(
-                                        color: Colors.white38,
-                                      ),
-                                    ),
-                                    onPressed: _openEpisodes,
-                                    icon: const Icon(
-                                      Icons.format_list_numbered_rounded,
-                                    ),
-                                    label: Text(
-                                      '第 ${widget.detail.episodes[position].index} 集 · 选集',
-                                    ),
-                                  ),
-                                ),
-                                IconButton(
-                                  tooltip: '下一集',
-                                  onPressed:
-                                      position + 1 <
-                                          widget.detail.episodes.length
-                                      ? () => _step(1)
-                                      : null,
-                                  icon: const Icon(Icons.skip_next_rounded),
-                                  color: Colors.white,
-                                  disabledColor: Colors.white24,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            : EpisodeWorkspace(
-                key: episodeWorkspace,
-                video: _video(),
-                episodes: _episodes(),
-                playing: playing,
-                busy: preparing || error != null,
-              ),
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, viewport) {
+      if (TvEnvironment.of(context)) {
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: TvPlayerSurface(
+            video: TvVideoView(controller: tvPlayback),
+            title:
+                '${widget.detail.drama.title} · 第 ${widget.detail.episodes[position].index} 集',
+            playing: playing,
+            busy: preparing,
+            error: error?.toString(),
+            position: tvPosition,
+            duration: tvDuration,
+            toggle: () {
+              tvPlayback.toggle();
+            },
+            seek: _seekTv,
+            previous: () => _step(-1),
+            next: () => _step(1),
+            exit: () => _exitPage(),
+            retry: () => _play(position),
+            episodeLabels: [
+              for (final e in widget.detail.episodes) '第 ${e.index} 集',
+            ],
+            episode: position,
+            selectEpisode: (i) => _play(i),
+            quality: quality,
+            selectQuality: _changeTvQuality,
+            qualityOptions: tvQualities,
+            qualitiesLoading: tvQualitiesLoading,
+            qualitiesError: tvQualitiesError,
+            loadQualities: _loadTvQualities,
+            notice: playbackNotice,
+            videoInfo: tvPlayback.video?.value.isInitialized == true
+                ? '${tvPlayback.video!.value.size.width.toInt()}×${tvPlayback.video!.value.size.height.toInt()}'
+                : null,
+            progress: progress?.label,
+          ),
+        );
+      }
+      final size = Size(viewport.maxWidth, viewport.maxHeight);
+      final floating = platformPlayback.floating.value;
+      final compact =
+          (size.width < 720 && size.height >= size.width) || floating;
+      if (platformPlayback.platformPip.value ||
+          (platformPlayback.restoringPip && size.width < 280)) {
+        return Scaffold(backgroundColor: Colors.black, body: _video());
+      }
+      void episodes() {
+        compactControls.currentState?.show();
+        if (compact) {
+          _openEpisodes();
+        } else {
+          episodeWorkspace.currentState?.toggle();
+        }
+      }
+
+      final episodeVisible =
+          !compact && (episodeWorkspace.currentState?.visible ?? false);
+      final chrome = CompactControls(
+        key: compactControls,
+        video: _touchVideo(),
+        header: _title(),
+        playing: playing,
+        busy:
+            preparing ||
+            error != null ||
+            sheetOpen ||
+            episodeVisible ||
+            menuOpen ||
+            recommendationOpen,
+        controls: PlaybackTransport(
+          player: player,
+          playing: playing,
+          fullscreen: fullscreen,
+          busy: preparing || error != null,
+          desktop: !platformPlayback.mobile,
+          episode: widget.detail.episodes[position].index,
+          canPrevious: position > 0,
+          canNext: position + 1 < widget.detail.episodes.length,
+          episodes: episodes,
+          previous: () => _step(-1),
+          next: () => _step(1),
+          fullscreenToggle: () => _setFullscreen(!fullscreen),
+          floating: settingsFor(widget.runtime).floatingPlayback
+              ? _floating
+              : null,
+          floatingActive: floating,
+          onMenuChanged: (value) {
+            if (mounted) _redraw(() => menuOpen = value);
+          },
+          notice: playbackNotice ?? audioNotice,
+        ),
       );
+      final picture = compact
+          ? chrome
+          : EpisodeWorkspace(
+              key: episodeWorkspace,
+              video: chrome,
+              episodes: _episodes(),
+              onSettings: _settings,
+              playing: playing,
+              busy: preparing || error != null,
+              manageBack: false,
+              onVisibilityChanged: (value) {
+                if (mounted) _redraw(() {});
+              },
+            );
       return CallbackShortcuts(
         bindings: {
-          const SingleActivator(LogicalKeyboardKey.space): () =>
-              player.playOrPause(),
-          const SingleActivator(LogicalKeyboardKey.arrowLeft): () => _seek(-5),
-          const SingleActivator(LogicalKeyboardKey.arrowRight): () => _seek(5),
+          const SingleActivator(LogicalKeyboardKey.space): () {
+            compactControls.currentState?.show();
+            player.playOrPause();
+          },
+          const SingleActivator(LogicalKeyboardKey.arrowLeft): () {
+            compactControls.currentState?.show();
+            _seek(-5);
+          },
+          const SingleActivator(LogicalKeyboardKey.arrowRight): () {
+            compactControls.currentState?.show();
+            _seek(5);
+          },
           const SingleActivator(LogicalKeyboardKey.pageDown): () => _step(1),
           const SingleActivator(LogicalKeyboardKey.pageUp): () => _step(-1),
+          const SingleActivator(LogicalKeyboardKey.keyI): episodes,
+          const SingleActivator(LogicalKeyboardKey.keyF): () =>
+              _setFullscreen(!fullscreen),
+          const SingleActivator(LogicalKeyboardKey.escape): _back,
         },
-        child: Focus(autofocus: true, child: scaffold),
+        child: Focus(
+          autofocus: true,
+          child: PopScope(
+            canPop: !fullscreen && !episodeVisible,
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop) _back();
+            },
+            child: AnnotatedRegion<SystemUiOverlayStyle>(
+              value: SystemUiOverlayStyle.light,
+              child: Scaffold(backgroundColor: Colors.black, body: picture),
+            ),
+          ),
+        ),
       );
     },
   );

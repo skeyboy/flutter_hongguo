@@ -6,6 +6,8 @@ class PlaybackPlatform {
   final floating = ValueNotifier(false);
   final platformPip = ValueNotifier(false);
   final bool mobile = false;
+  final bool transitioning = false;
+  Future<bool> supportsFloating() async => false;
   final bool restoringPip = false;
   VoidCallback? onExternalCompleted;
   Future<void> configure(
@@ -13,6 +15,7 @@ class PlaybackPlatform {
     AppSettings settings,
     String title, {
     required Future<void> Function(int) step,
+    bool foregroundMedia = false,
   }) async {}
   Future<void> enter(Player player, String source) async =>
       throw UnsupportedError('当前平台不支持悬浮播放');

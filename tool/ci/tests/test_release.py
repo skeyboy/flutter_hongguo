@@ -67,6 +67,20 @@ class ReleaseContractTest(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 selected_platforms(raw)
 
+    def test_tv_release_is_independent_of_mobile_installers(self):
+        from plan_build import selected_platforms
+        self.assertEqual(selected_platforms('["android-tv"]'), ['android-tv'])
+        dist = self.root / 'dist'
+        dist.mkdir()
+        for abi in ['armeabi-v7a', 'arm64-v8a', 'x86_64']:
+            (dist / f'Hongguo-0.2.3-android-{abi}.apk').write_bytes(b'mobile fixture')
+        with patch.dict(os.environ, RELEASE_PLATFORMS='["android-tv"]', IOS_SIGNED='false'):
+            with self.assertRaises(SystemExit):
+                runpy.run_path(str(CI / 'validate_release.py'))
+            for abi in ['armeabi-v7a', 'arm64-v8a', 'x86_64']:
+                (dist / f'Hongguo-0.2.3-android-tv-{abi}.apk').write_bytes(b'tv fixture')
+            runpy.run_path(str(CI / 'validate_release.py'))
+
     def test_checksums_use_portable_asset_names(self):
         dist = self.root / 'dist'
         dist.mkdir()

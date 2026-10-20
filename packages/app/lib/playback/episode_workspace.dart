@@ -9,6 +9,9 @@ class EpisodeWorkspace extends StatefulWidget {
   final Widget video, episodes;
   final bool playing, busy;
   final Duration hideAfter;
+  final ValueChanged<bool>? onVisibilityChanged;
+  final bool manageBack;
+  final VoidCallback? onSettings;
   const EpisodeWorkspace({
     super.key,
     required this.video,
@@ -16,6 +19,9 @@ class EpisodeWorkspace extends StatefulWidget {
     required this.playing,
     required this.busy,
     this.hideAfter = const Duration(seconds: 5),
+    this.onVisibilityChanged,
+    this.manageBack = true,
+    this.onSettings,
   });
   @override
   State<EpisodeWorkspace> createState() => EpisodeWorkspaceState();
@@ -70,6 +76,7 @@ class EpisodeWorkspaceState extends State<EpisodeWorkspace> {
       _hovering = false;
       _keyboardFocus = false;
     });
+    widget.onVisibilityChanged?.call(visible);
     _schedule();
   }
 
@@ -82,6 +89,7 @@ class EpisodeWorkspaceState extends State<EpisodeWorkspace> {
       _hovering = false;
       _keyboardFocus = false;
     });
+    widget.onVisibilityChanged?.call(false);
   }
 
   void selected() {
@@ -148,35 +156,45 @@ class EpisodeWorkspaceState extends State<EpisodeWorkspace> {
           key: const ValueKey('episode-panel'),
           elevation: pinned ? 0 : 12,
           color: Theme.of(context).colorScheme.surface,
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      pinned ? '选集 · 保持展开' : '选集 · 闲置后收起',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall,
+          child: SafeArea(
+            left: false,
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        '选集',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: pinned ? '恢复自动隐藏' : '保持选集展开',
-                    onPressed: _pin,
-                    icon: Icon(
-                      pinned ? Icons.push_pin : Icons.push_pin_outlined,
+                    if (widget.onSettings != null)
+                      IconButton(
+                        key: const ValueKey('episode-settings'),
+                        tooltip: '播放设置',
+                        onPressed: widget.onSettings,
+                        icon: const Icon(Icons.settings_outlined, size: 20),
+                      ),
+                    IconButton(
+                      tooltip: pinned ? '恢复自动隐藏' : '保持选集展开',
+                      onPressed: _pin,
+                      icon: Icon(
+                        pinned ? Icons.push_pin : Icons.push_pin_outlined,
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: '隐藏选集',
-                    onPressed: hide,
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-              Expanded(child: widget.episodes),
-            ],
+                    IconButton(
+                      tooltip: '隐藏选集',
+                      onPressed: hide,
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                Expanded(child: widget.episodes),
+              ],
+            ),
           ),
         ),
       ),
@@ -190,14 +208,14 @@ class EpisodeWorkspaceState extends State<EpisodeWorkspace> {
       return CallbackShortcuts(
         bindings: {
           const SingleActivator(LogicalKeyboardKey.keyI): toggle,
-          const SingleActivator(LogicalKeyboardKey.escape): hide,
+          if (visible) const SingleActivator(LogicalKeyboardKey.escape): hide,
         },
         child: Focus(
           autofocus: true,
           child: PopScope(
-            canPop: !visible,
+            canPop: !widget.manageBack || !visible,
             onPopInvokedWithResult: (didPop, _) {
-              if (!didPop) hide();
+              if (!didPop && widget.manageBack) hide();
             },
             child: Stack(
               fit: StackFit.expand,

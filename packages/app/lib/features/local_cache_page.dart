@@ -1,3 +1,5 @@
+import '../navigation/app_navigation.dart';
+
 import 'package:flutter/material.dart';
 
 import '../catalog/local_artwork.dart';
@@ -43,25 +45,22 @@ class _LocalCachePageState extends State<LocalCachePage> {
   }
 
   Future<void> _repair() async {
-    await Navigator.push<bool>(
+    await pushAppPage<bool>(
       context,
-      MaterialPageRoute(
-        builder: (_) => CacheMetadataPage(
-          runtime: widget.runtime,
-          videos: entries!.map((e) => e.vid).toSet(),
-        ),
+      AppScreen.cacheMetadata,
+      (_) => CacheMetadataPage(
+        runtime: widget.runtime,
+        videos: entries!.map((e) => e.vid).toSet(),
       ),
     );
     await _load();
   }
 
   Future<void> _open(LocalDramaGroup group) async {
-    await Navigator.push<void>(
+    await pushAppPage<void>(
       context,
-      MaterialPageRoute(
-        builder: (_) =>
-            LocalEpisodesPage(runtime: widget.runtime, initial: group),
-      ),
+      AppScreen.localEpisodes,
+      (_) => LocalEpisodesPage(runtime: widget.runtime, initial: group),
     );
     await _load();
   }
@@ -260,13 +259,12 @@ class _LocalEpisodesPageState extends State<LocalEpisodesPage> {
   }
 
   Future<void> _repair() async {
-    await Navigator.push<bool>(
+    await pushAppPage<bool>(
       context,
-      MaterialPageRoute(
-        builder: (_) => CacheMetadataPage(
-          runtime: widget.runtime,
-          videos: group.files.map((e) => e.vid).toSet(),
-        ),
+      AppScreen.cacheMetadata,
+      (_) => CacheMetadataPage(
+        runtime: widget.runtime,
+        videos: group.files.map((e) => e.vid).toSet(),
       ),
     );
     await _load();
@@ -311,16 +309,15 @@ class _LocalEpisodesPageState extends State<LocalEpisodesPage> {
 
   Future<void> _play(LocalEpisode entry) async {
     final queue = localPlaybackQueue(group, entry);
-    await Navigator.push<void>(
+    await pushAppPage<void>(
       context,
-      MaterialPageRoute(
-        builder: (_) => PlayerPage(
-          runtime: widget.runtime,
-          detail: queue.detail,
-          initialPosition: queue.initialPosition,
-          cachedOnly: true,
-          cachedQuality: entry.quality,
-        ),
+      AppScreen.player,
+      (_) => PlayerPage(
+        runtime: widget.runtime,
+        detail: queue.detail,
+        initialPosition: queue.initialPosition,
+        cachedOnly: true,
+        cachedQuality: entry.quality,
       ),
     );
     await _load();

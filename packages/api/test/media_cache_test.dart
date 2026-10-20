@@ -68,6 +68,52 @@ void main() {
     await temp.delete(recursive: true);
   });
   test(
+    'manual downloads survive LRU and clear but remain explicitly deletable',
+    () async {
+      cache = MediaCache(
+        directory: temp,
+        dio: dio,
+        resolve: (_, _) async => track,
+        maxFiles: 1,
+        retainFile: (vid, quality) => vid == '11',
+      );
+      final manual = cache.prepare('11');
+      await manual.result;
+      cache.release(manual);
+      final ordinary = cache.prepare('12');
+      await ordinary.result;
+      cache.release(ordinary);
+      await cache.prune();
+      expect((await cache.entries()).map((e) => e.vid), ['11']);
+      await cache.clear();
+      expect((await cache.entries()).single.vid, '11');
+      await cache.evict('11');
+      expect(await cache.entries(), isEmpty);
+    },
+  );
+  test(
+    'stopping prefetch preserves only the explicit active download lease',
+    () async {
+      final gate = Completer<VideoTrack>();
+      cache = MediaCache(
+        directory: temp,
+        dio: dio,
+        resolve: (_, _) => gate.future,
+      );
+      final manual = cache.prepare('11', background: true);
+      final prefetch = cache.prepare('12', background: true);
+      final cancelled = expectLater(
+        prefetch.result,
+        throwsA(isA<MediaCancelled>()),
+      );
+      cache.cancelBackground(keep: (vid, quality) => vid == '11');
+      await cancelled;
+      gate.complete(track);
+      expect(await manual.result, endsWith('11_best.mp4'));
+      cache.release(manual);
+    },
+  );
+  test(
     'stream download → spade → all tracks → clear MP4 → restart cache hit',
     () async {
       final stages = <MediaStage>[];

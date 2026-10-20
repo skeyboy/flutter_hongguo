@@ -75,6 +75,49 @@ void main() {
       'resolution': '1280*2772',
     },
   );
+  test('quality options are real compatible resolutions, deduplicated and free of media secrets', () {
+    Map<String, dynamic> row(int size, String codec, String url) => {
+      'codec_type': codec,
+      'definition': '${size}p',
+      'vwidth': size,
+      'vheight': size * 2,
+      'main_url': url,
+    };
+    final options = VideoModelClient.availableQualities({
+      'video_list': {
+        '360': row(360, 'h264', 'https://a.qznovelvod.com/360.mp4'),
+        '720': row(720, 'h264', 'https://a.qznovelvod.com/720.mp4'),
+        '720hevc': row(720, 'hevc', 'https://a.qznovelvod.com/hevc.mp4'),
+        '1080av1': row(1080, 'av1', 'https://a.qznovelvod.com/av1.mp4'),
+        '1440bad': row(1440, 'h264', 'https://untrusted.example/test.mp4'),
+      },
+    });
+    expect(options.map((q) => q.value), ['best', '720p', '360p']);
+    expect(options[1].width, 720);
+    expect(options[1].height, 1440);
+  });
+  test('quality metadata without dimensions offers automatic rather than guessed resolutions', () {
+    final options = VideoModelClient.availableQualities({
+      'video_list': {
+        'unknown': {
+          'codec_type': 'h264',
+          'main_url': 'https://a.qznovelvod.com/test.mp4',
+        },
+      },
+    });
+    expect(options.map((q) => q.value), ['best']);
+  });
+  test('quality discovery reuses signed video info requests', () async {
+    final adapter = FakeAdapter('https://test.fqnovel.com/info');
+    final dio = Dio()..httpClientAdapter = adapter;
+    final options = await VideoModelClient(
+      dio: dio,
+      builder: builder(),
+    ).fetchQualities('123');
+    expect(options.map((q) => q.value), ['best', '720p']);
+    expect(adapter.requests.length, 2);
+    dio.close();
+  });
   test('query encoding matches urllib quote safe set', () {
     expect(
       encodeQueryPart("玄幻 !'()*~"),

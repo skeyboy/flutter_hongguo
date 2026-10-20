@@ -11,6 +11,7 @@ assets = {
     'macos': ['macos-arm64.dmg', 'macos-arm64.zip'],
     'windows': ['windows-x64-setup.exe', 'windows-x64.zip'],
     'linux': ['linux-x64.deb', 'linux-x64.tar.gz'],
+    'android-tv': ['android-tv-armeabi-v7a.apk', 'android-tv-arm64-v8a.apk', 'android-tv-x86_64.apk'],
     'android': ['android-armeabi-v7a.apk', 'android-arm64-v8a.apk', 'android-x86_64.apk'],
 }
 required = [suffix for platform in platforms for suffix in assets[platform]]

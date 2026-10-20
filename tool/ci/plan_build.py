@@ -3,7 +3,7 @@
 import json
 import os
 
-RUNNERS = {'android': 'ubuntu-24.04', 'linux': 'ubuntu-24.04',
+RUNNERS = {'android': 'ubuntu-24.04', 'android-tv': 'ubuntu-24.04', 'linux': 'ubuntu-24.04',
            'windows': 'windows-2022', 'macos': 'macos-15'}
 
 
@@ -13,7 +13,7 @@ def selected_platforms(raw):
     except (ValueError, TypeError):
         raise SystemExit('Platforms must be a JSON array, for example ["android","macos"]')
     if not isinstance(values, list) or not values or any(not isinstance(p, str) or p not in RUNNERS for p in values):
-        raise SystemExit('Choose one or more of android, macos, windows, linux; iOS signing is a separate switch')
+        raise SystemExit('Choose one or more of android, android-tv, macos, windows, linux; iOS signing is a separate switch')
     if len(set(values)) != len(values):
         raise SystemExit('Duplicate platforms are not allowed')
     return values

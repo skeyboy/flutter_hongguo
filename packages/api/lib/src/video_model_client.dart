@@ -152,6 +152,12 @@ class VideoRequestBuilder {
   }
 }
 
+class VideoQuality {
+  final String value, label;
+  final int width, height;
+  const VideoQuality(this.value, this.label, {this.width = 0, this.height = 0});
+}
+
 class VideoTrack {
   final Uri url;
   final String spadeA, definition;
@@ -222,6 +228,61 @@ class VideoModelClient {
 
   Future<VideoTrack> fetchTrack(String vid, {String quality = 'best'}) async =>
       selectTrack(await fetchVideoInfo(vid), quality: quality);
+
+  Future<List<VideoQuality>> fetchQualities(String vid) async =>
+      availableQualities(await fetchVideoInfo(vid));
+
+  /// Only advertise resolutions with a compatible, validated URL/key. The UI
+  /// receives descriptive metadata, never signed URLs or encryption material.
+  static List<VideoQuality> availableQualities(Map<String, dynamic> info) {
+    selectTrack(info); // Automatic must itself be playable.
+    final options = <int, VideoQuality>{};
+    for (final entry in _object(info['video_list']).entries) {
+      final item = _object(entry.value);
+      final meta = _object(item['video_meta']);
+      var width = 0, height = 0;
+      for (final pair in [
+        [item['vwidth'], item['vheight']],
+        [item['width'], item['height']],
+        [meta['vwidth'], meta['vheight']],
+        [meta['width'], meta['height']],
+      ]) {
+        final w = int.tryParse('${pair[0]}') ?? 0;
+        final h = int.tryParse('${pair[1]}') ?? 0;
+        if (w > 0 && h > 0) {
+          width = w;
+          height = h;
+          break;
+        }
+      }
+      final pixels = width < height ? width : height;
+      if (pixels < 100 || pixels > 9999) continue;
+      try {
+        selectTrack({
+          ...info,
+          'video_list': {entry.key: entry.value},
+        });
+        options.putIfAbsent(
+          pixels,
+          () => VideoQuality(
+            '${pixels}p',
+            '${pixels}p',
+            width: width,
+            height: height,
+          ),
+        );
+      } on StateError {
+        continue;
+      } on FormatException {
+        continue;
+      }
+    }
+    final resolutions = options.keys.toList()..sort((a, b) => b.compareTo(a));
+    return [
+      const VideoQuality('best', '自动'),
+      for (final px in resolutions) options[px]!,
+    ];
+  }
 
   static VideoTrack selectTrack(
     Map<String, dynamic> info, {

@@ -5,7 +5,7 @@ import 'package:hongguo_core/hongguo_core.dart';
 import 'package:hongguo_app/platform/runtime.dart';
 
 class FakeCatalog implements CatalogRepository {
-  String? lastQuery, lastGenre, lastTheme;
+  String? lastQuery, lastGenre, lastTheme, lastSort;
   int browseCalls = 0;
   bool fail = false;
   static const demo = Drama(
@@ -24,6 +24,7 @@ class FakeCatalog implements CatalogRepository {
   }) async {
     browseCalls++;
     lastGenre = genre;
+    lastSort = sort;
     lastTheme = theme;
     if (fail) throw const CatalogError('上游暂时不可用');
     return cursor == null
