@@ -362,6 +362,57 @@ void main() {
         '${runtime.directory.parent.path}/hongguo-native-frame.png',
       )..writeAsBytesSync(frame);
       print('NATIVE_FRAME_ARTIFACT=${frameFile.path}');
+      final pictureHandle = await player.handle;
+      await tester.binding.setSurfaceSize(const Size(1280, 900));
+      await tester.pumpAndSettle();
+      final pictureRect = tester.getRect(
+        find.byKey(const ValueKey('player-picture')),
+      );
+      await capture('player-pc-picture');
+      await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byKey(const ValueKey('player-picture'))),
+        pictureRect,
+      );
+      await capture('player-pc-overlay');
+      await tester.tap(find.byTooltip('隐藏选集'));
+      await tester.pumpAndSettle();
+      await tester.binding.setSurfaceSize(const Size(800, 600));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
+      await tester.pumpAndSettle();
+      await capture('player-medium-overlay');
+      await tester.tap(find.byTooltip('隐藏选集'));
+      await tester.pumpAndSettle();
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      await tester.pumpAndSettle();
+      final compactPicture = tester.getRect(
+        find.byKey(const ValueKey('compact-player-picture')),
+      );
+      await capture('player-mobile-controls');
+      await tester.tap(find.byTooltip('隐藏播放操作'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byKey(const ValueKey('compact-player-picture'))),
+        compactPicture,
+      );
+      expect(
+        find.byKey(const ValueKey('compact-playback-controls')),
+        findsNothing,
+      );
+      await capture('player-mobile-picture');
+      await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
+      await tester.pumpAndSettle();
+      expect(find.text('选择剧集'), findsOneWidget);
+      await capture('player-mobile-episodes');
+      await tester.tap(find.byTooltip('关闭选集'));
+      await tester.pumpAndSettle();
+      expect(await player.handle, pictureHandle);
+      print(
+        'OVERLAY_ACCEPTANCE=full video rectangle stable; overlay hide/show and PC/mobile resize preserved Player handle',
+      );
+
       await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
       await tester.tap(find.byType(BackButton));
@@ -450,6 +501,20 @@ void main() {
       }
       expect(state.prefetch.ready, 5);
       expect((runtime.dio.httpClientAdapter as _Adapter).downloads, 6);
+      final originalHandle = await player.handle;
+      final picture = find.byKey(const ValueKey('player-picture'));
+      final pictureWidth = tester.getSize(picture).width;
+      expect(find.byKey(const ValueKey('episode-panel')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('隐藏选集'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('episode-panel')), findsNothing);
+      expect(tester.getSize(picture).width, pictureWidth);
+      expect(await player.handle, originalHandle);
+      await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('episode-panel')), findsOneWidget);
       await tester.tap(find.widgetWithText(FilledButton, '下一集'));
       for (var i = 0; i < 100; i++) {
         await tester.pump(const Duration(milliseconds: 100));
@@ -460,6 +525,14 @@ void main() {
       expect(state.sourceVid, '124');
       expect((runtime.dio.httpClientAdapter as _Adapter).downloads, 6);
       final handle = await player.handle;
+      await tester.binding.setSurfaceSize(const Size(800, 600));
+      await tester.pumpAndSettle();
+      final overlayPicture = tester.getRect(picture);
+      await tester.tap(find.byTooltip('隐藏选集'));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(picture), overlayPicture);
+      expect(await player.handle, handle);
+      expect((runtime.dio.httpClientAdapter as _Adapter).downloads, 6);
       await tester.binding.setSurfaceSize(const Size(390, 844));
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('第 2 集 · 选集'), findsOneWidget);
@@ -538,6 +611,8 @@ void main() {
       await waitReady(0);
       await waitReady(1);
       await player.pause();
+      await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
+      await tester.pumpAndSettle();
       expect(state.quality, 'best');
       expect(state.prefetch.total, 0);
       await tester.tap(find.byType(Switch));
@@ -623,6 +698,8 @@ void main() {
       expect(state.playbackNotice, contains('第 2 集尚未缓存'));
       expect(runtime.localRequests, ['123:best']);
       await runtime.evict('125');
+      await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
+      await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilledButton, '下一集'));
       for (var i = 0; i < 100 && state.error == null; i++) {
         await tester.pump(const Duration(milliseconds: 100));

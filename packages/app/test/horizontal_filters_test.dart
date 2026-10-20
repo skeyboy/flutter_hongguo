@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_app/bootstrap.dart';
 import 'package:hongguo_app/main.dart';
+import 'package:hongguo_app/features/library_page.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 
 import 'fakes.dart';
@@ -15,6 +16,18 @@ class RankCatalog extends FakeCatalog implements RankCatalogRepository {
     String board = 'recommend',
     String? cursor,
   }) async => const CatalogPage([]);
+}
+
+class LongCatalog extends FakeCatalog {
+  @override
+  Future<CatalogPage> browse({
+    String genre = 'short_play',
+    String sort = 'online_time',
+    String? theme,
+    String? cursor,
+    List<String> seen = const [],
+  }) async =>
+      CatalogPage(List.generate(80, (i) => Drama(id: '$i', title: '长列表$i')));
 }
 
 void main() {
@@ -47,6 +60,10 @@ void main() {
         await mount(tester, FakeRuntime(), size);
         final anchor = find.byKey(const ValueKey('sticky-genre'));
         final top = tester.getTopLeft(anchor);
+        final results = find.byKey(const ValueKey('catalog-results'));
+        final listRect = tester.getRect(results);
+        final card = find.byType(DramaCard).first;
+        final cardRect = tester.getRect(card);
         await tester.tap(anchor);
         await tester.pumpAndSettle();
         expect(find.byType(DropdownButton<String>), findsNothing);
@@ -56,6 +73,8 @@ void main() {
           findsOneWidget,
         );
         expect(tester.getTopLeft(anchor), top);
+        expect(tester.getRect(results), listRect);
+        expect(tester.getRect(card), cardRect);
         expect(tester.takeException(), isNull);
         await tester.tap(find.text('收起筛选'));
         await tester.pumpAndSettle();
@@ -66,6 +85,31 @@ void main() {
       },
     );
   }
+  testWidgets(
+    'overlay preserves a scrolled results position until a filter changes',
+    (tester) async {
+      await mount(tester, FakeRuntime(LongCatalog()), const Size(390, 844));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -1600));
+      await tester.pumpAndSettle();
+      final dynamic state = tester.state(find.byType(LibraryPage));
+      final before = state.scroll.offset as double;
+      expect(before, greaterThan(100));
+      final viewport = tester.getRect(
+        find.byKey(const ValueKey('catalog-results')),
+      );
+      await tester.tap(find.byKey(const ValueKey('sticky-genre')));
+      await tester.pumpAndSettle();
+      expect(state.scroll.offset, before);
+      expect(
+        tester.getRect(find.byKey(const ValueKey('catalog-results'))),
+        viewport,
+      );
+      await tester.tap(find.text('收起筛选'));
+      await tester.pumpAndSettle();
+      expect(state.scroll.offset, before);
+    },
+  );
+
   testWidgets(
     'rapid choices debounce one request, remain open and keep the anchor stable',
     (tester) async {

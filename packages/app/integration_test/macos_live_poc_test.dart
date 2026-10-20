@@ -92,6 +92,8 @@ void main() {
         }
         expect(state.prefetch.ready, prefetchCount);
         final timer = Stopwatch()..start();
+        await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
+        await tester.pump();
         await tester.tap(find.widgetWithText(FilledButton, '下一集'));
         for (var i = 0; i < 100; i++) {
           await tester.pump(const Duration(milliseconds: 50));

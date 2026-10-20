@@ -2,7 +2,12 @@
 
 本项目的分析文档、主工程代码、参考实现与验收证据均集中在 `flutter_hongguo/` 内。日常开发和运行以根 workspace 的 `packages/core`、`packages/api`、`packages/app` 为主。
 
-## 当前本地连播
+## 当前浮层与播放空间
+
+- [设计与平台交互](design/overlay-playback.md)
+- [0.2.5 实现、截图与验证](overlay-playback-validation.md)
+
+## 本地连播
 
 - [缓存剧集连播规则与验收](local-cache-autoplay.md)
 

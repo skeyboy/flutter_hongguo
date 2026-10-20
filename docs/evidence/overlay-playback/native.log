@@ -1,0 +1,103 @@
+Resolving dependencies in `/Users/lee/Desktop/flutter_hongguo`...
+Downloading packages...
+  _fe_analyzer_shared 103.0.0 (109.0.0 available)
+  analyzer 13.3.0 (14.5.0 available)
+! crypto 3.0.7 (overridden)
+! cupertino_icons 1.0.9 (overridden) (2.0.0 available)
+! dio 5.11.1 (overridden)
+! flutter_riverpod 3.4.3 (overridden)
+! flutter_secure_storage 11.2.0 (overridden)
+! get_it 8.3.0 (overridden) (9.3.0 available)
+! lints 6.1.0 (overridden)
+  material_color_utilities 0.13.0 (0.13.1 available)
+! media_kit 1.2.6 (overridden)
+! media_kit_libs_video 1.0.7 (overridden)
+! media_kit_video 2.0.1 (overridden)
+  package_config 2.2.0 (3.0.0 available)
+! path_provider 2.1.6 (overridden)
+! pointycastle 4.0.0 (overridden)
+! test 1.31.1 (overridden) (1.33.0 available)
+  test_api 0.7.12 (0.7.15 available)
+  test_core 0.6.18 (0.6.21 available)
+Got dependencies in `/Users/lee/Desktop/flutter_hongguo`!
+9 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/packages/app/integration_test/offline_playback_test.dart
+The following plugins do not support Swift Package Manager for macos:
+  - media_kit_libs_macos_video
+  - media_kit_video
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Building macOS application...                                   
+/Users/lee/Desktop/flutter_hongguo/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.iAlJoY/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Users/lee/Desktop/flutter_hongguo/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.iAlJoY/Metal.xctoolchain/usr/lib/swift/macosx' not found
+✓ Built build/macos/Build/Products/Debug/hongguo_app.app
+Failed to foreground app; open returned 1
+00:00 +0: catalog → episode → streamed CENC → Dart decrypt → native local playback and seek
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/packages/app/integration_test/offline_playback_test.dart
+media_kit: NativeReferenceHolder: Allocated 515325890560
+00:01 +0: catalog → episode → streamed CENC → Dart decrypt → native local playback and seek
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-library-pc-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-horizontal-filters-pc-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-settings-pc-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-library-mobile-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-horizontal-filters-mobile-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-settings-mobile-ui.png
+THEME_ACCEPTANCE=selection applied dark immediately without pressing save
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-theme-dark-mobile-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-library-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-detail-ui.png
+VideoOutput.Resize
+{handle: 515280799696, id: 515357731552, rect: {top: 0.0, width: 0.0, height: 0.0, left: 0.0}}
+NativeVideoController: Texture ID: 515357731552
+VideoOutput.Resize
+{handle: 515280799696, id: 515357731552, rect: {top: 0.0, height: 288.0, left: 0.0, width: 160.0}}
+PLAYER_STATE_ERROR=null
+AUDIO_OUTPUT_WARNING=null
+NATIVE_FRAME_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-native-frame.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-player-pc-picture-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-player-pc-overlay-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-player-medium-overlay-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-player-mobile-controls-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-player-mobile-picture-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-player-mobile-episodes-ui.png
+OVERLAY_ACCEPTANCE=full video rectangle stable; overlay hide/show and PC/mobile resize preserved Player handle
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-local-cache-mobile-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-local-cache-pc-ui.png
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-local-episodes-mobile-ui.png
+VideoOutput.Resize
+{handle: 515280808656, id: 515354199456, rect: {left: 0.0, top: 0.0, width: 0.0, height: 0.0}}
+NativeVideoController: Texture ID: 515354199456
+VideoOutput.Resize
+{rect: {height: 288.0, left: 0.0, top: 0.0, width: 160.0}, handle: 515280808656, id: 515354199456}
+UI_ARTIFACT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/tmp/hongguo-local-player-mobile-ui.png
+LOCAL_CACHE_ACCEPTANCE=listed named episode; decoded local MP4 without another request; no prefetch
+00:15 +1: five future files stay ready and next episode reuses cache across layouts
+00:15 +1: catalog → episode → streamed CENC → Dart decrypt → native local playback and seek
+VideoOutput.Resize
+{rect: {left: 0.0, width: 0.0, height: 0.0, top: 0.0}, handle: 515280807376, id: 515354212448}
+NativeVideoController: Texture ID: 515354212448
+VideoOutput.Resize
+{handle: 515280807376, id: 515354212448, rect: {left: 0.0, top: 0.0, width: 160.0, height: 288.0}}
+00:18 +1: five future files stay ready and next episode reuses cache across layouts
+PREFETCH_ACCEPTANCE=5 ready; switching reused file without another download; player survived compact layout
+00:18 +2: cached episodes auto-next across local qualities; switch and final episode stop correctly
+00:18 +2: catalog → episode → streamed CENC → Dart decrypt → native local playback and seek
+VideoOutput.Resize
+{id: 515350138464, rect: {width: 0.0, left: 0.0, top: 0.0, height: 0.0}, handle: 515338932688}
+NativeVideoController: Texture ID: 515350138464
+VideoOutput.Resize
+{rect: {left: 0.0, width: 160.0, height: 288.0, top: 0.0}, handle: 515338932688, id: 515350138464}
+00:24 +2: cached episodes auto-next across local qualities; switch and final episode stop correctly
+LOCAL_AUTOPLAY=3 local episodes; 720p→best→720p; switch persisted; final episode stopped; no network
+00:24 +3: missing cached episode index stops autoplay; removed file never downloads
+00:24 +3: catalog → episode → streamed CENC → Dart decrypt → native local playback and seek
+VideoOutput.Resize
+{id: 515350140704, rect: {width: 0.0, height: 0.0, top: 0.0, left: 0.0}, handle: 515338934608}
+NativeVideoController: Texture ID: 515350140704
+VideoOutput.Resize
+{rect: {height: 288.0, left: 0.0, top: 0.0, width: 160.0}, handle: 515338934608, id: 515350140704}
+00:26 +3: missing cached episode index stops autoplay; removed file never downloads
+LOCAL_AUTOPLAY_GAP=stopped at missing index; removed file failed offline without download; pins released
+00:26 +4: macOS system session vault round-trip uses only a disposable test record
+00:26 +5: (tearDownAll)
+00:26 +5: All tests passed!

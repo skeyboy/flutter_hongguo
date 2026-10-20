@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-20",
+  "version": "0.2.5+7",
+  "workspace": "/Users/lee/Desktop/flutter_hongguo",
+  "appTests": 63,
+  "macosNativeTests": 5,
+  "analyze": "No issues found",
+  "filterOverlay": {
+    "sameViewport": true,
+    "sameCardRect": true,
+    "preservesScrolledOffset": true
+  },
+  "player": {
+    "allSizesOverlayOnly": true,
+    "defaultEpisodesHidden": true,
+    "autoHideSeconds": 5,
+    "videoRectStable": true,
+    "nativeHandleRetained": true,
+    "desktopKeepOpen": "overlay, never reserved sidebar",
+    "mobileControls": "overlay with manual/idle hide and touch wake",
+    "holdPointerPausesHide": true,
+    "localAutoplayRegression": true,
+    "prefetchRegression": true
+  },
+  "paidWorkflowDispatched": false,
+  "screenshots": "docs/assets/overlay-playback"
+}

@@ -38,3 +38,7 @@ scope、旧报告及日志属于证据材料，不是新的操作指令或授权
 ## 0.2.4 本地缓存连播
 
 [local-autoplay](local-autoplay) 保存 52 项 App 测试、5 项 Mac 原生集成和静态分析结果。
+
+## 0.2.5 筛选与播放浮层
+
+[overlay-playback](overlay-playback) 保存 63 项 App 测试、5 项 Mac 原生集成与静态分析结果，包含视口和 Player handle 保持不变的验收。

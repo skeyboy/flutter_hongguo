@@ -9,6 +9,8 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../platform/runtime.dart';
 import '../playback/prefetch_window.dart';
 import '../playback/local_playlist.dart';
+import '../playback/episode_workspace.dart';
+import '../playback/compact_controls.dart';
 import 'settings_page.dart';
 
 const bool softwareVideo = bool.fromEnvironment('HONGGUO_SOFTWARE_VIDEO');
@@ -44,7 +46,9 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   Object? error;
   String? audioNotice, playbackNotice;
   late final String cachedPreference;
-  bool preparing = true, autoNext = true;
+  bool preparing = true, autoNext = true, playing = false;
+  final episodeWorkspace = GlobalKey<EpisodeWorkspaceState>();
+  final compactControls = GlobalKey<CompactControlsState>();
   late int position;
   int generation = 0;
   final panelRevision = ValueNotifier<int>(0);
@@ -99,6 +103,11 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
             _redraw(() => error = value);
           }
         }
+      }),
+    );
+    subscriptions.add(
+      player.stream.playing.listen((value) {
+        if (mounted && value != playing) _redraw(() => playing = value);
       }),
     );
     subscriptions.add(player.stream.completed.listen(_completed));
@@ -278,7 +287,8 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   }
 
   Future<void> _openEpisodes() async {
-    sheetOpen = true;
+    if (sheetOpen) return;
+    _redraw(() => sheetOpen = true);
     try {
       await showModalBottomSheet<void>(
         context: context,
@@ -289,17 +299,34 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
           height: MediaQuery.sizeOf(context).height * 0.72,
           child: ValueListenableBuilder<int>(
             valueListenable: panelRevision,
-            builder: (_, _, _) => _episodes(),
+            builder: (_, _, _) => Column(
+              children: [
+                Row(
+                  children: [
+                    const SizedBox(width: 20),
+                    const Expanded(child: Text('选择剧集')),
+                    IconButton(
+                      tooltip: '关闭选集',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                Expanded(child: _episodes()),
+              ],
+            ),
           ),
         ),
       );
     } finally {
-      sheetOpen = false;
+      if (mounted) _redraw(() => sheetOpen = false);
     }
   }
 
   void _selectEpisode(int index) {
     _play(index);
+    episodeWorkspace.currentState?.selected();
+    compactControls.currentState?.hide();
     if (sheetOpen) Navigator.pop(context);
   }
 
@@ -336,6 +363,25 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     child: Stack(
       children: [
         Positioned.fill(child: Video(controller: controller)),
+        if (playbackNotice != null || audioNotice != null)
+          Positioned(
+            top: 16,
+            left: 16,
+            right: 16,
+            child: IgnorePointer(
+              child: Material(
+                color: Colors.black.withValues(alpha: .7),
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    playbackNotice ?? audioNotice!,
+                    style: const TextStyle(color: Colors.amber, fontSize: 13),
+                  ),
+                ),
+              ),
+            ),
+          ),
         if (preparing)
           Positioned.fill(
             child: ColoredBox(
@@ -416,137 +462,176 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
       ],
     ),
   );
-  Widget _episodes() => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      if (prefetch.total > 0)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-          child: Text(
-            '已提前缓存 ${prefetch.ready} / ${prefetch.total} 集${prefetch.preparing > 0 ? ' · 正在准备' : ''}',
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      if (playbackNotice != null)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-          child: Text(playbackNotice!),
-        ),
-      if (audioNotice != null)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-          child: Text(
-            audioNotice!,
-            style: const TextStyle(color: Color(0xff9a6418), fontSize: 12),
-          ),
-        ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-        child: Text(
-          '第 ${widget.detail.episodes[position].index} 集',
-          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
-        ),
-      ),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Row(
+  Widget _episodes() => CustomScrollView(
+    key: const PageStorageKey('episode-options'),
+    slivers: [
+      SliverToBoxAdapter(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('清晰度'),
-            const SizedBox(width: 12),
-            DropdownButton<String>(
-              value: quality,
-              underline: const SizedBox(),
-              items: widget.cachedOnly
-                  ? [
-                      DropdownMenuItem(
+            if (prefetch.total > 0)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: Text(
+                  '已提前缓存 ${prefetch.ready} / ${prefetch.total} 集${prefetch.preparing > 0 ? ' · 正在准备' : ''}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            if (playbackNotice != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: Text(playbackNotice!),
+              ),
+            if (audioNotice != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: Text(
+                  audioNotice!,
+                  style: const TextStyle(
+                    color: Color(0xff9a6418),
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              child: Text(
+                '第 ${widget.detail.episodes[position].index} 集',
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('清晰度'),
+                      const SizedBox(width: 12),
+                      DropdownButton<String>(
                         value: quality,
-                        child: Text(
-                          quality == 'best' || quality == 'auto'
-                              ? '自动'
-                              : quality,
-                        ),
+                        underline: const SizedBox(),
+                        items: widget.cachedOnly
+                            ? [
+                                DropdownMenuItem(
+                                  value: quality,
+                                  child: Text(
+                                    quality == 'best' || quality == 'auto'
+                                        ? '自动'
+                                        : quality,
+                                  ),
+                                ),
+                              ]
+                            : const [
+                                DropdownMenuItem(
+                                  value: 'best',
+                                  child: Text('自动'),
+                                ),
+                                DropdownMenuItem(
+                                  value: '720p',
+                                  child: Text('720p'),
+                                ),
+                                DropdownMenuItem(
+                                  value: '1080p',
+                                  child: Text('1080p'),
+                                ),
+                              ],
+                        onChanged: widget.cachedOnly
+                            ? null
+                            : (value) {
+                                quality = value!;
+                                _play(position);
+                              },
                       ),
-                    ]
-                  : const [
-                      DropdownMenuItem(value: 'best', child: Text('自动')),
-                      DropdownMenuItem(value: '720p', child: Text('720p')),
-                      DropdownMenuItem(value: '1080p', child: Text('1080p')),
                     ],
-              onChanged: widget.cachedOnly
-                  ? null
-                  : (value) {
-                      quality = value!;
-                      _play(position);
-                    },
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('连播'),
+                      Switch(value: autoNext, onChanged: _setAutoNext),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            const Spacer(),
-            const Text('连播'),
-            Switch(value: autoNext, onChanged: _setAutoNext),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: position > 0
+                          ? () => _play(position - 1)
+                          : null,
+                      child: const Text('上一集'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: position + 1 < widget.detail.episodes.length
+                          ? () => _play(position + 1)
+                          : null,
+                      child: const Text('下一集'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: position > 0 ? () => _play(position - 1) : null,
-                child: const Text('上一集'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton(
-                onPressed: position + 1 < widget.detail.episodes.length
-                    ? () => _play(position + 1)
-                    : null,
-                child: const Text('下一集'),
-              ),
-            ),
-          ],
-        ),
-      ),
-      Expanded(
-        child: GridView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+        sliver: SliverGrid(
           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
             maxCrossAxisExtent: 80,
             mainAxisSpacing: 10,
             crossAxisSpacing: 10,
             childAspectRatio: 1.25,
           ),
-          itemCount: widget.detail.episodes.length,
-          itemBuilder: (context, index) => FilledButton.tonal(
-            style: FilledButton.styleFrom(
-              padding: EdgeInsets.zero,
-              backgroundColor: index == position
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.surfaceContainerHighest,
-              foregroundColor: index == position
-                  ? Theme.of(context).colorScheme.onPrimary
-                  : Theme.of(context).colorScheme.onSurface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => FilledButton.tonal(
+              style: FilledButton.styleFrom(
+                padding: EdgeInsets.zero,
+                backgroundColor: index == position
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.surfaceContainerHighest,
+                foregroundColor: index == position
+                    ? Theme.of(context).colorScheme.onPrimary
+                    : Theme.of(context).colorScheme.onSurface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: () => _selectEpisode(index),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('${widget.detail.episodes[index].index}'),
+                  if (widget.cachedOnly ||
+                      prefetch.phaseFor(
+                            widget.detail.episodes[index].vid,
+                            quality,
+                          ) ==
+                          PrefetchPhase.ready)
+                    const Text('已缓存', style: TextStyle(fontSize: 9)),
+                ],
               ),
             ),
-            onPressed: () => _selectEpisode(index),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('${widget.detail.episodes[index].index}'),
-                if (widget.cachedOnly ||
-                    prefetch.phaseFor(
-                          widget.detail.episodes[index].vid,
-                          quality,
-                        ) ==
-                        PrefetchPhase.ready)
-                  const Text('已缓存', style: TextStyle(fontSize: 9)),
-              ],
-            ),
+            childCount: widget.detail.episodes.length,
           ),
         ),
       ),
@@ -569,6 +654,14 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
           ),
           actions: [
             IconButton(
+              key: const ValueKey('toggle-episodes'),
+              tooltip: '显示或隐藏选集',
+              onPressed: compact
+                  ? _openEpisodes
+                  : () => episodeWorkspace.currentState?.toggle(),
+              icon: const Icon(Icons.view_sidebar_outlined),
+            ),
+            IconButton(
               tooltip: '设置',
               onPressed: _settings,
               icon: const Icon(Icons.settings_outlined),
@@ -576,129 +669,122 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
           ],
         ),
         body: compact
-            ? Column(
-                children: [
-                  Expanded(child: _touchVideo()),
-                  if (playbackNotice != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        playbackNotice!,
-                        style: const TextStyle(
-                          color: Colors.amber,
-                          fontSize: 12,
+            ? CompactControls(
+                key: compactControls,
+                video: _touchVideo(),
+                playing: playing,
+                busy: preparing || error != null || sheetOpen,
+                controls: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (playbackNotice != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          playbackNotice!,
+                          style: const TextStyle(
+                            color: Colors.amber,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
-                    ),
-                  if (audioNotice != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        audioNotice!,
-                        style: const TextStyle(
-                          color: Colors.amber,
-                          fontSize: 12,
+                    if (audioNotice != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          audioNotice!,
+                          style: const TextStyle(
+                            color: Colors.amber,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
-                    ),
-                  SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (widget.cachedOnly)
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Text(
-                                  '本地连播',
-                                  style: TextStyle(color: Colors.white70),
+                    SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (widget.cachedOnly)
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Text(
+                                    '本地连播',
+                                    style: TextStyle(color: Colors.white70),
+                                  ),
+                                  Switch(
+                                    value: autoNext,
+                                    onChanged: _setAutoNext,
+                                  ),
+                                ],
+                              ),
+                            if (prefetch.total > 0)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Text(
+                                  '已提前缓存 ${prefetch.ready} / ${prefetch.total} 集',
+                                  style: const TextStyle(
+                                    color: Colors.white60,
+                                    fontSize: 12,
+                                  ),
                                 ),
-                                Switch(
-                                  value: autoNext,
-                                  onChanged: _setAutoNext,
+                              ),
+                            Row(
+                              children: [
+                                IconButton(
+                                  tooltip: '上一集',
+                                  onPressed: position > 0
+                                      ? () => _step(-1)
+                                      : null,
+                                  icon: const Icon(Icons.skip_previous_rounded),
+                                  color: Colors.white,
+                                  disabledColor: Colors.white24,
+                                ),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.white,
+                                      side: const BorderSide(
+                                        color: Colors.white38,
+                                      ),
+                                    ),
+                                    onPressed: _openEpisodes,
+                                    icon: const Icon(
+                                      Icons.format_list_numbered_rounded,
+                                    ),
+                                    label: Text(
+                                      '第 ${widget.detail.episodes[position].index} 集 · 选集',
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: '下一集',
+                                  onPressed:
+                                      position + 1 <
+                                          widget.detail.episodes.length
+                                      ? () => _step(1)
+                                      : null,
+                                  icon: const Icon(Icons.skip_next_rounded),
+                                  color: Colors.white,
+                                  disabledColor: Colors.white24,
                                 ),
                               ],
                             ),
-                          if (prefetch.total > 0)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Text(
-                                '已提前缓存 ${prefetch.ready} / ${prefetch.total} 集',
-                                style: const TextStyle(
-                                  color: Colors.white60,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          Row(
-                            children: [
-                              IconButton(
-                                tooltip: '上一集',
-                                onPressed: position > 0
-                                    ? () => _step(-1)
-                                    : null,
-                                icon: const Icon(Icons.skip_previous_rounded),
-                                color: Colors.white,
-                                disabledColor: Colors.white24,
-                              ),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.white,
-                                    side: const BorderSide(
-                                      color: Colors.white38,
-                                    ),
-                                  ),
-                                  onPressed: _openEpisodes,
-                                  icon: const Icon(
-                                    Icons.format_list_numbered_rounded,
-                                  ),
-                                  label: Text(
-                                    '第 ${widget.detail.episodes[position].index} 集 · 选集',
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: '下一集',
-                                onPressed:
-                                    position + 1 < widget.detail.episodes.length
-                                    ? () => _step(1)
-                                    : null,
-                                icon: const Icon(Icons.skip_next_rounded),
-                                color: Colors.white,
-                                disabledColor: Colors.white24,
-                              ),
-                            ],
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               )
-            : LayoutBuilder(
-                builder: (context, space) =>
-                    space.maxWidth >= 900 ||
-                        (space.maxWidth > 650 && space.maxHeight < 450)
-                    ? Row(
-                        children: [
-                          Expanded(child: _video()),
-                          SizedBox(width: 320, child: _episodes()),
-                        ],
-                      )
-                    : Column(
-                        children: [
-                          SizedBox(
-                            height: (space.maxHeight * 0.55).clamp(180, 520),
-                            width: double.infinity,
-                            child: _video(),
-                          ),
-                          Expanded(child: _episodes()),
-                        ],
-                      ),
+            : EpisodeWorkspace(
+                key: episodeWorkspace,
+                video: _video(),
+                episodes: _episodes(),
+                playing: playing,
+                busy: preparing || error != null,
               ),
       );
       return CallbackShortcuts(

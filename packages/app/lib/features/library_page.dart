@@ -692,6 +692,7 @@ class _LibraryPageState extends State<LibraryPage> {
     final padding = compact ? 16.0 : 28.0;
     final list = RefreshIndicator(
       onRefresh: () => _reload(refreshThemes: false),
+      key: const ValueKey('catalog-results'),
       child: CustomScrollView(
         controller: scroll,
         key: const PageStorageKey('catalog-feed'),
@@ -938,40 +939,35 @@ class _LibraryPageState extends State<LibraryPage> {
                       ),
               ),
               _stickyFilters(compact),
-              AnimatedSize(
-                duration: MediaQuery.disableAnimationsOf(context)
-                    ? Duration.zero
-                    : const Duration(milliseconds: 180),
-                alignment: Alignment.topCenter,
-                child: filterOpen
-                    ? _filterPanel(
-                        compact,
-                        ((viewportHeight -
-                                    (compact
-                                        ? (viewportHeight < 400 ? 64 : 136)
-                                        : 88) -
-                                    112)
-                                .clamp(48, 320))
-                            .toDouble(),
-                      )
-                    : const SizedBox.shrink(),
-              ),
               Expanded(
-                child: Stack(
-                  children: [
-                    Positioned.fill(child: list),
-                    if (filterOpen)
-                      Positioned.fill(
-                        child: GestureDetector(
-                          key: const ValueKey('filter-dismiss-area'),
-                          behavior: HitTestBehavior.opaque,
-                          onTap: _closeFilters,
-                          child: ColoredBox(
-                            color: Colors.black.withValues(alpha: .04),
+                child: LayoutBuilder(
+                  builder: (context, area) => Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Positioned.fill(child: list),
+                      if (filterOpen) ...[
+                        Positioned.fill(
+                          child: GestureDetector(
+                            key: const ValueKey('filter-dismiss-area'),
+                            behavior: HitTestBehavior.opaque,
+                            onTap: _closeFilters,
+                            child: ColoredBox(
+                              color: Colors.black.withValues(alpha: .12),
+                            ),
                           ),
                         ),
-                      ),
-                  ],
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          child: _filterPanel(
+                            compact,
+                            area.maxHeight.clamp(48, 320).toDouble(),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
             ],

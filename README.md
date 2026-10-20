@@ -11,7 +11,7 @@ Flutter UI → 共享 Dart 核心 → 本地普通 MP4 → 原生播放器的第
 
 原生 App 不运行 Node 或 ffmpeg。Node/ffmpeg 仅用于开发机的离线对拍和测试素材生成。实际内容接口需可用上游返回，不保证所有格式/内容可播放。
 
-本轮验证：52 项 App 单元/页面测试、5 项 macOS 原生离线集成通过。此前共享核心 113 项、API 28 项通过。此前 1 项真实预缓存验收以及 macOS 与 iOS 模拟器实际播放/seek 集成通过；Android 调试包、macOS 与 Web 均构建成功。iOS 模拟器音频输出有设备初始化告警，真机声音仍需独立验收。当前 Mac 已进一步通过真实上游第 1 集 1080p 播放与 seek POC。
+本轮验证：63 项 App 单元/页面测试、5 项 macOS 原生离线集成通过。此前共享核心 113 项、API 28 项通过。此前 1 项真实预缓存验收以及 macOS 与 iOS 模拟器实际播放/seek 集成通过；Android 调试包、macOS 与 Web 均构建成功。iOS 模拟器音频输出有设备初始化告警，真机声音仍需独立验收。当前 Mac 已进一步通过真实上游第 1 集 1080p 播放与 seek POC。
 
 Android 调试包：`packages/app/build/app/outputs/flutter-apk/app-debug.apk`。
 
@@ -23,6 +23,10 @@ Android 调试包：`packages/app/build/app/outputs/flutter-apk/app-debug.apk`�
 - [分析结论与代码目录对应表](docs/project-map.md)：每项流程对应的源码、测试与工具。
 - 主工程源码：[共享核心](packages/core/README.md)、[API/缓存](packages/api/README.md)、[Flutter App](packages/app/README.md)。
 - [持久化验收证据](docs/evidence/README.md)：清理 build 后仍保留的结果快照。
+
+## 0.2.5：浮层与播放空间
+
+发现/分类筛选覆盖列表，不再推移内容。所有尺寸的选集均默认隐藏、按需覆盖视频，支持保持展开和闲置自动隐藏；手机底部操作也不再占位。[交互规则与验证截图](docs/overlay-playback-validation.md)。
 
 ## 按需 GitHub 打包
 
