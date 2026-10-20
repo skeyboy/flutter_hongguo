@@ -37,8 +37,29 @@ jobs:
         run: python3 tool/ci/plan_build.py
       - run: python3 tool/ci/release_meta.py version
       - run: python3 -m unittest discover -s tool/ci/tests -v
-  native:
+  verify:
     needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/flutter
+      - name: Analyze Flutter application
+        working-directory: packages/app
+        run: flutter analyze
+      - name: Verify shared Dart core
+        working-directory: packages/core
+        run: dart test --reporter expanded
+      - name: Verify API and media pipeline
+        working-directory: packages/api
+        run: dart test --reporter expanded
+      - name: Verify application and adaptive interactions
+        working-directory: packages/app
+        run: flutter test --reporter expanded
+  native:
+    needs: [plan, verify]
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}

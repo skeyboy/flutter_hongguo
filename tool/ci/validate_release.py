@@ -28,15 +28,19 @@ notes = ROOT / 'build/release-notes.md'
 notes.parent.mkdir(exist_ok=True)
 notes.write_text(f'''Native Flutter / shared Dart release {release}.
 
-- Horizontal filter panel, immediate switching and cached catalog refresh.
-- Local series library, offline episode autoplay and 3–5 episode prefetch.
+- My library: favorites, per-episode watch history, resume playback and offline series.
+- Episode downloads: select episodes and quality, manage tasks, retry and play offline.
+- Manual downloads survive ordinary cache cleanup; resumed tasks keep independent recovery journals.
+- Adaptive immersive player, unified episode/settings panel, auto_route navigation and cached images.
+- Application names follow the system language (English, Simplified and Traditional Chinese).
 - Only the selected platforms are built in this run; see the platform list below.
 - Android APKs, when selected, use the repository's stable release key.
 - {ios}
 - macOS is ad-hoc signed, not Apple-notarized; Windows is not Authenticode-signed.
 
+GitHub Actions analysis, shared Dart/core/API tests and Flutter widget tests passed before native builds.
 Selected platform builds and installer completeness checks passed before publishing.
-No device integration tests or full offline workspace verification were run in this packaging workflow.
+Device integration tests were not run in this release workflow; local platform validation limits are documented in the repository.
 Platforms built in this run: {', '.join(platforms)}.
 SHA256SUMS.txt and release-manifest.json describe the attached files.
 ''')
