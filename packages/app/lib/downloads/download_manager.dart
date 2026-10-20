@@ -151,8 +151,16 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
     return null;
   }
 
+  bool _notificationScheduled = false;
   void _emit() {
-    if (!_closed) notifyListeners();
+    if (_closed || _notificationScheduled) return;
+    _notificationScheduled = true;
+    // Coalesce state events and never notify an offstage page synchronously
+    // while another route is being mounted or disposed.
+    scheduleMicrotask(() {
+      _notificationScheduled = false;
+      if (!_closed) notifyListeners();
+    });
   }
 
   Future<void> load() => _loading ??= _load().catchError((Object e) {
@@ -190,12 +198,16 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _save() {
     if (!_loaded) return Future.error(StateError('下载记录尚未读取，未写入变更'));
-    final result = _writes.then(
-      (_) => backend.write({
+    final result = _writes.then((_) async {
+      await backend.write({
         'version': 1,
         'tasks': _tasks.values.map((t) => t.toJson()).toList(),
-      }),
-    );
+      });
+      if (warning != null) {
+        warning = null;
+        _emit();
+      }
+    });
     _writes = result.catchError((Object _) {
       warning = '下载记录保存失败，请检查存储空间；未保存的任务可能在重启后丢失';
       _emit();
@@ -390,9 +402,15 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
       _emit();
     } catch (_) {
       if (_current(active)) {
-        task.phase = DownloadPhase.failed;
-        task.message = '下载未完成，请检查网络、存储或签名设置后重试';
-        task.fraction = null;
+        if (task.phase == DownloadPhase.ready) {
+          // The validated file is already published and must stay protected
+          // even if the final task-state write failed (e.g. disk full).
+          task.message = '已下载，记录保存待重试';
+        } else {
+          task.phase = DownloadPhase.failed;
+          task.message = '下载未完成，请检查网络、存储或签名设置后重试';
+          task.fraction = null;
+        }
         _checkpoint();
         _emit();
       }

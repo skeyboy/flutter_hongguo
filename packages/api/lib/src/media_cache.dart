@@ -78,6 +78,8 @@ class MediaCache {
   )?
   download;
   final Future<void> Function(String vid, String quality)? onFinished;
+  final Future<void> Function(String vid, String quality, String? workingPath)?
+  onJobFinished;
   final Future<VideoTrack> Function(String vid, String quality) resolve;
   int maxFiles, maxBytes, maxConcurrent;
 
@@ -96,6 +98,7 @@ class MediaCache {
     required this.dio,
     this.download,
     this.onFinished,
+    this.onJobFinished,
     required this.resolve,
     this.maxFiles = 30,
     this.maxBytes = 512 * 1024 * 1024,
@@ -259,6 +262,7 @@ class MediaCache {
 
   Future<void> _run(_Job job) async {
     String? working;
+    String? workingIdentity;
     try {
       _check(job);
       await directory.create(recursive: true);
@@ -286,6 +290,7 @@ class MediaCache {
         ]);
         working =
             '${output.path}.${DateTime.now().microsecondsSinceEpoch}.${_serial++}.part';
+        workingIdentity = working;
         job.progress(const MediaProgress(MediaStage.downloading));
         void report(int received, int total) {
           if (job.background && maxBytes > 0) {
@@ -390,6 +395,11 @@ class MediaCache {
         }
       }
     } finally {
+      try {
+        await onJobFinished?.call(job.vid, job.quality, workingIdentity);
+      } catch (_) {
+        /* Keep recovery metadata when cleanup is unavailable. */
+      }
       try {
         await onFinished?.call(job.vid, job.quality);
       } catch (_) {

@@ -8,6 +8,7 @@ class MainFlutterWindow: NSWindow {
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
 
+    self.title = Bundle.main.localizedInfoDictionary?["CFBundleDisplayName"] as? String ?? "Hongguo"
     RegisterGeneratedPlugins(registry: flutterViewController)
 
     super.awakeFromNib()

@@ -1,0 +1,165 @@
+Resolving dependencies in `/Users/lee/Desktop/flutter_hongguo`...
+Downloading packages...
+  _fe_analyzer_shared 103.0.0 (109.0.0 available)
+  analyzer 13.3.0 (14.5.0 available)
+! audio_service 0.18.19 (overridden)
+! audio_session 0.2.4 (overridden)
+! auto_route 11.2.0 (overridden)
+! background_downloader 9.6.4 (overridden)
+! cached_network_image 4.0.4 (overridden)
+! crypto 3.0.7 (overridden)
+! cupertino_icons 1.0.9 (overridden) (2.0.0 available)
+! dio 5.11.1 (overridden)
+! file 7.0.1 (overridden)
+! flutter_cache_manager 3.4.5 (overridden)
+! flutter_riverpod 3.4.3 (overridden)
+! flutter_secure_storage 11.2.0 (overridden)
+! get_it 8.3.0 (overridden) (9.3.0 available)
+! lints 6.1.0 (overridden)
+  material_color_utilities 0.13.0 (0.13.1 available)
+! media_kit 1.2.6 (overridden)
+! media_kit_libs_video 1.0.7 (overridden)
+! media_kit_video 2.0.1 (overridden)
+  package_config 2.2.0 (3.0.0 available)
+! path_provider 2.1.6 (overridden)
+! pointycastle 4.0.0 (overridden)
+  screen_retriever 0.2.2 (0.3.0 available)
+! test 1.31.1 (overridden) (1.33.0 available)
+  test_api 0.7.12 (0.7.15 available)
+  test_core 0.6.18 (0.6.21 available)
+! video_player 2.11.1 (overridden) (2.14.1 available)
+! window_manager 0.5.2 (overridden)
+Got dependencies in `/Users/lee/Desktop/flutter_hongguo`!
+11 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/packages/app/test/local_playlist_test.dart
+00:00 +0: /Users/lee/Desktop/flutter_hongguo/packages/app/test/local_playlist_test.dart: local queue sorts episodes, deduplicates variants and starts at selected episode
+00:00 +1: /Users/lee/Desktop/flutter_hongguo/packages/app/test/local_playlist_test.dart: unidentified files never become an invented multi-series autoplay queue
+00:00 +2: /Users/lee/Desktop/flutter_hongguo/packages/app/test/local_playlist_test.dart: quality prefers original selection, falls back only to existing files, and reports missing
+00:00 +3: /Users/lee/Desktop/flutter_hongguo/packages/app/test/local_playlist_test.dart: auto-next never silently skips missing episode indices
+00:00 +4: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_manager_test.dart: deduplicated sequential queue survives page departure and publishes only real files
+00:00 +5: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_manager_test.dart: mobile background and single-slot playback pause automatically, manual pauses stay paused
+00:00 +6: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_manager_test.dart: restored pending work does not start networking; ready files are reconciled and in-use deletion refused
+00:00 +7: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_manager_test.dart: settings quota cancels oversized transfer and failed storage never starts a new task
+00:00 +8: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_manager_test.dart: a published download stays protected if final state storage fails
+00:00 +9: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_manager_test.dart: unknown storage version is not overwritten by lifecycle changes or shutdown
+00:06 +10: /Users/lee/Desktop/flutter_hongguo/packages/app/test/horizontal_filters_test.dart: horizontal panel anchors below toolbar without overflow at Size(390.0, 600.0)
+00:07 +11: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:08 +12: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:08 +13: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:08 +14: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:08 +15: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: navigation adapts at 390.0 without overflow
+00:08 +16: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:08 +17: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:08 +18: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:09 +19: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:09 +20: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:09 +21: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:09 +22: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:09 +23: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:09 +24: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:09 +25: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:09 +26: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:09 +27: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:09 +28: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:09 +29: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:10 +30: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:10 +31: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:10 +32: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:10 +33: /Users/lee/Desktop/flutter_hongguo/packages/app/test/background_settings_test.dart: mobile confirms each switch immediately and commits only that switch
+00:10 +34: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:10 +35: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:11 +36: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:11 +37: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:11 +38: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:11 +39: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:11 +40: /Users/lee/Desktop/flutter_hongguo/packages/app/test/adaptive_ui_test.dart: settings save 5-episode lookahead and render in mobile navigation
+00:11 +41: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:11 +42: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:12 +43: /Users/lee/Desktop/flutter_hongguo/packages/app/test/library_cache_test.dart: bounded snapshots do not retain a cursor after dropping rows
+00:15 +44: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_catalog_test.dart: TV shell enters detail with D-pad only and restores card focus
+00:15 +45: /Users/lee/Desktop/flutter_hongguo/packages/app/test/drama_cover_test.dart: failed async cover retries independently and local mode never fetches
+00:15 +46: /Users/lee/Desktop/flutter_hongguo/packages/app/test/drama_cover_test.dart: failed async cover retries independently and local mode never fetches
+00:15 +47: /Users/lee/Desktop/flutter_hongguo/packages/app/test/drama_cover_test.dart: failed async cover retries independently and local mode never fetches
+00:15 +48: /Users/lee/Desktop/flutter_hongguo/packages/app/test/drama_cover_test.dart: failed async cover retries independently and local mode never fetches
+00:15 +49: /Users/lee/Desktop/flutter_hongguo/packages/app/test/drama_cover_test.dart: failed async cover retries independently and local mode never fetches
+00:16 +50: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: sidebar focus alone activates all five retained routes
+00:16 +51: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:16 +52: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:17 +53: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:17 +54: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:17 +55: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: filters remain interactive after long scroll at 390.0
+00:18 +56: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:18 +57: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:18 +58: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:18 +59: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:18 +60: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:18 +61: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:19 +62: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:19 +63: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:19 +64: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:19 +65: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:20 +66: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:20 +67: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:20 +68: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:20 +69: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:20 +70: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:20 +71: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:20 +72: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:21 +73: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:21 +74: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:21 +75: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:21 +76: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:21 +77: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:22 +78: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:22 +79: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:22 +80: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:22 +81: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:22 +82: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:22 +83: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:22 +84: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: search stays pinned beside themes and remote crosses the right edge in both directions
+00:22 +85: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_ui_test.dart: download selection → persistent task → My offline library at Size(390.0, 844.0)
+00:22 +86: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_ui_test.dart: download selection → persistent task → My offline library at Size(390.0, 844.0)
+00:22 +87: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_ui_test.dart: download selection → persistent task → My offline library at Size(390.0, 844.0)
+00:23 +88: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_ui_test.dart: download selection → persistent task → My offline library at Size(390.0, 844.0)
+00:23 +89: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: cache and playback switches and limits save; disabled auto paging stays manual
+00:23 +90: /Users/lee/Desktop/flutter_hongguo/packages/app/test/interaction_cache_test.dart: cache and playback switches and limits save; disabled auto paging stays manual
+00:23 +91: /Users/lee/Desktop/flutter_hongguo/packages/app/test/mobile_recovery_test.dart: failed detail keeps saved metadata and manual retry replaces it
+00:23 +92: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(390.0, 844.0)
+00:23 +93: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(390.0, 844.0)
+00:23 +94: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(390.0, 844.0)
+00:24 +95: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(390.0, 844.0)
+00:24 +96: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(390.0, 844.0)
+00:24 +97: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(390.0, 844.0)
+00:24 +98: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(390.0, 844.0)
+00:24 +99: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(390.0, 844.0)
+00:24 +100: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(390.0, 844.0)
+00:24 +101: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(390.0, 844.0)
+00:24 +102: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(390.0, 844.0)
+00:24 +103: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(390.0, 844.0)
+00:24 +104: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(390.0, 844.0)
+00:24 +105: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(390.0, 844.0)
+00:24 +106: /Users/lee/Desktop/flutter_hongguo/packages/app/test/mobile_recovery_test.dart: themes fail independently and retry without blocking feed
+00:24 +107: /Users/lee/Desktop/flutter_hongguo/packages/app/test/mobile_recovery_test.dart: themes fail independently and retry without blocking feed
+00:24 +108: /Users/lee/Desktop/flutter_hongguo/packages/app/test/mobile_recovery_test.dart: themes fail independently and retry without blocking feed
+00:24 +109: /Users/lee/Desktop/flutter_hongguo/packages/app/test/mobile_recovery_test.dart: themes fail independently and retry without blocking feed
+00:24 +110: /Users/lee/Desktop/flutter_hongguo/packages/app/test/mobile_recovery_test.dart: themes fail independently and retry without blocking feed
+00:24 +111: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(1280.0, 900.0)
+00:25 +112: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(1280.0, 900.0)
+00:25 +113: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(1280.0, 900.0)
+00:25 +114: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(1280.0, 900.0)
+00:25 +115: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: failed automatic page stops retrying until explicit retry
+00:25 +116: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(740.0, 400.0)
+00:25 +117: /Users/lee/Desktop/flutter_hongguo/packages/app/test/my_page_test.dart: My library and settings route adapt at Size(740.0, 400.0)
+00:25 +118: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: loaded feeds use the full height and silent refresh/error recovery never resizes cards
+00:25 +119: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: loaded feeds use the full height and silent refresh/error recovery never resizes cards
+00:25 +120: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: loaded feeds use the full height and silent refresh/error recovery never resizes cards
+00:25 +121: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: loaded feeds use the full height and silent refresh/error recovery never resizes cards
+00:25 +122: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: loaded feeds use the full height and silent refresh/error recovery never resizes cards
+00:25 +123: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: loaded feeds use the full height and silent refresh/error recovery never resizes cards
+00:25 +124: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_feed_test.dart: loaded feeds use the full height and silent refresh/error recovery never resizes cards
+00:25 +125: /Users/lee/Desktop/flutter_hongguo/packages/app/test/tv_settings_test.dart: TV policy settings remain valid for the shared persisted schema
+00:26 +125 ~1: /Users/lee/Desktop/flutter_hongguo/packages/app/test/app_navigation_test.dart: auto_route owns detail/settings and restores root at Size(390.0, 844.0)
+00:27 +126 ~1: /Users/lee/Desktop/flutter_hongguo/packages/app/test/app_navigation_test.dart: auto_route owns detail/settings and restores root at Size(390.0, 844.0)
+00:27 +127 ~1: /Users/lee/Desktop/flutter_hongguo/packages/app/test/app_navigation_test.dart: auto_route owns detail/settings and restores root at Size(1280.0, 900.0)
+00:27 +128 ~1: All tests passed!

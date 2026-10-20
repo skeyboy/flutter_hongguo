@@ -90,7 +90,7 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "hongguo_app" "\0"
+            VALUE "FileDescription", "Hongguo" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "hongguo_app" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
@@ -98,10 +98,30 @@ BEGIN
             VALUE "ProductName", "hongguo_app" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
+        BLOCK "080404b0"
+        BEGIN
+            VALUE "CompanyName", "com.example" "\0"
+            VALUE "FileDescription", "红果剧场" "\0"
+            VALUE "FileVersion", VERSION_AS_STRING "\0"
+            VALUE "InternalName", "hongguo_app" "\0"
+            VALUE "OriginalFilename", "hongguo_app.exe" "\0"
+            VALUE "ProductName", "hongguo_app" "\0"
+            VALUE "ProductVersion", VERSION_AS_STRING "\0"
+        END
+        BLOCK "040404b0"
+        BEGIN
+            VALUE "CompanyName", "com.example" "\0"
+            VALUE "FileDescription", "紅果劇場" "\0"
+            VALUE "FileVersion", VERSION_AS_STRING "\0"
+            VALUE "InternalName", "hongguo_app" "\0"
+            VALUE "OriginalFilename", "hongguo_app.exe" "\0"
+            VALUE "ProductName", "hongguo_app" "\0"
+            VALUE "ProductVersion", VERSION_AS_STRING "\0"
+        END
     END
     BLOCK "VarFileInfo"
     BEGIN
-        VALUE "Translation", 0x409, 1252
+        VALUE "Translation", 0x409, 1252, 0x804, 1200, 0x404, 1200
     END
 END
 
@@ -119,3 +139,31 @@ END
 
 /////////////////////////////////////////////////////////////////////////////
 #endif    // not APSTUDIO_INVOKED
+
+// System-selected application window titles.
+// ProductName stays stable because path_provider_windows derives cache paths from it.
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+STRINGTABLE
+BEGIN
+  IDS_APP_TITLE "Hongguo"
+END
+LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED
+STRINGTABLE
+BEGIN
+  IDS_APP_TITLE "红果剧场"
+END
+LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_TRADITIONAL
+STRINGTABLE
+BEGIN
+  IDS_APP_TITLE "紅果劇場"
+END
+LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_HONGKONG
+STRINGTABLE
+BEGIN
+  IDS_APP_TITLE "紅果劇場"
+END
+LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_MACAU
+STRINGTABLE
+BEGIN
+  IDS_APP_TITLE "紅果劇場"
+END

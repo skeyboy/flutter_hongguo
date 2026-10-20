@@ -2,7 +2,7 @@
 # Package a previously built main.dart Release App; no build or global settings.
 set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-app_bundle="$PROJECT_ROOT/packages/app/build/macos/Build/Products/Release/hongguo_app.app"
+app_bundle="$PROJECT_ROOT/packages/app/build/macos/Build/Products/Release/Hongguo.app"
 [[ -d "$app_bundle" ]] || { echo 'Build the main.dart macOS Release first.' >&2; exit 1; }
 mac_arch="$(uname -m)"
 release_stamp="$(date +%Y%m%d-%H%M%S)"

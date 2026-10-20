@@ -14,6 +14,22 @@ struct _MyApplication {
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
+// Resolve the same three application-name locales as the native launchers.
+static const gchar* application_display_name() {
+  const gchar* const* languages = g_get_language_names();
+  for (int i = 0; languages[i] != nullptr; ++i) {
+    const gchar* language = languages[i];
+    if (g_str_has_prefix(language, "zh")) {
+      if (g_strrstr(language, "Hans")) return "红果剧场";
+      if (g_strrstr(language, "Hant") || g_strrstr(language, "TW") ||
+          g_strrstr(language, "HK") || g_strrstr(language, "MO")) return "紅果劇場";
+      return "红果剧场";
+    }
+    if (g_str_has_prefix(language, "en")) return "Hongguo";
+  }
+  return "Hongguo";
+}
+
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
@@ -45,11 +61,11 @@ static void my_application_activate(GApplication* application) {
   if (use_header_bar) {
     GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
     gtk_widget_show(GTK_WIDGET(header_bar));
-    gtk_header_bar_set_title(header_bar, "hongguo_app");
+    gtk_header_bar_set_title(header_bar, application_display_name());
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
   } else {
-    gtk_window_set_title(window, "hongguo_app");
+    gtk_window_set_title(window, application_display_name());
   }
 
   gtk_window_set_default_size(window, 1280, 720);
@@ -107,6 +123,7 @@ static gboolean my_application_local_command_line(GApplication* application,
 // Implements GApplication::startup.
 static void my_application_startup(GApplication* application) {
   // MyApplication* self = MY_APPLICATION(object);
+  g_set_application_name(application_display_name());
 
   // Perform any actions required at application startup.
 

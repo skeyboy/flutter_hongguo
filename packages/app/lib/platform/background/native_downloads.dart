@@ -20,19 +20,37 @@ class NativeDownloads {
   final _tasks = <String>{};
   final SessionVault vault;
   Directory? _journal;
-  NativeDownloads(this.settings, this.dio, {SessionVault? vault})
-    : vault = vault ?? SystemSessionVault();
+  Future<void> _journalWrites = Future.value();
+  NativeDownloads(
+    this.settings,
+    this.dio, {
+    SessionVault? vault,
+    Directory? journalDirectory,
+  }) : vault = vault ?? SystemSessionVault(),
+       _journal = journalDirectory;
+  Future<T> _journalAction<T>(Future<T> Function() action) {
+    final result = _journalWrites.then((_) => action());
+    _journalWrites = result.then<void>((_) {}).catchError((Object _) {});
+    return result;
+  }
+
   Future<Directory> _journalDirectory() async {
     return _journal ??= Directory(
       '${(await getApplicationSupportDirectory()).path}/download-journal',
     );
   }
 
-  Future<void> finish(String vid, String quality) async {
+  Future<void> finish(String vid, String quality, {String? workingPath}) =>
+      _journalAction(() => _finish(vid, quality, workingPath));
+  Future<void> _finish(String vid, String quality, String? workingPath) async {
     if (_journal == null) return;
     final file = File('${_journal!.path}/${vid}_$quality.json');
     if (!await file.exists()) return;
     final record = jsonDecode(await file.readAsString()) as Map;
+    if (workingPath != null &&
+        record['filename'] != File(workingPath).uri.pathSegments.last) {
+      return;
+    }
     final ref = record['keyRef'];
     if (ref is String && ref.startsWith('hongguo.download.')) {
       await vault.delete(ref);
@@ -163,14 +181,17 @@ class NativeDownloads {
     final keyRef = track.encrypted ? 'hongguo.download.${task.taskId}' : null;
     if (keyRef != null) await vault.write(keyRef, track.spadeA);
     try {
-      await FilePreferencesBackend(File('${journal.path}/${vid}_$quality.json'))
-          .write({
-            'vid': vid,
-            'quality': quality,
-            'filename': task.filename,
-            'taskId': task.taskId,
-            'keyRef': keyRef,
-          });
+      await _journalAction(
+        () =>
+            FilePreferencesBackend(File('${journal.path}/${vid}_$quality.json'))
+                .write({
+                  'vid': vid,
+                  'quality': quality,
+                  'filename': task.filename,
+                  'taskId': task.taskId,
+                  'keyRef': keyRef,
+                }),
+      );
     } catch (_) {
       if (keyRef != null) await vault.delete(keyRef);
       rethrow;

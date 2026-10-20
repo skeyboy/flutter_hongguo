@@ -92,7 +92,11 @@ class NativeRuntime
       directory: Directory('${root.path}/media-cache'),
       dio: _dio,
       download: _downloads.download,
-      onFinished: _downloads.finish,
+      onJobFinished: (vid, quality, path) async {
+        if (path != null) {
+          await _downloads.finish(vid, quality, workingPath: path);
+        }
+      },
       maxFiles: settings.maxCacheFiles,
       maxBytes: settings.maxCacheMb * 1024 * 1024,
       maxConcurrent: tvBuild ? 1 : settings.concurrentPreparations,

@@ -1,0 +1,46 @@
+Resolving dependencies in `/Users/lee/Desktop/flutter_hongguo`...
+Downloading packages...
+  _fe_analyzer_shared 103.0.0 (109.0.0 available)
+  analyzer 13.3.0 (14.5.0 available)
+! audio_service 0.18.19 (overridden)
+! audio_session 0.2.4 (overridden)
+! auto_route 11.2.0 (overridden)
+! background_downloader 9.6.4 (overridden)
+! cached_network_image 4.0.4 (overridden)
+! crypto 3.0.7 (overridden)
+! cupertino_icons 1.0.9 (overridden) (2.0.0 available)
+! dio 5.11.1 (overridden)
+! file 7.0.1 (overridden)
+! flutter_cache_manager 3.4.5 (overridden)
+! flutter_riverpod 3.4.3 (overridden)
+! flutter_secure_storage 11.2.0 (overridden)
+! get_it 8.3.0 (overridden) (9.3.0 available)
+! lints 6.1.0 (overridden)
+  material_color_utilities 0.13.0 (0.13.1 available)
+! media_kit 1.2.6 (overridden)
+! media_kit_libs_video 1.0.7 (overridden)
+! media_kit_video 2.0.1 (overridden)
+  package_config 2.2.0 (3.0.0 available)
+! path_provider 2.1.6 (overridden)
+! pointycastle 4.0.0 (overridden)
+  screen_retriever 0.2.2 (0.3.0 available)
+! test 1.31.1 (overridden) (1.33.0 available)
+  test_api 0.7.12 (0.7.15 available)
+  test_core 0.6.18 (0.6.21 available)
+! video_player 2.11.1 (overridden) (2.14.1 available)
+! window_manager 0.5.2 (overridden)
+Got dependencies in `/Users/lee/Desktop/flutter_hongguo`!
+11 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_ui_test.dart
+00:00 +0: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_manager_test.dart: deduplicated sequential queue survives page departure and publishes only real files
+00:00 +1: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_manager_test.dart: mobile background and single-slot playback pause automatically, manual pauses stay paused
+00:00 +2: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_manager_test.dart: restored pending work does not start networking; ready files are reconciled and in-use deletion refused
+00:00 +3: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_manager_test.dart: settings quota cancels oversized transfer and failed storage never starts a new task
+00:00 +4: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_manager_test.dart: unknown storage version is not overwritten by lifecycle changes or shutdown
+00:00 +5: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_ui_test.dart: download selection → persistent task → My offline library at Size(390.0, 844.0)
+00:00 +6: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_ui_test.dart: download selection → persistent task → My offline library at Size(390.0, 844.0)
+00:01 +7: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_ui_test.dart: download selection → persistent task → My offline library at Size(1280.0, 900.0)
+00:01 +8: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_ui_test.dart: download selection → persistent task → My offline library at Size(740.0, 360.0)
+00:01 +9: /Users/lee/Desktop/flutter_hongguo/packages/app/test/download_ui_test.dart: completed download requires confirmation and removes only its own file
+00:01 +10: All tests passed!

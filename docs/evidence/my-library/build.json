@@ -1,0 +1,8 @@
+{
+  "version": "0.2.7+9",
+  "android": "mobile arm64 debug; normal lib/main.dart entry restored and installed",
+  "apk_sha256": "b50b6633d77c5512160e0b3dde345570a7be519ce4c08d1a6e05beb39491de8b",
+  "macos": "Debug/Hongguo.app; normal lib/main.dart entry restored",
+  "device": "Android physical device",
+  "ios": "not run in this iteration"
+}

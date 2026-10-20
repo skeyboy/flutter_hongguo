@@ -1,0 +1,7 @@
+[
+  {
+    "kind": "system_back",
+    "status": "not_tested",
+    "reason": "OEM denies shell INJECT_EVENTS permission"
+  }
+]

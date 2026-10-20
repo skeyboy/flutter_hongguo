@@ -1,0 +1,3 @@
+Exported Debug App root ad-hoc signature refreshed after incremental build.
+Preserved entitlements, requirements and flags; no Developer ID/notarization.
+codesign --verify --deep --strict: passed

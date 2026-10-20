@@ -17,7 +17,7 @@ DIST.mkdir(exist_ok=True)
 
 
 def macos():
-    bundle = APP / 'build/macos/Build/Products/Release/hongguo_app.app'
+    bundle = APP / 'build/macos/Build/Products/Release/Hongguo.app'
     info = plistlib.loads((bundle / 'Contents/Info.plist').read_bytes())
     if info['CFBundleShortVersionString'] != RELEASE:
         raise SystemExit('The macOS bundle version does not match pubspec')
@@ -82,7 +82,7 @@ Description: Hongguo Flutter native video client
     launcher.chmod(0o755)
     desktop = stage / 'usr/share/applications/hongguo.desktop'
     desktop.parent.mkdir(parents=True, exist_ok=True)
-    desktop.write_text('[Desktop Entry]\nType=Application\nName=Hongguo\nExec=hongguo\nIcon=hongguo\nTerminal=false\nCategories=AudioVideo;Video;\n')
+    desktop.write_text('[Desktop Entry]\nType=Application\nName=Hongguo\nName[zh]=红果剧场\nName[zh_CN]=红果剧场\nName[zh_SG]=红果剧场\nName[zh_TW]=紅果劇場\nName[zh_HK]=紅果劇場\nName[zh_MO]=紅果劇場\nExec=hongguo\nIcon=hongguo\nTerminal=false\nCategories=AudioVideo;Video;\n')
     icon = stage / 'usr/share/icons/hicolor/256x256/apps/hongguo.png'
     icon.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(APP / 'macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_256.png', icon)

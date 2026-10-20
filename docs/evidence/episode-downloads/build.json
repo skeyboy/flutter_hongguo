@@ -1,0 +1,23 @@
+{
+  "version": "0.2.7+9",
+  "apk": "artifacts/android/hongguo-0.2.7+9-downloads-arm64-debug.apk",
+  "apkSha256": "298efb8b4c332552cb38f56df8546c91087c4cf658914144b81a4531ad02a986",
+  "macos": "artifacts/macos/downloads-poc/Hongguo.app",
+  "configuration": "Debug; normal lib/main.dart entry; not a release build",
+  "sourceSha256": {
+    "packages/app/lib/downloads/download_manager.dart": "ebcdfe1a00006a9314599d279f6959a09b435539e07bd99181c7cd1c97ec3580",
+    "packages/app/lib/downloads/download_selection.dart": "4f2b7a3c3b3addd3fc4fab20d4a1c9d318559eeaf30eb13dcb4be8a51d559e2b",
+    "packages/app/lib/features/downloads_page.dart": "8edec0683cf0e0f0caa084c689ec05f348b31cb6bff9d9949e4b34fd0f0ec523",
+    "packages/app/lib/features/detail_page.dart": "154a375bf6f568cf23f3cfa93cb33b3551d956c6a8254a406e879bee8595355c",
+    "packages/app/lib/features/my_page.dart": "ee6e59f879e138f0067132e58a10efb486990c2d08330c741ee7a66a64f2ac11",
+    "packages/app/lib/features/player_page.dart": "b2dcb0c4bc5a18280aba2e700a821dc60a648a90850a08a21acd65d5da8a832e",
+    "packages/app/lib/platform/runtime_contract.dart": "92bc16522d82083c5fe197b87d0dee3ce7ad33d10c74bb20ecfed118dcc0ab9f",
+    "packages/app/lib/platform/runtime_native.dart": "625b6bbe634c7ade70299f891b9e7b4d0312c4f9730b3291f84f851ccb62be07",
+    "packages/app/lib/platform/background/native_downloads.dart": "8c30260d72827ee0fd47573a5b080d16b551f1dfc8627e305749890f6b2c83c4",
+    "packages/api/lib/src/media_cache.dart": "2441ce8e230037acf62b3fc58ba77d9ee6054f74887df4492d91402ec6f4b351",
+    "packages/app/lib/navigation/app_navigation.dart": "1899674067f56d036b66dd332081edd5bb8d3c0111045129895335f01ca73f5b"
+  },
+  "snapshotMatchesPrimaryProject": true,
+  "androidPhysicalDevice": "Unavailable; disconnected and reconnect timed out",
+  "nativeTest": "macOS media pipeline + route + offline texture; no online production source used"
+}

@@ -48,6 +48,9 @@ private final class HongguoPictureInPicture: NSObject, FlutterPlugin, AVPictureI
   init(_ channel: FlutterMethodChannel) { self.channel = channel; super.init() }
 
   func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    if call.method == "available" {
+      result(AVPictureInPictureController.isPictureInPictureSupported()); return
+    }
     if call.method == "enter" {
       guard AVPictureInPictureController.isPictureInPictureSupported(), pip == nil,
             let data = call.arguments as? [String: Any], let source = data["source"] as? String,

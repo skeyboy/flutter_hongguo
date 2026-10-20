@@ -286,12 +286,14 @@ void main() {
     'native download transport shares decrypt, manifest and completion cleanup',
     () async {
       var downloads = 0, finishes = 0;
+      String? downloadPath, finishedPath;
       final native = MediaCache(
         directory: temp,
         dio: dio,
         resolve: (_, _) async => track,
         download: (vid, quality, value, path, token, progress) async {
           downloads++;
+          downloadPath = path;
           expect(vid, '123');
           expect(quality, 'best');
           expect(value.spadeA, spade);
@@ -301,6 +303,9 @@ void main() {
           progress(cipher.length, cipher.length);
         },
         onFinished: (_, _) async => finishes++,
+        onJobFinished: (_, _, path) async {
+          finishedPath = path;
+        },
       );
       final lease = native.prepare('123');
       final path = await lease.result;
@@ -310,6 +315,8 @@ void main() {
       expect(downloads, 1);
       expect(adapter.downloads, 0);
       expect(finishes, 1);
+      expect(finishedPath, downloadPath);
+      expect(finishedPath, endsWith('.part'));
     },
   );
   test(

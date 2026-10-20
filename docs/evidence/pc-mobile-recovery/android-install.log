@@ -1,0 +1,3 @@
+Normal lib/main.dart mobile arm64 Debug APK
+adb install --no-streaming -r -t: Success
+No uninstall performed; normal activity started.

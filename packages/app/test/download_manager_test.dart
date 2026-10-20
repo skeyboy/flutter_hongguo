@@ -128,6 +128,27 @@ void main() {
     expect(runtime.downloads.tasks.single.phase, DownloadPhase.failed);
     expect(runtime.downloads.tasks.single.message, contains('容量'));
   });
+  test(
+    'a published download stays protected if final state storage fails',
+    () async {
+      final runtime = DownloadFakeRuntime();
+      addTearDown(runtime.dispose);
+      await runtime.downloads.enqueue(await runtime.catalog.detail('123'), [
+        0,
+      ], 'best');
+      await queueTick();
+      runtime.backend.fail = true;
+      await runtime.complete('11_best');
+      await queueTick();
+      expect(runtime.downloads.tasks.single.phase, DownloadPhase.ready);
+      expect(runtime.downloads.retains('11', 'best'), isTrue);
+      expect(runtime.downloads.warning, isNotNull);
+      runtime.backend.fail = false;
+      await runtime.downloads.reconcile();
+      expect(runtime.downloads.warning, isNull);
+      expect((runtime.backend.data!['tasks'] as List).single['phase'], 'ready');
+    },
+  );
   test('unknown storage version is not overwritten by lifecycle changes or shutdown', () async {
     final backend = DownloadBackend()..data = {'version': 2, 'tasks': []};
     final runtime = DownloadFakeRuntime(backend: backend);
