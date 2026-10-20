@@ -29,8 +29,8 @@ notes.write_text(f'''Native Flutter / shared Dart release {release}.
 
 - Horizontal filter panel, immediate switching and cached catalog refresh.
 - Local series library, offline episode autoplay and 3–5 episode prefetch.
-- Android APKs use the repository's stable release key.
-- Windows x64 installer/portable ZIP; Linux x64 DEB/tar; macOS arm64 DMG/ZIP.
+- Only the selected platforms are built in this run; see the platform list below.
+- Android APKs, when selected, use the repository's stable release key.
 - {ios}
 - macOS is ad-hoc signed, not Apple-notarized; Windows is not Authenticode-signed.
 

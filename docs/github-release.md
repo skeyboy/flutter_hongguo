@@ -47,14 +47,14 @@
 
 | 场景 | 估算 runner 成本 |
 |---|---:|
-| 原 main 全矩阵 + 标签全矩阵 | 约 $1.04 / 版 |
+| 原 main 全矩阵 + 标签全矩阵 | 约 $1.05 / 版 |
 | 新普通 push/PR | $0（不触发） |
 | 新只构建 Android 附件 | 约 $0.05～0.08 / 次 |
 | 新只构建 Linux 附件 | 约 $0.03～0.05 / 次 |
 | 新四端 Release（无 iOS） | 约 $0.30～0.50 / 版 |
 | 额外签名 iOS | 约增加 $0.19～0.62 / 次 |
 
-四端单次估算假设：预检/上传合计约 2～3 Linux job 分钟，Linux 约 3～5 分钟，Android 约 7～10 分钟，Windows 约 5～8 分钟，macOS 约 2～4 分钟。冷缓存、下载波动、构建失败重试会增加费用。按每月 10 版计，旧约 $10.4，新约 $3～5；不需要全平台时按需选择可进一步降低。
+四端单次估算假设：预检/上传合计约 2～3 Linux job 分钟，Linux 约 3～5 分钟，Android 约 7～10 分钟，Windows 约 5～8 分钟，macOS 约 2～4 分钟。冷缓存、下载波动、构建失败重试会增加费用。按每月 10 版计，旧约 $10.5，新约 $3～5；不需要全平台时按需选择可进一步降低。
 
 中间 artifact 的额度按实际 GB·小时与账号计划计算。1 天保留比原 14 天减少约 93% 的同大小保留时长；缓存空间另计。Release 与 Actions artifact 是不同存储，不将 Release 文件体积当作 Actions artifact 长期保留。没有修改账户预算、收费开关或仓库可见性。
 
@@ -80,3 +80,7 @@ python3 -m unittest discover -s tool/ci/tests -v
 ```
 
 未修改 App 功能，因此不重新构建本机五端或重复原生测试。远端验收会单选 Linux 验证附件上传，不为验证工作流重复运行四端。
+
+## 优化后远端实测
+
+[运行 39353376221](https://github.com/skeyboy/flutter_hongguo/actions/runs/39353376221) 已成功，只运行预检与 Linux 打包两个 job。预检 6 秒、Linux job 3 分 1 秒，每 job 向上取整合计 5 个 Linux 分钟，标准超额价约 **$0.030**，未扣免费额度。`release-linux` 约 20.2 MB，打包及上传步骤成功，GitHub API 确认附件存在并保留 1 天；未额外下载验包或启动安装器。未另跑四端或覆盖现有 Release。[机器可读证据](evidence/ci-cost/optimized-run.json)。
