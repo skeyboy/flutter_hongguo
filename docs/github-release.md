@@ -36,7 +36,7 @@
 | Linux | ubuntu-24.04 x64 | DEB、完整 bundle tar.gz |
 | iOS（显式勾选） | macos-15 arm64 | 签名 IPA |
 
-普通附件构建的 Android 使用 debug 签名，仅供试装；Release 使用已有稳定发布密钥。macOS 当前为 ad-hoc 签名、无 Apple 公证，Windows 无 Authenticode 签名。Linux DEB 声明 GTK/libsecret/libmpv 依赖。私有仓库 Release 附件仍需仓库权限。
+普通附件构建的 Android 使用 debug 签名，仅供试装；Release 使用已有稳定发布密钥。macOS 作业显式选用 runner 上版本号最高的 Xcode 26：默认的 16.4 不带 macOS 26 SDK，`connectivity_plus` 7.3.2 里 `NWPathMonitor.isUltraConstrained` 会被判定为不存在的符号而 `** BUILD FAILED **`；找不到 Xcode 26 时在构建前失败，不回落到 16.4。macOS 当前为 ad-hoc 签名、无 Apple 公证，Windows 无 Authenticode 签名。Linux DEB 声明 GTK/libsecret/libmpv 依赖。私有仓库 Release 附件仍需仓库权限。
 
 各平台安装包只构建一次，通过 Actions artifact 中转给发布 job，保留 1 天且压缩级别 0（安装包本身已压缩）。Release 附件长期提供下载；本轮不删除既有历史附件或缓存。Flutter/pub 缓存用于缩短后续安装时间，目前远端缓存约 6.1 GB，不缓存构建目录。
 
