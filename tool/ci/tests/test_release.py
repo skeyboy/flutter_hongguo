@@ -22,7 +22,7 @@ class ReleaseContractTest(unittest.TestCase):
         for path in (self.root / 'pubspec.yaml', self.root / 'packages/app/pubspec.yaml'):
             path.write_text('version: 0.2.3+5\n')
         (self.root / '.fvmrc').write_text('{"flutter":"3.47.4"}')
-        self.environment = patch.dict(os.environ, GITHUB_REF='refs/heads/test', GITHUB_SHA='test-commit')
+        self.environment = patch.dict(os.environ, GITHUB_REF='refs/heads/test', GITHUB_SHA='test-commit', RELEASE_PLATFORMS='["android","macos","windows","linux"]')
         self.environment.start()
         self.addCleanup(self.environment.stop)
         self.root_patch = patch.object(release_meta, 'ROOT', self.root)
@@ -49,10 +49,23 @@ class ReleaseContractTest(unittest.TestCase):
             (self.root / 'dist' / f'Hongguo-0.2.3-{suffix}').write_bytes(b'contract test only')
         with patch.dict(os.environ, IOS_SIGNED='false'):
             runpy.run_path(str(CI / 'validate_release.py'))
-        self.assertIn('no installable IPA', (self.root / 'dist/iOS-signing-status.txt').read_text())
+        self.assertIn('iOS was not built', (self.root / 'dist/iOS-signing-status.txt').read_text())
         with patch.dict(os.environ, IOS_SIGNED='true'):
             with self.assertRaises(SystemExit):
                 runpy.run_path(str(CI / 'validate_release.py'))
+
+    def test_selective_release_requires_only_selected_assets(self):
+        dist = self.root / 'dist'
+        dist.mkdir()
+        for abi in ['armeabi-v7a', 'arm64-v8a', 'x86_64']:
+            (dist / f'Hongguo-0.2.3-android-{abi}.apk').write_bytes(b'fixture')
+        with patch.dict(os.environ, RELEASE_PLATFORMS='["android"]', IOS_SIGNED='false'):
+            runpy.run_path(str(CI / 'validate_release.py'))
+        from plan_build import selected_platforms
+        self.assertEqual(selected_platforms('["android","macos"]'), ['android', 'macos'])
+        for raw in ['[]', '["ios"]', '["android","android"]', '{}', '[1]', 'invalid']:
+            with self.assertRaises(SystemExit):
+                selected_platforms(raw)
 
     def test_checksums_use_portable_asset_names(self):
         dist = self.root / 'dist'

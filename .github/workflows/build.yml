@@ -1,11 +1,17 @@
-name: Verify and build native platforms
+name: Build selected installer attachments
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
+    inputs:
+      platforms:
+        description: 'Platforms JSON array; build only what you need'
+        type: string
+        default: '["android"]'
+        required: true
   workflow_call:
     inputs:
+      platforms:
+        type: string
+        default: '["android","macos","windows","linux"]'
       release-build:
         type: boolean
         default: false
@@ -15,56 +21,35 @@ concurrency:
   group: build-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 jobs:
-  quality:
+  plan:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 3
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          submodules: true
           persist-credentials: false
-      - uses: ./.github/actions/flutter
-      - name: Install test dependencies
-        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libsecret-1-dev libmpv-dev ffmpeg
-      - name: Validate release metadata
-        run: python3 tool/ci/release_meta.py version
-      - name: Packaging contract tests
-        run: python3 -m unittest discover -s tool/ci/tests -v
-      - name: Offline workspace verification
+      - name: Validate selected platforms before starting paid builders
+        id: plan
         env:
-          HONGGUO_FLUTTER_BIN: ${{ env.FLUTTER_ROOT }}/bin
-        run: ./tool/verify_all.sh
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: verification-logs
-          path: build/verification/*.log
-          retention-days: 14
+          PLATFORMS: ${{ inputs.platforms }}
+        run: python3 tool/ci/plan_build.py
+      - run: python3 tool/ci/release_meta.py version
+      - run: python3 -m unittest discover -s tool/ci/tests -v
   native:
-    needs: quality
+    needs: plan
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - platform: linux
-            os: ubuntu-24.04
-          - platform: windows
-            os: windows-2022
-          - platform: macos
-            os: macos-15
-          - platform: android
-            os: ubuntu-24.04
-          - platform: ios
-            os: macos-15
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          submodules: true
           persist-credentials: false
       - uses: ./.github/actions/flutter
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
@@ -96,57 +81,6 @@ jobs:
           FLUTTER_MACOS_ARM64_ONLY: 'true'
         working-directory: packages/app
         run: flutter build macos --release --target lib/main.dart
-      - name: Lift app sandbox for the CI test build
-        if: matrix.platform == 'macos'
-        run: |
-          # Hosted runners deny the com.apple.cmio.registerassistant mach lookup that
-          # CoreAudio needs during HAL init, which deadlocks mpv's audio thread.
-          # Local debug builds keep the sandbox; this patch lives in the CI checkout only.
-          /usr/libexec/PlistBuddy -c "Delete :com.apple.security.app-sandbox" \
-            packages/app/macos/Runner/DebugProfile.entitlements
-          echo "== resulting entitlements =="
-          /usr/libexec/PlistBuddy -c "Print" packages/app/macos/Runner/DebugProfile.entitlements
-      - name: Mac native playback and UI verification
-        if: matrix.platform == 'macos'
-        working-directory: packages/app
-        # Hosted runners have no accelerated OpenGL pixel format, so media_kit_video's
-        # GPU texture path aborts on startup. CPU rendering keeps the native libmpv
-        # pipeline under test; the GPU path is covered by the on-device Mac run.
-        run: flutter test integration_test/offline_playback_test.dart -d macos --dart-define=HONGGUO_SOFTWARE_VIDEO=true --reporter expanded
-      - name: Collect macOS crash diagnostics
-        if: matrix.platform == 'macos' && failure()
-        run: |
-          set +e
-          mkdir -p macos-diagnostics
-          APP=packages/app/build/macos/Build/Products/Debug/hongguo_app.app
-          { echo "== codesign --verify --deep --strict =="
-            codesign --verify --deep --strict --verbose=2 "$APP"
-            echo "== embedded signature of native player libs =="
-            find "$APP/Contents/Frameworks" -maxdepth 3 \( -name '*.dylib' -o -name '*.framework' \) \
-              -exec codesign --verify --verbose=2 {} \; 2>&1 | tail -60
-            echo "== otool -L main executable =="
-            otool -L "$APP/Contents/MacOS/hongguo_app"
-            echo "== entitlements =="
-            codesign -d --entitlements - "$APP"
-          } > macos-diagnostics/signing.txt 2>&1
-          { echo "== DiagnosticReports listing =="
-            ls -la ~/Library/Logs/DiagnosticReports/
-          } > macos-diagnostics/reports-list.txt 2>&1
-          find ~/Library/Logs/DiagnosticReports -name '*.ips' -mmin -20 \
-            -exec cp -f {} macos-diagnostics/ \; 2>/dev/null
-          log show --last 15m --style compact \
-            --predicate 'process == "hongguo_app" OR eventMessage CONTAINS "hongguo_app" OR eventMessage CONTAINS "mpv"' \
-            > macos-diagnostics/syslog.txt 2>&1
-          echo "== collected =="
-          ls -la macos-diagnostics
-          du -sh macos-diagnostics
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: matrix.platform == 'macos' && failure()
-        with:
-          name: macos-crash-diagnostics
-          path: macos-diagnostics/
-          if-no-files-found: warn
-          retention-days: 14
       - name: Build Windows
         if: matrix.platform == 'windows'
         working-directory: packages/app
@@ -158,18 +92,10 @@ jobs:
       - name: Package desktop installers
         if: contains(fromJSON('["macos","windows","linux"]'), matrix.platform)
         run: ${{ runner.os == 'Windows' && 'python' || 'python3' }} tool/ci/package_desktop.py '${{ matrix.platform }}'
-      - name: Verify unsigned iOS device build
-        if: matrix.platform == 'ios'
-        working-directory: packages/app
-        run: flutter build ios --release --no-codesign
-      - name: Explain iOS signing requirement
-        if: matrix.platform == 'ios'
-        run: |
-          mkdir -p dist
-          printf '%s\n' 'iOS device compilation passed. A signed IPA requires IOS_SIGNING_ENABLED=true and the signing secrets documented in docs/github-release.md. No unsigned IPA is presented as installable.' > dist/iOS-signing-status.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-${{ matrix.platform }}
           path: dist/*
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1
+          compression-level: 0

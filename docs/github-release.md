@@ -1,92 +1,82 @@
-# GitHub 私有仓库、五端验证和 Release
+# GitHub Actions 按需打包与附件上传
 
-## Git 与发布顺序
+当前配置以安装包附件为目标，全部在 GitHub-hosted runners 执行。不依赖本机构建、等待 CI 后打标签、Node 服务或 self-hosted runner。
 
-主工程由本目录 Git 管理；[references/hongguo-web](../references/hongguo-web) 是上游 submodule，URL 为 `https://github.com/sunnysky123/hongguo-web.git`，初始固定提交 `2d88d4855d679cbed59c9237e1672bc5decf3d57`。`imports/` 保留此前迁入的独立 Dart 快照，不与主 workspace 混用。
+## 操作入口
 
-克隆时使用 `git clone --recurse-submodules`，已有克隆执行 `git submodule update --init`。App 运行不依赖 Node 或 submodule 中的运行时代码。
+进入仓库 **Actions**：
 
-横向筛选已先完成：48 项 App 测试、3 项 Mac 原生集成通过，见 [实现与截图](design/horizontal-filter-panel.md)。随后配置 CI：
+- **Build selected installer attachments**：只构建并上传 Actions 附件。默认 `platforms=["android"]`；可改为 `["macos"]`、`["windows","linux"]` 或四端数组。附件保留 **1 天**。
+- **Publish selected installer attachments**：构建选中平台并把安装包、SHA256、manifest 上传到 Release。默认四端，iOS 默认关闭。
 
-1. main 推送或 PR：完整离线验证 → 五平台构建 → 保存构建附件，不创建 Release。
-2. main 提交的平台矩阵通过后，推送与 pubspec 对应的 `v0.2.4` 标签。
-3. 标签流程再次验证构建，恢复稳定 Android 发布密钥，检查安装包完整性。
-4. 汇总附件并生成 SHA256/manifest，创建草稿，上传成功后发布到私有仓库 Releases。
+两者均可在 GitHub 网页点击 **Run workflow**。不再在 main push/PR 自动执行平台矩阵，避免一次修改、一次标签重复构建。版本标签 `v*` 仍可触发一次四端 Release；不要为同一次发布再手动启动另一条流程。
 
-[build.yml](../.github/workflows/build.yml) 支持 PR、main、手动验证和复用；[release.yml](../.github/workflows/release.yml) 仅由标签触发。Action 固定完整 SHA，PR/main 不读取发布签名密钥。
+手动 Release 从所选分支的 pubspec 读取版本，创建对应标签；标签已指向不同提交时会在构建前拒绝。请先同时增加根目录与 App 的 pubspec 版本。Actions 使用 GITHUB_TOKEN 创建的标签不会再次触发标签工作流。
 
-## 安装包
+选项 `platforms` 是 JSON 数组，只接受 android/macos/windows/linux，不允许空值、重复或任意 runner 输入。未选平台不占用 runner，也不要求它的附件存在。不同提交不得覆盖同一版本；同提交重试可更新对应附件。
 
-| 平台 | 架构 | Release 附件 |
+`tool/publish_github.sh` 仅作为兼容入口，提交后调用 workflow_dispatch；不再配置仓库、构建、推送或轮询。
+
+## 保留的检查与已移除的步骤
+
+保留：版本一致性、平台参数、5 项打包契约测试、Flutter lockfile、实际 Release 编译、Android 稳定签名校验、所选安装包存在性、SHA256。
+
+移除默认路径中的完整单元/页面测试、AOT/JS 对拍、ffmpeg 验证、macOS 原生播放器/钥匙串集成、崩溃日志采集、无签名 iOS 构建。这是按需打包流程，**不再声称完整质量或设备验收通过**；需要完整验证时可另行本地执行 `./tool/verify_all.sh` 和 `./tool/verify_native.sh macos`。
+
+不检出 submodule：原生打包不依赖参考项目。Git 中仍保留 `references/hongguo-web` 固定引用及来源说明。
+
+## 平台与附件
+
+| 平台 | Runner | 附件 |
 |---|---|---|
-| Android | arm64-v8a、armeabi-v7a、x86_64 | 三个验证签名的 APK |
-| macOS | Apple Silicon arm64 | DMG、完整 App ZIP |
-| Windows | x64 | Inno Setup 安装 EXE、包含播放器 DLL/VC runtime 的便携 ZIP |
-| Linux | x64，Ubuntu 24.04 构建基线 | DEB、完整 bundle tar.gz |
-| iOS | arm64 | 始终验证无签名设备编译；签名资料齐全并启用后附可安装 IPA |
+| Android | ubuntu-24.04 | arm64-v8a / armeabi-v7a / x86_64 APK |
+| macOS | macos-15 arm64 | DMG、完整 App ZIP |
+| Windows | windows-2022 x64 | 安装 EXE、含依赖的便携 ZIP |
+| Linux | ubuntu-24.04 x64 | DEB、完整 bundle tar.gz |
+| iOS（显式勾选） | macos-15 arm64 | 签名 IPA |
 
-Linux 需要 GTK、libsecret、libmpv 和系统钥匙串服务，DEB 声明运行库依赖。macOS 当前为 ad-hoc 签名且未 Apple 公证；Windows 未做 Authenticode 签名。私有 Release 附件下载需要仓库权限。
+普通附件构建的 Android 使用 debug 签名，仅供试装；Release 使用已有稳定发布密钥。macOS 当前为 ad-hoc 签名、无 Apple 公证，Windows 无 Authenticode 签名。Linux DEB 声明 GTK/libsecret/libmpv 依赖。私有仓库 Release 附件仍需仓库权限。
 
-iOS 不把无签名 App/ZIP 当作可安装 IPA。没有 Apple 资料时，Release 的 `iOS-signing-status.txt` 及发布说明会明确没有 IPA；启用签名后，签名构建失败会阻止发布。IPA 仅能安装到 provisioning profile 覆盖的设备。
+各平台安装包只构建一次，通过 Actions artifact 中转给发布 job，保留 1 天且压缩级别 0（安装包本身已压缩）。Release 附件长期提供下载；本轮不删除既有历史附件或缓存。Flutter/pub 缓存用于缩短后续安装时间，目前远端缓存约 6.1 GB，不缓存构建目录。
 
-## 登录与上传
+## 费用重估（2026-10-20）
 
-在本机登录，不要把 token 发到聊天或写入仓库：
+采用 GitHub 官方标准 runner 超额单价：Linux x64 **$0.006/分钟**、Windows x64 **$0.010/分钟**、macOS **$0.062/分钟**，每个 job 向上取整到分钟。以下均为未扣免费额度、未含存储的估算，不能当作实际账单。
 
-```bash
-cd /Users/lee/Desktop/flutter_hongguo
-gh auth login --hostname github.com --web --scopes repo,workflow
-./tool/publish_github.sh
-```
+此前成功的 main 和标签运行分别为 `39273765901`、`39343019017`，按开始/结束时间计算。详见 [基准记录](evidence/ci-cost/baseline.json)。
 
-脚本默认创建当前登录账号下的私有 `flutter_hongguo`，也可传入其他仓库名。已有目标必须私有，不覆盖不同的 origin。脚本配置 Android Secrets、推送 main、等待矩阵通过，再打标签并等待 Release。工作区不干净或任一步失败均停止，不强推或跳过校验。
+| 场景 | 估算 runner 成本 |
+|---|---:|
+| 原 main 全矩阵 + 标签全矩阵 | 约 $1.04 / 版 |
+| 新普通 push/PR | $0（不触发） |
+| 新只构建 Android 附件 | 约 $0.05～0.08 / 次 |
+| 新只构建 Linux 附件 | 约 $0.03～0.05 / 次 |
+| 新四端 Release（无 iOS） | 约 $0.30～0.50 / 版 |
+| 额外签名 iOS | 约增加 $0.19～0.62 / 次 |
 
-仓库需要允许 Actions 并有可用 runner 配额；脚本不会修改账号计费。
+四端单次估算假设：预检/上传合计约 2～3 Linux job 分钟，Linux 约 3～5 分钟，Android 约 7～10 分钟，Windows 约 5～8 分钟，macOS 约 2～4 分钟。冷缓存、下载波动、构建失败重试会增加费用。按每月 10 版计，旧约 $10.4，新约 $3～5；不需要全平台时按需选择可进一步降低。
 
-## Android 长期签名
+中间 artifact 的额度按实际 GB·小时与账号计划计算。1 天保留比原 14 天减少约 93% 的同大小保留时长；缓存空间另计。Release 与 Actions artifact 是不同存储，不将 Release 文件体积当作 Actions artifact 长期保留。没有修改账户预算、收费开关或仓库可见性。
 
-本机 `python3 tool/ci/configure_android_signing.py` 仅首次生成长期密钥，保存在 Git 忽略的 `artifacts/signing/android/`。应单独备份该目录，保留未来升级签名一致性。此前调试 APK 的签名与发布签名不同。
+来源：[官方 runner 单价](https://docs.github.com/en/billing/reference/actions-runner-pricing)、[Actions 计费](https://docs.github.com/en/billing/concepts/product-billing/github-actions)、[Release 附件限制](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases)。
 
-发布脚本将以下值写入目标仓库 Secrets，不提交密钥/密码：
+## 签名配置
 
-- `ANDROID_KEYSTORE_BASE64`
-- `ANDROID_STORE_PASSWORD`
-- `ANDROID_KEY_PASSWORD`
-- `ANDROID_KEY_ALIAS`
+已有 Android Secrets 继续使用：`ANDROID_KEYSTORE_BASE64`、`ANDROID_STORE_PASSWORD`、`ANDROID_KEY_PASSWORD`、`ANDROID_KEY_ALIAS`。本机 `artifacts/signing/android/` 为 Git 忽略的备份，工作流不生成新密钥。
 
-标签构建缺少任意值会失败，不退回 debug 签名。普通 PR/main 编译允许 debug 签名，但不会发布 Release。
+需要 IPA 时设置仓库变量 `IOS_SIGNING_ENABLED=true`，配置：
 
-## iOS 签名
+- `IOS_CERTIFICATE_BASE64`、`IOS_CERTIFICATE_PASSWORD`
+- `IOS_PROVISION_PROFILE_BASE64`
+- `IOS_EXPORT_OPTIONS_BASE64`
 
-在私有仓库配置自己的 Apple Distribution 证书和 profile：
+然后手动发布时勾选 ios。缺少启用标记在构建前失败；不生成不可安装的“无签名 IPA”。导出 method 支持 release-testing/ad-hoc/enterprise；Team、bundle ID 和 profile 必须匹配。当前 iOS bundle ID 是 `com.example.hongguoApp`。临时 keychain 在结束时清理。
 
-| Secret | 内容 |
-|---|---|
-| `IOS_CERTIFICATE_BASE64` | p12 文件 base64 |
-| `IOS_CERTIFICATE_PASSWORD` | p12 密码 |
-| `IOS_PROVISION_PROFILE_BASE64` | profile 文件 base64 |
-| `IOS_EXPORT_OPTIONS_BASE64` | ExportOptions.plist base64 |
-
-ExportOptions 的 method 支持 `release-testing`、`ad-hoc`、`enterprise`。Team、bundle ID、profile 与证书必须一致；当前 iOS ID 为 `com.example.hongguoApp`。配置完成再设置仓库变量 `IOS_SIGNING_ENABLED=true`。
-
-CI 使用临时 keychain，配置 Runner 的 Team/profile 后导出 IPA，结束后删除临时签名材料。工程修改使用 CocoaPods 提供的 xcodeproj Ruby gem。
-
-参考：[Flutter iOS 发布](https://docs.flutter.dev/deployment/ios)、[GitHub runner 架构与标签](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)、[工作流附件](https://docs.github.com/en/actions/concepts/workflows-and-actions/workflow-artifacts)。
-
-## 本地检查
+## 工作流检查
 
 ```bash
-./tool/verify_all.sh
+actionlint .github/workflows/*.yml
 python3 -m unittest discover -s tool/ci/tests -v
-actionlint .github/workflows/build.yml .github/workflows/release.yml
 ```
 
-本轮完整验证：核心 113、API 28、App 48 项测试；AOT/JS 各 103 向量、84 个媒体样本解密和 ffmpeg 解码；另有 4 项打包契约测试。静态检查通过不代表 GitHub 已运行，也不等于其他平台的设备验收。
-
-发布构建不使用 `--no-pub`：此 SDK 会据此重新生成 Release 插件注册文件，排除 `integration_test` 等开发期插件。依赖先由 setup 步骤按 lockfile 校验。
-
-## 本轮本机产物与证据
-
-0.2.3 的 macOS DMG/ZIP、三架构 Android APK 已在本机构建，APK 签名与长期发布证书逐一匹配。安装包位于 Git 忽略的 `dist/`，包含 SHA256SUMS 和 manifest。Windows/Linux/iOS 的 GitHub 构建尚未执行；本机 CLI 和 SSH 均未通过 GitHub 认证，尚未创建私有远端或发布 Release。
-
-[本轮验证摘要与日志](evidence/github-ci)。
+未修改 App 功能，因此不重新构建本机五端或重复原生测试。远端验收会单选 Linux 验证附件上传，不为验证工作流重复运行四端。

@@ -24,6 +24,10 @@ Android 调试包：`packages/app/build/app/outputs/flutter-apk/app-debug.apk`�
 - 主工程源码：[共享核心](packages/core/README.md)、[API/缓存](packages/api/README.md)、[Flutter App](packages/app/README.md)。
 - [持久化验收证据](docs/evidence/README.md)：清理 build 后仍保留的结果快照。
 
+## 按需 GitHub 打包
+
+在 Actions 选择平台运行，普通 push/PR 不自动打包；构建一次后上传附件或 Release，中间文件保留 1 天。默认跳过高成本集成测试和无签名 iOS 编译。[操作与成本估算](docs/github-release.md)。
+
 ## 0.2.4：本地缓存连播
 
 同一剧目的缓存分集按集号连续播放，支持连播开关与本地清晰度回退；缺集或文件失效时停止，不自动联网补下。[规则与验收](docs/local-cache-autoplay.md)。

@@ -1,23 +1,59 @@
-name: Publish installable release
+name: Publish selected installer attachments
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: 'Platforms JSON array; others are not rebuilt'
+        type: string
+        default: '["android","macos","windows","linux"]'
+        required: true
+      ios:
+        description: 'Build signed iOS IPA (requires Apple signing secrets)'
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Reject unusable signing or version requests before building
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUEST_IOS: ${{ inputs.ios }}
+          IOS_ENABLED: ${{ vars.IOS_SIGNING_ENABLED }}
+        run: |
+          if [[ "$REQUEST_IOS" == true && "$IOS_ENABLED" != true ]]; then
+            echo 'Configure Apple signing secrets and IOS_SIGNING_ENABLED before requesting an IPA.' >&2
+            exit 1
+          fi
+          tag="v$(python3 tool/ci/release_meta.py version)"
+          existing=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq .sha 2>/dev/null || true)
+          if [[ -n "$existing" && "$existing" != "$GITHUB_SHA" ]]; then
+            echo 'Increment pubspec: this version already points to a different commit.' >&2
+            exit 1
+          fi
   build:
+    needs: preflight
     uses: ./.github/workflows/build.yml
     with:
       release-build: true
+      platforms: ${{ inputs.platforms || '["android","macos","windows","linux"]' }}
     secrets: inherit
   ios-signed:
     needs: build
-    if: vars.IOS_SIGNING_ENABLED == 'true'
+    if: inputs.ios == true && vars.IOS_SIGNING_ENABLED == 'true'
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -43,6 +79,8 @@ jobs:
           name: release-ios-signed
           path: dist/*.ipa
           if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
       - name: Remove temporary signing material
         if: always()
         run: |
@@ -59,6 +97,9 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+      - name: Resolve release version
+        id: version
+        run: echo "tag=v$(python3 tool/ci/release_meta.py version)" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: release-*
@@ -67,15 +108,22 @@ jobs:
       - name: Verify required installers and describe iOS status
         env:
           IOS_SIGNED: ${{ needs.ios-signed.result == 'success' }}
+          RELEASE_PLATFORMS: ${{ inputs.platforms || '["android","macos","windows","linux"]' }}
         run: python3 tool/ci/validate_release.py
       - name: Generate checksums and release manifest
         run: python3 tool/ci/release_meta.py checksums dist
       - name: Publish completed assets
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: |
-          if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --target "$GITHUB_SHA" --draft --title "Hongguo $GITHUB_REF_NAME" --notes-file build/release-notes.md
+          existing=$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha 2>/dev/null || true)
+          if [[ -n "$existing" && "$existing" != "$GITHUB_SHA" ]]; then
+            echo 'Version already belongs to a different commit. Increment pubspec before publishing.' >&2
+            exit 1
           fi
-          gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --clobber
-          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --notes-file build/release-notes.md
+          if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title "Hongguo $RELEASE_TAG" --notes-file build/release-notes.md
+          fi
+          gh release upload "$RELEASE_TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --notes-file build/release-notes.md

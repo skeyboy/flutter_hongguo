@@ -1,0 +1,97 @@
+{
+  "asOf": "2026-10-20",
+  "source": "https://docs.github.com/en/billing/reference/actions-runner-pricing",
+  "basis": "Standard runner list rates, per-job minute rounding; excludes included quota and storage",
+  "runs": [
+    {
+      "run": 39273765901,
+      "jobs": [
+        {
+          "job": "quality",
+          "minutesRounded": 3,
+          "usdPerMinute": 0.006,
+          "estimatedUsd": 0.018
+        },
+        {
+          "job": "native (ios, macos-15)",
+          "minutesRounded": 2,
+          "usdPerMinute": 0.062,
+          "estimatedUsd": 0.124
+        },
+        {
+          "job": "native (macos, macos-15)",
+          "minutesRounded": 4,
+          "usdPerMinute": 0.062,
+          "estimatedUsd": 0.248
+        },
+        {
+          "job": "native (linux, ubuntu-24.04)",
+          "minutesRounded": 4,
+          "usdPerMinute": 0.006,
+          "estimatedUsd": 0.024
+        },
+        {
+          "job": "native (windows, windows-2022)",
+          "minutesRounded": 7,
+          "usdPerMinute": 0.01,
+          "estimatedUsd": 0.07
+        },
+        {
+          "job": "native (android, ubuntu-24.04)",
+          "minutesRounded": 7,
+          "usdPerMinute": 0.006,
+          "estimatedUsd": 0.042
+        }
+      ],
+      "estimatedUsd": 0.526
+    },
+    {
+      "run": 39343019017,
+      "jobs": [
+        {
+          "job": "build / quality",
+          "minutesRounded": 3,
+          "usdPerMinute": 0.006,
+          "estimatedUsd": 0.018
+        },
+        {
+          "job": "build / native (macos, macos-15)",
+          "minutesRounded": 4,
+          "usdPerMinute": 0.062,
+          "estimatedUsd": 0.248
+        },
+        {
+          "job": "build / native (linux, ubuntu-24.04)",
+          "minutesRounded": 4,
+          "usdPerMinute": 0.006,
+          "estimatedUsd": 0.024
+        },
+        {
+          "job": "build / native (ios, macos-15)",
+          "minutesRounded": 2,
+          "usdPerMinute": 0.062,
+          "estimatedUsd": 0.124
+        },
+        {
+          "job": "build / native (windows, windows-2022)",
+          "minutesRounded": 5,
+          "usdPerMinute": 0.01,
+          "estimatedUsd": 0.05
+        },
+        {
+          "job": "build / native (android, ubuntu-24.04)",
+          "minutesRounded": 9,
+          "usdPerMinute": 0.006,
+          "estimatedUsd": 0.054
+        },
+        {
+          "job": "publish",
+          "minutesRounded": 1,
+          "usdPerMinute": 0.006,
+          "estimatedUsd": 0.006
+        }
+      ],
+      "estimatedUsd": 0.524
+    }
+  ]
+}
