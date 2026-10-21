@@ -25,6 +25,7 @@ flutter_hongguo/
 │   └── app/
 │       ├── lib/                   Flutter 页面、DI 与平台 runtime
 │       ├── lib/cast/              投屏入口、设备面板、遥控器页与会话交接
+│       ├── lib/search/            搜索历史落盘与推荐位取数
 │       ├── test/                  页面与交互测试
 │       ├── integration_test/      离线原生播放 / Mac 真实单集 POC
 │       └── android/ ios/ macos/ windows/ linux/ web/
@@ -49,6 +50,7 @@ flutter_hongguo/
 | 流式下载、取消、并发合并、原子缓存、淘汰 | [media_cache.dart](../packages/api/lib/src/media_cache.dart) | [media_cache_test.dart](../packages/api/test/media_cache_test.dart) |
 | Flutter 入口与依赖装配 | [main.dart](../packages/app/lib/main.dart)、[bootstrap.dart](../packages/app/lib/bootstrap.dart) | [widget_test.dart](../packages/app/test/widget_test.dart) |
 | 首页、搜索、分类与题材 | [library_page.dart](../packages/app/lib/features/library_page.dart) | widget_test.dart |
+| 搜索聚焦下拉：历史落盘与推荐位取数 | [search_history.dart](../packages/app/lib/search/search_history.dart)、[search_suggestions.dart](../packages/app/lib/search/search_suggestions.dart) | [search_history_test.dart](../packages/app/test/search_history_test.dart)、[search_suggestions_test.dart](../packages/app/test/search_suggestions_test.dart) |
 | 详情与选集 | [detail_page.dart](../packages/app/lib/features/detail_page.dart) | widget_test.dart |
 | 本地播放器、seek、切集、预热与生命周期 | [player_page.dart](../packages/app/lib/features/player_page.dart) | [离线原生集成测试](../packages/app/integration_test/offline_playback_test.dart) |
 | 原生运行链路与私有目录 | [runtime_native.dart](../packages/app/lib/platform/runtime_native.dart) | [Mac 真实单集测试](../packages/app/integration_test/macos_live_poc_test.dart) |

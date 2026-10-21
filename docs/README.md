@@ -41,6 +41,7 @@
 ## PC / Mobile 初版改造
 
 - [实施前 UI 设计](design/pc-mobile-ui.md)
+- [搜索聚焦下拉设计](design/search-focus-suggestions.md)：最近搜索与推荐位的交互、存储、标记语义与后端配合清单。
 - [预缓存、设置与响应式 UI 实现及验证](pc-mobile-settings-prefetch.md)
 
 ## 建议阅读顺序

@@ -14,6 +14,7 @@ import '../widgets/drama_cover.dart';
 export '../widgets/drama_cover.dart';
 import '../localization/application_name.dart';
 import '../catalog/library_cache.dart';
+import '../search/search_suggestions.dart';
 import 'detail_page.dart';
 import 'my_page.dart';
 
@@ -26,6 +27,17 @@ class LibraryPage extends StatefulWidget {
 
 class _LibraryPageState extends State<LibraryPage> {
   final search = TextEditingController();
+  final searchFocus = FocusNode();
+  final searchField = GlobalKey();
+  final searchTapGroup = Object();
+  final suggester = SearchSuggester();
+  OverlayEntry? suggestionsEntry;
+  List<String> historyRows = const [];
+  List<Suggestion> suggestionRows = const [];
+  bool suggestionsOpen = false, suggestionsLoading = false;
+  int suggestionsRevision = 0;
+  String? suggestionsGenre;
+  Rect? suggestionAnchor;
   final scroll = ScrollController();
   String genre = 'short_play',
       query = '',
@@ -81,16 +93,21 @@ class _LibraryPageState extends State<LibraryPage> {
       });
     }
     scroll.addListener(_nearEnd);
+    searchFocus.addListener(_onSearchFocus);
+    search.addListener(_onSearchText);
     _reload();
   }
 
   @override
   void dispose() {
     revision++;
+    suggestionsEntry?.remove();
+    suggestionsEntry = null;
     unawaited(sortEvents?.cancel());
     filterTimer?.cancel();
     scroll.dispose();
     search.dispose();
+    searchFocus.dispose();
     super.dispose();
   }
 
@@ -122,6 +139,7 @@ class _LibraryPageState extends State<LibraryPage> {
 
   void _nearEnd() {
     if (filterOpen ||
+        suggestionsOpen ||
         destination == 2 ||
         !settingsFor(widget.runtime).autoLoadMore ||
         loading ||
@@ -260,11 +278,136 @@ class _LibraryPageState extends State<LibraryPage> {
     }
   }
 
+  void _onSearchFocus() {
+    if (searchFocus.hasFocus) {
+      _openSuggestions();
+    } else if (suggestionsOpen) {
+      _closeSuggestions();
+    }
+  }
+
+  void _onSearchText() {
+    if (suggestionsOpen) _openSuggestions();
+  }
+
+  void _openSuggestions() {
+    setState(() {
+      suggestionsOpen = true;
+      historyRows = searchHistoryFor(widget.runtime).matching(search.text);
+      suggestionAnchor = _anchoredSearchRect();
+    });
+    if (suggestionAnchor == null) {
+      _closeSuggestions();
+      return;
+    }
+    _showSuggestions();
+    // Recommendations only answer a blank field; a typed term already has the
+    // results grid below it.
+    if (search.text.isNotEmpty || suggestionsLoading) return;
+    if (suggestionsGenre == genre && suggestionRows.isNotEmpty) return;
+    unawaited(_loadSuggestions());
+  }
+
+  /// The panel lives in the overlay because a box only receives taps inside its
+  /// own size, and the dropdown has to reach above the filter row.
+  void _showSuggestions() {
+    final entry = suggestionsEntry;
+    if (entry == null) {
+      suggestionsEntry = OverlayEntry(builder: _suggestionOverlay);
+      Overlay.of(context).insert(suggestionsEntry!);
+    } else {
+      entry.markNeedsBuild();
+    }
+  }
+
+  Rect? _anchoredSearchRect() {
+    final field = searchField.currentContext?.findRenderObject();
+    final overlay = Overlay.of(context).context.findRenderObject();
+    if (field is! RenderBox || overlay is! RenderBox) return null;
+    final origin = overlay.globalToLocal(field.localToGlobal(Offset.zero));
+    return Rect.fromLTWH(
+      origin.dx,
+      origin.dy + field.size.height + 4,
+      field.size.width,
+      0,
+    );
+  }
+
+  Future<void> _loadSuggestions() async {
+    final ticket = ++suggestionsRevision;
+    suggestionsLoading = true;
+    final rows = await suggester.load(widget.runtime.catalog, genre: genre);
+    suggestionsLoading = false;
+    if (!mounted || ticket != suggestionsRevision) return;
+    setState(() {
+      suggestionRows = rows;
+      suggestionsGenre = genre;
+    });
+    if (rows.isEmpty && historyRows.isEmpty) {
+      // Nothing to offer: leave the caret in the field instead of painting an
+      // empty card over the feed.
+      setState(() => suggestionsOpen = false);
+      suggestionsEntry?.remove();
+      suggestionsEntry = null;
+      return;
+    }
+    suggestionsEntry?.markNeedsBuild();
+  }
+
+  void _closeSuggestions() {
+    suggestionsRevision++;
+    suggestionsEntry?.remove();
+    suggestionsEntry = null;
+    if (suggestionsOpen && mounted) setState(() => suggestionsOpen = false);
+    if (searchFocus.hasFocus) searchFocus.unfocus();
+  }
+
+  /// Escape and the back gesture close the nearest layer only.
+  void _closeOverlays() {
+    if (suggestionsOpen) {
+      _closeSuggestions();
+      return;
+    }
+    _closeFilters();
+  }
+
+  void _pickHistory(String value) {
+    search.text = value;
+    _search();
+  }
+
+  Future<void> _removeHistory(String value) async {
+    final store = searchHistoryFor(widget.runtime);
+    await store.remove(value);
+    if (!mounted) return;
+    setState(() => historyRows = store.matching(search.text));
+    if (historyRows.isEmpty && suggestionRows.isEmpty) {
+      setState(() => suggestionsOpen = false);
+      suggestionsEntry?.remove();
+      suggestionsEntry = null;
+      return;
+    }
+    suggestionsEntry?.markNeedsBuild();
+  }
+
+  void _openSuggestion(Suggestion row) {
+    _closeSuggestions();
+    pushAppPage<void>(
+      context,
+      AppScreen.detail,
+      (_) => DetailPage(runtime: widget.runtime, initial: row.drama),
+    );
+  }
+
   void _search() {
     filterOpen = false;
+    _closeSuggestions();
     query = search.text.trim();
     theme = null;
     destination = 0;
+    if (query.isNotEmpty) {
+      unawaited(searchHistoryFor(widget.runtime).record(query));
+    }
     _reload(refreshThemes: false);
   }
 
@@ -413,7 +556,10 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Widget _searchBox() => TextField(
+    key: searchField,
     controller: search,
+    focusNode: searchFocus,
+    groupId: searchTapGroup,
     textInputAction: TextInputAction.search,
     onSubmitted: (_) => _search(),
     decoration: InputDecoration(
@@ -424,6 +570,131 @@ class _LibraryPageState extends State<LibraryPage> {
         onPressed: _search,
         icon: const Icon(Icons.arrow_forward_rounded),
       ),
+    ),
+  );
+
+  Widget _suggestionOverlay(BuildContext context) {
+    final anchor = suggestionAnchor;
+    if (anchor == null) return const SizedBox.shrink();
+    final viewport = MediaQuery.sizeOf(context);
+    return SizedBox.expand(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              key: const ValueKey('search-suggestions-dismiss'),
+              behavior: HitTestBehavior.opaque,
+              onTap: _closeSuggestions,
+              child: const ColoredBox(color: Colors.transparent),
+            ),
+          ),
+          Positioned(
+            left: anchor.left,
+            top: anchor.top,
+            width: anchor.width,
+            child: _suggestionPanel(
+              (viewport.height - anchor.top - 24)
+                  .clamp(120.0, 320.0)
+                  .toDouble(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _suggestionPanel(double maxHeight) {
+    final latest = suggestionRows.any(
+      (row) => row.mark == SuggestionMark.latest,
+    );
+    return TextFieldTapRegion(
+      groupId: searchTapGroup,
+      child: Material(
+        key: const ValueKey('search-suggestions'),
+        elevation: 6,
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.hardEdge,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (historyRows.isNotEmpty) ...[
+                  _suggestionLabel('最近搜索'),
+                  for (final value in historyRows)
+                    ListTile(
+                      key: ValueKey('search-history-$value'),
+                      dense: true,
+                      visualDensity: VisualDensity.compact,
+                      leading: const Icon(Icons.history_rounded, size: 18),
+                      title: Text(
+                        value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: IconButton(
+                        key: ValueKey('search-history-remove-$value'),
+                        tooltip: '删除',
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        onPressed: () => _removeHistory(value),
+                      ),
+                      onTap: () => _pickHistory(value),
+                    ),
+                ],
+                if (suggestionRows.isNotEmpty) ...[
+                  _suggestionLabel(latest ? '最新与热门' : '热门推荐'),
+                  for (final row in suggestionRows)
+                    ListTile(
+                      key: ValueKey('search-suggest-${row.drama.id}'),
+                      dense: true,
+                      visualDensity: VisualDensity.compact,
+                      title: Text(
+                        row.drama.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: Tooltip(
+                        message: row.mark == SuggestionMark.latest
+                            ? '最新上架'
+                            : '热度上榜',
+                        child: Icon(
+                          key: ValueKey('search-suggest-mark-${row.drama.id}'),
+                          row.mark == SuggestionMark.latest
+                              ? Icons.fiber_new_rounded
+                              : Icons.local_fire_department_rounded,
+                          size: 18,
+                        ),
+                      ),
+                      onTap: () => _openSuggestion(row),
+                    ),
+                ] else if (suggestionsLoading)
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _suggestionLabel(String value) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+    child: Text(
+      value,
+      style: Theme.of(context).textTheme.labelSmall
+          ?.copyWith(color: Theme.of(context).colorScheme.outline),
     ),
   );
 
@@ -845,14 +1116,14 @@ class _LibraryPageState extends State<LibraryPage> {
     );
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.escape): _closeFilters,
+        const SingleActivator(LogicalKeyboardKey.escape): _closeOverlays,
       },
       child: Focus(
         autofocus: true,
         child: PopScope(
-          canPop: !filterOpen,
+          canPop: !filterOpen && !suggestionsOpen,
           onPopInvokedWithResult: (didPop, _) {
-            if (!didPop) _closeFilters();
+            if (!didPop) _closeOverlays();
           },
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,

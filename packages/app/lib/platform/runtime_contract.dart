@@ -1,5 +1,6 @@
 import '../downloads/download_manager.dart';
 import '../personal/personal_library.dart';
+import '../search/search_history.dart';
 
 import 'package:hongguo_api/hongguo_api.dart';
 
@@ -117,6 +118,17 @@ PersonalLibrary personalLibraryFor(AppRuntime runtime) =>
     runtime is PersonalLibraryRuntime
     ? runtime.personalLibrary
     : (_sessionLibraries[runtime] ??= PersonalLibrary());
+
+abstract interface class SearchHistoryRuntime implements AppRuntime {
+  SearchHistory get searchHistory;
+}
+
+/// Runtimes without a preferences file keep recent searches for the session only.
+final _sessionSearchHistory = Expando<SearchHistory>();
+SearchHistory searchHistoryFor(AppRuntime runtime) =>
+    runtime is SearchHistoryRuntime
+    ? runtime.searchHistory
+    : (_sessionSearchHistory[runtime] ??= SearchHistory());
 
 abstract interface class DownloadRuntime implements LocalMediaRuntime {
   DownloadManager get downloads;

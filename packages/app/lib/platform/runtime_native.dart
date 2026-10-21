@@ -1,5 +1,6 @@
 import '../downloads/download_manager.dart';
 import '../personal/personal_library.dart';
+import '../search/search_history.dart';
 
 import 'package:hongguo_tv/hongguo_tv.dart';
 
@@ -57,12 +58,15 @@ class NativeRuntime
         LocalMediaRuntime,
         DramaMetadataRuntime,
         PersonalLibraryRuntime,
+        SearchHistoryRuntime,
         DownloadRuntime {
   final SettingsStore store;
   @override
   late final DownloadManager downloads;
   @override
   late final PersonalLibrary personalLibrary;
+  @override
+  late final SearchHistory searchHistory;
   @override
   late final LibraryCache libraryCache;
   final _settingsEvents = StreamController<AppSettings>.broadcast();
@@ -81,6 +85,9 @@ class NativeRuntime
     );
     libraryCache = LibraryCache(
       backend: FilePreferencesBackend(File('${root.path}/library-cache.json')),
+    );
+    searchHistory = SearchHistory(
+      backend: FilePreferencesBackend(File('${root.path}/search-history.json')),
     );
     _artwork = ArtworkCache(Directory('${root.path}/artwork-cache'));
     _rebuildClients();
@@ -378,6 +385,7 @@ class NativeRuntime
     downloads.dispose();
     await personalLibrary.flush();
     personalLibrary.dispose();
+    await searchHistory.flush();
     _cache.close();
     await _downloads.cancel();
     _artwork.close();
