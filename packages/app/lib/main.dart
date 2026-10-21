@@ -14,6 +14,7 @@ import 'package:hongguo_core/hongguo_core.dart';
 
 import 'bootstrap.dart';
 import 'features/library_page.dart';
+import 'features/settings_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -66,6 +67,7 @@ class HongguoApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings =
         ref.watch(appSettingsProvider).asData?.value ?? const AppSettings();
+    final runtime = ref.watch(runtimeProvider).asData?.value;
     return ApplicationName(
       builder: (name) {
         MaterialApp app(GlobalKey<NavigatorState>? navigatorKey) => MaterialApp(
@@ -127,7 +129,12 @@ class HongguoApp extends ConsumerWidget {
         );
         return tvBuild
             ? TvBackDispatcher(builder: (_, key) => app(key))
-            : RoutedApplication(configuration: app(null));
+            : RoutedApplication(
+                configuration: app(null),
+                settingsBuilder: runtime == null
+                    ? null
+                    : (_) => SettingsPage(runtime: runtime),
+              );
       },
     );
   }

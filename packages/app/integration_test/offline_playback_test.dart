@@ -1,4 +1,5 @@
 import 'package:hongguo_app/downloads/download_manager.dart';
+import 'package:hongguo_app/platform/macos_window.dart';
 import 'package:hongguo_app/features/downloads_page.dart';
 import 'package:hongguo_app/navigation/app_navigation.dart';
 import 'package:hongguo_app/features/library_page.dart';
@@ -1660,6 +1661,114 @@ void main() {
       await tester.pumpAndSettle();
       await Future<void>.delayed(const Duration(milliseconds: 500));
       await runtime.dispose();
+    },
+  );
+
+  testWidgets(
+    'mac window close hides without stopping and immersive chrome restores',
+    (tester) async {
+      if (!Platform.isMacOS) return;
+      await windowManager.ensureInitialized();
+      await windowManager.show();
+      await windowManager.focus();
+      const channel = MethodChannel('hongguo/macos-window');
+      Future<Map<dynamic, dynamic>> windowState() async =>
+          (await channel.invokeMapMethod('state'))!;
+      final initial = await windowState();
+      expect(initial['statusItem'], isTrue);
+      expect(
+        (initial['menu'] as List)
+            .where((item) => item.toString().isNotEmpty)
+            .length,
+        5,
+      );
+      final asset = await rootBundle.load('assets/verification.cenc.mp4');
+      final runtime = _Runtime(
+        asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
+        Directory.systemTemp.createTempSync('hongguo-window-'),
+        settings: const AppSettings(autoNext: false, prefetchEnabled: false),
+      );
+      final detail = await runtime.catalog.detail('123');
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorObservers: [macPlaybackRoutes],
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                child: const Text('open mac player'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        PlayerPage(runtime: runtime, detail: detail),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open mac player'));
+      await tester.pumpAndSettle();
+      final dynamic state = tester.state(find.byType(PlayerPage));
+      final player = state.player as Player;
+      try {
+        for (var i = 0; i < 150 && state.preparing; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        await player.setVolume(0);
+        await player.setRate(.25);
+        await player.setPlaylistMode(PlaylistMode.loop);
+        await player.play();
+        await tester.pump(const Duration(milliseconds: 200));
+        var native = await windowState();
+        expect(native['immersive'], isTrue);
+        expect(native['titleHidden'], isTrue);
+        expect(native['fullSizeContent'], isTrue);
+        expect(native['closeHidden'], isTrue);
+        expect(
+          (native['contentHeight'] as num).toDouble(),
+          closeTo((native['frameHeight'] as num).toDouble(), 2),
+        );
+        final handle = await player.handle;
+        await windowManager.close();
+        await tester.pump(const Duration(milliseconds: 700));
+        expect((await windowState())['visible'], isFalse);
+        expect(player.state.playing, isTrue);
+        await channel.invokeMethod('show');
+        await tester.pump(const Duration(milliseconds: 300));
+        expect((await windowState())['visible'], isTrue);
+        expect(await player.handle, handle);
+        await _wakePlayerControls(tester);
+        await tester.tap(find.byTooltip('播放速度'));
+        await tester.pumpAndSettle();
+        expect((await windowState())['immersive'], isTrue);
+        await tester.tap(find.text('0.5×'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('播放设置'));
+        await tester.pumpAndSettle();
+        expect((await windowState())['immersive'], isFalse);
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        expect((await windowState())['immersive'], isTrue);
+        expect(await player.handle, handle);
+        await _wakePlayerControls(tester);
+        await tester.tap(find.byKey(const ValueKey('player-exit')));
+        await tester.pumpAndSettle();
+        native = await windowState();
+        expect(native['immersive'], isFalse);
+        expect(native['titleHidden'], initial['titleHidden']);
+        expect(native['closeHidden'], initial['closeHidden']);
+        print(
+          'MAC_WINDOW_ACCEPTANCE=real close hides; native status menu exists; restore retains player; full-size playback; route exit restores titlebar',
+        );
+      } finally {
+        await channel.invokeMethod('show');
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+        await runtime.dispose();
+      }
     },
   );
 

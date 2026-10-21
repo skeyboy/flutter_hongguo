@@ -15,6 +15,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../platform/runtime.dart';
 import '../platform/background/playback_platform.dart';
 import '../platform/background/host_policy.dart';
+import '../platform/macos_window.dart';
 import '../playback/prefetch_window.dart';
 import '../playback/tv_video_view.dart';
 import '../playback/local_playlist.dart';
@@ -49,9 +50,44 @@ class PlayerPage extends StatefulWidget {
   State<PlayerPage> createState() => _PlayerPageState();
 }
 
-class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
+class _PlayerPageState extends State<PlayerPage>
+    with WidgetsBindingObserver, RouteAware {
   ThemeData get playbackTheme =>
       macHost ? ThemeData.dark(useMaterial3: true) : Theme.of(context);
+
+  ModalRoute<dynamic>? _observedRoute;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (macHost) {
+      final route = ModalRoute.of(context);
+      if (route is PageRoute<dynamic> && route != _observedRoute) {
+        macPlaybackRoutes.unsubscribe(this);
+        _observedRoute = route;
+        macPlaybackRoutes.subscribe(this, route);
+      }
+    }
+  }
+
+  @override
+  void didPush() {
+    unawaited(MacWindow.playerVisible(this, true));
+  }
+
+  @override
+  void didPopNext() {
+    unawaited(MacWindow.playerVisible(this, true));
+  }
+
+  @override
+  void didPushNext() {
+    unawaited(MacWindow.playerVisible(this, false));
+  }
+
+  @override
+  void didPop() {
+    unawaited(MacWindow.playerVisible(this, false));
+  }
 
   final playbackFocus = FocusNode(debugLabel: 'player-shortcuts');
   late final Player player;
@@ -766,6 +802,8 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    macPlaybackRoutes.unsubscribe(this);
+    unawaited(MacWindow.playerVisible(this, false));
     HardwareKeyboard.instance.removeHandler(_macEscape);
     playbackFocus.dispose();
     tvQualityTicket++;
@@ -1283,20 +1321,37 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
               onPressed: _exitPage,
             ),
             Expanded(
-              child: Semantics(
-                header: true,
-                child: Text(
-                  macHost ? '返回' : widget.detail.drama.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onPanStart: macHost ? (_) => MacWindow.invoke('drag') : null,
+                child: Semantics(
+                  header: true,
+                  child: Text(
+                    macHost ? '返回' : widget.detail.drama.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                    ),
                   ),
                 ),
               ),
             ),
+            if (macHost) ...[
+              IconButton(
+                tooltip: '最小化窗口',
+                onPressed: () => MacWindow.invoke('minimize'),
+                icon: const Icon(Icons.minimize, color: Colors.white70),
+              ),
+              IconButton(
+                key: const ValueKey('hide-player-window'),
+                tooltip: '隐藏窗口（继续播放）',
+                onPressed: () => MacWindow.invoke('hide'),
+                icon: const Icon(Icons.close, color: Colors.white70),
+              ),
+            ],
           ],
         ),
       ),

@@ -3,6 +3,63 @@ import FlutterMacOS
 import AVKit
 
 class MainFlutterWindow: NSWindow {
+  private var normalChrome: (NSWindow.TitleVisibility, Bool, Bool, [Bool])?
+  private var immersive = false
+
+  // Retain the same Flutter engine, routes, downloads and player when closing.
+  override func performClose(_ sender: Any?) { orderOut(sender) }
+
+  func setImmersive(_ value: Bool) {
+    guard value != immersive else { return }
+    let frame = self.frame
+    let buttons = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton]
+    if value {
+      normalChrome = (titleVisibility, titlebarAppearsTransparent,
+                      styleMask.contains(.fullSizeContentView),
+                      buttons.map { standardWindowButton($0)?.isHidden ?? false })
+      titleVisibility = .hidden
+      titlebarAppearsTransparent = true
+      styleMask.insert(.fullSizeContentView)
+      buttons.forEach { standardWindowButton($0)?.isHidden = true }
+    } else if let original = normalChrome {
+      titleVisibility = original.0
+      titlebarAppearsTransparent = original.1
+      if !original.2 { styleMask.remove(.fullSizeContentView) }
+      for (i, type) in buttons.enumerated() { standardWindowButton(type)?.isHidden = original.3[i] }
+      normalChrome = nil
+    }
+    immersive = value
+    setFrame(frame, display: true)
+  }
+
+  private func registerWindowChannel(_ controller: FlutterViewController) {
+    let channel = FlutterMethodChannel(name: "hongguo/macos-window", binaryMessenger: controller.engine.binaryMessenger)
+    (NSApp.delegate as? AppDelegate)?.windowChannel = channel
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self = self else { result(nil); return }
+      let app = NSApp.delegate as? AppDelegate
+      switch call.method {
+      case "configure": app?.settingsAvailable = call.arguments as? Bool ?? false; result(nil)
+      case "immersive": self.setImmersive(call.arguments as? Bool ?? false); result(nil)
+      case "show": app?.showWindow(nil); result(nil)
+      case "hide": self.performClose(nil); result(nil)
+      case "minimize": self.miniaturize(nil); result(nil)
+      case "drag":
+        if let event = self.currentEvent { self.performDrag(with: event) }
+        result(nil)
+      case "state":
+        result(["visible": self.isVisible, "miniaturized": self.isMiniaturized,
+                "immersive": self.immersive, "titleHidden": self.titleVisibility == .hidden,
+                "fullSizeContent": self.styleMask.contains(.fullSizeContentView),
+                "closeHidden": self.standardWindowButton(.closeButton)?.isHidden ?? false,
+                "statusItem": app?.hasStatusItem ?? false,
+                "menu": app?.statusMenu().items.map { $0.title } ?? [],
+                "contentHeight": self.contentView?.bounds.height ?? 0, "frameHeight": self.frame.height])
+      default: result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
@@ -11,6 +68,7 @@ class MainFlutterWindow: NSWindow {
 
     self.title = Bundle.main.localizedInfoDictionary?["CFBundleDisplayName"] as? String ?? "Hongguo"
     RegisterGeneratedPlugins(registry: flutterViewController)
+    registerWindowChannel(flutterViewController)
     HongguoMacPictureInPicture.register(with: flutterViewController.registrar(forPlugin: "HongguoMacPictureInPicture"))
 
     super.awakeFromNib()

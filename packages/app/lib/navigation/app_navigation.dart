@@ -1,3 +1,8 @@
+import 'dart:async';
+
+import '../platform/macos_window.dart';
+import '../platform/background/host_policy.dart';
+
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -54,7 +59,12 @@ Future<T?> pushAppPage<T>(
 /// recreate the router, discard feed scroll positions or replace a playing page.
 class RoutedApplication extends StatefulWidget {
   final MaterialApp configuration;
-  const RoutedApplication({super.key, required this.configuration});
+  final WidgetBuilder? settingsBuilder;
+  const RoutedApplication({
+    super.key,
+    required this.configuration,
+    this.settingsBuilder,
+  });
   @override
   State<RoutedApplication> createState() => _RoutedApplicationState();
 }
@@ -82,13 +92,38 @@ class _RoutedApplicationState extends State<RoutedApplication> {
     ],
   );
   @override
+  void initState() {
+    super.initState();
+    if (macHost) {
+      MacWindow.channel.setMethodCallHandler((call) async {
+        if (call.method == 'settings' &&
+            mounted &&
+            widget.settingsBuilder != null &&
+            router.current.name != AppScreen.settings.routeName) {
+          unawaited(
+            router.push(
+              NamedRoute(
+                AppScreen.settings.routeName,
+                args: _ScreenArguments(widget.settingsBuilder!),
+              ),
+            ),
+          );
+        }
+      });
+      unawaited(MacWindow.invoke('configure', widget.settingsBuilder != null));
+    }
+  }
+
+  @override
   void didUpdateWidget(covariant RoutedApplication oldWidget) {
     super.didUpdateWidget(oldWidget);
     home.value = widget.configuration.home!;
+    unawaited(MacWindow.invoke('configure', widget.settingsBuilder != null));
   }
 
   @override
   void dispose() {
+    if (macHost) MacWindow.channel.setMethodCallHandler(null);
     router.dispose();
     home.dispose();
     super.dispose();
@@ -100,7 +135,9 @@ class _RoutedApplicationState extends State<RoutedApplication> {
     return AppNavigation(
       router: router,
       child: MaterialApp.router(
-        routerConfig: router.config(),
+        routerConfig: router.config(
+          navigatorObservers: () => [macPlaybackRoutes],
+        ),
         title: config.title,
         theme: config.theme,
         darkTheme: config.darkTheme,
