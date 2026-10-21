@@ -61,6 +61,9 @@ jobs:
       - name: Verify API and media pipeline
         working-directory: packages/api
         run: dart test --reporter expanded
+      - name: Verify the DLNA casting protocol core
+        working-directory: packages/cast
+        run: dart test --reporter expanded
       - name: Verify application and adaptive interactions
         working-directory: packages/app
         run: flutter test --reporter expanded

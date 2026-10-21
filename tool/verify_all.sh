@@ -13,6 +13,7 @@ mkdir -p build/verification
 "$SDK_BIN/dart" analyze --fatal-infos | tee build/verification/analyze.log
 (cd packages/core && "$SDK_BIN/dart" test --reporter expanded) | tee build/verification/core-tests.log
 (cd packages/api && "$SDK_BIN/dart" test --reporter expanded) | tee build/verification/api-tests.log
+(cd packages/cast && "$SDK_BIN/dart" test --reporter expanded) | tee build/verification/cast-tests.log
 (cd packages/tv && "$SDK_BIN/flutter" test --no-pub --reporter expanded) | tee build/verification/tv-tests.log
 (cd packages/app && "$SDK_BIN/flutter" test --no-pub --reporter expanded) | tee build/verification/widget-tests.log
 "$SDK_BIN/dart" compile exe tool/verify_portable.dart -o build/verification/native_oracle

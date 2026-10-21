@@ -20,6 +20,8 @@ flutter_hongguo/
 │   ├── api/lib/                   内容接口、视频取址、下载与缓存
 │   ├── api/bin/                   显式执行的真实上游 POC 探测
 │   ├── api/test/                  请求、内容解析与缓存测试
+│   ├── cast/lib/                  SSDP、设备描述、SOAP、DIDL、局域网媒体源
+│   ├── cast/test/                 投屏协议与会话状态机测试
 │   └── app/
 │       ├── lib/                   Flutter 页面、DI 与平台 runtime
 │       ├── test/                  页面与交互测试

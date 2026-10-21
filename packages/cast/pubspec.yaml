@@ -1,0 +1,12 @@
+name: hongguo_cast
+description: Pure Dart DLNA media renderer discovery, control and LAN media source.
+version: 0.2.0
+resolution: workspace
+publish_to: none
+environment:
+  sdk: '>=3.13.0 <4.0.0'
+dependencies:
+  xml: any
+dev_dependencies:
+  test: any
+  lints: any

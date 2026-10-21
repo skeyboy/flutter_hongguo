@@ -33,6 +33,11 @@
 - [体验设计](design/interaction-cache-v2.md)
 - [0.2.1 实现、设置验证与缓存验收](interaction-cache-validation.md)
 
+## 投屏
+
+- [DLNA 投屏设计与分期实施](design/cast-dlna.md)：市面做法调研、协议选型、后端配合清单与验收口径。
+- [协议核心模块](../packages/cast/README.md)：SSDP、设备描述、SOAP、DIDL、局域网媒体源与会话状态机。
+
 ## PC / Mobile 初版改造
 
 - [实施前 UI 设计](design/pc-mobile-ui.md)
@@ -62,6 +67,7 @@ API 文档中的 `/search`、`/stream` 等属于原 Node 服务路由；独立�
 
 - [共享 Dart 核心](../packages/core/README.md)
 - [内容接口、取址与原生缓存](../packages/api/README.md)
+- [局域网投屏协议核心](../packages/cast/README.md)
 - [Flutter 原生 App](../packages/app/README.md)
 - [开发与验收工具](../tool)
 

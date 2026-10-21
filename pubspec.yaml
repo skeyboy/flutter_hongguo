@@ -9,6 +9,7 @@ workspace:
   - packages/api
   - packages/app
   - packages/tv
+  - packages/cast
 # As in hack-news-flutter: members use any; dependency policy lives here.
 dependency_overrides:
   file: 7.0.1
@@ -31,6 +32,7 @@ dependency_overrides:
   dio: 5.11.1
   crypto: ^3.0.7
   pointycastle: ^4.0.0
+  xml: 7.1.0
   test: ^1.31.0
   lints: ^6.1.0
 dev_dependencies:
