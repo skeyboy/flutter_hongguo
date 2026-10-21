@@ -157,7 +157,13 @@ class _RoutedApplicationState extends State<RoutedApplication> {
                 router.maybePop();
               },
             },
-            child: content,
+            child: ListenableBuilder(
+              listenable: router,
+              builder: (context, _) => MacWindowFrame(
+                immersive: router.current.name == AppScreen.player.routeName,
+                child: content,
+              ),
+            ),
           );
         },
       ),

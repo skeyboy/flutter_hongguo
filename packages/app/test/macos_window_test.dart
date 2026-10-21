@@ -53,6 +53,56 @@ void main() {
     expect(topmost, isFalse);
   });
   testWidgets(
+    'caption reserves content space and immersion preserves child state',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      final actions = <String>[];
+      messenger.setMockMethodCallHandler(MacWindow.channel, (call) async {
+        actions.add(call.method);
+        return null;
+      });
+      await tester.binding.setSurfaceSize(const Size(800, 600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      late StateSetter update;
+      var immersive = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (_, setState) {
+              update = setState;
+              return MacWindowFrame(
+                immersive: immersive,
+                child: const _PersistentContent(),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final original = tester.state(find.byType(_PersistentContent));
+      final body = find.byKey(const ValueKey('mac-frame-content'));
+      expect(tester.getRect(body).top, 32);
+      expect(tester.getRect(body).height, 568);
+      for (final action in ['hide', 'minimize', 'fullscreenToggle']) {
+        await tester.tap(find.byKey(ValueKey('mac-window-$action')));
+        await tester.pump();
+      }
+      expect(actions, ['hide', 'minimize', 'fullscreenToggle']);
+      update(() => immersive = true);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('mac-window-caption')), findsNothing);
+      expect(tester.getRect(body).top, 0);
+      expect(tester.getRect(body).height, 600);
+      expect(tester.state(find.byType(_PersistentContent)), same(original));
+      update(() => immersive = false);
+      await tester.pumpAndSettle();
+      expect(tester.getRect(body).top, 32);
+      expect(tester.state(find.byType(_PersistentContent)), same(original));
+      await tester.pumpWidget(const SizedBox());
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+  testWidgets(
     'native settings menu opens one existing route and returns to catalog',
     (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
@@ -88,5 +138,19 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       debugDefaultTargetPlatformOverride = null;
     },
+  );
+}
+
+class _PersistentContent extends StatefulWidget {
+  const _PersistentContent();
+  @override
+  State<_PersistentContent> createState() => _PersistentContentState();
+}
+
+class _PersistentContentState extends State<_PersistentContent> {
+  @override
+  Widget build(BuildContext context) => const SizedBox.expand(
+    key: ValueKey('mac-frame-content'),
+    child: ColoredBox(color: Colors.black),
   );
 }

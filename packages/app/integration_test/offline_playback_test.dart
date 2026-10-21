@@ -1814,6 +1814,9 @@ void main() {
       Future<Map<dynamic, dynamic>> windowState() async =>
           (await channel.invokeMapMethod('state'))!;
       final initial = await windowState();
+      expect(initial['titleHidden'], isTrue);
+      expect(initial['closeHidden'], isTrue);
+      expect(initial['fullSizeContent'], isTrue);
       expect(initial['statusItem'], isTrue);
       expect(initial['statusClickRestores'], isFalse);
       expect(
@@ -1944,7 +1947,7 @@ void main() {
         expect(native['titleHidden'], initial['titleHidden']);
         expect(native['closeHidden'], initial['closeHidden']);
         print(
-          'MAC_WINDOW_ACCEPTANCE=pin sets native floating level; fullscreen and PiP suspend/restore pin; settings and route exit restore level; real close hides; native status menu exists; restore retains player; full-size playback; route exit restores titlebar',
+          'MAC_WINDOW_ACCEPTANCE=pin sets native floating level; fullscreen and PiP suspend/restore pin; settings and route exit restore level; real close hides; native status menu exists; restore retains player; full-size playback; route exit keeps native titlebar hidden',
         );
       } finally {
         await channel.invokeMethod('show');

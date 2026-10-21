@@ -3,7 +3,6 @@ import FlutterMacOS
 import AVKit
 
 class MainFlutterWindow: NSWindow {
-  private var normalChrome: (NSWindow.TitleVisibility, Bool, Bool, [Bool])?
   private var immersive = false
   private var playerTopmost = false
   private var originalLevel: NSWindow.Level?
@@ -26,7 +25,7 @@ class MainFlutterWindow: NSWindow {
       self?.topmostSuspended = true; self?.applyTopmost()
     })
     topmostObservers.append(center.addObserver(forName: NSWindow.didExitFullScreenNotification, object: self, queue: .main) { [weak self] _ in
-      self?.topmostSuspended = false; self?.applyTopmost()
+      self?.topmostSuspended = false; self?.applyTopmost(); self?.hideSystemTitlebar()
     })
   }
   deinit { topmostObservers.forEach { NotificationCenter.default.removeObserver($0) } }
@@ -43,27 +42,20 @@ class MainFlutterWindow: NSWindow {
     super.toggleFullScreen(sender)
   }
 
-  func setImmersive(_ value: Bool) {
-    guard value != immersive else { return }
+  private func hideSystemTitlebar() {
     let frame = self.frame
-    let buttons = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton]
-    if value {
-      normalChrome = (titleVisibility, titlebarAppearsTransparent,
-                      styleMask.contains(.fullSizeContentView),
-                      buttons.map { standardWindowButton($0)?.isHidden ?? false })
-      titleVisibility = .hidden
-      titlebarAppearsTransparent = true
-      styleMask.insert(.fullSizeContentView)
-      buttons.forEach { standardWindowButton($0)?.isHidden = true }
-    } else if let original = normalChrome {
-      titleVisibility = original.0
-      titlebarAppearsTransparent = original.1
-      if !original.2 { styleMask.remove(.fullSizeContentView) }
-      for (i, type) in buttons.enumerated() { standardWindowButton(type)?.isHidden = original.3[i] }
-      normalChrome = nil
+    titleVisibility = .hidden
+    titlebarAppearsTransparent = true
+    styleMask.insert(.fullSizeContentView)
+    [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].forEach {
+      standardWindowButton($0)?.isHidden = true
     }
-    immersive = value
     setFrame(frame, display: true)
+  }
+
+  func setImmersive(_ value: Bool) {
+    immersive = value
+    hideSystemTitlebar()
   }
 
   private func registerWindowChannel(_ controller: FlutterViewController) {
@@ -78,6 +70,8 @@ class MainFlutterWindow: NSWindow {
       case "immersive": self.setImmersive(call.arguments as? Bool ?? false); result(nil)
       case "show": app?.showWindow(nil); result(nil)
       case "hide": self.performClose(nil); result(nil)
+      case "fullscreenToggle": self.toggleFullScreen(nil); result(nil)
+      case "zoom": self.performZoom(nil); result(nil)
       case "minimize": self.miniaturize(nil); result(nil)
       case "drag":
         if let event = self.currentEvent { self.performDrag(with: event) }
@@ -102,6 +96,7 @@ class MainFlutterWindow: NSWindow {
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
 
+    hideSystemTitlebar()
     self.title = Bundle.main.localizedInfoDictionary?["CFBundleDisplayName"] as? String ?? "Hongguo"
     RegisterGeneratedPlugins(registry: flutterViewController)
     registerWindowChannel(flutterViewController)
