@@ -30,6 +30,9 @@ notes = ROOT / 'build/release-notes.md'
 notes.parent.mkdir(exist_ok=True)
 notes.write_text(f'''Native Flutter / shared Dart release {release}.
 
+- macOS: hidden native titlebar, immersive player, scoped always-on-top, retained windows and menu bar controls.
+- macOS PiP: automatic next episodes and mouse-driven auto-hiding playback controls.
+- Catalog: recover empty upstream responses and sign requests when required.
 - My library: favorites, per-episode watch history, resume playback and offline series.
 - Episode downloads: select episodes and quality, manage tasks, retry and play offline.
 - Manual downloads survive ordinary cache cleanup; resumed tasks keep independent recovery journals.
