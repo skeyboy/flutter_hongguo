@@ -78,12 +78,17 @@ class AppDelegate: FlutterAppDelegate {
     return menu
   }
   @objc private func statusClicked(_ sender: Any?) {
-    if let event = NSApp.currentEvent,
-       event.type == .rightMouseUp || event.modifierFlags.contains(.control),
-       let button = statusItem?.button {
+    if statusClickRestoresWindow {
+      showWindow(sender)
+    } else if let button = statusItem?.button {
       statusMenu().popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY), in: button)
-    } else { showWindow(sender) }
+    }
   }
+  var statusClickRestoresWindow: Bool {
+    guard let window = mainFlutterWindow else { return true }
+    return NSApp.isHidden || !window.isVisible || window.isMiniaturized
+  }
+
   var hasStatusItem: Bool { statusItem?.button != nil }
 
   override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }

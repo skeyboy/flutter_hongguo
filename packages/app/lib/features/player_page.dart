@@ -500,6 +500,7 @@ class _PlayerPageState extends State<PlayerPage>
     try {
       episodeWorkspace.currentState?.hide();
       if (fullscreen) await _setFullscreen(false);
+      if (macHost) await platformPlayback.fullscreenUpdates;
       if (platformPlayback.floating.value) {
         await platformPlayback.exit(player);
       } else {
@@ -607,6 +608,7 @@ class _PlayerPageState extends State<PlayerPage>
     _episodeCompleted = false;
     tvCompletionReported = false;
     final ticket = ++generation;
+    final keepPip = macHost && platformPlayback.platformPip.value;
     final previous = job;
     final discard = error != null;
     final oldVid = sourceVid, oldQuality = sourceQuality;
@@ -629,7 +631,7 @@ class _PlayerPageState extends State<PlayerPage>
       } else {
         await player.stop();
       }
-      previous?.release();
+      if (!keepPip || discard) previous?.release();
       if (!widget.cachedOnly &&
           discard &&
           oldVid != null &&
@@ -711,8 +713,23 @@ class _PlayerPageState extends State<PlayerPage>
       } else {
         await player.open(
           Media(source, start: offset > Duration.zero ? offset : null),
-          play: mayPlay(),
+          play: mayPlay() && !(macHost && platformPlayback.platformPip.value),
         );
+        if (keepPip) {
+          final replaced = await platformPlayback.replaceFloating(
+            player,
+            source,
+            offset: offset,
+            play: mayPlay(),
+          );
+          if (replaced) {
+            _episodePlayed = true;
+            hasPlayed = true;
+          } else if (mayPlay()) {
+            await player.play();
+          }
+          previous?.release();
+        }
       }
       if (!mounted || ticket != generation) return;
       _resumeOffset = Duration.zero;
@@ -824,20 +841,19 @@ class _PlayerPageState extends State<PlayerPage>
     platformPlayback.floating.removeListener(_platformChanged);
     platformPlayback.platformPip.removeListener(_platformChanged);
     platformPlayback.nativeFullscreen.removeListener(_nativeFullscreenChanged);
-    unawaited(
-      platformUpdates
-          .catchError((Object _) {})
-          .then((_) async {
-            await platformPlayback.dispose(player);
-          })
-          .catchError((Object _) {})
-          .whenComplete(() async {
-            await tvPlayback.close();
-            tvPlayback.dispose();
-            await player.dispose();
-            active?.release();
-          }),
-    );
+    platformUpdates = platformUpdates
+        .catchError((Object _) {})
+        .then((_) async {
+          await platformPlayback.dispose(player);
+        })
+        .catchError((Object _) {})
+        .whenComplete(() async {
+          await tvPlayback.close();
+          tvPlayback.dispose();
+          await player.dispose();
+          active?.release();
+        });
+    unawaited(platformUpdates);
     super.dispose();
   }
 
@@ -1256,6 +1272,22 @@ class _PlayerPageState extends State<PlayerPage>
     if (value && platformPlayback.floating.value) {
       await platformPlayback.exit(player);
     }
+    if (macHost) {
+      _redraw(() => fullscreen = value);
+      try {
+        await platformPlayback.setDesktopFullscreen(value);
+      } on TimeoutException {
+        if (mounted) {
+          _redraw(
+            () => fullscreen = platformPlayback.nativeFullscreen.value ?? false,
+          );
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('全屏切换尚未完成，请稍后重试')));
+        }
+      }
+      compactControls.currentState?.show();
+      return;
+    }
     if (platformPlayback.mobile) {
       await SystemChrome.setEnabledSystemUIMode(
         value ? SystemUiMode.immersiveSticky : SystemUiMode.edgeToEdge,
@@ -1290,6 +1322,7 @@ class _PlayerPageState extends State<PlayerPage>
     try {
       episodeWorkspace.currentState?.hide();
       if (fullscreen) await _setFullscreen(false);
+      if (macHost) await platformPlayback.fullscreenUpdates;
       if (platformPlayback.floating.value) await platformPlayback.exit(player);
       if (!mounted) return;
       await WidgetsBinding.instance.endOfFrame;
@@ -1426,6 +1459,21 @@ class _PlayerPageState extends State<PlayerPage>
                         style: const TextStyle(color: Colors.white),
                       ),
                       const SizedBox(height: 12),
+                      if (preparing)
+                        Text(
+                          progress?.label ?? '正在准备下一集',
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                      if (error != null) ...[
+                        const Text(
+                          '下一集准备失败',
+                          style: TextStyle(color: Colors.amber),
+                        ),
+                        TextButton(
+                          onPressed: () => _play(position),
+                          child: const Text('重试'),
+                        ),
+                      ],
                       FilledButton.icon(
                         key: const ValueKey('restore-pip'),
                         onPressed: _floating,
@@ -1462,7 +1510,7 @@ class _PlayerPageState extends State<PlayerPage>
             preparing ||
             error != null ||
             sheetOpen ||
-            episodeVisible ||
+            (!macHost && episodeVisible) ||
             menuOpen ||
             recommendationOpen,
         controls: PlaybackTransport(
@@ -1497,6 +1545,11 @@ class _PlayerPageState extends State<PlayerPage>
               episodes: _episodes(),
               onSettings: _settings,
               playing: playing,
+              hideWhileHovering: macHost,
+              onActivity: macHost
+                  ? () => compactControls.currentState?.pointerActivity()
+                  : null,
+              hideAfter: Duration(seconds: macHost ? 3 : 5),
               busy: preparing || error != null,
               manageBack: false,
               onVisibilityChanged: (value) {

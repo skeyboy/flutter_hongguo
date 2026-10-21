@@ -132,6 +132,7 @@ Future<_MediaHandler>? _handler;
 
 class PlaybackPlatform with WindowListener {
   static const _channel = MethodChannel('hongguo/platform-playback');
+  static PlaybackPlatform? _callbackOwner;
   final nativeFullscreen = ValueNotifier<bool?>(null);
   bool _observingWindow = false;
   VoidCallback? onWindowFocused;
@@ -167,11 +168,15 @@ class PlaybackPlatform with WindowListener {
   _MediaHandler? _media;
   final _audioEvents = <StreamSubscription<dynamic>>[];
   VoidCallback? onExternalCompleted;
+  String? _externalSource;
   Rect? _bounds;
   bool _top = false, _maximized = false, _fullscreen = false;
   bool _closed = false, _transition = false;
   PlaybackPlatform() {
-    if (mobile || nativeHandoff) _channel.setMethodCallHandler(_nativeEvent);
+    if (mobile || nativeHandoff) {
+      _callbackOwner = this;
+      _channel.setMethodCallHandler(_nativeEvent);
+    }
   }
 
   Future<void> _watchWindow() async {
@@ -196,6 +201,34 @@ class PlaybackPlatform with WindowListener {
   @override
   void onWindowLeaveFullScreen() {
     if (!_closed) nativeFullscreen.value = false;
+  }
+
+  Future<void> _fullscreenQueue = Future.value();
+  Future<void> get fullscreenUpdates => _fullscreenQueue;
+  Future<void> setDesktopFullscreen(bool value) {
+    _fullscreenQueue = _fullscreenQueue.catchError((Object _) {}).then((
+      _,
+    ) async {
+      if (_closed || !Platform.isMacOS) return;
+      await _watchWindow();
+      if (nativeFullscreen.value == value) return;
+      final completed = Completer<void>();
+      void changed() {
+        if (nativeFullscreen.value == value && !completed.isCompleted) {
+          completed.complete();
+        }
+      }
+
+      nativeFullscreen.addListener(changed);
+      try {
+        await windowManager.setFullScreen(value);
+        changed();
+        await completed.future.timeout(const Duration(seconds: 12));
+      } finally {
+        nativeFullscreen.removeListener(changed);
+      }
+    });
+    return _fullscreenQueue;
   }
 
   Future<void> configure(
@@ -281,6 +314,9 @@ class PlaybackPlatform with WindowListener {
             'volume': player.state.volume / 100,
           });
           if (ok != true) throw StateError('当前设备暂不能进入画中画');
+          _externalSource = source.startsWith('/')
+              ? Uri.file(source).toString()
+              : source;
           platformPip.value = true;
           floating.value = true;
           _media?.external = (action, [position]) async =>
@@ -332,9 +368,36 @@ class PlaybackPlatform with WindowListener {
     }
   }
 
+  Future<bool> replaceFloating(
+    mk.Player player,
+    String source, {
+    required Duration offset,
+    required bool play,
+  }) async {
+    if (_closed || !Platform.isMacOS || !platformPip.value) return false;
+    _externalSource = source.startsWith('/')
+        ? Uri.file(source).toString()
+        : source;
+    externalPosition = offset;
+    externalPlaying = play;
+    final replaced =
+        await _channel.invokeMethod<bool>('replace', {
+          'source': _externalSource,
+          'position': offset.inMilliseconds,
+          'playing': play,
+          'rate': player.state.rate,
+          'volume': player.state.volume / 100,
+        }) ??
+        false;
+    return replaced;
+  }
+
   Future<dynamic> _nativeEvent(MethodCall call) async {
     if (_closed) return;
-    if (call.method == 'pip') {
+    if (call.method == 'completed' && Platform.isMacOS && platformPip.value) {
+      final data = call.arguments as Map;
+      if (data['source'] == _externalSource) onExternalCompleted?.call();
+    } else if (call.method == 'pip') {
       final active = call.arguments == true;
       if (!active && platformPip.value) _pipExitAt = DateTime.now();
       platformPip.value = active;
@@ -348,24 +411,33 @@ class PlaybackPlatform with WindowListener {
     } else if (call.method == 'restore') {
       _media?.external = null;
       final data = Map<String, dynamic>.from(call.arguments as Map);
-      externalPosition = Duration(
-        milliseconds: (data['position'] as num).toInt(),
-      );
-      onExternalProgress?.call();
-      await _player?.seek(
-        Duration(milliseconds: (data['position'] as num).toInt()),
-      );
+      final current = _player?.state.playlist.medias.firstOrNull?.uri;
+      final currentSource = current != null && current.startsWith('/')
+          ? Uri.file(current).toString()
+          : current;
+      final sameSource =
+          data['source'] == null || data['source'] == currentSource;
+      if (sameSource) {
+        externalPosition = Duration(
+          milliseconds: (data['position'] as num).toInt(),
+        );
+        onExternalProgress?.call();
+        await _player?.seek(
+          Duration(milliseconds: (data['position'] as num).toInt()),
+        );
+      }
       externalPosition = null;
       platformPip.value = false;
       floating.value = false;
-      if (data['ended'] == true) {
+      if (sameSource && data['ended'] == true) {
         if (!mobile ||
             _settings.backgroundPlayback ||
             WidgetsBinding.instance.lifecycleState ==
                 AppLifecycleState.resumed) {
           onExternalCompleted?.call();
         }
-      } else if (data['playing'] == true &&
+      } else if (sameSource &&
+          data['playing'] == true &&
           (!mobile ||
               _settings.backgroundPlayback ||
               WidgetsBinding.instance.lifecycleState ==
@@ -376,6 +448,11 @@ class PlaybackPlatform with WindowListener {
       _restorePending = null;
     } else if (call.method == 'progress') {
       final data = call.arguments as Map;
+      if (Platform.isMacOS &&
+          data['source'] != null &&
+          data['source'] != _externalSource) {
+        return;
+      }
       externalPlaying = data['playing'] == true;
       externalPosition = Duration(
         milliseconds: (data['position'] as num).toInt(),
@@ -439,7 +516,10 @@ class PlaybackPlatform with WindowListener {
       await event.cancel();
     }
     _audioEvents.clear();
-    if (mobile || nativeHandoff) _channel.setMethodCallHandler(null);
+    if (identical(_callbackOwner, this)) {
+      _callbackOwner = null;
+      _channel.setMethodCallHandler(null);
+    }
     floating.dispose();
     platformPip.dispose();
   }

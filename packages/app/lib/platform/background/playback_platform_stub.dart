@@ -24,6 +24,14 @@ class PlaybackPlatform {
   }) async {}
   Future<void> enter(Player player, String source) async =>
       throw UnsupportedError('当前平台不支持悬浮播放');
+  Future<bool> replaceFloating(
+    Player player,
+    String source, {
+    required Duration offset,
+    required bool play,
+  }) async => false;
+  Future<void> get fullscreenUpdates => Future.value();
+  Future<void> setDesktopFullscreen(bool value) async {}
   Future<void> exit(Player player) async {}
   Future<void> dispose(Player player) async {
     nativeFullscreen.dispose();

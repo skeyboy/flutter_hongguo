@@ -6,6 +6,42 @@ import 'package:hongguo_app/playback/compact_controls.dart';
 
 void main() {
   testWidgets(
+    'mouse movement reveals controls and exit renews the hide delay',
+    (tester) async {
+      final key = GlobalKey<CompactControlsState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CompactControls(
+              key: key,
+              playing: true,
+              busy: false,
+              video: const ColoredBox(color: Colors.black),
+              controls: const SizedBox(height: 80),
+            ),
+          ),
+        ),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: const Offset(100, 100));
+      await mouse.moveTo(const Offset(110, 100));
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(key.currentState!.visible, isFalse);
+      await mouse.moveTo(const Offset(120, 100));
+      await tester.pump();
+      expect(key.currentState!.visible, isTrue);
+      await tester.pump(const Duration(seconds: 2));
+      await mouse.moveTo(const Offset(-1, -1));
+      await tester.pump(const Duration(seconds: 2));
+      expect(key.currentState!.visible, isTrue);
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      expect(key.currentState!.visible, isFalse);
+      await mouse.removePointer();
+    },
+  );
+  testWidgets(
     'mobile controls overlay leaves video rectangle unchanged and touch brings it back',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(390, 700));

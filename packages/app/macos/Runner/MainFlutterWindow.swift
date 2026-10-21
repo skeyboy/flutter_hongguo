@@ -53,6 +53,7 @@ class MainFlutterWindow: NSWindow {
                 "fullSizeContent": self.styleMask.contains(.fullSizeContentView),
                 "closeHidden": self.standardWindowButton(.closeButton)?.isHidden ?? false,
                 "statusItem": app?.hasStatusItem ?? false,
+                "statusClickRestores": app?.statusClickRestoresWindow ?? true,
                 "menu": app?.statusMenu().items.map { $0.title } ?? [],
                 "contentHeight": self.contentView?.bounds.height ?? 0, "frameHeight": self.frame.height])
       default: result(FlutterMethodNotImplemented)
@@ -88,6 +89,8 @@ private final class HongguoMacPictureInPicture: NSObject, FlutterPlugin, AVPictu
   private var pending: FlutterResult?
   private weak var owner: NSWindow?
   private var playbackRate: Float = 1
+  private var completionReported = false
+  private var source = ""
 
   static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(name: "hongguo/platform-playback", binaryMessenger: registrar.messenger)
@@ -122,6 +125,8 @@ private final class HongguoMacPictureInPicture: NSObject, FlutterPlugin, AVPictu
       guard let controller = AVPictureInPictureController(playerLayer: display) else {
         view.removeFromSuperview(); result(false); return
       }
+      self.source = source
+      completionReported = false
       player = next; surface = view; layer = display; pip = controller; pending = result
       controller.delegate = self
       let milliseconds = (data["position"] as? NSNumber)?.int64Value ?? 0
@@ -133,12 +138,24 @@ private final class HongguoMacPictureInPicture: NSObject, FlutterPlugin, AVPictu
       periodic = next.addPeriodicTimeObserver(forInterval: CMTime(seconds: 1, preferredTimescale: 600), queue: .main) { [weak self] _ in
         self?.sendProgress()
       }
-      ending = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: next.currentItem, queue: .main) { [weak self] _ in
-        self?.pip?.stopPictureInPicture()
-      }
+      observeEnding(next.currentItem)
       DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
         if self?.pending != nil && self?.player === next { self?.fail("画中画暂未就绪，请重试") }
       }
+    } else if call.method == "replace" {
+      guard let player = player, pip?.isPictureInPictureActive == true,
+            let data = call.arguments as? [String: Any], let source = data["source"] as? String,
+            let url = URL(string: source), url.isFileURL else { result(false); return }
+      self.source = source; completionReported = false
+      playbackRate = (data["rate"] as? NSNumber)?.floatValue ?? playbackRate
+      player.volume = (data["volume"] as? NSNumber)?.floatValue ?? player.volume
+      let item = AVPlayerItem(url: url)
+      observeEnding(item)
+      player.replaceCurrentItem(with: item)
+      let milliseconds = (data["position"] as? NSNumber)?.int64Value ?? 0
+      player.seek(to: CMTime(value: milliseconds, timescale: 1000), toleranceBefore: .zero, toleranceAfter: .zero)
+      if data["playing"] as? Bool == true { player.playImmediately(atRate: playbackRate) }
+      sendProgress(); result(true)
     } else if call.method == "dispose" {
       pending?(FlutterError(code: "pip_closed", message: "Player closed", details: nil)); pending = nil
       pip?.delegate = nil; pip?.stopPictureInPicture(); clean(); result(nil)
@@ -157,10 +174,20 @@ private final class HongguoMacPictureInPicture: NSObject, FlutterPlugin, AVPictu
       sendProgress(); result(nil)
     } else { result(FlutterMethodNotImplemented) }
   }
+  private func observeEnding(_ item: AVPlayerItem?) {
+    if let token = ending { NotificationCenter.default.removeObserver(token) }
+    ending = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self] note in
+      guard let self = self, let finished = note.object as? AVPlayerItem,
+            finished === self.player?.currentItem, !self.completionReported else { return }
+      self.completionReported = true
+      self.sendProgress()
+      self.channel.invokeMethod("completed", arguments: ["source": self.source])
+    }
+  }
   private func sendProgress() {
     let seconds = player?.currentTime().seconds ?? 0
     channel.invokeMethod("progress", arguments: ["position": seconds.isFinite ? Int(seconds * 1000) : 0,
-      "playing": (player?.rate ?? 0) > 0])
+      "playing": (player?.rate ?? 0) > 0, "source": source])
   }
   private func clean() {
     observation?.invalidate(); observation = nil
@@ -174,9 +201,11 @@ private final class HongguoMacPictureInPicture: NSObject, FlutterPlugin, AVPictu
     let playing = (player?.rate ?? 0) > 0
     let duration = player?.currentItem?.duration.seconds ?? 0
     let ended = duration.isFinite && duration > 0 && seconds >= duration - 0.25
+    let unreportedEnd = ended && !completionReported
+    let restoredSource = source
     clean()
     channel.invokeMethod("restore", arguments: ["position": seconds.isFinite ? Int(seconds * 1000) : 0,
-      "playing": playing, "ended": ended])
+      "playing": playing, "ended": unreportedEnd, "source": restoredSource])
   }
   private func fail(_ message: String) {
     let result = pending; pending = nil; clean()

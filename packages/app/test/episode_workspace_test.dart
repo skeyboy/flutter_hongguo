@@ -5,6 +5,44 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hongguo_app/playback/episode_workspace.dart';
 
 void main() {
+  testWidgets(
+    'Mac idle pointer hides unpinned panel and movement renews its clock',
+    (tester) async {
+      final key = GlobalKey<EpisodeWorkspaceState>();
+      var activity = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: EpisodeWorkspace(
+              key: key,
+              playing: true,
+              busy: false,
+              hideWhileHovering: true,
+              hideAfter: const Duration(seconds: 3),
+              onActivity: () => activity++,
+              video: const ColoredBox(color: Colors.black),
+              episodes: const Text('episodes'),
+            ),
+          ),
+        ),
+      );
+      key.currentState!.toggle();
+      await tester.pumpAndSettle();
+      final rect = tester.getRect(find.byKey(const ValueKey('episode-panel')));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: rect.center);
+      await mouse.moveTo(rect.center + const Offset(2, 0));
+      await tester.pump(const Duration(seconds: 2));
+      await mouse.moveTo(rect.center + const Offset(4, 0));
+      await tester.pump(const Duration(seconds: 2));
+      expect(key.currentState!.visible, isTrue);
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      expect(key.currentState!.visible, isFalse);
+      expect(activity, greaterThan(1));
+      await mouse.removePointer();
+    },
+  );
   late GlobalKey<EpisodeWorkspaceState> panel;
   late StateSetter update;
   bool playing = true, busy = false, accessible = false;

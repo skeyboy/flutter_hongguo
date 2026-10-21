@@ -64,6 +64,12 @@ class CompactControlsState extends State<CompactControls> {
     }
   }
 
+  void pointerActivity() {
+    keyboardFocus = false;
+    keyboardReveal = false;
+    show();
+  }
+
   void show() {
     if (!visible) {
       setState(() => visible = true);
@@ -131,9 +137,14 @@ class CompactControlsState extends State<CompactControls> {
       cursor: visible ? MouseCursor.defer : SystemMouseCursors.none,
       onEnter: (event) {
         if (event.kind == PointerDeviceKind.mouse) {
+          keyboardFocus = false;
           keyboardReveal = false;
           show();
         }
+      },
+      onExit: (_) {
+        keyboardFocus = false;
+        _schedule();
       },
       onHover: (event) {
         if (event.kind == PointerDeviceKind.mouse &&

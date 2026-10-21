@@ -972,6 +972,136 @@ void main() {
   );
 
   testWidgets(
+    'mac picture in picture continues episodes without closing the small window',
+    (tester) async {
+      if (!Platform.isMacOS) return;
+      await windowManager.ensureInitialized();
+      await windowManager.setSize(const Size(1100, 760));
+      await windowManager.show();
+      await windowManager.focus();
+      final asset = await rootBundle.load('assets/verification.cenc.mp4');
+      final runtime = _Runtime(
+        asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
+        Directory.systemTemp.createTempSync('hongguo-pip-next-'),
+        episodes: 3,
+        settings: const AppSettings(
+          autoNext: true,
+          floatingPlayback: true,
+          prefetchEnabled: false,
+        ),
+      );
+      final detail = await runtime.catalog.detail('123');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PlayerPage(runtime: runtime, detail: detail),
+        ),
+      );
+      await tester.pump();
+      final dynamic state = tester.state(find.byType(PlayerPage));
+      final player = state.player as Player;
+      var completedEpisodes = 0;
+      final completed =
+          state.platformPlayback.onExternalCompleted as VoidCallback?;
+      state.platformPlayback.onExternalCompleted = () {
+        completedEpisodes++;
+        completed?.call();
+      };
+      try {
+        for (var i = 0; i < 150 && state.preparing; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
+        expect(state.error, isNull);
+        await player.setVolume(0);
+        await player.setRate(.5);
+        await player.seek(Duration.zero);
+        await player.play();
+        for (var i = 0; i < 30 && !player.state.playing; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
+        Object? failure;
+        final entering = state.platformPlayback
+            .enter(player, player.state.playlist.medias.single.uri)
+            .catchError((Object e) {
+              failure = e;
+            });
+        for (
+          var i = 0;
+          i < 100 && !state.platformPlayback.floating.value && failure == null;
+          i++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
+        await entering;
+        expect(failure, isNull);
+        expect(state.platformPlayback.platformPip.value, isTrue);
+        print('MAC_PIP_STAGE=entered');
+        await MacWindow.invoke('hide');
+        for (
+          var i = 0;
+          i < 150 && (state.position < 1 || state.preparing);
+          i++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
+        expect(state.error, isNull);
+        expect(state.position, 1);
+        expect(state.platformPlayback.platformPip.value, isTrue);
+        expect(player.state.playing, isFalse);
+        for (
+          var i = 0;
+          i < 150 && (state.position < 2 || state.preparing);
+          i++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
+        expect(state.error, isNull);
+        expect(state.position, 2);
+        expect(state.platformPlayback.platformPip.value, isTrue);
+        expect(player.state.playing, isFalse);
+        for (
+          var i = 0;
+          i < 40 &&
+              ((state.platformPlayback.externalPosition?.inMilliseconds ?? 0) ==
+                      0 ||
+                  state.platformPlayback.externalPlaying != true);
+          i++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
+        expect(state.platformPlayback.externalPlaying, isTrue);
+        for (var i = 0; i < 70 && completedEpisodes < 3; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
+        expect(completedEpisodes, 3);
+        expect(state.platformPlayback.externalPlaying, isFalse);
+        expect(
+          state.platformPlayback.externalPosition.inMilliseconds,
+          greaterThan(0),
+        );
+        await Future<void>.delayed(const Duration(seconds: 1));
+        expect(state.position, 2);
+        expect(state.platformPlayback.floating.value, isTrue);
+        await MacWindow.invoke('show');
+        final exit = state.platformPlayback.exit(player);
+        for (var i = 0; i < 60 && state.platformPlayback.floating.value; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
+        await exit;
+        expect(state.position, 2);
+        print(
+          'MAC_PIP_AUTONEXT=three local files played in one native PiP session while main window hidden; last episode stopped; main player stayed paused',
+        );
+      } finally {
+        await MacWindow.invoke('show');
+        await tester.pumpWidget(const SizedBox());
+        await state.platformUpdates;
+        await tester.pumpAndSettle();
+        await runtime.dispose();
+      }
+    },
+  );
+
+  testWidgets(
     'desktop picture in picture restores playback and occlusion does not pause',
     (tester) async {
       if (!Platform.isMacOS && !Platform.isWindows && !Platform.isLinux) return;
@@ -1001,10 +1131,11 @@ void main() {
       final player = state.player as Player;
       await player.setVolume(0);
       for (var i = 0; i < 150 && state.preparing; i++) {
-        await tester.pump(const Duration(milliseconds: 100));
+        await Future<void>.delayed(const Duration(milliseconds: 100));
       }
       await state.platformUpdates;
       await windowManager.ensureInitialized();
+      if (Platform.isMacOS) await windowManager.setSize(const Size(1100, 760));
       await windowManager.show();
       await windowManager.focus();
       final original = await windowManager.getBounds();
@@ -1014,9 +1145,10 @@ void main() {
         await _wakePlayerControls(tester);
         await player.setRate(.25);
         await player.setPlaylistMode(PlaylistMode.loop);
+        await player.seek(Duration.zero);
         await player.play();
         for (var i = 0; i < 30 && !player.state.playing; i++) {
-          await tester.pump(const Duration(milliseconds: 100));
+          await Future<void>.delayed(const Duration(milliseconds: 100));
         }
         expect(player.state.playing, isTrue);
         expect(find.byKey(const ValueKey('enter-pip')), findsOneWidget);
@@ -1026,8 +1158,11 @@ void main() {
           i < 100 && !state.platformPlayback.floating.value;
           i++
         ) {
-          await tester.pump(const Duration(milliseconds: 100));
+          await Future<void>.delayed(const Duration(milliseconds: 100));
         }
+        await windowManager.show();
+        await windowManager.focus();
+        await tester.pump();
         expect(runtime.settings.floatingPlayback, isTrue);
         expect(state.platformPlayback.floating.value, isTrue);
         if (Platform.isMacOS) {
@@ -1044,7 +1179,7 @@ void main() {
                     0;
             i++
           ) {
-            await tester.pump(const Duration(milliseconds: 100));
+            await Future<void>.delayed(const Duration(milliseconds: 100));
           }
           expect(state.platformPlayback.externalPlaying, isTrue);
           expect(state.platformPlayback.externalPosition, isNotNull);
@@ -1060,9 +1195,12 @@ void main() {
           await tester.tap(find.byTooltip('退出悬浮播放'));
         }
         for (var i = 0; i < 100 && state.platformPlayback.floating.value; i++) {
-          await tester.pump(const Duration(milliseconds: 100));
+          await Future<void>.delayed(const Duration(milliseconds: 100));
         }
         expect(state.platformPlayback.floating.value, isFalse);
+        for (var i = 0; i < 30 && !player.state.playing; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
         expect(player.state.playing, isTrue);
         expect(player.state.rate, .25);
         final restored = await windowManager.getBounds();
@@ -1073,7 +1211,7 @@ void main() {
         await player.seek(Duration.zero);
         await player.play();
         state.didChangeAppLifecycleState(AppLifecycleState.paused);
-        await tester.pump(const Duration(milliseconds: 100));
+        await Future<void>.delayed(const Duration(milliseconds: 100));
         expect(player.state.playing, isTrue);
         state.didChangeAppLifecycleState(AppLifecycleState.resumed);
         await runtime.saveSettings(
@@ -1092,7 +1230,7 @@ void main() {
         await player.pause();
         state.didChangeAppLifecycleState(AppLifecycleState.hidden);
         state.didChangeAppLifecycleState(AppLifecycleState.resumed);
-        await tester.pump(const Duration(milliseconds: 100));
+        await Future<void>.delayed(const Duration(milliseconds: 100));
         expect(player.state.playing, isFalse);
         state.didChangeAppLifecycleState(AppLifecycleState.resumed);
         print(
@@ -1101,6 +1239,7 @@ void main() {
       } finally {
         await state.platformPlayback.exit(player);
         await tester.pumpWidget(const SizedBox());
+        await state.platformUpdates;
         await tester.pumpAndSettle();
         await runtime.dispose();
       }
@@ -1676,6 +1815,7 @@ void main() {
           (await channel.invokeMapMethod('state'))!;
       final initial = await windowState();
       expect(initial['statusItem'], isTrue);
+      expect(initial['statusClickRestores'], isFalse);
       expect(
         (initial['menu'] as List)
             .where((item) => item.toString().isNotEmpty)
@@ -1733,10 +1873,12 @@ void main() {
         await windowManager.close();
         await tester.pump(const Duration(milliseconds: 700));
         expect((await windowState())['visible'], isFalse);
+        expect((await windowState())['statusClickRestores'], isTrue);
         expect(player.state.playing, isTrue);
         await channel.invokeMethod('show');
         await tester.pump(const Duration(milliseconds: 300));
         expect((await windowState())['visible'], isTrue);
+        expect((await windowState())['statusClickRestores'], isFalse);
         expect(await player.handle, handle);
         await _wakePlayerControls(tester);
         await tester.tap(find.byTooltip('播放速度'));
@@ -1766,6 +1908,7 @@ void main() {
       } finally {
         await channel.invokeMethod('show');
         await tester.pumpWidget(const SizedBox());
+        await state.platformUpdates;
         await tester.pumpAndSettle();
         await runtime.dispose();
       }
@@ -1898,8 +2041,16 @@ void main() {
           }
           expect(await windowManager.isFullScreen(), isFalse);
         }
+        if (Platform.isMacOS) await state.platformPlayback.fullscreenUpdates;
         expect(await player.handle, handle);
         await tester.tap(find.byKey(const ValueKey('player-exit')));
+        for (
+          var i = 0;
+          i < 40 && find.byType(PlayerPage).evaluate().isNotEmpty;
+          i++
+        ) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
         await tester.pumpAndSettle();
         expect(find.byType(PlayerPage), findsNothing);
         print(
@@ -1907,6 +2058,7 @@ void main() {
         );
       } finally {
         await tester.pumpWidget(const SizedBox());
+        await state.platformUpdates;
         await tester.pumpAndSettle();
         await runtime.dispose();
       }
@@ -1981,6 +2133,7 @@ void main() {
         );
       } finally {
         await tester.pumpWidget(const SizedBox());
+        await state.platformUpdates;
         await tester.pumpAndSettle();
         await runtime.dispose();
       }

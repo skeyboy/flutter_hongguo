@@ -8,20 +8,23 @@ import 'package:flutter/services.dart';
 class EpisodeWorkspace extends StatefulWidget {
   final Widget video, episodes;
   final bool playing, busy;
+  final bool hideWhileHovering;
   final Duration hideAfter;
   final ValueChanged<bool>? onVisibilityChanged;
   final bool manageBack;
-  final VoidCallback? onSettings;
+  final VoidCallback? onSettings, onActivity;
   const EpisodeWorkspace({
     super.key,
     required this.video,
     required this.episodes,
     required this.playing,
     required this.busy,
+    this.hideWhileHovering = false,
     this.hideAfter = const Duration(seconds: 5),
     this.onVisibilityChanged,
     this.manageBack = true,
     this.onSettings,
+    this.onActivity,
   });
   @override
   State<EpisodeWorkspace> createState() => EpisodeWorkspaceState();
@@ -55,7 +58,7 @@ class EpisodeWorkspaceState extends State<EpisodeWorkspace> {
       !pinned &&
       widget.playing &&
       !widget.busy &&
-      !_hovering &&
+      (!_hovering || widget.hideWhileHovering) &&
       !_keyboardFocus &&
       _pointers.isEmpty &&
       !MediaQuery.accessibleNavigationOf(context);
@@ -120,9 +123,19 @@ class EpisodeWorkspaceState extends State<EpisodeWorkspace> {
   Widget _panel() => MouseRegion(
     onEnter: (_) {
       _hovering = true;
+      if (widget.hideWhileHovering) _keyboardFocus = false;
+      widget.onActivity?.call();
       _schedule();
     },
+    onHover: (_) {
+      if (widget.hideWhileHovering) {
+        _keyboardFocus = false;
+        widget.onActivity?.call();
+        _schedule();
+      }
+    },
     onExit: (_) {
+      if (widget.hideWhileHovering) _keyboardFocus = false;
       _hovering = false;
       _schedule();
     },

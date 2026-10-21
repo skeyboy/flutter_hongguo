@@ -7,7 +7,7 @@
 | 播放页有系统标题栏 | 透明标题栏、全尺寸内容、隐藏红黄绿按钮 | 视频占满窗口，保留系统窗口语义 |
 | 窗口样式跟随全局配置 | 仅可见播放路由使用沉浸样式，进入设置/返回恢复 | 不影响日常浏览与设置 |
 
-菜单栏图标左键恢复主窗口，右键显示“显示主窗口 / 隐藏窗口 / 设置 / 关于 / 退出”。原生菜单按系统语言提供英文、简体与繁体中文。设置复用现有 auto_route 页面，连续点击不重复压栈；尚未初始化时禁用。应用菜单 ⌘, 同样进入设置。
+菜单栏图标按主窗口状态处理点击：窗口隐藏、最小化或应用被隐藏时恢复主窗口；窗口已显示时展示“显示主窗口 / 隐藏窗口 / 设置 / 关于 / 退出”菜单。左右键使用同一状态规则，避免窗口唤起与菜单弹出冲突。原生菜单按系统语言提供英文、简体与繁体中文。设置复用现有 auto_route 页面，连续点击不重复压栈；尚未初始化时禁用。应用菜单 ⌘, 同样进入设置。
 
 播放浮层左侧返回，空白标题区域可拖动，右侧提供最小化与隐藏窗口。操作浮层继续采用现有三秒隐藏与鼠标唤出。隐藏窗口保留当前播放和下载策略；退出应用才结束进程。播放页保留系统 .titled / .resizable 样式，以维持键盘焦点、窗口缩放和原生全屏；使用公开 fullSizeContentView 与 titlebarAppearsTransparent 实现视觉沉浸，不使用私有视图层级。
 
@@ -29,3 +29,5 @@
 ../../.fvm/flutter_sdk/bin/flutter test integration_test/offline_playback_test.dart -d macos --name 'mac window close|desktop picture in picture|immersive player' --no-pub
 ../../.fvm/flutter_sdk/bin/flutter build macos --debug --no-pub
 ```
+
+后续画中画连播和鼠标隐藏规则见 [Mac 连播与交互](macos-pip-continuation.md)。
