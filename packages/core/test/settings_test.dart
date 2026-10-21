@@ -2,6 +2,11 @@ import 'package:hongguo_core/hongguo_core.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('new profiles sign catalog requests while saved preferences remain explicit', () {
+    expect(const AppSettings().signLists, isTrue);
+    expect(AppSettings.fromJson({}).signLists, isTrue);
+    expect(AppSettings.fromJson({'signLists': false}).signLists, isFalse);
+  });
   test(
     'global catalog sort and TV page size migrate, persist and validate',
     () {

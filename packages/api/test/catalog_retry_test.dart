@@ -59,6 +59,123 @@ const themes = {
 };
 
 void main() {
+  test('queued legacy lists reuse the discovered signature requirement before sending', () async {
+    final adapter = ScriptedAdapter((request, body) async {
+      if (!request.headers.containsKey('x-argus')) {
+        return ResponseBody.fromString('', 200);
+      }
+      return response(body['need_selector_panel'] == true ? themes : page);
+    });
+    final dio = Dio()..httpClientAdapter = adapter;
+    addTearDown(dio.close);
+    final client = CatalogClient(
+      dio: dio,
+      deviceId: '1234567890123456',
+      signLists: false,
+      retry: NetworkRetry(wait: (_) async {}),
+    );
+    await Future.wait<Object>([client.themes('short_play'), client.browse()]);
+    expect(adapter.requests, hasLength(3));
+    expect(
+      adapter.requests.where((r) => !r.headers.containsKey('x-argus')),
+      hasLength(1),
+    );
+  });
+
+  test('signature fallback never retries rejected authorization or changes session headers', () async {
+    final adapter = ScriptedAdapter(
+      (request, _) async => request.headers.containsKey('x-argus')
+          ? response({}, 401)
+          : ResponseBody.fromString('', 200),
+    );
+    final dio = Dio()..httpClientAdapter = adapter;
+    addTearDown(dio.close);
+    final client = CatalogClient(
+      dio: dio,
+      deviceId: '1234567890123456',
+      signLists: false,
+      sessionHeaders: const {
+        'cookie': 'fixture-session',
+        'x-tt-token': 'fixture-token',
+      },
+      retry: NetworkRetry(wait: (_) async {}),
+    );
+    await expectLater(
+      client.themes('short_play'),
+      throwsA(
+        isA<DioException>().having(
+          (e) => e.response?.statusCode,
+          'status',
+          401,
+        ),
+      ),
+    );
+    expect(adapter.requests, hasLength(2));
+    for (final request in adapter.requests) {
+      expect(request.headers['cookie'], 'fixture-session');
+      expect(request.headers['x-tt-token'], 'fixture-token');
+      expect(request.uri.queryParameters['device_id'], '1234567890123456');
+    }
+  });
+
+  test('catalog requests are signed by default', () async {
+    final adapter = ScriptedAdapter((_, _) async => response(themes));
+    final dio = Dio()..httpClientAdapter = adapter;
+    addTearDown(dio.close);
+    await CatalogClient(
+      dio: dio,
+      deviceId: '1234567890123456',
+    ).themes('short_play');
+    expect(adapter.requests.single.headers['x-argus'], isNotEmpty);
+  });
+  test('legacy unsigned empty body upgrades once and subsequent lists remain signed', () async {
+    final waits = <Duration>[];
+    final adapter = ScriptedAdapter((options, _) async {
+      if (!options.headers.containsKey('x-argus')) {
+        return ResponseBody.fromString('', 200);
+      }
+      return response(themes);
+    });
+    final dio = Dio()..httpClientAdapter = adapter;
+    addTearDown(dio.close);
+    final client = CatalogClient(
+      dio: dio,
+      deviceId: '1234567890123456',
+      signLists: false,
+      retry: NetworkRetry(wait: (d) async => waits.add(d)),
+    );
+    expect(await client.themes('short_play'), hasLength(1));
+    expect(adapter.requests, hasLength(2));
+    expect(adapter.requests.first.headers.containsKey('x-argus'), isFalse);
+    expect(adapter.requests.last.headers['x-argus'], isNotEmpty);
+    expect(adapter.bodies[0], adapter.bodies[1]);
+    expect(
+      adapter.requests[0].uri.queryParameters['device_id'],
+      adapter.requests[1].uri.queryParameters['device_id'],
+    );
+    expect(waits, [const Duration(seconds: 1)]);
+    await client.themes('comic_series');
+    expect(adapter.requests, hasLength(3));
+    expect(adapter.requests.last.headers['x-argus'], isNotEmpty);
+  });
+  test('empty signed responses exhaust the same four-attempt bound', () async {
+    final adapter = ScriptedAdapter(
+      (_, _) async => ResponseBody.fromString('  ', 200),
+    );
+    final dio = Dio()..httpClientAdapter = adapter;
+    addTearDown(dio.close);
+    final client = CatalogClient(
+      dio: dio,
+      deviceId: '1234567890123456',
+      retry: NetworkRetry(wait: (_) async {}),
+    );
+    await expectLater(
+      client.themes('short_play'),
+      throwsA(isA<IncompleteCatalogResponse>()),
+    );
+    expect(adapter.requests, hasLength(4));
+  });
+
   test(
     'theme timeouts retry with fresh POST bodies and extended timeouts',
     () async {

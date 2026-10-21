@@ -45,7 +45,7 @@ class AppSettings {
     this.maxCacheMb = 512,
     this.concurrentPreparations = 2,
     this.timeoutSeconds = 60,
-    this.signLists = false,
+    this.signLists = true,
     this.apiHost = 'api5-normal-sinfonlinea.fqnovel.com',
     this.videoHost = 'api5-normal-sinfonlineb.fqnovel.com',
     this.catalogVersion = '7.2.2.32',

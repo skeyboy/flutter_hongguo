@@ -799,7 +799,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 _field('视频 User-Agent', userAgent),
                                 _switch(
                                   '列表接口也签名',
-                                  '默认关闭；只在上游要求时启用。',
+                                  '默认开启；旧配置遇到空响应时会自动补签重试。',
                                   draft.signLists,
                                   (v) => draft = draft.copyWith(signLists: v),
                                 ),

@@ -127,6 +127,7 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
   final PureSign signer;
   final Map<String, String> sessionHeaders;
   final bool signLists;
+  bool _listSignatureRequired = false;
   final AppSettings protocol;
   DateTime _lastRequest = DateTime.fromMillisecondsSinceEpoch(0);
   Future<void> _queue = Future.value();
@@ -138,7 +139,7 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
     required this.deviceId,
     PureSign? signer,
     this.sessionHeaders = const {},
-    this.signLists = false,
+    this.signLists = true,
     this.protocol = const AppSettings(),
   }) : retry = retry ?? NetworkRetry(),
        signer = signer ?? PureSign() {
@@ -168,6 +169,7 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
         });
         _queue = slot;
         await slot;
+        final effectiveSigned = signed || _listSignatureRequired;
         final bytes = body == null
             ? null
             : Uint8List.fromList(utf8.encode(jsonEncode(body)));
@@ -191,9 +193,9 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
           };
           url =
               'https://${protocol.apiHost}$path?${params.entries.map((e) => '${encodeQueryPart(e.key)}=${encodeQueryPart(e.value)}').join('&')}';
-          if (!signed || signer.branchOf(url, bytes, ts) != 1) break;
+          if (!effectiveSigned || signer.branchOf(url, bytes, ts) != 1) break;
         }
-        if (signed && signer.branchOf(url, bytes, ts) == 1) {
+        if (effectiveSigned && signer.branchOf(url, bytes, ts) == 1) {
           throw const CatalogError('签名暂时无法生成，请重试');
         }
         final response = await dio.fetch<String>(
@@ -215,7 +217,7 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
                     'content-length': '${bytes.length}',
                     'x-ss-stub': hex(md5(bytes)).toUpperCase(),
                   },
-                  if (signed) ...signer.sign(url, bytes, ts),
+                  if (effectiveSigned) ...signer.sign(url, bytes, ts),
                 },
               )
               .compose(
@@ -230,7 +232,15 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
         if (response.statusCode != 200) {
           throw CatalogError('内容接口 HTTP ${response.statusCode}');
         }
-        final data = _map(jsonDecode(response.data ?? ''));
+        final text = response.data ?? '';
+        if (text.trim().isEmpty) {
+          // Some upstream list endpoints changed from unsigned responses to
+          // HTTP 200 + empty body. Upgrade only this client's request policy;
+          // do not rotate identity or manufacture/refresh account credentials.
+          if (!effectiveSigned) _listSignatureRequired = true;
+          throw const IncompleteCatalogResponse('内容接口未返回数据，请稍后重试');
+        }
+        final data = _map(jsonDecode(text));
         final code = data['code'] ?? data['Code'] ?? data['status_code'];
         if (code != null && _int(code) != 0) {
           throw CatalogError(

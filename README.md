@@ -152,3 +152,7 @@ PC、手机端业务页面统一使用 auto_route，列表与详情失败可重�
 ### 手动下载与离线观看
 
 详情页新增分集/画质下载入口；“我的 → 下载管理”可暂停、继续、取消或重试，已完成视频可直接离线观看并继续本地连播/续播。手动下载独立保留，不被普通缓存清理删除。先行设计与开发计划、平台边界及验证见[剧集下载设计](docs/design/episode-downloads.md)。
+
+## 上游 API 协议维护
+
+网络空响应、签名与账号授权的区分、参考子模块更新、脱敏探测及 Dart 加解密同步流程，见 [上游 API 维护说明](docs/analysis/2026-10-21-upstream-api-maintenance.md)。可先运行 `python3 tool/check_upstream_protocol.py` 检查本地协议基线；线上探测需显式运行。
