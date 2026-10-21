@@ -35,6 +35,7 @@ notes.write_text(f'''Native Flutter / shared Dart release {release}.
 - Catalog: recover empty upstream responses and sign requests when required.
 - My library: favorites, per-episode watch history, resume playback and offline series.
 - Episode downloads: select episodes and quality, manage tasks, retry and play offline.
+- DLNA casting on Android phones: discover a renderer, serve the cached episode over the LAN, drive play/pause/seek/volume from a remote page and resume locally where the television stopped. Not yet verified against a physical receiver.
 - Manual downloads survive ordinary cache cleanup; resumed tasks keep independent recovery journals.
 - Adaptive immersive player, unified episode/settings panel, auto_route navigation and cached images.
 - Application names follow the system language (English, Simplified and Traditional Chinese).
