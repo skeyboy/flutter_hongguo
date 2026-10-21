@@ -32,6 +32,8 @@ dependencies:
     path: ../core
   hongguo_api:
     path: ../api
+  hongguo_cast:
+    path: ../cast
 dev_dependencies:
   file: any
   flutter_cache_manager: any
@@ -40,6 +42,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   lints: any
+  # The cast fixtures read the SOAP envelopes a fake renderer was handed.
+  xml: any
 flutter:
   uses-material-design: true
   assets:

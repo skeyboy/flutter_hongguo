@@ -15,6 +15,7 @@ class PlaybackTransport extends StatefulWidget {
   final ValueChanged<bool> onMenuChanged;
   final VoidCallback episodes, previous, next, fullscreenToggle;
   final VoidCallback? floating;
+  final VoidCallback? cast;
   final String? notice, title;
   const PlaybackTransport({
     super.key,
@@ -33,6 +34,7 @@ class PlaybackTransport extends StatefulWidget {
     required this.next,
     required this.fullscreenToggle,
     this.floating,
+    this.cast,
     this.notice,
     this.title,
   });
@@ -216,6 +218,13 @@ class _PlaybackTransportState extends State<PlaybackTransport> {
                       ),
                     ),
                   ),
+                  if (widget.cast != null)
+                    IconButton(
+                      key: const ValueKey('cast-device'),
+                      tooltip: '投屏到电视',
+                      onPressed: widget.cast,
+                      icon: const Icon(Icons.cast_outlined),
+                    ),
                   if (widget.floating != null && !widget.floatingActive)
                     IconButton(
                       key: const ValueKey('enter-pip'),

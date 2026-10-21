@@ -12,6 +12,7 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : AudioServiceActivity() {
     private var playbackChannel: MethodChannel? = null
+    private var multicastLock: android.net.wifi.WifiManager.MulticastLock? = null
     private var tvBackDown = false
 
     @Suppress("DEPRECATION")
@@ -56,6 +57,25 @@ class MainActivity : AudioServiceActivity() {
                     ))
                 } else result.notImplemented()
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "hongguo/multicast")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "acquire" -> {
+                        val wifi = getSystemService(android.content.Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+                        val lock = multicastLock ?: wifi.createMulticastLock("hongguo-ssdp").apply {
+                            setReferenceCounted(false)
+                        }
+                        multicastLock = lock
+                        if (!lock.isHeld) lock.acquire()
+                        result.success(true)
+                    }
+                    "release" -> {
+                        multicastLock?.let { if (it.isHeld) it.release() }
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
         playbackChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "hongguo/platform-playback")
         playbackChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
@@ -95,6 +115,7 @@ class MainActivity : AudioServiceActivity() {
         // A dismissed PiP must not leave an unannounced audio-only player when
         // the user has not enabled background playback.
         playbackChannel?.invokeMethod("pip", false)
+        multicastLock?.let { if (it.isHeld) it.release() }
         super.onDestroy()
     }
 

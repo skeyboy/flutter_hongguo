@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 enum AppScreen {
   detail('DramaDetail', '/detail'),
   player('VideoPlayer', '/player'),
+  cast('CastRemote', '/cast'),
   settings('AppSettings', '/settings'),
   cache('LocalCache', '/cache'),
   downloads('EpisodeDownloads', '/downloads'),

@@ -24,6 +24,7 @@ flutter_hongguo/
 │   ├── cast/test/                 投屏协议与会话状态机测试
 │   └── app/
 │       ├── lib/                   Flutter 页面、DI 与平台 runtime
+│       ├── lib/cast/              投屏入口、设备面板、遥控器页与会话交接
 │       ├── test/                  页面与交互测试
 │       ├── integration_test/      离线原生播放 / Mac 真实单集 POC
 │       └── android/ ios/ macos/ windows/ linux/ web/

@@ -49,13 +49,11 @@ packages/cast/                     纯 Dart，零 Flutter
   lib/src/discovery.dart           设备登记表、去重、离线判定
 ```
 
-接缝按现有惯例：
-
-- `packages/app/lib/platform/runtime_contract.dart` 已有 `VideoQualityRuntime`/`LibraryCacheRuntime`/`LocalMediaRuntime` 等 mixin 式能力接口，用 `runtime is X` 探测（例如 `packages/app/lib/features/player_page.dart:284`）。投屏同样加 `CastRuntime`，web runtime 不实现即自然隐藏入口。
+- 接缝按现有惯例：投屏没有新加 `CastRuntime` mixin，能力直接用现成的 `runtime is LocalMediaRuntime` 探测再叠加平台门槛，即 `packages/app/lib/cast/cast_controller.dart` 的 `castSupported()`（移动端宿主 + 非 TV 版 + 运行时能给解密本地文件）；web runtime 不实现 `LocalMediaRuntime`，入口自然隐藏。
 - 投屏源只取**已就绪**缓存文件，走 `MediaCache.prepareCached` 的只读租约与 pin 机制，保证电视拉流期间文件不被淘汰。
-- 投屏开始时本地让位：复用 `_pausePlayback()`（`packages/app/lib/features/player_page.dart:505-506`，TV flavor 会自动分流到 `tvPlayback.pause()`）。
-- 电视侧进度反向驱动 UI：`platformPlayback.onExternalProgress` 已有先例（`packages/app/lib/features/player_page.dart:353`），进度来自 SOAP `GetPositionInfo` 轮询，不做假插值。
-- 入口按钮沿用可空回调惯法：`PlaybackTransport` 的 `floating` 就是 `if (widget.floating != null && ...) IconButton(key: ValueKey('enter-pip'), ...)`（`packages/app/lib/playback/playback_transport.dart:17`、`:219-224`），投屏加 `cast` 回调与 `ValueKey('cast-device')` 同构实现；`packages/app/lib/features/player_page.dart:1614` 那里按平台门槛传 null。
+- 投屏开始时本地让位：复用 `_pausePlayback()`（`packages/app/lib/features/player_page.dart:513`，TV flavor 会自动分流到 `tvPlayback.pause()`）。
+- 电视侧进度反向驱动 UI：`platformPlayback.onExternalProgress` 已有先例（`packages/app/lib/features/player_page.dart:357`），进度来自 SOAP `GetPositionInfo` 轮询，不做假插值。
+- 入口按钮沿用可空回调惯法：`PlaybackTransport` 的 `floating` 就是 `if (widget.floating != null && ...) IconButton(key: ValueKey('enter-pip'), ...)`（`packages/app/lib/playback/playback_transport.dart:230`），投屏加的 `cast` 回调与 `ValueKey('cast-device')` 同构实现（同一文件 `:18`、`:223`）；`packages/app/lib/features/player_page.dart:1672` 那里按平台门槛传 null。
 
 时序：点投屏 → 检查该内容是否已缓存为明文 → 启动 LAN HTTP 源 → SSDP 搜索（≤8s）→ 设备列表 → `SetAVTransportURI` + `Play` → 本地 `_pausePlayback` → 轮询 `GetPositionInfo`/`GetTransportInfo` → 遥控（暂停/继续/seek/音量走 SOAP）→ 退出投屏时 `Stop` 并按电视位置在本地续播 → 释放 HTTP 源与租约 pin。
 
@@ -63,7 +61,7 @@ packages/cast/                     纯 Dart，零 Flutter
 
 | 平台 | 入口 | 关键约束 |
 |---|---|---|
-| Android 手机 | 显示 | 需 `CHANGE_WIFI_MULTICAST_STATE` + 运行期 MulticastLock；明文例外要用 `network_security_config.xml` 精确放行本机 LAN IP 与 `127.0.0.1`（targetSdk≥28 后 `usesCleartextTraffic` 默认 false）；服务端 socket 绑 `0.0.0.0` 不能绑 `127.0.0.1`；长时投屏需评估前台服务，否则 Doze 回收导致「投着投着就断」 |
+| Android 手机 | 显示 | 需 `CHANGE_WIFI_MULTICAST_STATE` + 运行期 MulticastLock（`hongguo/multicast` 通道，见 `packages/app/android/app/src/main/kotlin/com/example/hongguo_app/MainActivity.kt`）；明文不必配 `network_security_config.xml`：设备描述与 SOAP 控制走 `dart:io` 的裸 socket，Android 的 cleartext 策略只拦 Java 侧 HttpURLConnection/WebView；服务端 socket 要绑 `0.0.0.0` 不能绑 `127.0.0.1`；长时投屏需评估前台服务，否则 Doze 回收导致「投着投着就断」。以上两条都还没在真机上验证 |
 | Android 平板 | 显示 | 同手机；横屏遥控器页可用两栏 |
 | iOS iPhone/iPad | 显示，但失败率更高 | SSDP 组播需 `com.apple.developer.networking.multicast` entitlement（Explicit App ID、单独审批）+ `NSLocalNetworkUsageDescription` + iOS 14 本地网络授权；拿不到 entitlement 时降级为「引导系统屏幕镜像」并说明原因 |
 | macOS | 不显示入口 | 桌面自身就是大屏，投屏无意义；保留接口 |
@@ -106,7 +104,7 @@ packages/cast/                     纯 Dart，零 Flutter
 ## 分阶段实施
 
 - P1：`packages/cast` 协议核心 + 单测 + 门禁登记（本 module 范围）。已完成：SSDP、设备描述、SOAP、DIDL、时间格式、设备表、局域网媒体源与会话状态机，52 个 `dart test` 用例进 `tool/verify_all.sh` 与 CI `verify` job；DIDL 命名空间另有一道独立解析器校验（`tool/verify_cast_didl.dart | tool/verify_didl_namespaces.py`），因为 Dart 的 XML 读取器不报错于未声明前缀；未接任何 UI，未做真机验证。
-- P2：app 接线（入口、设备面板、遥控器页、会话交接）+ Android 真机与一台接收端验证。
+- P2：app 接线（入口、设备面板、遥控器页、会话交接）+ Android 真机与一台接收端验证。接线已完成：播放页控制条 `cast-device` 入口（仅 `castSupported()` 为真时出现，即移动端宿主 + 非 TV 版 + 运行时可提供解密本地文件）、设备面板 `cast_device_sheet.dart`（发现中/空列表排障文案、不可播控设备只展示不可选）、遥控器页 `cast_remote_page.dart`（`AppScreen.cast` 路由，暂停/继续/REL_TIME 拖动/音量/退出）、会话交接 `CastController`：投屏成功后本地暂停，退出时把电视位置交回播放页续播并写历史；本地文件由 `MediaCache.prepareCached` 钉住、退出或切集时释放，Android 侧 `CHANGE_WIFI_MULTICAST_STATE` + `hongguo/multicast` 通道持有组播锁。`packages/app/test/` 新增 15 例（loopback 媒体服务器 + 假 SOAP 电视：`cast_controller_test.dart` 11 例、`cast_ui_test.dart` 4 例）。**未做**：真机与真实接收端验证，因此端到端投屏成功率仍是未知；遥控器页切集按钮（`onPrevious/onNext`）留空，上次设备记忆与自动重连在 P3，iOS 本地网络权限在 P4。
 - P3：兜底能力（手动 IP、DIDL 协商、断连重连、前台服务）。
 - P4：iOS entitlement 与本地网络权限引导。
 - P5：后端明文轨与权益开关落地后，远端推送分支替换本地中继。
