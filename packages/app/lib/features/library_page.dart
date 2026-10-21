@@ -14,6 +14,7 @@ import '../widgets/drama_cover.dart';
 export '../widgets/drama_cover.dart';
 import '../localization/application_name.dart';
 import '../catalog/library_cache.dart';
+import '../search/search_history.dart';
 import '../search/search_suggestions.dart';
 import 'detail_page.dart';
 import 'my_page.dart';
@@ -291,11 +292,13 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   void _openSuggestions() {
+    final store = searchHistoryFor(widget.runtime);
     setState(() {
       suggestionsOpen = true;
-      historyRows = searchHistoryFor(widget.runtime).matching(search.text);
+      historyRows = store.matching(search.text);
       suggestionAnchor = _anchoredSearchRect();
     });
+    unawaited(_loadHistory(store));
     if (suggestionAnchor == null) {
       _closeSuggestions();
       return;
@@ -306,6 +309,26 @@ class _LibraryPageState extends State<LibraryPage> {
     if (search.text.isNotEmpty || suggestionsLoading) return;
     if (suggestionsGenre == genre && suggestionRows.isNotEmpty) return;
     unawaited(_loadSuggestions());
+  }
+
+  /// A fresh session holds nothing in memory yet, so the panel has to read what
+  /// the last one left on disk. A damaged history file only costs the history
+  /// rows, never the focus event.
+  Future<void> _loadHistory(SearchHistory store) async {
+    try {
+      await store.load();
+    } on Object catch (_) {
+      return;
+    }
+    if (!mounted) return;
+    final hits = store.matching(search.text);
+    if (hits.isEmpty) return;
+    if (!suggestionsOpen) {
+      if (searchFocus.hasFocus) _openSuggestions();
+      return;
+    }
+    setState(() => historyRows = hits);
+    suggestionsEntry?.markNeedsBuild();
   }
 
   /// The panel lives in the overlay because a box only receives taps inside its

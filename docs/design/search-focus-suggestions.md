@@ -5,6 +5,7 @@
 ## 交互
 
 - 聚焦即弹。文本变化会重算历史匹配；输入非空时不再请求推荐位，因为下方结果区已经在回答这个词。
+- 首次聚焦先取内存，随后异步读盘补齐：内存里没有上一个会话的历史，直接返回空会让下拉框只显示推荐位。
 - 历史显示 `SearchHistory.shown`（3）条，最新在前；一旦输入内容，只显示包含该串的历史（不区分大小写）。
 - 推荐位显示标题 + 一个标记图标：`fiber_new_rounded`（最新上架）或 `local_fire_department_rounded`（热度上榜），带 Tooltip。不显示封面与简介，行高紧凑，与历史行视觉同级但不混淆。
 - 每条历史行尾部一个删除按钮，删除后面板保持打开；只有历史和推荐都空了才收起，并把光标留在输入框里。
@@ -16,7 +17,7 @@
 
 ## 最近搜索的存储
 
-`packages/app/lib/search/search_history.dart` 单独成文件、单独成盘文件（`<support>/search-history.json`，`FilePreferencesBackend` 原子 tmp+rename）。放进 `PersonalLibrary` 也能跑，但那里每次编辑都会重写全部观看记录，输入一次搜索不该付这个代价。格式 `{version: 1, queries: [...]}`，去空白、去重、上限 `retained`（12）条；版本号不匹配抛 `StateError`，不静默清空用户历史。写操作串行，写失败时内存列表保留但视为未保存。非原生运行时（web、单测）走 `searchHistoryFor()` 的 `Expando` 兜底，历史只在当次会话内，不假装持久化。
+`packages/app/lib/search/search_history.dart` 单独成文件、单独成盘文件（`<support>/search-history.json`，`FilePreferencesBackend` 原子 tmp+rename）。放进 `PersonalLibrary` 也能跑，但那里每次编辑都会重写全部观看记录，输入一次搜索不该付这个代价。格式 `{version: 1, queries: [...]}`，去空白、去重、上限 `retained`（12）条；版本号不匹配抛 `StateError`，不静默清空用户历史。写操作串行，写失败时内存列表保留但视为未保存；退出运行时时 `NativeRuntime.dispose()` 会 `await searchHistory.flush()`，因为搜索词是异步落盘的，不能等键盘去等磁盘。页面侧 `_loadHistory()` 吞掉读取异常：历史文件坏了只少几行历史，不能把聚焦事件也一起吞掉。非原生运行时（web、单测）走 `searchHistoryFor()` 的 `Expando` 兜底，历史只在当次会话内，不假装持久化。
 
 ## 推荐位取数
 
@@ -33,6 +34,6 @@
 
 ## 验收状态
 
-已自动化：`packages/app/test/search_history_test.dart` 7 例（顺序与去重、空白与上限、输入匹配、单条删除、重新载入、写失败不假装保存、异版本拒读），`packages/app/test/search_suggestions_test.dart` 5 例（聚焦弹出后历史 3 行与标记数量、历史行搜索与删除不关面板、推荐行直接进详情且不触发搜索请求、遮罩关闭后重开命中缓存不再请求、榜单不可用时历史仍可用）。app 全量 176 例通过（1 skip）、`dart analyze --fatal-infos` 无 issue、`dart format` 干净。
+已自动化：`packages/app/test/search_history_test.dart` 8 例（顺序与去重、空白与上限、输入匹配、单条删除、重新载入、写失败不假装保存、退出前等待落盘、异版本拒读），`packages/app/test/search_suggestions_test.dart` 7 例（聚焦弹出后历史 3 行与标记数量、历史行搜索与删除不关面板、推荐行直接进详情且不触发搜索请求、遮罩关闭后重开命中缓存不再请求、榜单不可用时历史仍可用、首次聚焦显示上一个会话的历史、历史文件不可读时推荐位照常）。app 全量 179 例通过、1 skip（工作区同时带有网络恢复那条线的在途改动，因此这个数不是本 commit 单独树的结果）、`dart analyze --fatal-infos` 无 issue、`dart format` 干净。
 
 未做：真机与桌面的窗口内人工验证。原生窗口禁止用合成点击驱动（点击会逃逸到其他应用），聚焦触发的下拉无法用自动化在设备上证明；本段结论只到 widget 层，不代表 Android/iOS/桌面实测通过。

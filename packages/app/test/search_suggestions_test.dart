@@ -4,6 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_app/bootstrap.dart';
 import 'package:hongguo_app/main.dart';
+import 'package:hongguo_app/platform/runtime.dart';
+import 'package:hongguo_app/search/search_history.dart';
+import 'package:hongguo_app/settings/settings_store.dart';
 
 import 'fakes.dart';
 
@@ -46,6 +49,26 @@ const newest = [
   Drama(id: 'n1', title: '新剧一', episodeCount: 2),
   Drama(id: 'n2', title: '新剧二', episodeCount: 4),
 ];
+
+/// A runtime whose history only exists on disk, so the first focus has to read
+/// it rather than inherit it from a search in this session.
+class SeededRuntime extends FakeRuntime implements SearchHistoryRuntime {
+  SeededRuntime(super.catalog, this.searchHistory);
+  @override
+  final SearchHistory searchHistory;
+}
+
+class SeededBackend implements PreferencesBackend {
+  SeededBackend(this.data);
+  final Map<String, dynamic> data;
+
+  @override
+  Future<Map<String, dynamic>?> read() async => data;
+
+  @override
+  Future<void> write(Map<String, dynamic> value) async {}
+}
+
 const hot = [
   Drama(id: 'h1', title: '热门一', episodeCount: 9),
   Drama(id: 'n1', title: '新剧一', episodeCount: 2),
@@ -180,6 +203,43 @@ void main() {
     expect(find.byKey(const ValueKey('search-suggestions')), findsOneWidget);
     expect(find.byKey(const ValueKey('search-history-离线可用')), findsOneWidget);
     expect(find.byIcon(Icons.fiber_new_rounded), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the first focus shows what the last session saved', (
+    tester,
+  ) async {
+    final store = SearchHistory(
+      backend: SeededBackend({
+        'version': 1,
+        'queries': ['上个会话留下的词'],
+      }),
+    );
+    await mount(tester, SeededRuntime(boards(), store));
+    await tester.tap(find.byType(TextField));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('search-history-上个会话留下的词')),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.fiber_new_rounded), findsNWidgets(2));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('an unreadable history file still leaves the boards', (
+    tester,
+  ) async {
+    final store = SearchHistory(
+      backend: SeededBackend({
+        'version': 2,
+        'queries': ['旧'],
+      }),
+    );
+    await mount(tester, SeededRuntime(boards(), store));
+    await tester.tap(find.byType(TextField));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('search-suggestions')), findsOneWidget);
+    expect(find.byIcon(Icons.fiber_new_rounded), findsNWidgets(2));
     expect(tester.takeException(), isNull);
   });
 }
