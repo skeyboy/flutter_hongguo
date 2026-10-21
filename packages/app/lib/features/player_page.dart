@@ -23,6 +23,9 @@ import '../playback/episode_workspace.dart';
 import '../playback/compact_controls.dart';
 import '../playback/playback_transport.dart';
 import '../playback/capability_preferences.dart';
+import '../cast/cast_controller.dart';
+import '../cast/cast_device_sheet.dart';
+import '../cast/cast_remote_page.dart';
 import 'settings_page.dart';
 
 const bool softwareVideo = bool.fromEnvironment('HONGGUO_SOFTWARE_VIDEO');
@@ -160,6 +163,7 @@ class _PlayerPageState extends State<PlayerPage>
   late final PrefetchWindow prefetch;
   String quality = 'best';
   String? sourceVid, sourceQuality;
+  CastController? castController;
   PreparationProgress? progress;
   final preparationStages = <String>[];
   Object? error;
@@ -356,6 +360,10 @@ class _PlayerPageState extends State<PlayerPage>
     platformPlayback.floating.addListener(_platformChanged);
     platformPlayback.platformPip.addListener(_platformChanged);
     platformPlayback.nativeFullscreen.addListener(_nativeFullscreenChanged);
+    if (castSupported(widget.runtime)) {
+      castController = CastController(runtime: widget.runtime)
+        ..addListener(_onCastChanged);
+    }
     if (runtime is ConfigurableRuntime) {
       subscriptions.add(
         runtime.settingsChanges.listen((_) {
@@ -571,6 +579,51 @@ class _PlayerPageState extends State<PlayerPage>
         );
       }
     }
+  }
+
+  void _onCastChanged() {
+    if (!mounted) return;
+    final controller = castController;
+    // The television owns playback, so the phone yields instead of double audio.
+    if (controller != null && controller.active && playing) {
+      unawaited(_pausePlayback());
+    }
+  }
+
+  Future<void> _cast() async {
+    final controller = castController;
+    if (controller == null || preparing || sourceVid == null) return;
+    episodeWorkspace.currentState?.hide();
+    compactControls.currentState?.hide();
+    if (fullscreen) await _setFullscreen(false);
+    if (!controller.active) {
+      unawaited(controller.browse());
+      final renderer = await showCastDevicePicker(context, controller);
+      if (renderer == null || !mounted) return;
+      final episode = widget.detail.episodes[position];
+      await controller.start(
+        renderer: renderer,
+        vid: episode.vid,
+        quality: sourceQuality ?? quality,
+        episodeTitle: '${widget.detail.drama.title} · 第 ${episode.index} 集',
+        expectedDuration: player.state.duration == Duration.zero
+            ? null
+            : player.state.duration,
+      );
+      if (!mounted) return;
+      if (!controller.active) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(controller.error ?? '电视拒绝接管播放，请稍后再试。')),
+        );
+        return;
+      }
+    }
+    await showCastRemote(context, controller);
+    if (!mounted) return;
+    final resumeAt = controller.position;
+    if (resumeAt > Duration.zero) await player.seek(resumeAt);
+    _saveHistory(force: true);
+    _redraw(() {});
   }
 
   @override
@@ -871,6 +924,8 @@ class _PlayerPageState extends State<PlayerPage>
     if (fullscreen) unawaited(defaultExitNativeFullscreen());
     generation++;
     WidgetsBinding.instance.removeObserver(this);
+    castController?.removeListener(_onCastChanged);
+    castController?.dispose();
     prefetch.dispose();
     panelRevision.dispose();
     for (final subscription in subscriptions) {
@@ -1584,6 +1639,7 @@ class _PlayerPageState extends State<PlayerPage>
           floating: (macHost || settingsFor(widget.runtime).floatingPlayback)
               ? _floating
               : null,
+          cast: castController == null || sourceVid == null ? null : _cast,
           floatingActive: floating,
           onMenuChanged: (value) {
             if (mounted) _redraw(() => menuOpen = value);
