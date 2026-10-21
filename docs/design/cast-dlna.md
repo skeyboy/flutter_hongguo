@@ -105,7 +105,7 @@ packages/cast/                     纯 Dart，零 Flutter
 
 ## 分阶段实施
 
-- P1：`packages/cast` 协议核心 + 单测 + 门禁登记（本 module 范围）。已完成：SSDP、设备描述、SOAP、DIDL、时间格式、设备表、局域网媒体源与会话状态机，50 个 `dart test` 用例进 `tool/verify_all.sh` 与 CI `verify` job；未接任何 UI，未做真机验证。
+- P1：`packages/cast` 协议核心 + 单测 + 门禁登记（本 module 范围）。已完成：SSDP、设备描述、SOAP、DIDL、时间格式、设备表、局域网媒体源与会话状态机，52 个 `dart test` 用例进 `tool/verify_all.sh` 与 CI `verify` job；DIDL 命名空间另有一道独立解析器校验（`tool/verify_cast_didl.dart | tool/verify_didl_namespaces.py`），因为 Dart 的 XML 读取器不报错于未声明前缀；未接任何 UI，未做真机验证。
 - P2：app 接线（入口、设备面板、遥控器页、会话交接）+ Android 真机与一台接收端验证。
 - P3：兜底能力（手动 IP、DIDL 协商、断连重连、前台服务）。
 - P4：iOS entitlement 与本地网络权限引导。

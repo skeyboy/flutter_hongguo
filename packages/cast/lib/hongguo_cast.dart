@@ -12,7 +12,14 @@ export 'src/protocol/description.dart'
         UpnpService,
         fetchDeviceDescription,
         parseDeviceDescription;
-export 'src/protocol/didl.dart' show DidlItem, buildDidl, didlNamespace;
+export 'src/protocol/didl.dart'
+    show
+        DidlItem,
+        buildDidl,
+        dcNamespace,
+        didlNamespace,
+        dlnaMetadataNamespace,
+        upnpNamespace;
 export 'src/protocol/soap.dart'
     show SoapPoster, SoapService, buildEnvelope, readResponse;
 export 'src/protocol/ssdp.dart'

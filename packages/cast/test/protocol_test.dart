@@ -215,12 +215,81 @@ void main() {
           duration: const Duration(minutes: 45, seconds: 6, milliseconds: 700),
         ),
       );
-      expect(didl, startsWith('<DIDL-Lite xmlns="$didlNamespace">'));
+      expect(didl, contains('<DIDL-Lite xmlns="$didlNamespace"'));
       expect(didl, contains('size="1234"'));
       expect(didl, contains('duration="00:45:06.700"'));
       expect(didl, contains('DLNA.ORG_OP=01'));
       expect(didl, contains('大时代 &amp; 第一集'));
-      XmlDocument.parse(didl);
+    });
+
+    test('declares every prefix it uses, under the standard namespaces', () {
+      final didl = buildDidl(
+        DidlItem(
+          uri: Uri.parse('http://10.0.0.1:8080/media/m1'),
+          mimeType: 'video/mp4',
+          title: '大时代 & 第一集',
+          sizeBytes: 1234,
+        ),
+      );
+      final document = XmlDocument.parse(didl);
+      expect(document.rootElement.name.namespaceUri, didlNamespace);
+      // An undeclared prefix would resolve to no namespace at all, so these
+      // lookups are what prove the declarations exist.
+      expect(
+        document
+            .findAllElements('title', namespaceUri: dcNamespace)
+            .map((node) => node.innerText),
+        ['大时代 & 第一集'],
+      );
+      expect(
+        document
+            .findAllElements('class', namespaceUri: upnpNamespace)
+            .map((node) => node.innerText),
+        ['object.item.videoItem.movie'],
+      );
+      final res = document
+          .findAllElements('res', namespaceUri: didlNamespace)
+          .single;
+      expect(
+        res.getAttribute('protocolInfo'),
+        startsWith('http-get:*:video/mp4'),
+      );
+      expect(res.innerText, 'http://10.0.0.1:8080/media/m1');
+    });
+
+    test('survives the soap envelope round trip', () {
+      final item = DidlItem(
+        uri: Uri.parse('http://10.0.0.1:8080/media/m1?a=1&b=2'),
+        mimeType: 'video/mp4',
+        title: '第一集 "抬头"',
+      );
+      final envelope = buildEnvelope(
+        serviceType: avType,
+        action: 'SetAVTransportURI',
+        arguments: {
+          'CurrentURI': item.uri.toString(),
+          'CurrentURIMetaData': buildDidl(item),
+        },
+      );
+      final metadata = XmlDocument.parse(envelope).descendantElements
+          .firstWhere((node) => node.name.local == 'CurrentURIMetaData')
+          .innerText;
+      final document = XmlDocument.parse(metadata);
+      expect(document.rootElement.name.namespaceUri, didlNamespace);
+      expect(
+        document
+            .findAllElements('title', namespaceUri: dcNamespace)
+            .single
+            .innerText,
+        '第一集 "抬头"',
+      );
+      expect(
+        document
+            .findAllElements('res', namespaceUri: didlNamespace)
+            .single
+            .innerText,
+        'http://10.0.0.1:8080/media/m1?a=1&b=2',
+      );
     });
 
     test('omits metadata the caller does not know', () {

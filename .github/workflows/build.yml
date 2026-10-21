@@ -64,6 +64,8 @@ jobs:
       - name: Verify the DLNA casting protocol core
         working-directory: packages/cast
         run: dart test --reporter expanded
+      - name: Verify DIDL-Lite metadata under a strict XML parser
+        run: dart run tool/verify_cast_didl.dart | python3 tool/verify_didl_namespaces.py
       - name: Verify application and adaptive interactions
         working-directory: packages/app
         run: flutter test --reporter expanded

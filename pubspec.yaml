@@ -37,3 +37,4 @@ dependency_overrides:
   lints: ^6.1.0
 dev_dependencies:
   hongguo_core: any
+  hongguo_cast: any

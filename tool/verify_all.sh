@@ -14,6 +14,9 @@ mkdir -p build/verification
 (cd packages/core && "$SDK_BIN/dart" test --reporter expanded) | tee build/verification/core-tests.log
 (cd packages/api && "$SDK_BIN/dart" test --reporter expanded) | tee build/verification/api-tests.log
 (cd packages/cast && "$SDK_BIN/dart" test --reporter expanded) | tee build/verification/cast-tests.log
+# Dart's XML reader tolerates undeclared namespace prefixes; a strict parser does not.
+"$SDK_BIN/dart" run tool/verify_cast_didl.dart \
+  | python3 tool/verify_didl_namespaces.py | tee build/verification/cast-didl.log
 (cd packages/tv && "$SDK_BIN/flutter" test --no-pub --reporter expanded) | tee build/verification/tv-tests.log
 (cd packages/app && "$SDK_BIN/flutter" test --no-pub --reporter expanded) | tee build/verification/widget-tests.log
 "$SDK_BIN/dart" compile exe tool/verify_portable.dart -o build/verification/native_oracle

@@ -115,7 +115,7 @@ void main() {
       );
       expect(
         handed['CurrentURIMetaData'],
-        startsWith('<DIDL-Lite xmlns="$didlNamespace">'),
+        contains('<DIDL-Lite xmlns="$didlNamespace"'),
       );
       expect(phases.first, CastPhase.preparing);
       expect(session.snapshot.phase, CastPhase.streaming);

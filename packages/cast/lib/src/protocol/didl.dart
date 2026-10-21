@@ -1,7 +1,12 @@
 import 'soap.dart' show escape;
 import 'time.dart' show formatUpnpTime;
 
-const didlNamespace = 'urn:schemas-didl-lite:didl-1.0';
+/// The namespace values are fixed by the UPnP MediaServer and DLNA metadata
+/// standards; a renderer that validates metadata rejects anything else.
+const didlNamespace = 'urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/';
+const dcNamespace = 'http://purl.org/dc/elements/1.1/';
+const upnpNamespace = 'urn:schemas-upnp-org:metadata-1-0/upnp/';
+const dlnaMetadataNamespace = 'urn:schemas-dlna-org:metadata-1-0/';
 
 /// DLNA recommends advertising ranged seeks (ORG_SEEK=1) and metadata parsing
 /// (ORG_PARSING=1); the flag field is 128 hex digits of reserved bits.
@@ -46,8 +51,15 @@ class DidlItem {
 /// The result is itself XML, so the SOAP layer escapes it once more before it
 /// is placed inside the envelope; that double escaping is required by UPnP.
 String buildDidl(DidlItem item) {
+  // `dc:` and `upnp:` are used below, so they must be declared on the root;
+  // `dlna:` is declared too because that is the set shipped renderers expect.
   final buffer = StringBuffer()
-    ..write('<DIDL-Lite xmlns="$didlNamespace">')
+    ..write(
+      '<DIDL-Lite xmlns="$didlNamespace" '
+      'xmlns:dc="$dcNamespace" '
+      'xmlns:upnp="$upnpNamespace" '
+      'xmlns:dlna="$dlnaMetadataNamespace">',
+    )
     ..write('<item id="0" parentID="0" restricted="1">');
   final title = item.title;
   if (title != null && title.isNotEmpty) {
