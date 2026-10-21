@@ -37,7 +37,9 @@ jobs:
             exit 1
           fi
           tag="v$(python3 tool/ci/release_meta.py version)"
-          existing=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq .sha 2>/dev/null || true)
+          if ! existing=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq .sha 2>/dev/null); then
+            existing=""
+          fi
           if [[ -n "$existing" && "$existing" != "$GITHUB_SHA" ]]; then
             echo 'Increment pubspec: this version already points to a different commit.' >&2
             exit 1
@@ -117,7 +119,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: |
-          existing=$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha 2>/dev/null || true)
+          if ! existing=$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha 2>/dev/null); then
+            existing=""
+          fi
           if [[ -n "$existing" && "$existing" != "$GITHUB_SHA" ]]; then
             echo 'Version already belongs to a different commit. Increment pubspec before publishing.' >&2
             exit 1
