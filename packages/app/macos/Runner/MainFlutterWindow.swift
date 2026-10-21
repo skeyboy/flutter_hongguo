@@ -5,9 +5,43 @@ import AVKit
 class MainFlutterWindow: NSWindow {
   private var normalChrome: (NSWindow.TitleVisibility, Bool, Bool, [Bool])?
   private var immersive = false
+  private var playerTopmost = false
+  private var originalLevel: NSWindow.Level?
+  private var topmostSuspended = false
+  private var topmostObservers: [NSObjectProtocol] = []
+
+  private func applyTopmost() {
+    guard playerTopmost else { return }
+    level = topmostSuspended || styleMask.contains(.fullScreen) ? (originalLevel ?? .normal) : .floating
+  }
+  func setPlayerTopmost(_ value: Bool) {
+    if value && !playerTopmost { originalLevel = level }
+    if !value && playerTopmost { level = originalLevel ?? .normal; originalLevel = nil }
+    playerTopmost = value
+    applyTopmost()
+  }
+  private func observeTopmostFullscreen() {
+    let center = NotificationCenter.default
+    topmostObservers.append(center.addObserver(forName: NSWindow.willEnterFullScreenNotification, object: self, queue: .main) { [weak self] _ in
+      self?.topmostSuspended = true; self?.applyTopmost()
+    })
+    topmostObservers.append(center.addObserver(forName: NSWindow.didExitFullScreenNotification, object: self, queue: .main) { [weak self] _ in
+      self?.topmostSuspended = false; self?.applyTopmost()
+    })
+  }
+  deinit { topmostObservers.forEach { NotificationCenter.default.removeObserver($0) } }
 
   // Retain the same Flutter engine, routes, downloads and player when closing.
   override func performClose(_ sender: Any?) { orderOut(sender) }
+
+  override func toggleFullScreen(_ sender: Any?) {
+    if !styleMask.contains(.fullScreen) {
+      // AppKit can reject a floating-level window before willEnter is posted.
+      topmostSuspended = true
+      applyTopmost()
+    }
+    super.toggleFullScreen(sender)
+  }
 
   func setImmersive(_ value: Bool) {
     guard value != immersive else { return }
@@ -40,6 +74,7 @@ class MainFlutterWindow: NSWindow {
       let app = NSApp.delegate as? AppDelegate
       switch call.method {
       case "configure": app?.settingsAvailable = call.arguments as? Bool ?? false; result(nil)
+      case "topmost": self.setPlayerTopmost(call.arguments as? Bool ?? false); result(nil)
       case "immersive": self.setImmersive(call.arguments as? Bool ?? false); result(nil)
       case "show": app?.showWindow(nil); result(nil)
       case "hide": self.performClose(nil); result(nil)
@@ -49,7 +84,7 @@ class MainFlutterWindow: NSWindow {
         result(nil)
       case "state":
         result(["visible": self.isVisible, "miniaturized": self.isMiniaturized,
-                "immersive": self.immersive, "titleHidden": self.titleVisibility == .hidden,
+                "immersive": self.immersive, "topmostRequested": self.playerTopmost, "topmost": self.level == .floating, "titleHidden": self.titleVisibility == .hidden,
                 "fullSizeContent": self.styleMask.contains(.fullSizeContentView),
                 "closeHidden": self.standardWindowButton(.closeButton)?.isHidden ?? false,
                 "statusItem": app?.hasStatusItem ?? false,
@@ -70,6 +105,7 @@ class MainFlutterWindow: NSWindow {
     self.title = Bundle.main.localizedInfoDictionary?["CFBundleDisplayName"] as? String ?? "Hongguo"
     RegisterGeneratedPlugins(registry: flutterViewController)
     registerWindowChannel(flutterViewController)
+    observeTopmostFullscreen()
     HongguoMacPictureInPicture.register(with: flutterViewController.registrar(forPlugin: "HongguoMacPictureInPicture"))
 
     super.awakeFromNib()

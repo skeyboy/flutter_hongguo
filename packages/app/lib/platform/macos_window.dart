@@ -9,6 +9,7 @@ final macPlaybackRoutes = RouteObserver<PageRoute<dynamic>>();
 class MacWindow {
   static const channel = MethodChannel('hongguo/macos-window');
   static final _players = <Object>{};
+  static final _pinnedPlayers = <Object>{};
   static Future<void> invoke(String method, [Object? arguments]) async {
     if (!macHost) return;
     try {
@@ -20,12 +21,30 @@ class MacWindow {
     }
   }
 
-  static Future<void> playerVisible(Object owner, bool visible) {
+  static Future<void> playerVisible(Object owner, bool visible) async {
     if (visible) {
       _players.add(owner);
     } else {
       _players.remove(owner);
     }
-    return invoke('immersive', _players.isNotEmpty);
+    await invoke('immersive', _players.isNotEmpty);
+    await _applyTopmost();
   }
+
+  static Future<void> playerPinned(Object owner, bool pinned) {
+    if (pinned) {
+      _pinnedPlayers.add(owner);
+    } else {
+      _pinnedPlayers.remove(owner);
+    }
+    return _applyTopmost();
+  }
+
+  static Future<void> releasePlayer(Object owner) {
+    _pinnedPlayers.remove(owner);
+    return playerVisible(owner, false);
+  }
+
+  static Future<void> _applyTopmost() =>
+      invoke('topmost', _players.any(_pinnedPlayers.contains));
 }

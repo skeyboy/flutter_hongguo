@@ -1870,6 +1870,33 @@ void main() {
           closeTo((native['frameHeight'] as num).toDouble(), 2),
         );
         final handle = await player.handle;
+        await _wakePlayerControls(tester);
+        await tester.tap(find.byKey(const ValueKey('toggle-window-topmost')));
+        for (var i = 0; i < 30 && state.pinUpdating; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(state.windowPinned, isTrue);
+        expect((await windowState())['topmost'], isTrue);
+        expect(await windowManager.isAlwaysOnTop(), isTrue);
+        await state.platformPlayback.setDesktopFullscreen(true);
+        expect((await windowState())['topmost'], isFalse);
+        await state.platformPlayback.setDesktopFullscreen(false);
+        expect((await windowState())['topmost'], isTrue);
+        await player.seek(Duration.zero);
+        await player.play();
+        await _wakePlayerControls(tester);
+        await tester.tap(find.byKey(const ValueKey('enter-pip')));
+        for (
+          var i = 0;
+          i < 100 && !state.platformPlayback.platformPip.value;
+          i++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
+        expect(state.platformPlayback.platformPip.value, isTrue);
+        expect((await windowState())['topmost'], isFalse);
+        await state.platformPlayback.exit(player);
+        expect((await windowState())['topmost'], isTrue);
         await windowManager.close();
         await tester.pump(const Duration(milliseconds: 700));
         expect((await windowState())['visible'], isFalse);
@@ -1891,19 +1918,33 @@ void main() {
         await tester.tap(find.byTooltip('播放设置'));
         await tester.pumpAndSettle();
         expect((await windowState())['immersive'], isFalse);
+        expect((await windowState())['topmost'], initial['topmost']);
         await tester.pageBack();
         await tester.pumpAndSettle();
         expect((await windowState())['immersive'], isTrue);
+        expect((await windowState())['topmost'], isTrue);
         expect(await player.handle, handle);
         await _wakePlayerControls(tester);
+        await tester.tap(find.byKey(const ValueKey('toggle-window-topmost')));
+        for (var i = 0; i < 30 && state.pinUpdating; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(state.windowPinned, isFalse);
+        expect((await windowState())['topmost'], initial['topmost']);
+        await tester.tap(find.byKey(const ValueKey('toggle-window-topmost')));
+        for (var i = 0; i < 30 && state.pinUpdating; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(state.windowPinned, isTrue);
         await tester.tap(find.byKey(const ValueKey('player-exit')));
         await tester.pumpAndSettle();
         native = await windowState();
         expect(native['immersive'], isFalse);
+        expect(native['topmost'], initial['topmost']);
         expect(native['titleHidden'], initial['titleHidden']);
         expect(native['closeHidden'], initial['closeHidden']);
         print(
-          'MAC_WINDOW_ACCEPTANCE=real close hides; native status menu exists; restore retains player; full-size playback; route exit restores titlebar',
+          'MAC_WINDOW_ACCEPTANCE=pin sets native floating level; fullscreen and PiP suspend/restore pin; settings and route exit restore level; real close hides; native status menu exists; restore retains player; full-size playback; route exit restores titlebar',
         );
       } finally {
         await channel.invokeMethod('show');

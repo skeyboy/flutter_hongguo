@@ -55,6 +55,8 @@ class _PlayerPageState extends State<PlayerPage>
   ThemeData get playbackTheme =>
       macHost ? ThemeData.dark(useMaterial3: true) : Theme.of(context);
 
+  bool windowPinned = false;
+  bool pinUpdating = false;
   ModalRoute<dynamic>? _observedRoute;
   @override
   void didChangeDependencies() {
@@ -86,7 +88,7 @@ class _PlayerPageState extends State<PlayerPage>
 
   @override
   void didPop() {
-    unawaited(MacWindow.playerVisible(this, false));
+    unawaited(MacWindow.releasePlayer(this));
   }
 
   final playbackFocus = FocusNode(debugLabel: 'player-shortcuts');
@@ -435,7 +437,46 @@ class _PlayerPageState extends State<PlayerPage>
   }
 
   void _platformChanged() {
+    if (macHost) {
+      unawaited(
+        MacWindow.playerPinned(
+          this,
+          windowPinned && !platformPlayback.platformPip.value,
+        ),
+      );
+    }
     if (mounted) _redraw(() {});
+  }
+
+  Future<void> _toggleWindowPin() async {
+    if (pinUpdating) return;
+    _redraw(() => pinUpdating = true);
+    final next = !windowPinned;
+    try {
+      // This user action reports platform failures rather than claiming success.
+      await MacWindow.channel.invokeMethod<void>('topmost', next);
+      if (!mounted) {
+        await MacWindow.releasePlayer(this);
+        return;
+      }
+      await MacWindow.playerPinned(
+        this,
+        next && !platformPlayback.platformPip.value,
+      );
+      if (mounted) _redraw(() => windowPinned = next);
+    } on PlatformException {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('窗口置顶未能生效，请重试')));
+      }
+    } on MissingPluginException {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('当前运行环境不支持窗口置顶')));
+      }
+    } finally {
+      if (mounted) _redraw(() => pinUpdating = false);
+    }
   }
 
   void _tvChanged() {
@@ -820,7 +861,7 @@ class _PlayerPageState extends State<PlayerPage>
   @override
   void dispose() {
     macPlaybackRoutes.unsubscribe(this);
-    unawaited(MacWindow.playerVisible(this, false));
+    unawaited(MacWindow.releasePlayer(this));
     HardwareKeyboard.instance.removeHandler(_macEscape);
     playbackFocus.dispose();
     tvQualityTicket++;
@@ -1373,6 +1414,19 @@ class _PlayerPageState extends State<PlayerPage>
               ),
             ),
             if (macHost) ...[
+              IconButton(
+                key: const ValueKey('toggle-window-topmost'),
+                tooltip: windowPinned ? '取消窗口置顶' : '窗口置顶',
+                isSelected: windowPinned,
+                onPressed: pinUpdating || platformPlayback.platformPip.value
+                    ? null
+                    : _toggleWindowPin,
+                icon: const Icon(
+                  Icons.push_pin_outlined,
+                  color: Colors.white70,
+                ),
+                selectedIcon: const Icon(Icons.push_pin, color: Colors.amber),
+              ),
               IconButton(
                 tooltip: '最小化窗口',
                 onPressed: () => MacWindow.invoke('minimize'),

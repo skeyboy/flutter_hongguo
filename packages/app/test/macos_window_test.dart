@@ -30,6 +30,28 @@ void main() {
       expect(values, [true, true, true, false]);
     },
   );
+  test('only visible pinned player owns the floating level', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    var topmost = false;
+    messenger.setMockMethodCallHandler(MacWindow.channel, (call) async {
+      if (call.method == 'topmost') topmost = call.arguments as bool;
+      return null;
+    });
+    final first = Object(), second = Object();
+    await MacWindow.playerVisible(first, true);
+    await MacWindow.playerPinned(first, true);
+    expect(topmost, isTrue);
+    await MacWindow.playerVisible(first, false);
+    expect(topmost, isFalse);
+    await MacWindow.playerVisible(first, true);
+    expect(topmost, isTrue);
+    await MacWindow.playerVisible(second, true);
+    await MacWindow.playerPinned(second, true);
+    await MacWindow.releasePlayer(first);
+    expect(topmost, isTrue);
+    await MacWindow.releasePlayer(second);
+    expect(topmost, isFalse);
+  });
   testWidgets(
     'native settings menu opens one existing route and returns to catalog',
     (tester) async {
