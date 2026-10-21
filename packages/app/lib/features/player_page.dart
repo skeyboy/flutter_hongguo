@@ -14,6 +14,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../platform/runtime.dart';
 import '../platform/background/playback_platform.dart';
+import '../platform/background/host_policy.dart';
 import '../playback/prefetch_window.dart';
 import '../playback/tv_video_view.dart';
 import '../playback/local_playlist.dart';
@@ -49,6 +50,10 @@ class PlayerPage extends StatefulWidget {
 }
 
 class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
+  ThemeData get playbackTheme =>
+      macHost ? ThemeData.dark(useMaterial3: true) : Theme.of(context);
+
+  final playbackFocus = FocusNode(debugLabel: 'player-shortcuts');
   late final Player player;
   final platformPlayback = PlaybackPlatform();
   Future<void> platformUpdates = Future.value();
@@ -82,10 +87,16 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
       vid: episode.vid,
       episode: episode.index,
       positionMs:
-          (tvBuild ? tvPlayback.position : player.state.position) ==
+          (tvBuild
+                  ? tvPlayback.position
+                  : platformPlayback.externalPosition ??
+                        player.state.position) ==
               Duration.zero
           ? _resumeSnapshotOffset.inMilliseconds
-          : (tvBuild ? tvPlayback.position : player.state.position)
+          : (tvBuild
+                    ? tvPlayback.position
+                    : platformPlayback.externalPosition ??
+                          player.state.position)
                 .inMilliseconds,
       durationMs: (tvBuild ? tvPlayback.duration : player.state.duration)
           .inMilliseconds,
@@ -299,16 +310,24 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         if (player.state.playing) _saveHistory();
       }),
     );
+    HardwareKeyboard.instance.addHandler(_macEscape);
+    platformPlayback.onWindowFocused = _restoreKeyboardFocus;
+    platformPlayback.onExternalProgress = () =>
+        _saveHistory(force: platformPlayback.externalPlaying == false);
     platformPlayback.onExternalCompleted = () => _completed(true);
     platformPlayback.floating.addListener(_platformChanged);
     platformPlayback.platformPip.addListener(_platformChanged);
+    platformPlayback.nativeFullscreen.addListener(_nativeFullscreenChanged);
     if (runtime is ConfigurableRuntime) {
       subscriptions.add(
         runtime.settingsChanges.listen((_) {
           autoNext = settingsFor(runtime).autoNext;
           _configurePlatform();
           if (appBackground &&
-              (tvBuild || !settingsFor(runtime).backgroundPlayback) &&
+              !allowBackgroundPlayback(
+                tv: tvBuild,
+                enabled: settingsFor(runtime).backgroundPlayback,
+              ) &&
               !platformPlayback.floating.value) {
             _pausePlayback();
           }
@@ -339,6 +358,44 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
       return;
     }
     _play(position + 1);
+  }
+
+  void _restoreKeyboardFocus() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          ModalRoute.of(context)?.isCurrent == true &&
+          !sheetOpen &&
+          !menuOpen &&
+          !recommendationOpen) {
+        playbackFocus.requestFocus();
+      }
+    });
+  }
+
+  // Native full-screen transitions can temporarily move Flutter focus to its
+  // root scope. Escape must remain available during that window transition.
+  bool _macEscape(KeyEvent event) {
+    if (!macHost ||
+        event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.escape ||
+        !mounted ||
+        ModalRoute.of(context)?.isCurrent != true ||
+        sheetOpen ||
+        menuOpen ||
+        recommendationOpen) {
+      return false;
+    }
+    _back();
+    return true;
+  }
+
+  void _nativeFullscreenChanged() {
+    final value = platformPlayback.nativeFullscreen.value;
+    if (mounted && value != null && value != fullscreen) {
+      _redraw(() => fullscreen = value);
+      compactControls.currentState?.show();
+      _restoreKeyboardFocus();
+    }
   }
 
   void _platformChanged() {
@@ -397,6 +454,11 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     });
   }
 
+  Future<void> _configurePlatformForFloating() async {
+    _configurePlatform();
+    await platformUpdates;
+  }
+
   Future<void> _floating() async {
     if (preparing || sourceVid == null) return;
     try {
@@ -405,6 +467,16 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
       if (platformPlayback.floating.value) {
         await platformPlayback.exit(player);
       } else {
+        if (macHost && !settingsFor(widget.runtime).floatingPlayback) {
+          final runtime = widget.runtime;
+          if (runtime is ConfigurableRuntime) {
+            await runtime.saveSettings(
+              settingsFor(runtime).copyWith(floatingPlayback: true),
+            );
+          }
+          await platformUpdates;
+          await _configurePlatformForFloating();
+        }
         await platformPlayback.enter(
           player,
           player.state.playlist.medias.single.uri,
@@ -452,14 +524,24 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
           !platformPlayback.floating.value &&
           !platformPlayback.transitioning;
       final preferences = settingsFor(widget.runtime);
-      if ((tvBuild || !preferences.backgroundDownloads)) {
+      if (!allowBackgroundPreparation(
+        tv: tvBuild,
+        enabled: preferences.backgroundDownloads,
+      )) {
         prefetch.clear();
-        if (preparing && (tvBuild || !preferences.backgroundPlayback)) {
+        if (preparing &&
+            !allowBackgroundPlayback(
+              tv: tvBuild,
+              enabled: preferences.backgroundPlayback,
+            )) {
           preparationInterrupted = true;
           job?.cancel();
         }
       }
-      if ((tvBuild || !preferences.backgroundPlayback) &&
+      if (!allowBackgroundPlayback(
+            tv: tvBuild,
+            enabled: preferences.backgroundPlayback,
+          ) &&
           !platformPlayback.floating.value) {
         _pausePlayback();
       }
@@ -579,7 +661,10 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
       bool mayPlay() =>
           (resumePlaying ?? true) &&
           (!appBackground ||
-              (!tvBuild && settingsFor(widget.runtime).backgroundPlayback) ||
+              allowBackgroundPlayback(
+                tv: tvBuild,
+                enabled: settingsFor(widget.runtime).backgroundPlayback,
+              ) ||
               platformPlayback.floating.value);
       final offset = _resumeOffset;
       _resumeSnapshotOffset = offset;
@@ -626,7 +711,11 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
       enabled:
           !widget.cachedOnly &&
           preferences.prefetchEnabled &&
-          (!appBackground || preferences.backgroundDownloads),
+          (!appBackground ||
+              allowBackgroundPreparation(
+                tv: tvBuild,
+                enabled: preferences.backgroundDownloads,
+              )),
     );
   }
 
@@ -677,6 +766,8 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_macEscape);
+    playbackFocus.dispose();
     tvQualityTicket++;
     tvPlayback.removeListener(_tvChanged);
     _saveHistory(force: true);
@@ -694,6 +785,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     if (preparing) active?.cancel();
     platformPlayback.floating.removeListener(_platformChanged);
     platformPlayback.platformPip.removeListener(_platformChanged);
+    platformPlayback.nativeFullscreen.removeListener(_nativeFullscreenChanged);
     unawaited(
       platformUpdates
           .catchError((Object _) {})
@@ -902,7 +994,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
                   '已提前缓存 ${prefetch.ready} / ${prefetch.total} 集${prefetch.preparing > 0 ? ' · 正在准备' : ''}',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: playbackTheme.colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -1038,11 +1130,11 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
               style: FilledButton.styleFrom(
                 padding: EdgeInsets.zero,
                 backgroundColor: index == position
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.surfaceContainerHighest,
+                    ? playbackTheme.colorScheme.primary
+                    : playbackTheme.colorScheme.surfaceContainerHighest,
                 foregroundColor: index == position
-                    ? Theme.of(context).colorScheme.onPrimary
-                    : Theme.of(context).colorScheme.onSurface,
+                    ? playbackTheme.colorScheme.onPrimary
+                    : playbackTheme.colorScheme.onSurface,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -1194,7 +1286,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
               child: Semantics(
                 header: true,
                 child: Text(
-                  widget.detail.drama.title,
+                  macHost ? '返回' : widget.detail.drama.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -1259,6 +1351,40 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
           (size.width < 720 && size.height >= size.width) || floating;
       if (platformPlayback.platformPip.value ||
           (platformPlayback.restoringPip && size.width < 280)) {
+        if (macHost) {
+          return Scaffold(
+            backgroundColor: Colors.black,
+            body: Stack(
+              children: [
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.picture_in_picture_alt,
+                        color: Colors.white54,
+                        size: 48,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        widget.detail.drama.title,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
+                        key: const ValueKey('restore-pip'),
+                        onPressed: _floating,
+                        icon: const Icon(Icons.open_in_full),
+                        label: const Text('返回此窗口播放'),
+                      ),
+                    ],
+                  ),
+                ),
+                _title(),
+              ],
+            ),
+          );
+        }
         return Scaffold(backgroundColor: Colors.black, body: _video());
       }
       void episodes() {
@@ -1286,6 +1412,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
             recommendationOpen,
         controls: PlaybackTransport(
           player: player,
+          title: macHost ? widget.detail.drama.title : null,
           playing: playing,
           fullscreen: fullscreen,
           busy: preparing || error != null,
@@ -1297,7 +1424,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
           previous: () => _step(-1),
           next: () => _step(1),
           fullscreenToggle: () => _setFullscreen(!fullscreen),
-          floating: settingsFor(widget.runtime).floatingPlayback
+          floating: (macHost || settingsFor(widget.runtime).floatingPlayback)
               ? _floating
               : null,
           floatingActive: floating,
@@ -1340,9 +1467,10 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
           const SingleActivator(LogicalKeyboardKey.keyI): episodes,
           const SingleActivator(LogicalKeyboardKey.keyF): () =>
               _setFullscreen(!fullscreen),
-          const SingleActivator(LogicalKeyboardKey.escape): _back,
+          if (!macHost) const SingleActivator(LogicalKeyboardKey.escape): _back,
         },
         child: Focus(
+          focusNode: playbackFocus,
           autofocus: true,
           child: PopScope(
             canPop: !fullscreen && !episodeVisible,
@@ -1351,7 +1479,10 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
             },
             child: AnnotatedRegion<SystemUiOverlayStyle>(
               value: SystemUiOverlayStyle.light,
-              child: Scaffold(backgroundColor: Colors.black, body: picture),
+              child: Theme(
+                data: playbackTheme,
+                child: Scaffold(backgroundColor: Colors.black, body: picture),
+              ),
             ),
           ),
         ),

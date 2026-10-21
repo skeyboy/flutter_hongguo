@@ -3,8 +3,13 @@ import 'package:hongguo_core/hongguo_core.dart';
 import 'package:media_kit/media_kit.dart';
 
 class PlaybackPlatform {
+  final nativeFullscreen = ValueNotifier<bool?>(null);
   final floating = ValueNotifier(false);
   final platformPip = ValueNotifier(false);
+  VoidCallback? onWindowFocused;
+  Duration? externalPosition;
+  bool? externalPlaying;
+  VoidCallback? onExternalProgress;
   final bool mobile = false;
   final bool transitioning = false;
   Future<bool> supportsFloating() async => false;
@@ -21,6 +26,7 @@ class PlaybackPlatform {
       throw UnsupportedError('当前平台不支持悬浮播放');
   Future<void> exit(Player player) async {}
   Future<void> dispose(Player player) async {
+    nativeFullscreen.dispose();
     floating.dispose();
     platformPip.dispose();
   }

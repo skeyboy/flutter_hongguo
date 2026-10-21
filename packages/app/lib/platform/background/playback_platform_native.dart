@@ -130,14 +130,24 @@ class _MediaHandler extends BaseAudioHandler {
 
 Future<_MediaHandler>? _handler;
 
-class PlaybackPlatform {
+class PlaybackPlatform with WindowListener {
   static const _channel = MethodChannel('hongguo/platform-playback');
+  final nativeFullscreen = ValueNotifier<bool?>(null);
+  bool _observingWindow = false;
+  VoidCallback? onWindowFocused;
+
+  @override
+  void onWindowFocus() => onWindowFocused?.call();
   final floating = ValueNotifier(false);
   final platformPip = ValueNotifier(false);
+  bool get nativeHandoff => Platform.isIOS || Platform.isMacOS;
+  Duration? externalPosition;
+  bool? externalPlaying;
+  VoidCallback? onExternalProgress;
   bool get mobile => Platform.isAndroid || Platform.isIOS;
   bool get transitioning => _transition;
   Future<bool> supportsFloating() async {
-    if (!mobile) return true;
+    if (!mobile && !nativeHandoff) return true;
     try {
       return await _channel.invokeMethod<bool>('available') ?? false;
     } catch (_) {
@@ -145,6 +155,8 @@ class PlaybackPlatform {
     }
   }
 
+  Future<void>? _exiting;
+  Completer<void>? _restorePending;
   DateTime? _pipExitAt;
   bool get restoringPip =>
       Platform.isAndroid &&
@@ -159,7 +171,31 @@ class PlaybackPlatform {
   bool _top = false, _maximized = false, _fullscreen = false;
   bool _closed = false, _transition = false;
   PlaybackPlatform() {
-    if (mobile) _channel.setMethodCallHandler(_nativeEvent);
+    if (mobile || nativeHandoff) _channel.setMethodCallHandler(_nativeEvent);
+  }
+
+  Future<void> _watchWindow() async {
+    if (!Platform.isMacOS || _observingWindow || _closed) return;
+    try {
+      await windowManager.ensureInitialized();
+      if (_closed) return;
+      windowManager.addListener(this);
+      _observingWindow = true;
+      final value = await windowManager.isFullScreen();
+      if (!_closed) nativeFullscreen.value = value;
+    } catch (_) {
+      /* A window may not exist in headless tests. */
+    }
+  }
+
+  @override
+  void onWindowEnterFullScreen() {
+    if (!_closed) nativeFullscreen.value = true;
+  }
+
+  @override
+  void onWindowLeaveFullScreen() {
+    if (!_closed) nativeFullscreen.value = false;
   }
 
   Future<void> configure(
@@ -170,6 +206,7 @@ class PlaybackPlatform {
     bool foregroundMedia = false,
   }) async {
     if (_closed) return;
+    await _watchWindow();
     _player = player;
     _settings = settings;
     if (!settings.floatingPlayback && floating.value) await exit(player);
@@ -230,16 +267,21 @@ class PlaybackPlatform {
         });
         if (ok != true) throw StateError('当前系统未允许画中画，请检查应用的画中画权限');
         floating.value = true;
-      } else if (Platform.isIOS) {
+      } else if (nativeHandoff) {
         final wasPlaying = player.state.playing;
         await player.pause();
         try {
           final ok = await _channel.invokeMethod<bool>('enter', {
-            'source': source,
+            'source': source.startsWith('/')
+                ? Uri.file(source).toString()
+                : source,
             'position': player.state.position.inMilliseconds,
             'playing': wasPlaying,
+            'rate': player.state.rate,
+            'volume': player.state.volume / 100,
           });
           if (ok != true) throw StateError('当前设备暂不能进入画中画');
+          platformPip.value = true;
           floating.value = true;
           _media?.external = (action, [position]) async =>
               _channel.invokeMethod('control', {
@@ -247,8 +289,11 @@ class PlaybackPlatform {
                 'position': position,
               });
         } catch (_) {
-          if (wasPlaying &&
-              (_settings.backgroundPlayback ||
+          externalPosition = null;
+          if (!_closed &&
+              wasPlaying &&
+              (!mobile ||
+                  _settings.backgroundPlayback ||
                   WidgetsBinding.instance.lifecycleState ==
                       AppLifecycleState.resumed)) {
             await player.play();
@@ -295,6 +340,7 @@ class PlaybackPlatform {
       platformPip.value = active;
       floating.value = active;
       if (!active &&
+          mobile &&
           !_settings.backgroundPlayback &&
           WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
         await _player?.pause();
@@ -302,25 +348,40 @@ class PlaybackPlatform {
     } else if (call.method == 'restore') {
       _media?.external = null;
       final data = Map<String, dynamic>.from(call.arguments as Map);
-      platformPip.value = false;
-      floating.value = false;
+      externalPosition = Duration(
+        milliseconds: (data['position'] as num).toInt(),
+      );
+      onExternalProgress?.call();
       await _player?.seek(
         Duration(milliseconds: (data['position'] as num).toInt()),
       );
+      externalPosition = null;
+      platformPip.value = false;
+      floating.value = false;
       if (data['ended'] == true) {
-        if (_settings.backgroundPlayback ||
+        if (!mobile ||
+            _settings.backgroundPlayback ||
             WidgetsBinding.instance.lifecycleState ==
                 AppLifecycleState.resumed) {
           onExternalCompleted?.call();
         }
       } else if (data['playing'] == true &&
-          (_settings.backgroundPlayback ||
+          (!mobile ||
+              _settings.backgroundPlayback ||
               WidgetsBinding.instance.lifecycleState ==
                   AppLifecycleState.resumed)) {
         await _player?.play();
       }
-    } else if (call.method == 'progress' && _media != null) {
+      _restorePending?.complete();
+      _restorePending = null;
+    } else if (call.method == 'progress') {
       final data = call.arguments as Map;
+      externalPlaying = data['playing'] == true;
+      externalPosition = Duration(
+        milliseconds: (data['position'] as num).toInt(),
+      );
+      onExternalProgress?.call();
+      if (_media == null) return;
       _media!.playbackState.add(
         _media!.playbackState.value.copyWith(
           processingState: AudioProcessingState.ready,
@@ -333,11 +394,19 @@ class PlaybackPlatform {
     }
   }
 
-  Future<void> exit(mk.Player player) async {
-    if (mobile) {
+  Future<void> exit(mk.Player player) =>
+      _exiting ??= _exit(player).whenComplete(() => _exiting = null);
+
+  Future<void> _exit(mk.Player player) async {
+    if (mobile || nativeHandoff) {
       if (floating.value) {
         _pipExitAt = DateTime.now();
+        if (nativeHandoff) _restorePending ??= Completer<void>();
         await _channel.invokeMethod('exit');
+        if (nativeHandoff) {
+          await _restorePending?.future.timeout(const Duration(seconds: 5));
+          return;
+        }
       }
     } else if (_bounds != null) {
       await windowManager.setAlwaysOnTop(_top);
@@ -353,17 +422,24 @@ class PlaybackPlatform {
   Future<void> dispose(mk.Player player) async {
     if (_closed) return;
     try {
-      await exit(player);
+      if (Platform.isMacOS) {
+        _closed = true;
+        await _channel.invokeMethod('dispose');
+      } else {
+        await exit(player);
+      }
     } catch (_) {
       /* Window may already be closing. */
     }
     _closed = true;
+    if (_observingWindow) windowManager.removeListener(this);
+    nativeFullscreen.dispose();
     await _media?.detach(player);
     for (final event in _audioEvents) {
       await event.cancel();
     }
     _audioEvents.clear();
-    if (mobile) _channel.setMethodCallHandler(null);
+    if (mobile || nativeHandoff) _channel.setMethodCallHandler(null);
     floating.dispose();
     platformPip.dispose();
   }

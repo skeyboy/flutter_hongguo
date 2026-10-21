@@ -39,7 +39,11 @@ enum PlaybackCapability {
           ? '交给系统下载，并按系统授权显示进度通知。可能增加耗电和流量；默认仅 Wi-Fi。iOS 解密可能需返回 App，强制结束应用不保证继续。'
           : '关闭后取消正在执行的系统下载任务；已完成的缓存保留。',
     floatingPlayback =>
-      enable ? floatingDescription : '关闭后将退出当前悬浮播放，并隐藏播放器的悬浮入口。',
+      enable
+          ? floatingDescription
+          : macHost
+          ? '关闭后退出当前画中画；播放页仍可手动重新开启。'
+          : '关闭后将退出当前悬浮播放，并隐藏播放器的悬浮入口。',
   };
 }
 

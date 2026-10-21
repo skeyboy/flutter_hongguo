@@ -431,12 +431,19 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     if (!tvBuild)
                       _section('后台与悬浮播放', [
-                        _capabilitySwitch(
-                          PlaybackCapability.backgroundPlayback,
-                          mobileHost
-                              ? '切到其他应用或锁屏后继续声音播放，使用系统媒体控制与播放提醒。'
-                              : '启用后最小化继续播放；关闭时隐藏窗口会暂停，短暂失焦不打断播放。关闭播放页仍会停止。',
-                        ),
+                        if (desktopHost)
+                          const ListTile(
+                            leading: Icon(Icons.desktop_windows_outlined),
+                            title: Text('桌面持续播放'),
+                            subtitle: Text('遮挡、最小化或切换应用继续播放；手动暂停和退出播放页仍会停止。'),
+                          ),
+                        if (mobileHost)
+                          _capabilitySwitch(
+                            PlaybackCapability.backgroundPlayback,
+                            mobileHost
+                                ? '切到其他应用或锁屏后继续声音播放，使用系统媒体控制与播放提醒。'
+                                : '桌面遮挡或最小化继续播放，退出播放页停止。',
+                          ),
                         _capabilitySwitch(
                           PlaybackCapability.backgroundDownloads,
                           backgroundDownloadDescription,

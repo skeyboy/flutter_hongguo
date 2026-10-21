@@ -15,7 +15,7 @@ class PlaybackTransport extends StatefulWidget {
   final ValueChanged<bool> onMenuChanged;
   final VoidCallback episodes, previous, next, fullscreenToggle;
   final VoidCallback? floating;
-  final String? notice;
+  final String? notice, title;
   const PlaybackTransport({
     super.key,
     required this.player,
@@ -34,6 +34,7 @@ class PlaybackTransport extends StatefulWidget {
     required this.fullscreenToggle,
     this.floating,
     this.notice,
+    this.title,
   });
   @override
   State<PlaybackTransport> createState() => _PlaybackTransportState();
@@ -64,6 +65,23 @@ class _PlaybackTransportState extends State<PlaybackTransport> {
           builder: (context, box) => Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (widget.title != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 16, 12, 4),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '${widget.title} · 第 ${widget.episode} 集',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
               if (widget.notice != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -200,7 +218,8 @@ class _PlaybackTransportState extends State<PlaybackTransport> {
                   ),
                   if (widget.floating != null && !widget.floatingActive)
                     IconButton(
-                      tooltip: '悬浮播放',
+                      key: const ValueKey('enter-pip'),
+                      tooltip: widget.title != null ? '画中画' : '悬浮播放',
                       onPressed: widget.floating,
                       icon: const Icon(Icons.picture_in_picture_alt_outlined),
                     ),

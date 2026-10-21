@@ -971,7 +971,7 @@ void main() {
   );
 
   testWidgets(
-    'desktop floating window restores original bounds and background preference controls pause',
+    'desktop picture in picture restores playback and occlusion does not pause',
     (tester) async {
       if (!Platform.isMacOS && !Platform.isWindows && !Platform.isLinux) return;
       await _resizeDesktop(tester, const Size(1280, 900));
@@ -980,11 +980,11 @@ void main() {
       final runtime = _Runtime(
         asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
         Directory.systemTemp.createTempSync('hongguo-platform-'),
-        settings: const AppSettings(
+        settings: AppSettings(
           prefetchEnabled: false,
           autoNext: false,
-          floatingPlayback: true,
-          backgroundPlayback: true,
+          floatingPlayback: !Platform.isMacOS,
+          backgroundPlayback: false,
         ),
       );
       await tester.pumpWidget(
@@ -1004,12 +1004,22 @@ void main() {
       }
       await state.platformUpdates;
       await windowManager.ensureInitialized();
+      await windowManager.show();
+      await windowManager.focus();
       final original = await windowManager.getBounds();
       final originalTop = await windowManager.isAlwaysOnTop();
       final handle = await player.handle;
       try {
         await _wakePlayerControls(tester);
-        await tester.tap(find.byTooltip('悬浮播放'));
+        await player.setRate(.25);
+        await player.setPlaylistMode(PlaylistMode.loop);
+        await player.play();
+        for (var i = 0; i < 30 && !player.state.playing; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(player.state.playing, isTrue);
+        expect(find.byKey(const ValueKey('enter-pip')), findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('enter-pip')));
         for (
           var i = 0;
           i < 100 && !state.platformPlayback.floating.value;
@@ -1017,16 +1027,43 @@ void main() {
         ) {
           await tester.pump(const Duration(milliseconds: 100));
         }
+        expect(runtime.settings.floatingPlayback, isTrue);
         expect(state.platformPlayback.floating.value, isTrue);
-        expect(await windowManager.isAlwaysOnTop(), isTrue);
-        final mini = await windowManager.getBounds();
-        expect(mini.width, lessThanOrEqualTo(525));
-        expect(find.byTooltip('退出悬浮播放'), findsOneWidget);
-        await tester.tap(find.byTooltip('退出悬浮播放'));
+        if (Platform.isMacOS) {
+          expect(state.platformPlayback.platformPip.value, isTrue);
+          expect(player.state.playing, isFalse);
+          expect(find.byKey(const ValueKey('restore-pip')), findsOneWidget);
+          final unchanged = await windowManager.getBounds();
+          expect(unchanged.width, closeTo(original.width, 3));
+          for (
+            var i = 0;
+            i < 40 &&
+                (state.platformPlayback.externalPosition?.inMilliseconds ??
+                        0) ==
+                    0;
+            i++
+          ) {
+            await tester.pump(const Duration(milliseconds: 100));
+          }
+          expect(state.platformPlayback.externalPlaying, isTrue);
+          expect(state.platformPlayback.externalPosition, isNotNull);
+          expect(
+            state.platformPlayback.externalPosition.inMilliseconds,
+            greaterThan(0),
+          );
+          await tester.tap(find.byKey(const ValueKey('restore-pip')));
+        } else {
+          expect(await windowManager.isAlwaysOnTop(), isTrue);
+          final mini = await windowManager.getBounds();
+          expect(mini.width, lessThanOrEqualTo(525));
+          await tester.tap(find.byTooltip('退出悬浮播放'));
+        }
         for (var i = 0; i < 100 && state.platformPlayback.floating.value; i++) {
           await tester.pump(const Duration(milliseconds: 100));
         }
         expect(state.platformPlayback.floating.value, isFalse);
+        expect(player.state.playing, isTrue);
+        expect(player.state.rate, .25);
         final restored = await windowManager.getBounds();
         expect(restored.width, closeTo(original.width, 3));
         expect(restored.height, closeTo(original.height, 3));
@@ -1044,10 +1081,21 @@ void main() {
         await tester.pump();
         state.didChangeAppLifecycleState(AppLifecycleState.paused);
         await tester.pump(const Duration(milliseconds: 200));
+        expect(player.state.playing, isTrue);
+        await windowManager.minimize();
+        await tester.pump(const Duration(milliseconds: 800));
+        expect(player.state.playing, isTrue);
+        await windowManager.restore();
+        await windowManager.show();
+        await windowManager.focus();
+        await player.pause();
+        state.didChangeAppLifecycleState(AppLifecycleState.hidden);
+        state.didChangeAppLifecycleState(AppLifecycleState.resumed);
+        await tester.pump(const Duration(milliseconds: 100));
         expect(player.state.playing, isFalse);
         state.didChangeAppLifecycleState(AppLifecycleState.resumed);
         print(
-          'BACKGROUND_DESKTOP=topmost mini window restored; same player; lifecycle background switch applied',
+          'BACKGROUND_DESKTOP=native PiP restored on Mac; same player; real minimization continues; manual pause retained',
         );
       } finally {
         await state.platformPlayback.exit(player);
@@ -1159,64 +1207,63 @@ void main() {
       expect(await vault.read(key), isNull);
     },
   );
-  testWidgets(
-    'background preparation never starts playback when background playback is disabled',
-    (tester) async {
-      final asset = await rootBundle.load('assets/verification.cenc.mp4');
-      final runtime = _Runtime(
-        asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
-        Directory.systemTemp.createTempSync('hongguo-hidden-prepare-'),
-        settings: const AppSettings(
-          backgroundDownloads: true,
-          backgroundPlayback: false,
-          prefetchEnabled: false,
-          autoNext: false,
+  testWidgets('background preparation follows platform playback policy', (
+    tester,
+  ) async {
+    final asset = await rootBundle.load('assets/verification.cenc.mp4');
+    final runtime = _Runtime(
+      asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
+      Directory.systemTemp.createTempSync('hongguo-hidden-prepare-'),
+      settings: const AppSettings(
+        backgroundDownloads: true,
+        backgroundPlayback: false,
+        prefetchEnabled: false,
+        autoNext: false,
+      ),
+    );
+    final gate = Completer<void>();
+    (runtime.dio.httpClientAdapter as _Adapter).gate = gate;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PlayerPage(
+          runtime: runtime,
+          detail: await runtime.catalog.detail('123'),
         ),
-      );
-      final gate = Completer<void>();
-      (runtime.dio.httpClientAdapter as _Adapter).gate = gate;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: PlayerPage(
-            runtime: runtime,
-            detail: await runtime.catalog.detail('123'),
-          ),
-        ),
-      );
-      await tester.pump();
-      final dynamic state = tester.state(find.byType(PlayerPage));
-      final player = state.player as Player;
-      try {
-        expect(state.preparing, isTrue);
-        state.didChangeAppLifecycleState(AppLifecycleState.paused);
-        gate.complete();
-        for (var i = 0; i < 150 && state.preparing; i++) {
-          await tester.pump(const Duration(milliseconds: 100));
-        }
-        expect(state.error, isNull);
-        expect(state.preparing, isFalse);
-        expect(player.state.playlist.medias, hasLength(1));
-        expect(await runtime.cacheBytes(), greaterThan(0));
-        expect(
-          player.state.playing,
-          isFalse,
-          reason: 'Finishing a background download must not opt into background playback',
-        );
-        state.didChangeAppLifecycleState(AppLifecycleState.resumed);
-        await tester.pump();
-        expect(player.state.playing, isFalse);
-        print(
-          'BACKGROUND_PREPARATION=completed cached source without background autoplay; lifecycle simulated',
-        );
-      } finally {
-        if (!gate.isCompleted) gate.complete();
-        state.didChangeAppLifecycleState(AppLifecycleState.resumed);
-        await tester.pumpWidget(const SizedBox());
-        await tester.pumpAndSettle();
-        await runtime.dispose();
+      ),
+    );
+    await tester.pump();
+    final dynamic state = tester.state(find.byType(PlayerPage));
+    final player = state.player as Player;
+    try {
+      expect(state.preparing, isTrue);
+      state.didChangeAppLifecycleState(AppLifecycleState.paused);
+      gate.complete();
+      for (var i = 0; i < 150 && state.preparing; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
       }
-    },
-  );
+      expect(state.error, isNull);
+      expect(state.preparing, isFalse);
+      expect(player.state.playlist.medias, hasLength(1));
+      expect(await runtime.cacheBytes(), greaterThan(0));
+      expect(
+        player.state.playing,
+        _mobileDevice ? isFalse : isTrue,
+        reason: 'Mobile honors opt-in; desktop continues under occlusion',
+      );
+      state.didChangeAppLifecycleState(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(player.state.playing, !_mobileDevice);
+      print(
+        'BACKGROUND_PREPARATION=mobile opt-in and desktop continuous playback policy honored; lifecycle simulated',
+      );
+    } finally {
+      if (!gate.isCompleted) gate.complete();
+      state.didChangeAppLifecycleState(AppLifecycleState.resumed);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+      await runtime.dispose();
+    }
+  });
 
   testWidgets('mobile system media and picture-in-picture smoke', (
     tester,
