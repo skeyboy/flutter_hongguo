@@ -36,6 +36,8 @@ notes.write_text(f'''Native Flutter / shared Dart release {release}.
 - My library: favorites, per-episode watch history, resume playback and offline series.
 - Episode downloads: select episodes and quality, manage tasks, retry and play offline.
 - DLNA casting on Android phones: discover a renderer, serve the cached episode over the LAN, drive play/pause/seek/volume from a remote page and resume locally where the television stopped. Not yet verified against a physical receiver.
+- Search: focusing the box drops a panel with the three most recent queries, each deletable and stored on this device only, plus upstream board picks marked new or hot; a history row runs the search and a board row opens its detail page.
+- Player: swipe up or down on the picture to change episodes, touch and stylus only, with a one-time hint on first entry (gesture wording on phones, Page Up/Page Down on desktop) and boundary feedback instead of a silent no-op for keys, buttons and TV remote steps. Gesture behaviour is widget-tested; on-device verification is still open.
 - Manual downloads survive ordinary cache cleanup; resumed tasks keep independent recovery journals.
 - Adaptive immersive player, unified episode/settings panel, auto_route navigation and cached images.
 - Application names follow the system language (English, Simplified and Traditional Chinese).
