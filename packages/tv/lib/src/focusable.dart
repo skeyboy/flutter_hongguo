@@ -71,17 +71,30 @@ class _TvFocusableState extends State<TvFocusable> {
       child: Focus(
         focusNode: node,
         autofocus: widget.autofocus,
-        canRequestFocus: widget.onActivate != null,
+        // Inert must not mean unfocusable: flipping `canRequestFocus` off a
+        // node that holds the primary focus drops the focus to the scope, and
+        // a scope has no focus for the remote to sit on. `skipTraversal` keeps
+        // it out of the D-pad walk instead.
+        skipTraversal: widget.onActivate == null,
         onFocusChange: (focused) {
           widget.onFocusChange?.call(focused);
           setState(() {});
           if (focused) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted && node.hasFocus) {
-                Scrollable.maybeOf(context)?.position.ensureVisible(
-                  context.findRenderObject()!,
-                  alignmentPolicy:
-                      ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+                // All the scrollables around the item, not just the nearest: a
+                // cell of a nested grid sits in a viewport that cannot scroll,
+                // so revealing only that one leaves the focus off the screen --
+                // measured on the emulator, where the walk into the third
+                // episode row vanished from the accessibility tree.
+                //
+                // And centered, not `keepVisibleAtEnd`: that policy never
+                // reduces the offset, so an item above the fold is never
+                // revealed and walking back up out of the grid lost the focus
+                // too (emulator, up from the last episode row).
+                Scrollable.ensureVisible(
+                  context,
+                  alignment: 0.5,
                   duration: const Duration(milliseconds: 100),
                 );
               }

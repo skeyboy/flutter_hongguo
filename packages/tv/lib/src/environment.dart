@@ -33,6 +33,88 @@ class TvEnvironment extends InheritedWidget {
 class TvNavigation extends StatelessWidget {
   final Widget child;
   const TvNavigation({super.key, required this.child});
+
+  /// Flutter only moves vertically inside the [Scrollable] that owns the
+  /// focused node (`DirectionalFocusTraversalPolicyMixin` filters candidates
+  /// by `Scrollable.maybeOf(..., axis: vertical)`), so on a TV page a nested
+  /// grid or list can never be entered with the D-pad: the remote steps over
+  /// it and lands on whatever shares the page's own scrollable. Measured on a
+  /// v0.3.2 emulator, where the episode grid was unreachable.
+  ///
+  /// A remote user navigates by what is on screen, so this searches every
+  /// focusable node of the scope by geometry instead — Flutter's own rule
+  /// (prefer a node overlapping the source's band, then the nearest edge),
+  /// without the scrollable restriction. Returns false when nothing lies in
+  /// that direction, leaving the framework to handle the edge.
+  static bool focusInDirection(FocusNode? from, TraversalDirection direction) {
+    final scope = from?.nearestScope;
+    if (from == null || scope == null) return false;
+    final source = _globalRect(from);
+    if (source == null) return false;
+    final vertical =
+        direction == TraversalDirection.up ||
+        direction == TraversalDirection.down;
+    final forward =
+        direction == TraversalDirection.down ||
+        direction == TraversalDirection.right;
+
+    final ahead = <(FocusNode, Rect)>[];
+    for (final node in scope.traversalDescendants) {
+      if (node == from || !node.canRequestFocus || node.skipTraversal) {
+        continue;
+      }
+      final rect = _globalRect(node);
+      if (rect == null) continue;
+      final beyond = vertical
+          ? (forward ? rect.top - source.bottom : source.top - rect.bottom)
+          : (forward ? rect.left - source.right : source.left - rect.right);
+      if (beyond < 0) continue;
+      ahead.add((node, rect));
+    }
+    if (ahead.isEmpty) return false;
+
+    final band = vertical
+        ? (Rect rect) => rect.left < source.right && rect.right > source.left
+        : (Rect rect) => rect.top < source.bottom && rect.bottom > source.top;
+    final inBand = ahead.where((entry) => band(entry.$2)).toList();
+    final candidates = inBand.isEmpty ? ahead : inBand;
+    // In band: the nearest row/column wins. Out of band: line up first, then
+    // travel the least.
+    int compare((FocusNode, Rect) a, (FocusNode, Rect) b) {
+      double primary(Rect rect) => vertical
+          ? rect.center.dy - source.center.dy
+          : rect.center.dx - source.center.dx;
+      double cross(Rect rect) => vertical
+          ? rect.center.dx - source.center.dx
+          : rect.center.dy - source.center.dy;
+      final byPrimary = primary(a.$2).abs().compareTo(primary(b.$2).abs());
+      if (inBand.isNotEmpty || byPrimary != 0) return byPrimary;
+      return cross(a.$2).abs().compareTo(cross(b.$2).abs());
+    }
+
+    candidates.sort(compare);
+    final target = candidates.first.$1;
+    // `canRequestFocus` already folds in every ancestor's
+    // `descendantsAreFocusable`, so this request cannot be refused. The focus
+    // itself lands in a microtask, which is why `hasFocus` is not checked --
+    // reporting false here would let the framework re-pick a wrong node in
+    // the same frame.
+    target.requestFocus();
+    return true;
+  }
+
+  /// The node's box in global logical coordinates, or null while it has no
+  /// attached, laid-out widget.
+  static Rect? _globalRect(FocusNode node) {
+    if (node.context == null) return null;
+    try {
+      final rect = node.rect;
+      return rect.isEmpty ? null : rect;
+    } on FlutterError {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) => FocusTraversalGroup(
     policy: ReadingOrderTraversalPolicy(),
@@ -74,7 +156,9 @@ class TvNavigation extends StatelessWidget {
           final pane = primary?.context == null
               ? null
               : TvPaneBoundary.maybeOf(primary!.context!);
-          final moved = primary?.focusInDirection(direction) ?? false;
+          final moved =
+              focusInDirection(primary, direction) ||
+              (primary?.focusInDirection(direction) ?? false);
           if (!moved && direction == TraversalDirection.left) pane?.exitLeft();
           return KeyEventResult.handled;
         }

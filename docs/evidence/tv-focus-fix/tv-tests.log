@@ -1,0 +1,38 @@
+00:00 +0: loading /Users/lee/Desktop/flutter_hongguo/packages/tv/test/index_grid_test.dart
+00:00 +0: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/player_controls_idle_test.dart: controls hide after 30 seconds without changing playback
+00:00 +1: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/player_controls_idle_test.dart: controls hide after 30 seconds without changing playback
+00:00 +2: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/player_controls_idle_test.dart: controls hide after 30 seconds without changing playback
+00:00 +3: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/player_controls_idle_test.dart: controls hide after 30 seconds without changing playback
+00:00 +4: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/player_controls_idle_test.dart: controls hide after 30 seconds without changing playback
+00:00 +5: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/player_controls_idle_test.dart: controls hide after 30 seconds without changing playback
+00:00 +6: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/nested_reveal_test.dart: walking down reveals each cell
+00:00 +7: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/nested_reveal_test.dart: walking down reveals each cell
+00:00 +8: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/nested_reveal_test.dart: walking down reveals each cell
+00:00 +9: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/index_grid_test.dart: indices cross rows in both directions; only index zero exits to sidebar
+00:00 +10: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/index_grid_test.dart: indices cross rows in both directions; only index zero exits to sidebar
+00:01 +11: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/index_grid_test.dart: indices cross rows in both directions; only index zero exits to sidebar
+00:01 +12: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/index_grid_test.dart: indices cross rows in both directions; only index zero exits to sidebar
+00:01 +13: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/index_grid_test.dart: indices cross rows in both directions; only index zero exits to sidebar
+00:01 +14: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/index_grid_test.dart: indices cross rows in both directions; only index zero exits to sidebar
+00:01 +15: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/inert_focus_test.dart: an item keeps the focus it holds when it turns inert
+00:01 +16: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/remote_test.dart: remote alone activates next episode, progress and episode selection
+00:01 +17: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/remote_test.dart: remote alone activates next episode, progress and episode selection
+00:01 +18: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/index_grid_test.dart: rapid keys accumulate indices while lazy rows scroll
+00:01 +19: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/remote_test.dart: failed playback keeps episode selection and retry reachable by remote
+00:01 +20: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/index_grid_test.dart: one pending Right resumes after pagination appends
+00:01 +21: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/remote_test.dart: text editor retains input without invoking a button
+00:01 +22: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/remote_test.dart: text editor retains input without invoking a button
+00:01 +23: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/player_menu_test.dart: a disabled previous action restores focus to play
+00:02 +24: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/back_dispatcher_test.dart: system and keyboard Back pop one level and never exit root
+00:02 +25: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/back_dispatcher_test.dart: system and keyboard Back pop one level and never exit root
+00:02 +26: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/grid_test.dart: D-pad builds and focuses rows outside lazy viewport
+00:02 +27: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/grid_test.dart: D-pad builds and focuses rows outside lazy viewport
+00:02 +28: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/grid_test.dart: D-pad builds and focuses rows outside lazy viewport
+00:02 +29: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/grid_test.dart: D-pad builds and focuses rows outside lazy viewport
+00:02 +30: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/grid_test.dart: D-pad builds and focuses rows outside lazy viewport
+00:02 +31: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/back_navigation_test.dart: keyboard Back repeats cannot pop player and detail together
+00:02 +32: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/choice_rail_test.dart: focus selects every horizontal choice and keeps the label visible in both directions
+00:02 +33: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/choice_rail_test.dart: focus selects every horizontal choice and keeps the label visible in both directions
+00:03 +34: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/choice_rail_test.dart: focus selects every horizontal choice and keeps the label visible in both directions
+00:03 +35: /Users/lee/Desktop/flutter_hongguo/packages/tv/test/choice_rail_test.dart: focus selects every horizontal choice and keeps the label visible in both directions
+00:03 +36: All tests passed!

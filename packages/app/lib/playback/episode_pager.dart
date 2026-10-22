@@ -24,8 +24,8 @@ import 'package:hongguo_tv/hongguo_tv.dart' show TvFocusable, TvNavigation;
 /// tail cell pressing Right turns forward and focuses the next page's first
 /// cell, following the hand-written arrow-key pattern of
 /// `packages/tv/lib/src/choice_rail.dart:61-87`. Inside a `TvNavigation`
-/// subtree the cells/arrows render as `TvFocusable` and vertical moves fall
-/// through to its geometric five-direction fallback; anywhere else the same
+/// subtree the cells/arrows render as `TvFocusable` and vertical moves are
+/// served by `TvNavigation.focusInDirection`; anywhere else the same paging
 /// behaviour is served by a plain `Focus` + `onKeyEvent` cell, so the widget
 /// never requires the TV environment.
 class EpisodePager extends StatefulWidget {
@@ -159,16 +159,30 @@ class _EpisodePagerState extends State<EpisodePager> {
   /// Jumps (never animates): the hand-off must be able to focus a cell of the
   /// target page in the very next frame, and `animateToPage` would leave that
   /// page outside a zero-cacheExtent viewport while we ask for focus.
-  void _turnTo(int page, {int? focusEpisode}) {
+  void _turnTo(int page, {int? focusEpisode, FocusNode? focusFallback}) {
     final target = page.clamp(0, _pageCount - 1);
     if (target != _shownPage) setState(() => _shownPage = target);
     if (_page.hasClients && (_page.page ?? target).round() != target) {
       _page.jumpToPage(target);
     }
-    if (focusEpisode != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _cellNode(focusEpisode).requestFocus();
-      });
+    if (focusEpisode != null) _handFocus(focusEpisode, focusFallback);
+  }
+
+  /// The target page is built one frame after the jump, so its cell node does
+  /// not exist yet when the turn is asked for. Wait for it, and never leave the
+  /// remote without a focus: if the cell still cannot be reached, park on
+  /// [focusFallback], the arrow that points back at the page we came from.
+  Future<void> _handFocus(int episode, FocusNode? fallback) async {
+    final node = _cellNode(episode);
+    for (var attempt = 0; attempt < 2 && node.context == null; attempt++) {
+      WidgetsBinding.instance.ensureVisualUpdate();
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    if (!mounted) return;
+    if (node.context != null) {
+      node.requestFocus();
+    } else {
+      fallback?.requestFocus();
     }
   }
 
@@ -185,13 +199,21 @@ class _EpisodePagerState extends State<EpisodePager> {
     if (key == LogicalKeyboardKey.arrowRight && global == tail) {
       // Consumed even at the last page: focus must never escape past the end.
       if (page + 1 < _pageCount) {
-        _turnTo(page + 1, focusEpisode: (page + 1) * _perPage);
+        _turnTo(
+          page + 1,
+          focusEpisode: (page + 1) * _perPage,
+          focusFallback: _prevNode,
+        );
       }
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.arrowLeft && global == head) {
       if (page > 0) {
-        _turnTo(page - 1, focusEpisode: (page - 1) * _perPage + _perPage - 1);
+        _turnTo(
+          page - 1,
+          focusEpisode: (page - 1) * _perPage + _perPage - 1,
+          focusFallback: _nextNode,
+        );
       }
       return KeyEventResult.handled;
     }
@@ -200,14 +222,18 @@ class _EpisodePagerState extends State<EpisodePager> {
 
   void _step(int delta) {
     final target = (_shownPage + delta).clamp(0, _pageCount - 1);
-    // The pressed arrow disables itself on an edge page; hand focus to the
-    // neighbour cell so a remote cursor is not stranded mid-turn.
+    // The pressed arrow disables itself on an edge page, so the hand-off lands
+    // on the neighbour cell; the arrow pointing back is still enabled there.
     final handoff = target == _pageCount - 1 && delta > 0
         ? widget.episodes.length - 1
         : target == 0 && delta < 0
         ? 0
         : null;
-    _turnTo(target, focusEpisode: handoff);
+    _turnTo(
+      target,
+      focusEpisode: handoff,
+      focusFallback: delta > 0 ? _prevNode : _nextNode,
+    );
   }
 
   @override
