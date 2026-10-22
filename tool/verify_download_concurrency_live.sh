@@ -28,8 +28,16 @@ extra=()
 [[ "$flavor" == '' ]] || extra=(--flavor "$flavor")
 mkdir -p "$(dirname "$log")"
 cd "$PROJECT_ROOT/packages/app"
+# The launcher of an Android flavor lives in its overlay manifest, which the
+# test tool only discovers from an existing APK: build first or the run dies
+# while loading the fixture with "launch activity not found".
+if [[ "$flavor" != '' ]]; then
+  echo "== prebuilding $flavor debug apk" | tee "$log"
+  "$SDK_BIN/flutter" build apk --debug --flavor "$flavor" \
+    --target-platform android-arm64 2>&1 | tee -a "$log"
+fi
 "$SDK_BIN/flutter" test integration_test/download_concurrency_live_test.dart \
   -d "$device" --no-pub ${extra[@]+"${extra[@]}"} \
   --dart-define="HONGGUO_POC_SERIES_ID=$series_id" \
   --dart-define="HONGGUO_DOWNLOAD_CONCURRENT=$limit" \
-  --reporter expanded 2>&1 | tee "$log"
+  --reporter expanded 2>&1 | tee -a "$log"
