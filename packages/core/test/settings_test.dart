@@ -100,14 +100,17 @@ void main() {
     final old = AppSettings.fromJson({});
     expect(old.backgroundPlaybackPrompted, isFalse);
     expect(old.floatingPlaybackPrompted, isFalse);
+    expect(old.episodeSwipeHintShown, isFalse);
     final stored = old.copyWith(
       backgroundPlaybackPrompted: true,
       floatingPlaybackPrompted: true,
+      episodeSwipeHintShown: true,
     );
     final reopened = AppSettings.fromJson(stored.toJson())
         .copyWith(themeMode: 'dark');
     expect(reopened.backgroundPlaybackPrompted, isTrue);
     expect(reopened.floatingPlaybackPrompted, isTrue);
+    expect(reopened.episodeSwipeHintShown, isTrue);
     expect(reopened.protocolJson(), old.protocolJson());
   });
 }

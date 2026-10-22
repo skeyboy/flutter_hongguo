@@ -5,7 +5,9 @@ class AppSettings {
       backgroundDownloads,
       floatingPlayback,
       backgroundWifiOnly;
-  final bool backgroundPlaybackPrompted, floatingPlaybackPrompted;
+  final bool backgroundPlaybackPrompted,
+      floatingPlaybackPrompted,
+      episodeSwipeHintShown;
   final int tvPageSize;
   final String catalogSort;
   final int prefetchEpisodes,
@@ -35,6 +37,7 @@ class AppSettings {
     this.backgroundWifiOnly = true,
     this.backgroundPlaybackPrompted = false,
     this.floatingPlaybackPrompted = false,
+    this.episodeSwipeHintShown = false,
     this.prefetchEnabled = true,
     this.prefetchEpisodes = 3,
     this.autoNext = true,
@@ -74,6 +77,7 @@ class AppSettings {
     'backgroundWifiOnly': backgroundWifiOnly,
     'backgroundPlaybackPrompted': backgroundPlaybackPrompted,
     'floatingPlaybackPrompted': floatingPlaybackPrompted,
+    'episodeSwipeHintShown': episodeSwipeHintShown,
     'prefetchEnabled': prefetchEnabled,
     'prefetchEpisodes': prefetchEpisodes,
     'autoNext': autoNext,
@@ -104,6 +108,7 @@ class AppSettings {
       floatingPlayback: read('floatingPlayback', defaults.floatingPlayback),
       backgroundPlaybackPrompted: read('backgroundPlaybackPrompted', false),
       floatingPlaybackPrompted: read('floatingPlaybackPrompted', false),
+      episodeSwipeHintShown: read('episodeSwipeHintShown', false),
       backgroundWifiOnly: read(
         'backgroundWifiOnly',
         defaults.backgroundWifiOnly,
@@ -143,6 +148,7 @@ class AppSettings {
     bool? backgroundWifiOnly,
     bool? backgroundPlaybackPrompted,
     bool? floatingPlaybackPrompted,
+    bool? episodeSwipeHintShown,
     bool? prefetchEnabled,
     int? prefetchEpisodes,
     bool? autoNext,
@@ -173,6 +179,8 @@ class AppSettings {
         backgroundPlaybackPrompted ?? this.backgroundPlaybackPrompted,
     'floatingPlaybackPrompted':
         floatingPlaybackPrompted ?? this.floatingPlaybackPrompted,
+    'episodeSwipeHintShown':
+        episodeSwipeHintShown ?? this.episodeSwipeHintShown,
     'prefetchEnabled': prefetchEnabled ?? this.prefetchEnabled,
     'prefetchEpisodes': prefetchEpisodes ?? this.prefetchEpisodes,
     'autoNext': autoNext ?? this.autoNext,

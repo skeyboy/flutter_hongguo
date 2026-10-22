@@ -53,6 +53,7 @@ flutter_hongguo/
 | 搜索聚焦下拉：历史落盘与推荐位取数 | [search_history.dart](../packages/app/lib/search/search_history.dart)、[search_suggestions.dart](../packages/app/lib/search/search_suggestions.dart) | [search_history_test.dart](../packages/app/test/search_history_test.dart)、[search_suggestions_test.dart](../packages/app/test/search_suggestions_test.dart) |
 | 详情与选集 | [detail_page.dart](../packages/app/lib/features/detail_page.dart) | widget_test.dart |
 | 本地播放器、seek、切集、预热与生命周期 | [player_page.dart](../packages/app/lib/features/player_page.dart) | [离线原生集成测试](../packages/app/integration_test/offline_playback_test.dart) |
+| 播放页竖滑切集与首次提示 | [episode_swipe.dart](../packages/app/lib/playback/episode_swipe.dart) | [episode_swipe_test.dart](../packages/app/test/episode_swipe_test.dart) |
 | 原生运行链路与私有目录 | [runtime_native.dart](../packages/app/lib/platform/runtime_native.dart) | [Mac 真实单集测试](../packages/app/integration_test/macos_live_poc_test.dart) |
 
 ## 新增：设置、预缓存与响应式 UI

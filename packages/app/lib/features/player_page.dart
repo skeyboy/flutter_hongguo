@@ -20,6 +20,7 @@ import '../playback/prefetch_window.dart';
 import '../playback/tv_video_view.dart';
 import '../playback/local_playlist.dart';
 import '../playback/episode_workspace.dart';
+import '../playback/episode_swipe.dart';
 import '../playback/compact_controls.dart';
 import '../playback/playback_transport.dart';
 import '../playback/capability_preferences.dart';
@@ -172,6 +173,8 @@ class _PlayerPageState extends State<PlayerPage>
   bool preparing = true, autoNext = true, playing = false;
   final episodeWorkspace = GlobalKey<EpisodeWorkspaceState>();
   final compactControls = GlobalKey<CompactControlsState>();
+  Timer? edgeNoticeTimer;
+  bool episodeHintDismissed = false;
   late int position;
   int generation = 0;
   List<TvQualityOption> tvQualities = const [TvQualityOption('best', '自动')];
@@ -273,7 +276,6 @@ class _PlayerPageState extends State<PlayerPage>
   Duration tvPosition = Duration.zero, tvDuration = Duration.zero;
   final panelRevision = ValueNotifier<int>(0);
   bool sheetOpen = false;
-  double verticalDrag = 0;
   void _redraw(VoidCallback update) {
     if (!mounted) return;
     setState(update);
@@ -302,6 +304,7 @@ class _PlayerPageState extends State<PlayerPage>
       ),
     ];
     autoNext = preferences.autoNext;
+    episodeHintDismissed = preferences.episodeSwipeHintShown;
     prefetch = PrefetchWindow(
       runtime: widget.runtime,
       episodes: widget.detail.episodes,
@@ -921,6 +924,7 @@ class _PlayerPageState extends State<PlayerPage>
     tvPlayback.removeListener(_tvChanged);
     _saveHistory(force: true);
     returnTimer?.cancel();
+    edgeNoticeTimer?.cancel();
     if (fullscreen) unawaited(defaultExitNativeFullscreen());
     generation++;
     WidgetsBinding.instance.removeObserver(this);
@@ -1005,7 +1009,24 @@ class _PlayerPageState extends State<PlayerPage>
 
   void _step(int offset) {
     final target = position + offset;
-    if (target >= 0 && target < widget.detail.episodes.length) _play(target);
+    if (target >= 0 && target < widget.detail.episodes.length) {
+      _play(target);
+      return;
+    }
+    _fleetingNotice(offset > 0 ? '已经是最后一集' : '已经是第一集');
+  }
+
+  /// `playbackNotice` otherwise survives until the next episode loads, which a
+  /// boundary message should not.
+  void _fleetingNotice(String text) {
+    edgeNoticeTimer?.cancel();
+    _redraw(() => playbackNotice = text);
+    compactControls.currentState?.show();
+    edgeNoticeTimer = Timer(const Duration(milliseconds: 2600), () {
+      if (mounted && playbackNotice == text) {
+        _redraw(() => playbackNotice = null);
+      }
+    });
   }
 
   void _seek(int seconds) {
@@ -1018,16 +1039,60 @@ class _PlayerPageState extends State<PlayerPage>
     player.seek(clamped);
   }
 
-  Widget _touchVideo() => GestureDetector(
-    onVerticalDragStart: (_) => verticalDrag = 0,
-    onVerticalDragUpdate: (details) => verticalDrag += details.delta.dy,
-    onVerticalDragEnd: (details) {
-      if (preparing) return;
-      final velocity = details.primaryVelocity ?? 0;
-      if (verticalDrag.abs() > 80 || velocity.abs() > 800) {
-        _step((verticalDrag == 0 ? velocity : verticalDrag) < 0 ? 1 : -1);
-      }
-    },
+  bool get castActive => castController?.active ?? false;
+
+  bool _swipeBlocked() =>
+      preparing ||
+      error != null ||
+      sheetOpen ||
+      menuOpen ||
+      recommendationOpen ||
+      castActive ||
+      platformPlayback.floating.value ||
+      platformPlayback.platformPip.value;
+
+  void _swipeDropped(int offset) {
+    // Dropping a flick silently would read as a broken gesture.
+    if (castActive) _fleetingNotice('投屏中请在电视端切换剧集');
+  }
+
+  String? _swipeHint() {
+    if (episodeHintDismissed ||
+        preparing ||
+        error != null ||
+        widget.detail.episodes.length < 2 ||
+        castActive ||
+        platformPlayback.floating.value ||
+        platformPlayback.platformPip.value) {
+      return null;
+    }
+    return platformPlayback.mobile
+        ? '上滑下一集 · 下滑上一集'
+        : 'Page Up / Page Down 切换上下集';
+  }
+
+  void _episodeHintSeen() {
+    if (episodeHintDismissed) return;
+    // Remembered in memory first: a failed write only costs one more hint,
+    // while an error dialog in the middle of playback costs the viewing.
+    episodeHintDismissed = true;
+    final runtime = widget.runtime;
+    if (runtime is! ConfigurableRuntime) return;
+    unawaited(
+      runtime
+          .saveSettings(
+            settingsFor(runtime).copyWith(episodeSwipeHintShown: true),
+          )
+          .catchError((Object _) {}),
+    );
+  }
+
+  Widget _touchVideo() => EpisodeSwipeArea(
+    blocked: _swipeBlocked,
+    onStep: _step,
+    onBlocked: _swipeDropped,
+    hintText: _swipeHint(),
+    onHintSeen: _episodeHintSeen,
     child: _video(),
   );
 
