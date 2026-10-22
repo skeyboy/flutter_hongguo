@@ -1,0 +1,18 @@
+00:00 +0: loading /Users/lee/Desktop/hongguo-dlcon-verify/packages/app/integration_test/download_concurrency_live_test.dart
+The following plugins do not support Swift Package Manager for macos:
+  - media_kit_libs_macos_video
+  - media_kit_video
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Building macOS application...                                   
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.7hUttX/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.7hUttX/Metal.xctoolchain/usr/lib/swift/macosx' not found
+✓ Built build/macos/Build/Products/Debug/Hongguo.app
+Failed to foreground app; open returned 1
+00:00 +0: live: 同时下载数量 bounds the transfers that really move bytes
+DOWNLOAD-LIVE 20:48:26 runtime ready limit=3 cachedTasks=240
+DOWNLOAD-LIVE 20:48:34 catalog detail episodes=46
+DOWNLOAD-LIVE 20:48:35 enqueued=4 transferring up to 3 positions=[0, 1, 2, 3]
+DOWNLOAD-LIVE 20:48:39 DOWNLOAD_CONCURRENT=3 peak=3 7693760957545188377:ready:6463677b 7693760933344070681:ready:5133790b 7693760947017501721:failed:0b 7693761019025296409:ready:9627491b
+DOWNLOAD-LIVE 20:48:41 cleaned up; cachedTasks=240
+00:14 +1: (tearDownAll)
+00:14 +1: All tests passed!

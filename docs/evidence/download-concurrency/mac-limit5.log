@@ -1,0 +1,334 @@
+00:00 +0: loading /Users/lee/Desktop/hongguo-dlcon-verify/packages/app/integration_test/download_concurrency_live_test.dart
+The following plugins do not support Swift Package Manager for macos:
+  - media_kit_libs_macos_video
+  - media_kit_video
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Running pod install...                                             965ms
+Building macOS application...                                   
+# 1 "<command line>" 1
+ ^ (in target 'media_kit_video' from project 'Pods')
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/<command line>:519:9: warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+#define POD_CONFIGURATION_DEBUG 1 DEBUG=1 
+        ^ (in target 'media_kit_video' from project 'Pods')
+#define POD_CONFIGURATION_DEBUG 1
+        ^ (in target 'media_kit_video' from project 'Pods')
+/Users/lee/.pub-cache/hosted/pub.dev/audio_session-0.2.4/macos/audio_session/Sources/audio_session/AudioSessionPlugin.m:14:5: warning: expression result unused [-Wunused-value]
+   14 |     [[AudioSessionPlugin alloc] initWithRegistrar:registrar];
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1 warning generated.
+1 | #import "Headers/video_player_avfoundation-umbrella.h"
+2 | 
+
+13 | #import "AVAssetTrackUtils.h"
+14 | #import "FVPAssetProvider.h"
+15 | #import "FVPAVFactory.h"
+16 | #import "FVPDisplayLink.h"
+17 | #import "FVPEventBridge.h"
+
+1 warning generated.
+/Users/lee/.pub-cache/hosted/pub.dev/video_player_avfoundation-2.12.1/darwin/video_player_avfoundation/Sources/video_player_avfoundation_objc/include/video_player_avfoundation_objc/FVPAVFactory.h:38:4: warning: 'AVKeyValueStatus' is deprecated: first deprecated in macOS 13.0 - Use AVAsyncProperty.Status instead
+ 36 | 
+ 37 | /// Wraps the underlying asset's statusOfValueForKey:error: method.
+ 38 | - (AVKeyValueStatus)statusOfValueForKey:(NSString *)key
+    |    `- warning: 'AVKeyValueStatus' is deprecated: first deprecated in macOS 13.0 - Use AVAsyncProperty.Status instead
+ 39 |                                   error:(NSError *_Nullable *_Nullable)outError;
+ 40 | 
+
+14 | NS_ASSUME_NONNULL_BEGIN
+15 | 
+16 | typedef NS_ENUM(NSInteger, AVKeyValueStatus) {
+17 | 	AVKeyValueStatusUnknown = 0,
+18 | 	AVKeyValueStatusLoading = 1,
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 (in target 'video_player_avfoundation' from project 'Pods')
+/Users/lee/.pub-cache/hosted/pub.dev/video_player_avfoundation-2.12.1/darwin/video_player_avfoundation/Sources/video_player_avfoundation/NativeVideoViewFactory.swift:53:8: warning: result of 'createArgsCodec()' has different optionality than expected by protocol 'FlutterPlatformViewFactory'
+51 |   #endif
+52 | 
+53 |   func createArgsCodec() -> FlutterMessageCodec & NSObjectProtocol {
+   |        `- warning: result of 'createArgsCodec()' has different optionality than expected by protocol 'FlutterPlatformViewFactory'
+54 |     return VideoPlayerPluginMessagesPigeonCodec.shared
+55 |   }
+
+35 |  */
+36 | @optional
+37 | - (nullable NSObject<FlutterMessageCodec>*)createArgsCodec;
+38 | @end
+39 | 
+495 | #define __STDC_EMBED_EMPTY__ 2
+496 | #define __OBJC__ 1
+497 | # 1 "<command line>" 1
+498 | #define __swift__ 51000
+499 | #define _ISO646_H_ 1
+
+<built-in>:519:9: warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+514 | #define __SWIFT_ATTR_SUPPORTS_SENDING 1
+515 | #define _LIBCPP_HARDENING_MODE _LIBCPP_HARDENING_MODE_DEBUG
+516 | #define POD_CONFIGURATION_DEBUG 1
+517 | #define DEBUG 1
+518 | #define COCOAPODS 1
+519 | #define POD_CONFIGURATION_DEBUG 1 DEBUG=1 
+    |         `- warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+520 | #define GL_SILENCE_DEPRECATION 1
+521 | #define COREVIDEO_SILENCE_GL_DEPRECATION 1
+/Users/lee/.pub-cache/hosted/pub.dev/video_player_avfoundation-2.12.1/darwin/video_player_avfoundation/Sources/video_player_avfoundation/NativeVideoViewFactory.swift:53:8: warning: result of 'createArgsCodec()' has different optionality than expected by protocol 'FlutterPlatformViewFactory'
+51 |   #endif
+52 | 
+53 |   func createArgsCodec() -> FlutterMessageCodec & NSObjectProtocol {
+   |        `- warning: result of 'createArgsCodec()' has different optionality than expected by protocol 'FlutterPlatformViewFactory'
+54 |     return VideoPlayerPluginMessagesPigeonCodec.shared
+55 |   }
+
+35 |  */
+36 | @optional
+37 | - (nullable NSObject<FlutterMessageCodec>*)createArgsCodec;
+38 | @end
+39 | 
+495 | #define __STDC_EMBED_EMPTY__ 2
+496 | #define __OBJC__ 1
+497 | # 1 "<command line>" 1
+498 | #define __swift__ 51000
+499 | #define _ISO646_H_ 1
+
+<built-in>:519:9: warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+514 | #define __SWIFT_ATTR_SUPPORTS_SENDING 1
+515 | #define _LIBCPP_HARDENING_MODE _LIBCPP_HARDENING_MODE_DEBUG
+516 | #define POD_CONFIGURATION_DEBUG 1
+517 | #define DEBUG 1
+518 | #define COCOAPODS 1
+519 | #define POD_CONFIGURATION_DEBUG 1 DEBUG=1 
+    |         `- warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+520 | #define GL_SILENCE_DEPRECATION 1
+521 | #define COREVIDEO_SILENCE_GL_DEPRECATION 1
+495 | #define __STDC_EMBED_EMPTY__ 2
+496 | #define __OBJC__ 1
+497 | # 1 "<command line>" 1
+498 | #define __swift__ 51000
+499 | #define _ISO646_H_ 1
+
+<built-in>:519:9: warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+514 | #define __SWIFT_ATTR_SUPPORTS_SENDING 1
+515 | #define _LIBCPP_HARDENING_MODE _LIBCPP_HARDENING_MODE_DEBUG
+516 | #define POD_CONFIGURATION_DEBUG 1
+517 | #define DEBUG 1
+518 | #define COCOAPODS 1
+519 | #define POD_CONFIGURATION_DEBUG 1 DEBUG=1 
+    |         `- warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+520 | #define GL_SILENCE_DEPRECATION 1
+521 | #define COREVIDEO_SILENCE_GL_DEPRECATION 1
+495 | #define __STDC_EMBED_EMPTY__ 2
+496 | #define __OBJC__ 1
+497 | # 1 "<command line>" 1
+498 | #define __swift__ 51000
+499 | #define _ISO646_H_ 1
+
+<built-in>:519:9: warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+514 | #define __SWIFT_ATTR_SUPPORTS_SENDING 1
+515 | #define _LIBCPP_HARDENING_MODE _LIBCPP_HARDENING_MODE_DEBUG
+516 | #define POD_CONFIGURATION_DEBUG 1
+517 | #define DEBUG 1
+518 | #define COCOAPODS 1
+519 | #define POD_CONFIGURATION_DEBUG 1 DEBUG=1 
+    |         `- warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+520 | #define GL_SILENCE_DEPRECATION 1
+521 | #define COREVIDEO_SILENCE_GL_DEPRECATION 1
+495 | #define __STDC_EMBED_EMPTY__ 2
+496 | #define __OBJC__ 1
+497 | # 1 "<command line>" 1
+498 | #define __swift__ 51000
+499 | #define _ISO646_H_ 1
+
+<built-in>:519:9: warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+514 | #define __SWIFT_ATTR_SUPPORTS_SENDING 1
+515 | #define _LIBCPP_HARDENING_MODE _LIBCPP_HARDENING_MODE_DEBUG
+516 | #define POD_CONFIGURATION_DEBUG 1
+517 | #define DEBUG 1
+518 | #define COCOAPODS 1
+519 | #define POD_CONFIGURATION_DEBUG 1 DEBUG=1 
+    |         `- warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+520 | #define GL_SILENCE_DEPRECATION 1
+521 | #define COREVIDEO_SILENCE_GL_DEPRECATION 1
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/lee/.pub-cache/hosted/pub.dev/media_kit_video-2.0.1/macos/Classes/plugin/TextureHW.swift (in target 'media_kit_video' from project 'Pods')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/lee/.pub-cache/hosted/pub.dev/media_kit_video-2.0.1/macos/Classes/plugin/common/TextureSW.swift (in target 'media_kit_video' from project 'Pods')
+495 | #define __STDC_EMBED_EMPTY__ 2
+496 | #define __OBJC__ 1
+497 | # 1 "<command line>" 1
+498 | #define __swift__ 51000
+499 | #define _ISO646_H_ 1
+
+<built-in>:519:9: warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+514 | #define __SWIFT_ATTR_SUPPORTS_SENDING 1
+515 | #define _LIBCPP_HARDENING_MODE _LIBCPP_HARDENING_MODE_DEBUG
+516 | #define POD_CONFIGURATION_DEBUG 1
+517 | #define DEBUG 1
+518 | #define COCOAPODS 1
+519 | #define POD_CONFIGURATION_DEBUG 1 DEBUG=1 
+    |         `- warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+520 | #define GL_SILENCE_DEPRECATION 1
+521 | #define COREVIDEO_SILENCE_GL_DEPRECATION 1
+495 | #define __STDC_EMBED_EMPTY__ 2
+496 | #define __OBJC__ 1
+497 | # 1 "<command line>" 1
+498 | #define __swift__ 51000
+499 | #define _ISO646_H_ 1
+
+<built-in>:519:9: warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+514 | #define __SWIFT_ATTR_SUPPORTS_SENDING 1
+515 | #define _LIBCPP_HARDENING_MODE _LIBCPP_HARDENING_MODE_DEBUG
+516 | #define POD_CONFIGURATION_DEBUG 1
+517 | #define DEBUG 1
+518 | #define COCOAPODS 1
+519 | #define POD_CONFIGURATION_DEBUG 1 DEBUG=1 
+    |         `- warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+520 | #define GL_SILENCE_DEPRECATION 1
+521 | #define COREVIDEO_SILENCE_GL_DEPRECATION 1
+495 | #define __STDC_EMBED_EMPTY__ 2
+496 | #define __OBJC__ 1
+497 | # 1 "<command line>" 1
+498 | #define __swift__ 51000
+499 | #define _ISO646_H_ 1
+
+<built-in>:519:9: warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+514 | #define __SWIFT_ATTR_SUPPORTS_SENDING 1
+515 | #define _LIBCPP_HARDENING_MODE _LIBCPP_HARDENING_MODE_DEBUG
+516 | #define POD_CONFIGURATION_DEBUG 1
+517 | #define DEBUG 1
+518 | #define COCOAPODS 1
+519 | #define POD_CONFIGURATION_DEBUG 1 DEBUG=1 
+    |         `- warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+520 | #define GL_SILENCE_DEPRECATION 1
+521 | #define COREVIDEO_SILENCE_GL_DEPRECATION 1
+495 | #define __STDC_EMBED_EMPTY__ 2
+496 | #define __OBJC__ 1
+497 | # 1 "<command line>" 1
+498 | #define __swift__ 51000
+499 | #define _ISO646_H_ 1
+
+<built-in>:519:9: warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+514 | #define __SWIFT_ATTR_SUPPORTS_SENDING 1
+515 | #define _LIBCPP_HARDENING_MODE _LIBCPP_HARDENING_MODE_DEBUG
+516 | #define POD_CONFIGURATION_DEBUG 1
+517 | #define DEBUG 1
+518 | #define COCOAPODS 1
+519 | #define POD_CONFIGURATION_DEBUG 1 DEBUG=1 
+    |         `- warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+520 | #define GL_SILENCE_DEPRECATION 1
+521 | #define COREVIDEO_SILENCE_GL_DEPRECATION 1
+495 | #define __STDC_EMBED_EMPTY__ 2
+496 | #define __OBJC__ 1
+497 | # 1 "<command line>" 1
+498 | #define __swift__ 51000
+499 | #define _ISO646_H_ 1
+
+<built-in>:519:9: warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+514 | #define __SWIFT_ATTR_SUPPORTS_SENDING 1
+515 | #define _LIBCPP_HARDENING_MODE _LIBCPP_HARDENING_MODE_DEBUG
+516 | #define POD_CONFIGURATION_DEBUG 1
+517 | #define DEBUG 1
+518 | #define COCOAPODS 1
+519 | #define POD_CONFIGURATION_DEBUG 1 DEBUG=1 
+    |         `- warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+520 | #define GL_SILENCE_DEPRECATION 1
+521 | #define COREVIDEO_SILENCE_GL_DEPRECATION 1
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/lee/.pub-cache/hosted/pub.dev/media_kit_video-2.0.1/macos/Classes/plugin/common/UtilsProtocol.swift (in target 'media_kit_video' from project 'Pods')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/lee/.pub-cache/hosted/pub.dev/media_kit_video-2.0.1/macos/Classes/plugin/common/VideoOutput.swift (in target 'media_kit_video' from project 'Pods')
+495 | #define __STDC_EMBED_EMPTY__ 2
+496 | #define __OBJC__ 1
+497 | # 1 "<command line>" 1
+498 | #define __swift__ 51000
+499 | #define _ISO646_H_ 1
+
+<built-in>:519:9: warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+514 | #define __SWIFT_ATTR_SUPPORTS_SENDING 1
+515 | #define _LIBCPP_HARDENING_MODE _LIBCPP_HARDENING_MODE_DEBUG
+516 | #define POD_CONFIGURATION_DEBUG 1
+517 | #define DEBUG 1
+518 | #define COCOAPODS 1
+519 | #define POD_CONFIGURATION_DEBUG 1 DEBUG=1 
+    |         `- warning: 'POD_CONFIGURATION_DEBUG' macro redefined
+520 | #define GL_SILENCE_DEPRECATION 1
+521 | #define COREVIDEO_SILENCE_GL_DEPRECATION 1
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/macos/Pods/Pods.xcodeproj: window_manager: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.7hUttX/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/macos/Pods/Pods.xcodeproj: wakelock_plus: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.7hUttX/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/macos/Pods/Pods.xcodeproj: video_player_avfoundation: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.7hUttX/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/macos/Pods/Pods.xcodeproj: screen_retriever_macos: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.7hUttX/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/macos/Pods/Pods.xcodeproj: connectivity_plus: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.7hUttX/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/macos/Pods/Pods.xcodeproj: media_kit_libs_macos_video: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.7hUttX/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/macos/Pods/Pods.xcodeproj: flutter_secure_storage_darwin: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.7hUttX/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/macos/Pods/Pods.xcodeproj: media_kit_video: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.7hUttX/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.7hUttX/Metal.xctoolchain/usr/lib/swift/macosx' not found
+1 | #import "Headers/video_player_avfoundation-umbrella.h"
+2 | #import "Headers/video_player_avfoundation-Swift.h"
+3 | 
+
+13 | #import "AVAssetTrackUtils.h"
+14 | #import "FVPAssetProvider.h"
+15 | #import "FVPAVFactory.h"
+16 | #import "FVPDisplayLink.h"
+17 | #import "FVPEventBridge.h"
+
+1 warning generated.
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/build/macos/Build/Products/Debug/video_player_avfoundation/video_player_avfoundation.framework/Headers/FVPAVFactory.h:38:4: warning: 'AVKeyValueStatus' is deprecated: first deprecated in macOS 13.0 - Use AVAsyncProperty.Status instead
+ 36 | 
+ 37 | /// Wraps the underlying asset's statusOfValueForKey:error: method.
+ 38 | - (AVKeyValueStatus)statusOfValueForKey:(NSString *)key
+    |    `- warning: 'AVKeyValueStatus' is deprecated: first deprecated in macOS 13.0 - Use AVAsyncProperty.Status instead
+ 39 |                                   error:(NSError *_Nullable *_Nullable)outError;
+ 40 | 
+
+14 | NS_ASSUME_NONNULL_BEGIN
+15 | 
+16 | typedef NS_ENUM(NSInteger, AVKeyValueStatus) {
+17 | 	AVKeyValueStatusUnknown = 0,
+18 | 	AVKeyValueStatusLoading = 1,
+1 | #import "Headers/media_kit_video-umbrella.h"
+2 | #import "Headers/media_kit_video-Swift.h"
+3 | 
+
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/build/macos/Build/Products/Debug/media_kit_video/media_kit_video.framework/Headers/media_kit_video-Swift.h:387:31: warning: 'objc_ownership' only applies to Objective-C object or block pointer types; type here is 'CVPixelBufferRef _Nullable' (aka 'struct __CVBuffer *')
+385 | SWIFT_CLASS("_TtC15media_kit_video20SafeResizableTexture")
+386 | @interface SafeResizableTexture : NSObject <FlutterTexture>
+387 | - (CVPixelBufferRef _Nullable __unsafe_unretained)copyPixelBuffer SWIFT_WARN_UNUSED_RESULT;
+    |                               `- warning: 'objc_ownership' only applies to Objective-C object or block pointer types; type here is 'CVPixelBufferRef _Nullable' (aka 'struct __CVBuffer *')
+388 | - (nonnull instancetype)init SWIFT_UNAVAILABLE;
+389 | + (nonnull instancetype)new SWIFT_UNAVAILABLE_MSG("-init is unavailable");
+
+1 | #import "Headers/media_kit_video-umbrella.h"
+2 | #import "Headers/media_kit_video-Swift.h"
+3 | 
+
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/build/macos/Build/Products/Debug/media_kit_video/media_kit_video.framework/Headers/media_kit_video-Swift.h:394:31: warning: 'objc_ownership' only applies to Objective-C object or block pointer types; type here is 'CVPixelBufferRef _Nullable' (aka 'struct __CVBuffer *')
+392 | SWIFT_CLASS("_TtC15media_kit_video9TextureHW")
+393 | @interface TextureHW : NSObject <FlutterTexture>
+394 | - (CVPixelBufferRef _Nullable __unsafe_unretained)copyPixelBuffer SWIFT_WARN_UNUSED_RESULT;
+    |                               `- warning: 'objc_ownership' only applies to Objective-C object or block pointer types; type here is 'CVPixelBufferRef _Nullable' (aka 'struct __CVBuffer *')
+395 | - (nonnull instancetype)init SWIFT_UNAVAILABLE;
+396 | + (nonnull instancetype)new SWIFT_UNAVAILABLE_MSG("-init is unavailable");
+
+1 | #import "Headers/media_kit_video-umbrella.h"
+2 | #import "Headers/media_kit_video-Swift.h"
+3 | 
+
+3 warnings generated.
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/build/macos/Build/Products/Debug/media_kit_video/media_kit_video.framework/Headers/media_kit_video-Swift.h:401:31: warning: 'objc_ownership' only applies to Objective-C object or block pointer types; type here is 'CVPixelBufferRef _Nullable' (aka 'struct __CVBuffer *')
+399 | SWIFT_CLASS("_TtC15media_kit_video9TextureSW")
+400 | @interface TextureSW : NSObject <FlutterTexture>
+401 | - (CVPixelBufferRef _Nullable __unsafe_unretained)copyPixelBuffer SWIFT_WARN_UNUSED_RESULT;
+    |                               `- warning: 'objc_ownership' only applies to Objective-C object or block pointer types; type here is 'CVPixelBufferRef _Nullable' (aka 'struct __CVBuffer *')
+402 | - (nonnull instancetype)init SWIFT_UNAVAILABLE;
+403 | + (nonnull instancetype)new SWIFT_UNAVAILABLE_MSG("-init is unavailable");
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.7hUttX/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Users/lee/Desktop/hongguo-dlcon-verify/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.7hUttX/Metal.xctoolchain/usr/lib/swift/macosx' not found
+warning: Run script build phase 'Run Script' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'Flutter Assemble' from project 'Runner')
+✓ Built build/macos/Build/Products/Debug/Hongguo.app
+00:00 +0: live: 同时下载数量 bounds the transfers that really move bytes
+DOWNLOAD-LIVE 20:46:08 runtime ready limit=3 cachedTasks=240
+DOWNLOAD-LIVE 20:46:08 catalog detail episodes=46
+DOWNLOAD-LIVE 20:46:09 enqueued=6 transferring up to 5 positions=[0, 1, 2, 3, 4, 5]
+DOWNLOAD-LIVE 20:46:12 DOWNLOAD_CONCURRENT=5 peak=5 7693760991850400793:ready:6007931b 7693760953468324889:ready:7587415b 7693760957545188377:failed:0b 7693760933344070681:ready:5133790b 7693760947017501721:ready:5985301b 7693761019025296409:ready:9627491b
+DOWNLOAD-LIVE 20:46:14 cleaned up; cachedTasks=240
+00:07 +1: (tearDownAll)
+00:07 +1: All tests passed!

@@ -1,0 +1,50 @@
+00:00 +0: loading /Users/lee/Desktop/hongguo-stage-verify/packages/app/integration_test/download_concurrency_live_test.dart
+Running Gradle task 'assembleTvDebug'...                           19.5s
+✓ Built build/app/outputs/flutter-apk/app-tv-debug.apk
+Installing build/app/outputs/flutter-apk/app-tv-debug.apk...         4.4s
+00:00 +0: live: 同时下载数量 bounds the transfers that really move bytes
+DOWNLOAD-LIVE 17:33:33 runtime ready limit=1 cachedTasks=0
+DOWNLOAD-LIVE 17:33:34 catalog detail episodes=48
+DOWNLOAD-LIVE 17:33:34 enqueued=6 transferring up to 5
+DOWNLOAD-LIVE 17:33:39 tick=10 peak=0 transferring=0
+DOWNLOAD-LIVE 17:33:44 tick=20 peak=0 transferring=0
+DOWNLOAD-LIVE 17:33:50 tick=30 peak=0 transferring=0
+DOWNLOAD-LIVE 17:33:55 tick=40 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:00 tick=50 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:05 tick=60 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:10 tick=70 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:16 tick=80 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:22 tick=90 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:28 tick=100 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:35 tick=110 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:41 tick=120 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:41 DOWNLOAD_CONCURRENT=5 peak=0 7697275473801251865:ready:5736570b 7697275610569133081:ready:7266834b 7697275545788107801:ready:5776445b 7697275563651648537:ready:4870897b 7697275511717760025:ready:6484655b 7697275565593611289:ready:8879851b
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: <5>
+  Actual: <0>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/lee/Desktop/hongguo-stage-verify/packages/app/integration_test/download_concurrency_live_test.dart:95:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/lee/Desktop/hongguo-stage-verify/packages/app/integration_test/download_concurrency_live_test.dart line 95
+The test description was:
+  live: 同时下载数量 bounds the transfers that really move bytes
+════════════════════════════════════════════════════════════════════════════════════════════════════
+01:07 +0 -1: live: 同时下载数量 bounds the transfers that really move bytes [E]
+  Test failed. See exception logs above.
+  The test description was: live: 同时下载数量 bounds the transfers that really move bytes
+  
+01:07 +0 -1: (tearDownAll)
+01:08 +0 -1: Some tests failed.
+
+Failing tests:
+  /Users/lee/Desktop/hongguo-stage-verify/packages/app/integration_test/download_concurrency_live_test.dart: live: 同时下载数量 bounds the transfers that really move bytes

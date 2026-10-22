@@ -1,0 +1,59 @@
+# DOWNLOAD-LIVE heartbeat lines harvested for both runs — 2026-10-22 17:42:17
+# Primary channel: the host-side flutter test stdout (device stdout is relayed there by the runner).
+# Secondary channel attempted: adb -s emulator-5554 logcat -d | grep -a DOWNLOAD-LIVE — 0 matches for BOTH runs
+# (logcat buffers were cleared with 'logcat -c' immediately before each launch, see timestamps below).
+# Run 1 logcat buffer cleared 17:33:03, Run 2 logcat buffer cleared 17:39:13 (each immediately before launch).
+
+== run 1 (HONGGUO_DOWNLOAD_CONCURRENT=5, log: live-tv-emulator.log) DOWNLOAD-LIVE lines ==
+DOWNLOAD-LIVE 17:33:33 runtime ready limit=1 cachedTasks=0
+DOWNLOAD-LIVE 17:33:34 catalog detail episodes=48
+DOWNLOAD-LIVE 17:33:34 enqueued=6 transferring up to 5
+DOWNLOAD-LIVE 17:33:39 tick=10 peak=0 transferring=0
+DOWNLOAD-LIVE 17:33:44 tick=20 peak=0 transferring=0
+DOWNLOAD-LIVE 17:33:50 tick=30 peak=0 transferring=0
+DOWNLOAD-LIVE 17:33:55 tick=40 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:00 tick=50 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:05 tick=60 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:10 tick=70 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:16 tick=80 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:22 tick=90 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:28 tick=100 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:35 tick=110 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:41 tick=120 peak=0 transferring=0
+DOWNLOAD-LIVE 17:34:41 DOWNLOAD_CONCURRENT=5 peak=0 7697275473801251865:ready:5736570b 7697275610569133081:ready:7266834b 7697275545788107801:ready:5776445b 7697275563651648537:ready:4870897b 7697275511717760025:ready:6484655b 7697275565593611289:ready:8879851b
+
+== run 2 (HONGGUO_DOWNLOAD_CONCURRENT=3, log: live-tv-emulator-3.log) DOWNLOAD-LIVE lines ==
+DOWNLOAD-LIVE 17:39:39 runtime ready limit=1 cachedTasks=0
+DOWNLOAD-LIVE 17:39:43 catalog detail episodes=48
+DOWNLOAD-LIVE 17:39:43 enqueued=4 transferring up to 3
+DOWNLOAD-LIVE 17:39:48 tick=10 peak=0 transferring=0
+DOWNLOAD-LIVE 17:39:53 tick=20 peak=0 transferring=0
+DOWNLOAD-LIVE 17:39:58 tick=30 peak=0 transferring=0
+DOWNLOAD-LIVE 17:40:04 tick=40 peak=0 transferring=0
+DOWNLOAD-LIVE 17:40:09 tick=50 peak=0 transferring=0
+DOWNLOAD-LIVE 17:40:14 tick=60 peak=0 transferring=0
+DOWNLOAD-LIVE 17:40:20 tick=70 peak=0 transferring=0
+DOWNLOAD-LIVE 17:40:26 tick=80 peak=0 transferring=0
+DOWNLOAD-LIVE 17:40:33 tick=90 peak=0 transferring=0
+DOWNLOAD-LIVE 17:40:39 tick=100 peak=0 transferring=0
+DOWNLOAD-LIVE 17:40:46 tick=110 peak=0 transferring=0
+DOWNLOAD-LIVE 17:40:53 tick=120 peak=0 transferring=0
+DOWNLOAD-LIVE 17:40:53 DOWNLOAD_CONCURRENT=3 peak=0 7697275545788107801:failed:0b 7697275563651648537:failed:0b 7697275511717760025:failed:0b 7697275565593611289:failed:0b
+
+== device-side package lifecycle observed in logcat (not issued by this verification) ==
+# run 1, buffer captured 17:34:46:
+10-22 17:34:42.780  2586  2586 I Finsky:background: [2] Package no longer installed: com.example.hongguo_app.tv
+10-22 17:34:42.788  1034  1034 D PersistedStoragePackageUninstalledReceiver: Received android.intent.action.PACKAGE_FULLY_REMOVED for com.example.hongguo_app.tv for u0
+# run 2, buffer captured 17:41:49:
+10-22 17:40:54.559  1034  1034 D PersistedStoragePackageUninstalledReceiver: Received android.intent.action.PACKAGE_FULLY_REMOVED for com.example.hongguo_app.tv for u0
+
+== post-run device state, 17:41:49 ==
+adb -s emulator-5554 shell pm list packages | grep -i hongguo -> (no output, package not installed)
+adb -s emulator-5554 shell ls -d /data/data/com.example.hongguo_app.tv -> ls: /data/data/com.example.hongguo_app.tv: No such file or directory
+adb -s emulator-5554 shell 'run-as com.example.hongguo_app.tv cat files/episode-downloads.json' -> run-as: unknown package: com.example.hongguo_app.tv
+adb -s emulator-5554 shell 'run-as com.example.hongguo_app.tv ls -l files/media-cache'      -> run-as: unknown package: com.example.hongguo_app.tv
+
+== final step 3 action 17:42:37 ==
+adb -s emulator-5554 shell am force-stop com.example.hongguo_app.tv -> rc=0, no output (package already absent)
+emulator-5554 left online:
+emulator-5554	device
