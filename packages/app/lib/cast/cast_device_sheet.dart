@@ -3,18 +3,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hongguo_cast/hongguo_cast.dart';
 
-import 'cast_controller.dart';
+import 'cast_service.dart';
 
 /// Lists renderers found on the Wi-Fi network and returns the chosen one.
 ///
 /// Discovery itself is started by the caller so that the sheet stays pure
-/// presentation and can be pumped without touching a socket.
+/// presentation and can be pumped without touching a socket. Picking is offered
+/// while a session is running too, which is how the remote page 换设备.
 Future<KnownRenderer?> showCastDevicePicker(
   BuildContext context,
-  CastController controller,
+  CastService service,
 ) {
   final size = MediaQuery.sizeOf(context);
-  final sheet = CastDeviceSheet(controller: controller);
+  final sheet = CastDeviceSheet(service: service);
   if (size.width >= 720 && size.height >= 400) {
     return showDialog<KnownRenderer>(
       context: context,
@@ -33,12 +34,12 @@ Future<KnownRenderer?> showCastDevicePicker(
 }
 
 class CastDeviceSheet extends StatelessWidget {
-  final CastController controller;
-  const CastDeviceSheet({super.key, required this.controller});
+  final CastService service;
+  const CastDeviceSheet({super.key, required this.service});
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: controller,
+    listenable: service,
     builder: (_, _) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -55,9 +56,9 @@ class CastDeviceSheet extends StatelessWidget {
               IconButton(
                 key: const ValueKey('cast-refresh'),
                 tooltip: '重新搜索',
-                onPressed: controller.browsing || controller.active
+                onPressed: service.browsing
                     ? null
-                    : () => unawaited(controller.browse()),
+                    : () => unawaited(service.browse()),
                 icon: const Icon(Icons.refresh),
               ),
               IconButton(
@@ -68,7 +69,7 @@ class CastDeviceSheet extends StatelessWidget {
             ],
           ),
         ),
-        if (controller.browsing)
+        if (service.browsing)
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Row(
@@ -84,14 +85,14 @@ class CastDeviceSheet extends StatelessWidget {
             ),
           ),
         Expanded(
-          child: controller.devices.isEmpty
+          child: service.devices.isEmpty
               ? _Empty(
-                  notice: controller.error ?? '未发现设备。',
-                  searching: controller.browsing,
+                  notice: service.error ?? '未发现设备。',
+                  searching: service.browsing,
                 )
               : ListView(
                   children: [
-                    for (final renderer in controller.devices)
+                    for (final renderer in service.devices)
                       ListTile(
                         key: ValueKey('cast-renderer-${renderer.udn}'),
                         dense: true,
@@ -102,20 +103,17 @@ class CastDeviceSheet extends StatelessWidget {
                               ? renderer.device.modelName
                               : '${renderer.device.modelName} · 该设备不支持播控',
                         ),
-                        trailing: controller.target?.udn == renderer.udn
+                        trailing: service.target?.udn == renderer.udn
                             ? const Icon(Icons.check)
                             : null,
-                        onTap:
-                            controller.browsing ||
-                                controller.active ||
-                                !renderer.isControllable
+                        onTap: service.browsing || !renderer.isControllable
                             ? null
                             : () => Navigator.pop(context, renderer),
                       ),
                   ],
                 ),
         ),
-        if (!controller.browsing && controller.devices.isEmpty)
+        if (!service.browsing && service.devices.isEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
             child: Text(

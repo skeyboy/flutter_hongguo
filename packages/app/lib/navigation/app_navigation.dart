@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import '../cast/cast_floating_window.dart';
+import '../cast/cast_remote_page.dart';
+import '../cast/cast_service.dart';
 import '../platform/macos_window.dart';
 import '../platform/background/host_policy.dart';
 
@@ -61,10 +64,14 @@ Future<T?> pushAppPage<T>(
 class RoutedApplication extends StatefulWidget {
   final MaterialApp configuration;
   final WidgetBuilder? settingsBuilder;
+
+  /// When set, a running cast keeps a handle on every page of the app.
+  final CastService? cast;
   const RoutedApplication({
     super.key,
     required this.configuration,
     this.settingsBuilder,
+    this.cast,
   });
   @override
   State<RoutedApplication> createState() => _RoutedApplicationState();
@@ -160,10 +167,28 @@ class _RoutedApplicationState extends State<RoutedApplication> {
             },
             child: ListenableBuilder(
               listenable: router,
-              builder: (context, _) => MacWindowFrame(
-                immersive: router.current.name == AppScreen.player.routeName,
-                child: content,
-              ),
+              builder: (context, _) {
+                final framed = MacWindowFrame(
+                  immersive: router.current.name == AppScreen.player.routeName,
+                  child: content,
+                );
+                final cast = widget.cast;
+                if (cast == null) return framed;
+                // Above the router, so no page transition can hide the handle;
+                // the window itself stays out of the way while its own page is up.
+                return CastFloatingLayer(
+                  service: cast,
+                  visible: router.current.name != AppScreen.cast.routeName,
+                  onTap: () => unawaited(
+                    pushAppPage(
+                      context,
+                      AppScreen.cast,
+                      (_) => CastRemotePage(service: cast),
+                    ),
+                  ),
+                  child: framed,
+                );
+              },
             ),
           );
         },

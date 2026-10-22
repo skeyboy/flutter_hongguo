@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hongguo_api/hongguo_api.dart';
-import 'package:hongguo_app/cast/cast_controller.dart';
+import 'package:hongguo_app/cast/cast_service.dart';
 import 'package:hongguo_app/platform/runtime.dart';
 import 'package:hongguo_cast/hongguo_cast.dart';
 import 'package:xml/xml.dart';
@@ -20,6 +20,10 @@ class RendererSpy {
   Set<String> failOn;
   final List<String> actions = [];
   final Map<String, Map<String, String>> arguments = {};
+
+  /// What the television reports when it is polled, so a test can walk it to the
+  /// end of an episode or leave it paused in the middle.
+  String relTime = '0:00:12.000', transportState = 'PLAYING';
 
   UpnpDevice get device => UpnpDevice(
     location: Uri.parse('http://192.168.1.40:49152/desc.xml'),
@@ -56,21 +60,23 @@ class RendererSpy {
       throw const UpnpException('电视拒绝了该指令');
     }
     return switch (action) {
-      'GetPositionInfo' => _reply({
-        'RelTime': '0:00:12.000',
+      'GetPositionInfo' => _reply(action, {
+        'RelTime': relTime,
         'TrackDuration': '0:45:00.000',
       }),
-      'GetTransportInfo' => _reply({'TransportState': 'PLAYING'}),
-      'GetVolume' => _reply({'CurrentVolume': '30'}),
-      _ => _reply(const {}),
+      'GetTransportInfo' => _reply(action, {'TransportState': transportState}),
+      'GetVolume' => _reply(action, {'CurrentVolume': '30'}),
+      _ => _reply(action, const {}),
     };
   };
 
-  static String _reply(Map<String, String> values) =>
+  /// UPnP names every reply `<Action>Response`, and that is the element
+  /// `readResponse` looks for; a generic name would parse as an empty answer.
+  static String _reply(String action, Map<String, String> values) =>
       '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
-      '<s:Body><u:Response xmlns:u="$avType">'
+      '<s:Body><u:${action}Response xmlns:u="$avType">'
       '${values.entries.map((e) => '<${e.key}>${e.value}</${e.key}>').join()}'
-      '</u:Response></s:Body></s:Envelope>';
+      '</u:${action}Response></s:Body></s:Envelope>';
 }
 
 class FakeJob implements PlaybackJob {
@@ -183,6 +189,16 @@ class CastHarness {
   late String episode;
   late LanMediaServer server;
 
+  /// Three episodes so the queue has somewhere to go next.
+  final DramaDetail detail = DramaDetail(
+    const Drama(id: '1', title: '大时代'),
+    const [
+      Episode(vid: '1', index: 1),
+      Episode(vid: '2', index: 2),
+      Episode(vid: '3', index: 3),
+    ],
+  );
+
   Future<void> start() async {
     stubMulticastChannel();
     root = await Directory.systemTemp.createTemp('hongguo-cast');
@@ -195,33 +211,30 @@ class CastHarness {
     );
   }
 
-  /// Closing the server belongs to the controller under test.
+  /// Closing the server belongs to the service under test.
   Future<void> finish() => root.delete(recursive: true);
 
-  CastController controller({
+  CastService service({
     List<SsdpHit>? hits,
     Future<LanMediaServer> Function()? bindServer,
-  }) => CastController(
-    runtime: runtime,
+    Duration poll = const Duration(minutes: 5),
+  }) => CastService(
+    runtime,
     browser: DeviceBrowser(
       scan: (target) async => hits ?? [advertisement],
       describe: (location) async => spy.device,
     ),
     bindServer: bindServer ?? (() async => server),
-    openSession: (device) => CastSession(
-      device: device,
-      post: spy.post,
-      pollInterval: const Duration(minutes: 5),
-    ),
+    openSession: (device) =>
+        CastSession(device: device, post: spy.post, pollInterval: poll),
   );
 
-  Future<void> cast(CastController subject, {String vid = '1'}) =>
-      subject.start(
-        renderer: knownRenderer(spy.device),
-        vid: vid,
-        episodeTitle: '大时代 · 第 $vid 集',
-        expectedDuration: const Duration(minutes: 45),
-      );
+  Future<void> cast(CastService subject, {int index = 0}) => subject.open(
+    detail: detail,
+    index: index,
+    renderer: knownRenderer(spy.device),
+    expectedDuration: const Duration(minutes: 45),
+  );
 }
 
 /// flutter_test intercepts `HttpClient`; the media server is a real loopback

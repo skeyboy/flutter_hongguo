@@ -13,6 +13,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 
 import 'bootstrap.dart';
+import 'cast/cast_service.dart';
 import 'features/library_page.dart';
 import 'features/settings_page.dart';
 
@@ -134,6 +135,9 @@ class HongguoApp extends ConsumerWidget {
                 settingsBuilder: runtime == null
                     ? null
                     : (_) => SettingsPage(runtime: runtime),
+                cast: runtime != null && castSupported(runtime)
+                    ? castServiceFor(runtime)
+                    : null,
               );
       },
     );

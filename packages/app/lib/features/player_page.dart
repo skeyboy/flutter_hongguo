@@ -24,9 +24,9 @@ import '../playback/episode_swipe.dart';
 import '../playback/compact_controls.dart';
 import '../playback/playback_transport.dart';
 import '../playback/capability_preferences.dart';
-import '../cast/cast_controller.dart';
 import '../cast/cast_device_sheet.dart';
 import '../cast/cast_remote_page.dart';
+import '../cast/cast_service.dart';
 import 'settings_page.dart';
 
 const bool softwareVideo = bool.fromEnvironment('HONGGUO_SOFTWARE_VIDEO');
@@ -164,7 +164,7 @@ class _PlayerPageState extends State<PlayerPage>
   late final PrefetchWindow prefetch;
   String quality = 'best';
   String? sourceVid, sourceQuality;
-  CastController? castController;
+  CastService? castService;
   PreparationProgress? progress;
   final preparationStages = <String>[];
   Object? error;
@@ -364,8 +364,8 @@ class _PlayerPageState extends State<PlayerPage>
     platformPlayback.platformPip.addListener(_platformChanged);
     platformPlayback.nativeFullscreen.addListener(_nativeFullscreenChanged);
     if (castSupported(widget.runtime)) {
-      castController = CastController(runtime: widget.runtime)
-        ..addListener(_onCastChanged);
+      // The session belongs to the app, so this page only borrows it.
+      castService = castServiceFor(widget.runtime)..addListener(_onCastChanged);
     }
     if (runtime is ConfigurableRuntime) {
       subscriptions.add(
@@ -586,45 +586,47 @@ class _PlayerPageState extends State<PlayerPage>
 
   void _onCastChanged() {
     if (!mounted) return;
-    final controller = castController;
+    final service = castService;
     // The television owns playback, so the phone yields instead of double audio.
-    if (controller != null && controller.active && playing) {
+    if (service != null && service.active && playing) {
       unawaited(_pausePlayback());
     }
   }
 
   Future<void> _cast() async {
-    final controller = castController;
-    if (controller == null || preparing || sourceVid == null) return;
+    final service = castService;
+    if (service == null || preparing || sourceVid == null) return;
     episodeWorkspace.currentState?.hide();
     compactControls.currentState?.hide();
     if (fullscreen) await _setFullscreen(false);
-    if (!controller.active) {
-      unawaited(controller.browse());
-      final renderer = await showCastDevicePicker(context, controller);
+    if (!service.active) {
+      unawaited(service.browse());
+      final renderer = await showCastDevicePicker(context, service);
       if (renderer == null || !mounted) return;
-      final episode = widget.detail.episodes[position];
-      await controller.start(
+      await service.open(
+        detail: widget.detail,
+        index: position,
         renderer: renderer,
-        vid: episode.vid,
         quality: sourceQuality ?? quality,
-        episodeTitle: '${widget.detail.drama.title} · 第 ${episode.index} 集',
         expectedDuration: player.state.duration == Duration.zero
             ? null
             : player.state.duration,
       );
       if (!mounted) return;
-      if (!controller.active) {
+      if (!service.active) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(controller.error ?? '电视拒绝接管播放，请稍后再试。')),
+          SnackBar(content: Text(service.error ?? '电视拒绝接管播放，请稍后再试。')),
         );
         return;
       }
     }
-    await showCastRemote(context, controller);
+    // A non-null result means the viewer pressed 退出投屏; closing the page leaves
+    // the television running and the floating window holding the handle.
+    final resumeAt = await showCastRemote(context, service);
     if (!mounted) return;
-    final resumeAt = controller.position;
-    if (resumeAt > Duration.zero) await player.seek(resumeAt);
+    if (resumeAt != null && resumeAt > Duration.zero) {
+      await player.seek(resumeAt);
+    }
     _saveHistory(force: true);
     _redraw(() {});
   }
@@ -928,8 +930,9 @@ class _PlayerPageState extends State<PlayerPage>
     if (fullscreen) unawaited(defaultExitNativeFullscreen());
     generation++;
     WidgetsBinding.instance.removeObserver(this);
-    castController?.removeListener(_onCastChanged);
-    castController?.dispose();
+    // Leaving the page must not stop the television: the cast service outlives
+    // this state and the floating window is what brings the controls back.
+    castService?.removeListener(_onCastChanged);
     prefetch.dispose();
     panelRevision.dispose();
     for (final subscription in subscriptions) {
@@ -1039,7 +1042,7 @@ class _PlayerPageState extends State<PlayerPage>
     player.seek(clamped);
   }
 
-  bool get castActive => castController?.active ?? false;
+  bool get castActive => castService?.active ?? false;
 
   bool _swipeBlocked() =>
       preparing ||
@@ -1053,7 +1056,7 @@ class _PlayerPageState extends State<PlayerPage>
 
   void _swipeDropped(int offset) {
     // Dropping a flick silently would read as a broken gesture.
-    if (castActive) _fleetingNotice('投屏中请在电视端切换剧集');
+    if (castActive) _fleetingNotice('投屏中请在投屏页或悬浮窗切换剧集');
   }
 
   String? _swipeHint() {
@@ -1704,7 +1707,7 @@ class _PlayerPageState extends State<PlayerPage>
           floating: (macHost || settingsFor(widget.runtime).floatingPlayback)
               ? _floating
               : null,
-          cast: castController == null || sourceVid == null ? null : _cast,
+          cast: castService == null || sourceVid == null ? null : _cast,
           floatingActive: floating,
           onMenuChanged: (value) {
             if (mounted) _redraw(() => menuOpen = value);

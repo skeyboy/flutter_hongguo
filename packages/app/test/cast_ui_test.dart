@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hongguo_cast/hongguo_cast.dart';
 import 'package:hongguo_app/cast/cast_device_sheet.dart';
+import 'package:hongguo_app/cast/cast_floating_window.dart';
 import 'package:hongguo_app/cast/cast_remote_page.dart';
 
 import 'cast_fixtures.dart';
@@ -31,7 +32,7 @@ void main() {
   testWidgets('the picker offers each television and returns the chosen one', (
     tester,
   ) async {
-    final subject = harness.controller();
+    final subject = harness.service();
     addTearDown(subject.dispose);
     await subject.browse();
     expect(subject.devices, hasLength(1));
@@ -55,7 +56,7 @@ void main() {
   testWidgets('an uncontrollable receiver is listed but cannot be picked', (
     tester,
   ) async {
-    final subject = harness.controller();
+    final subject = harness.service();
     addTearDown(subject.dispose);
     subject.devices = [
       knownRenderer(
@@ -87,7 +88,7 @@ void main() {
   testWidgets(
     'the remote page drives the television and hands the position back',
     (tester) async {
-      final subject = harness.controller();
+      final subject = harness.service();
       addTearDown(subject.dispose);
       await harness.cast(subject);
       Duration? resumeAt = const Duration(milliseconds: -1);
@@ -141,8 +142,112 @@ void main() {
     },
   );
 
+  testWidgets('putting the remote page away leaves the television playing', (
+    tester,
+  ) async {
+    final subject = harness.service();
+    addTearDown(subject.dispose);
+    await harness.cast(subject);
+    Duration? resumeAt = const Duration(milliseconds: -1);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async =>
+                  resumeAt = await showCastRemote(context, subject),
+              child: const Text('remote'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('remote'));
+    await tester.pumpAndSettle();
+    // The next-episode control is live on the phone now, not the television's job.
+    await tester.tap(find.byKey(const ValueKey('cast-next')));
+    await tester.pumpAndSettle();
+    expect(subject.title, '大时代 · 第 2 集');
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(resumeAt, isNull);
+    expect(subject.active, isTrue);
+    // Only the episode that was replaced got released; the running one is still
+    // being served, which is what leaving the page must not disturb.
+    expect(harness.runtime.releases, 1);
+    expect(find.text('remote'), findsOneWidget);
+    // The poll timer belongs to the fake clock, so end the session here rather
+    // than leaving it running for the teardown.
+    await subject.stop();
+  });
+
+  testWidgets('the episode sheet re-points the running session', (
+    tester,
+  ) async {
+    final subject = harness.service();
+    addTearDown(subject.dispose);
+    await harness.cast(subject);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showCastRemote(context, subject),
+              child: const Text('remote'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('remote'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('cast-episodes')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('episode-pager-cell-1')));
+    await tester.pumpAndSettle();
+    expect(subject.index, 1);
+    expect(subject.title, '大时代 · 第 2 集');
+    await subject.stop();
+  });
+
+  testWidgets('the floating window keeps a running cast reachable', (
+    tester,
+  ) async {
+    final subject = harness.service();
+    addTearDown(subject.dispose);
+    var reopened = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CastFloatingLayer(
+          service: subject,
+          visible: true,
+          onTap: () => reopened++,
+          child: const Scaffold(body: Text('library')),
+        ),
+      ),
+    );
+    // Idle is not something to keep on screen.
+    expect(find.byKey(const ValueKey('cast-float')), findsNothing);
+
+    await harness.cast(subject);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('cast-float')), findsOneWidget);
+    expect(find.text('大时代 · 第 1 集'), findsOneWidget);
+    expect(find.text('客厅电视'), findsOneWidget);
+
+    await tester.tap(find.text('大时代 · 第 1 集'));
+    expect(reopened, 1);
+
+    await tester.tap(find.byKey(const ValueKey('cast-float-stop')));
+    await tester.pumpAndSettle();
+    expect(subject.active, isFalse);
+    expect(find.byKey(const ValueKey('cast-float')), findsNothing);
+    expect(harness.runtime.releases, 1);
+  });
+
   testWidgets('a failed hand-over never opens a remote page', (tester) async {
-    final subject = harness.controller();
+    final subject = harness.service();
     addTearDown(subject.dispose);
     harness.spy.failOn = {'SetAVTransportURI'};
     await harness.cast(subject);
