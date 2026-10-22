@@ -38,6 +38,7 @@ void main() {
       // Runtime/prefetch adapters clamp the effective TV budget, without corrupting settings.
       expect(runtime.settings.backgroundPlayback, isFalse);
       expect(runtime.settings.concurrentPreparations, 1);
+      expect(runtime.settings.downloadConcurrent, 1);
     },
     skip: !tvBuild,
   );

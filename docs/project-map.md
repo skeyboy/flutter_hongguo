@@ -52,6 +52,9 @@ flutter_hongguo/
 | 首页、搜索、分类与题材 | [library_page.dart](../packages/app/lib/features/library_page.dart) | widget_test.dart |
 | 搜索聚焦下拉：历史落盘与推荐位取数 | [search_history.dart](../packages/app/lib/search/search_history.dart)、[search_suggestions.dart](../packages/app/lib/search/search_suggestions.dart) | [search_history_test.dart](../packages/app/test/search_history_test.dart)、[search_suggestions_test.dart](../packages/app/test/search_suggestions_test.dart) |
 | 详情与选集 | [detail_page.dart](../packages/app/lib/features/detail_page.dart) | widget_test.dart |
+| 选集限高多行水平分页（手机/桌面/TV 共用） | [episode_pager.dart](../packages/app/lib/playback/episode_pager.dart) | [episode_pager_test.dart](../packages/app/test/episode_pager_test.dart) |
+| 详情页同题材推荐取数与展示 | [related_dramas.dart](../packages/app/lib/recommendations/related_dramas.dart)、[related_dramas_section.dart](../packages/app/lib/recommendations/related_dramas_section.dart) | [related_dramas_test.dart](../packages/app/test/related_dramas_test.dart) |
+| 下载队列并发与容量台账 | [download_manager.dart](../packages/app/lib/downloads/download_manager.dart) | [download_manager_test.dart](../packages/app/test/download_manager_test.dart) |
 | 本地播放器、seek、切集、预热与生命周期 | [player_page.dart](../packages/app/lib/features/player_page.dart) | [离线原生集成测试](../packages/app/integration_test/offline_playback_test.dart) |
 | 播放页竖滑切集与首次提示 | [episode_swipe.dart](../packages/app/lib/playback/episode_swipe.dart) | [episode_swipe_test.dart](../packages/app/test/episode_swipe_test.dart) |
 | 原生运行链路与私有目录 | [runtime_native.dart](../packages/app/lib/platform/runtime_native.dart) | [Mac 真实单集测试](../packages/app/integration_test/macos_live_poc_test.dart) |

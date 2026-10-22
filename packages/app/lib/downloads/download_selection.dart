@@ -227,7 +227,7 @@ class _DownloadSelectionState extends State<DownloadSelection> {
                   ? settingsFor(widget.runtime).backgroundDownloads
                         ? "已开启后台下载，系统可能延迟调度"
                         : "未开启后台下载，退后台暂停，回前台继续"
-                  : "离开此页面仍会继续，退出 App 后需重新继续"} · 最多保留 ${settingsFor(widget.runtime).maxCacheFiles} 集',
+                  : "离开此页面仍会继续，退出 App 后需重新继续"} · 同时下载 ${settingsFor(widget.runtime).downloadConcurrent} 集',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),

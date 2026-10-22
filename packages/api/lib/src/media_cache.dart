@@ -87,7 +87,11 @@ class MediaCache {
   final bool Function(String vid, String quality)? retainFile;
   final _jobs = <String, _Job>{};
   final _pins = <String, int>{};
-  final _pinSizes = <String, int>{};
+
+  /// Pinned bytes split by ownership: automatic cache files count against the
+  /// maxBytes budget, manual (retained) downloads never squeeze that budget.
+  final _autoBytes = <String, int>{};
+  final _retainedBytes = <String, int>{};
   final _reserved = <_Job, int>{};
   final _pending = <_Job>[];
   final _active = <_Job>{};
@@ -105,6 +109,17 @@ class MediaCache {
     this.maxConcurrent = 2,
     this.retainFile,
   });
+  int get _autoPinnedBytes => _autoBytes.values.fold<int>(0, (a, b) => a + b);
+
+  void _trackPin(String path, int size) {
+    (_retainedPath(path) ? _retainedBytes : _autoBytes)[path] = size;
+  }
+
+  void _untrackPin(String path) {
+    _autoBytes.remove(path);
+    _retainedBytes.remove(path);
+  }
+
   String _key(String vid, String quality) {
     if (!RegExp(r'^\d{1,30}$').hasMatch(vid) ||
         !RegExp(r'^(best|auto|\d{3,4}p)$').hasMatch(quality)) {
@@ -165,7 +180,7 @@ class MediaCache {
       final count = (_pins[output.path] ?? 1) - 1;
       if (count <= 0) {
         _pins.remove(output.path);
-        _pinSizes.remove(output.path);
+        _untrackPin(output.path);
       } else {
         _pins[output.path] = count;
       }
@@ -177,7 +192,7 @@ class MediaCache {
           throw StateError('本地缓存已失效，请返回列表重新下载。');
         }
         if (lease._result.isCompleted) return;
-        _pinSizes[output.path] = output.lengthSync();
+        _trackPin(output.path, output.lengthSync());
         lease._result.complete(output.path);
       } catch (error, stack) {
         release(lease);
@@ -274,9 +289,13 @@ class MediaCache {
         job.progress(const MediaProgress(MediaStage.resolving));
         final track = await resolve(job.vid, job.quality);
         _check(job);
-        if (job.background && maxBytes > 0) {
+        // Manual downloads own a separate ledger: the byte budget below only
+        // accounts for automatic cache files so prefetch is never squeezed by
+        // retained downloads (and vice versa).
+        final retainedJob = _retainedPath(output.path);
+        if (job.background && !retainedJob && maxBytes > 0) {
           _reserved[job] = track.size > 0 ? track.size : 0;
-          if (_pinSizes.values.fold<int>(0, (a, b) => a + b) +
+          if (_autoPinnedBytes +
                   _reserved.values.fold<int>(0, (a, b) => a + b) >
               maxBytes) {
             _reserved.remove(job);
@@ -293,10 +312,10 @@ class MediaCache {
         workingIdentity = working;
         job.progress(const MediaProgress(MediaStage.downloading));
         void report(int received, int total) {
-          if (job.background && maxBytes > 0) {
+          if (job.background && !retainedJob && maxBytes > 0) {
             if (received > (_reserved[job] ?? 0)) _reserved[job] = received;
             final allocated =
-                _pinSizes.values.fold<int>(0, (a, b) => a + b) +
+                _autoPinnedBytes +
                 _reserved.values.fold<int>(0, (a, b) => a + b);
             if (allocated > maxBytes) {
               job.token.cancel('Background cache budget exceeded');
@@ -369,12 +388,12 @@ class MediaCache {
       for (final lease in job.leases.toList()) {
         if (lease._result.isCompleted) continue;
         _pins[output.path] = (_pins[output.path] ?? 0) + 1;
-        _pinSizes[output.path] = output.lengthSync();
+        _trackPin(output.path, output.lengthSync());
         lease._release = () {
           final count = (_pins[output.path] ?? 1) - 1;
           if (count <= 0) {
             _pins.remove(output.path);
-            _pinSizes.remove(output.path);
+            _untrackPin(output.path);
           } else {
             _pins[output.path] = count;
           }
@@ -448,7 +467,7 @@ class MediaCache {
       if (await file.exists()) await file.delete();
       return;
     }
-    if (await file.length() > maxBytes) {
+    if (!_retainedPath(output.path) && await file.length() > maxBytes) {
       throw StateError('Recovered cache exceeds budget');
     }
     var clear = false;

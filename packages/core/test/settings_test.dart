@@ -67,6 +67,17 @@ void main() {
       throwsFormatException,
     );
     expect(
+      () => const AppSettings(downloadConcurrent: 0).validate(),
+      throwsFormatException,
+    );
+    expect(
+      () => const AppSettings(downloadConcurrent: 4).validate(),
+      throwsFormatException,
+    );
+    const clamped = AppSettings(downloadConcurrent: 3);
+    expect(AppSettings.fromJson(clamped.toJson()).downloadConcurrent, 3);
+    expect(clamped.protocolJson(), const AppSettings().protocolJson());
+    expect(
       () => const AppSettings(maxCacheMb: 1).validate(),
       throwsFormatException,
     );

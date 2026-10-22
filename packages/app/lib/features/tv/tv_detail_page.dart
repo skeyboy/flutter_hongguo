@@ -5,6 +5,8 @@ import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_tv/hongguo_tv.dart';
 
 import '../../platform/runtime.dart';
+import '../../playback/episode_pager.dart';
+import '../../recommendations/related_dramas_section.dart';
 import '../player_page.dart';
 import '../../personal/favorite_button.dart';
 
@@ -99,50 +101,73 @@ class _TvDetailPageState extends State<TvDetailPage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Text(d.drama.intro, style: const TextStyle(fontSize: 21)),
-                const SizedBox(height: 20),
-                TvFocusable(
-                  label: '开始观看',
-                  autofocus: true,
-                  focusNode: playNode,
-                  onActivate: d.episodes.isEmpty ? null : () => play(d, null),
-                  child: const Padding(
-                    padding: EdgeInsets.all(14),
-                    child: Text('▶ 开始观看', style: TextStyle(fontSize: 24)),
-                  ),
+                Text(
+                  d.drama.intro,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 21),
                 ),
-                if (widget.runtime is DownloadRuntime)
-                  TvFocusable(
-                    label: '下载剧集',
-                    onActivate: d.episodes.isEmpty
-                        ? null
-                        : () =>
-                              showDownloadSelection(context, widget.runtime, d),
-                    child: const Padding(
-                      padding: EdgeInsets.all(14),
-                      child: Text('下载剧集', style: TextStyle(fontSize: 20)),
-                    ),
-                  ),
-                FavoriteButton(runtime: widget.runtime, drama: d.drama),
-                const SizedBox(height: 24),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
+                const SizedBox(height: 20),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    for (var i = 0; i < d.episodes.length; i++)
+                    TvFocusable(
+                      label: '开始观看',
+                      autofocus: true,
+                      focusNode: playNode,
+                      onActivate: d.episodes.isEmpty
+                          ? null
+                          : () => play(d, null),
+                      child: const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: Text('▶ 开始观看', style: TextStyle(fontSize: 24)),
+                      ),
+                    ),
+                    if (widget.runtime is DownloadRuntime) ...[
+                      const SizedBox(width: 16),
                       TvFocusable(
-                        key: ValueKey(d.episodes[i].vid),
-                        label: '第 ${d.episodes[i].index} 集',
-                        onActivate: () => play(d, i),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Text(
-                            '第 ${d.episodes[i].index} 集',
-                            style: const TextStyle(fontSize: 20),
-                          ),
+                        label: '下载剧集',
+                        onActivate: d.episodes.isEmpty
+                            ? null
+                            : () => showDownloadSelection(
+                                context,
+                                widget.runtime,
+                                d,
+                              ),
+                        child: const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: Text('下载剧集', style: TextStyle(fontSize: 20)),
                         ),
                       ),
+                    ],
+                    const SizedBox(width: 16),
+                    FavoriteButton(
+                      runtime: widget.runtime,
+                      drama: d.drama,
+                      tvLayout: true,
+                    ),
                   ],
+                ),
+                const SizedBox(height: 24),
+                EpisodePager(
+                  episodes: d.episodes,
+                  currentIndex: () => -1,
+                  onSelected: (index) => play(d, index),
+                  rows: 4,
+                  cellExtent: 170,
+                ),
+                const SizedBox(height: 32),
+                RelatedDramasSection(
+                  runtime: widget.runtime,
+                  current: d,
+                  tvLayout: true,
+                  onOpen: (next) => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      settings: const RouteSettings(name: '/tv/detail'),
+                      builder: (_) =>
+                          TvDetailPage(runtime: widget.runtime, initial: next),
+                    ),
+                  ),
                 ),
               ],
             ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hongguo_api/hongguo_api.dart';
+import 'package:hongguo_tv/hongguo_tv.dart';
 
 import '../platform/runtime.dart';
 import 'personal_library.dart';
@@ -7,7 +8,18 @@ import 'personal_library.dart';
 class FavoriteButton extends StatefulWidget {
   final AppRuntime runtime;
   final Drama drama;
-  const FavoriteButton({super.key, required this.runtime, required this.drama});
+
+  /// Remote-driven screens cannot reach an `IconButton` reliably, and a bare
+  /// icon in an action row reads as decoration rather than a third action.
+  final bool tvLayout;
+  final FocusNode? focusNode;
+  const FavoriteButton({
+    super.key,
+    required this.runtime,
+    required this.drama,
+    this.tvLayout = false,
+    this.focusNode,
+  });
   @override
   State<FavoriteButton> createState() => _FavoriteButtonState();
 }
@@ -67,14 +79,28 @@ class _FavoriteButtonState extends State<FavoriteButton> {
   }
 
   @override
-  Widget build(BuildContext context) => IconButton(
-    key: const ValueKey('favorite-drama'),
-    tooltip: error ?? (library.isFavorite(widget.drama.id) ? '取消收藏' : '收藏剧集'),
-    onPressed: busy || (!ready && error == null) ? null : _toggle,
-    icon: Icon(
-      library.isFavorite(widget.drama.id)
-          ? Icons.favorite
-          : Icons.favorite_border,
-    ),
-  );
+  Widget build(BuildContext context) {
+    final favorite = library.isFavorite(widget.drama.id);
+    if (widget.tvLayout) {
+      return TvFocusable(
+        key: const ValueKey('favorite-drama'),
+        label: favorite ? '已收藏' : '收藏',
+        focusNode: widget.focusNode,
+        onActivate: busy || (!ready && error == null) ? null : _toggle,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Text(
+            error ?? (favorite ? '♥ 已收藏' : '♡ 收藏'),
+            style: const TextStyle(fontSize: 20),
+          ),
+        ),
+      );
+    }
+    return IconButton(
+      key: const ValueKey('favorite-drama'),
+      tooltip: error ?? (favorite ? '取消收藏' : '收藏剧集'),
+      onPressed: busy || (!ready && error == null) ? null : _toggle,
+      icon: Icon(favorite ? Icons.favorite : Icons.favorite_border),
+    );
+  }
 }

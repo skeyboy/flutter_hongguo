@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 
 import '../platform/runtime.dart';
+import '../playback/episode_pager.dart';
+import '../recommendations/related_dramas_section.dart';
 import '../widgets/drama_cover.dart';
 import '../personal/favorite_button.dart';
 import 'player_page.dart';
@@ -264,29 +266,34 @@ class _DetailPageState extends State<DetailPage> {
                     ),
                   ),
                 ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-                  sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 100,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 1.5,
-                        ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) => OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          side: const BorderSide(color: Color(0xffddd7ce)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        onPressed: () => play(index),
-                        child: Text('${data.episodes[index].index}'),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+                    child: EpisodePager(
+                      episodes: data.episodes,
+                      currentIndex: () => resumable
+                          ? data.episodes.indexWhere((e) => e.vid == saved.vid)
+                          : -1,
+                      onSelected: play,
+                      rows: MediaQuery.sizeOf(context).width < 720 ? 3 : 4,
+                      cellExtent: MediaQuery.sizeOf(context).width < 720
+                          ? 100
+                          : 120,
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
+                    child: RelatedDramasSection(
+                      runtime: widget.runtime,
+                      current: data,
+                      onOpen: (next) => pushAppPage<void>(
+                        context,
+                        AppScreen.detail,
+                        (_) =>
+                            DetailPage(runtime: widget.runtime, initial: next),
                       ),
-                      childCount: data.episodes.length,
                     ),
                   ),
                 ),

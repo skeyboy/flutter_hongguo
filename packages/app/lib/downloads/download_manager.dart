@@ -69,6 +69,7 @@ class _ActiveDownload {
   final EpisodeDownload task;
   PlaybackJob? job;
   bool released = false;
+  DateTime? lastProgress, lastCheckpoint;
   _ActiveDownload(this.task);
   void stop() {
     job?.cancel();
@@ -112,13 +113,12 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _writes = Future.value();
   Future<void> _mutations = Future.value();
   bool _loaded = false;
-  _ActiveDownload? _active;
+  final _active = <_ActiveDownload>{};
   bool _closed = false,
       _attached = false,
       _foreground = true,
       _settingsChanging = false;
   int _players = 0;
-  DateTime? _lastProgress, _lastCheckpoint;
   String? warning;
   List<EpisodeDownload> get tasks =>
       List.unmodifiable(_tasks.values.toList().reversed);
@@ -130,22 +130,33 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
       .length;
   int get readyCount =>
       _tasks.values.where((t) => t.phase == DownloadPhase.ready).length;
-  int get _readyBytes => _tasks.values
-      .where((t) => t.phase == DownloadPhase.ready)
-      .fold(0, (n, t) => n + t.bytes);
   EpisodeDownload? taskFor(String vid, String quality) =>
       _tasks['${vid}_$quality'];
   bool retains(String vid, String quality) =>
       !_loaded || (taskFor(vid, quality)?.retained ?? false);
   bool running(String vid, String quality) =>
       taskFor(vid, quality)?.phase == DownloadPhase.running;
+
+  /// Download concurrency is its own ledger: normally up to
+  /// downloadConcurrent tasks run side by side. While playback is active the
+  /// scheduler keeps one slot for playback and prefetch, so downloads may
+  /// only occupy the remaining concurrent slots and never starve them.
+  int get _slots {
+    var allowed = settings().downloadConcurrent;
+    if (_players > 0) {
+      final background = settings().concurrentPreparations - 1;
+      if (background < allowed) allowed = background;
+    }
+    return allowed > 0 ? allowed : 0;
+  }
+
   String? get _blocked {
     if (_settingsChanging) return '正在更新下载策略';
     if (!_foreground &&
         (television || (mobile && !settings().backgroundDownloads))) {
       return '回到前台后继续';
     }
-    if (_players > 0 && settings().concurrentPreparations <= 1) {
+    if (_players > 0 && _slots == 0) {
       return '正在播放，等待空闲后继续';
     }
     return null;
@@ -287,18 +298,9 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
         )
         .toList();
     if (add.isEmpty) return 0;
-    final retained =
-        _tasks.values.where((t) => t.retained).map((t) => t.key).toSet()
-          ..addAll(add.map((t) => t.key));
-    if (retained.length > settings().maxCacheFiles) {
-      throw StateError('已达下载集数上限，请先删除下载或调整缓存设置');
-    }
     if (_tasks.length + add.where((t) => !_tasks.containsKey(t.key)).length >
         500) {
       throw StateError('任务记录已达上限，请先整理下载管理');
-    }
-    if (_readyBytes >= settings().maxCacheMb * 1024 * 1024) {
-      throw StateError('已达下载容量上限，请先删除下载或调整设置');
     }
     await remember(detail);
     final old = Map<String, EpisodeDownload>.from(_tasks);
@@ -319,63 +321,45 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _pump() {
-    if (_closed || !_loaded || _active != null || _blocked != null) return;
-    final task = _tasks.values
-        .where((t) => t.phase == DownloadPhase.queued)
-        .firstOrNull;
-    if (task == null) return;
-    final active = _ActiveDownload(task);
-    _active = active;
-    task.phase = DownloadPhase.running;
-    task.message = '正在准备';
-    task.fraction = null;
-    _lastCheckpoint = null;
-    _lastProgress = null;
-    _emit();
-    unawaited(_run(active));
+    if (_closed || !_loaded || _blocked != null) return;
+    while (_active.length < _slots) {
+      final task = _tasks.values
+          .where((t) => t.phase == DownloadPhase.queued)
+          .firstOrNull;
+      if (task == null) return;
+      final active = _ActiveDownload(task);
+      _active.add(active);
+      task.phase = DownloadPhase.running;
+      task.message = '正在准备';
+      task.fraction = null;
+      _emit();
+      unawaited(_run(active));
+    }
   }
 
   bool _current(_ActiveDownload a) =>
-      !_closed &&
-      identical(_active, a) &&
-      identical(_tasks[a.task.key], a.task);
+      !_closed && _active.contains(a) && identical(_tasks[a.task.key], a.task);
   Future<void> _run(_ActiveDownload active) async {
     final task = active.task;
     try {
       await _save();
       if (!_current(active)) return;
-      if (readyCount >= settings().maxCacheFiles ||
-          _readyBytes >= settings().maxCacheMb * 1024 * 1024) {
-        throw StateError('quota');
-      }
       final job = prepare(task, (p) {
         if (!_current(active)) return;
-        final allocated = p.total > p.received ? p.total : p.received;
-        if (allocated > 0 &&
-            _readyBytes + allocated > settings().maxCacheMb * 1024 * 1024) {
-          task.phase = DownloadPhase.failed;
-          task.message = '超过下载容量上限，请清理下载或调整设置';
-          _active = null;
-          active.stop();
-          _checkpoint();
-          _emit();
-          _pump();
-          return;
-        }
         final changed = task.message != p.label;
         task.message = p.label;
         task.fraction = p.fraction;
         final now = DateTime.now();
         if (changed ||
-            _lastProgress == null ||
-            now.difference(_lastProgress!).inMilliseconds >= 200) {
-          _lastProgress = now;
+            active.lastProgress == null ||
+            now.difference(active.lastProgress!).inMilliseconds >= 200) {
+          active.lastProgress = now;
           _emit();
         }
         if (changed ||
-            _lastCheckpoint == null ||
-            now.difference(_lastCheckpoint!).inSeconds >= 1) {
-          _lastCheckpoint = now;
+            active.lastCheckpoint == null ||
+            now.difference(active.lastCheckpoint!).inSeconds >= 1) {
+          active.lastCheckpoint = now;
           _checkpoint();
         }
       });
@@ -389,10 +373,6 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
           .firstOrNull;
       if (!_current(active)) return;
       if (file == null) throw StateError('Completion file missing');
-      if (readyCount >= settings().maxCacheFiles ||
-          _readyBytes + file.bytes > settings().maxCacheMb * 1024 * 1024) {
-        throw StateError('quota');
-      }
       task.phase = DownloadPhase.ready;
       task.message = '已下载';
       task.fraction = 1;
@@ -416,7 +396,7 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
       }
     } finally {
       active.release();
-      if (identical(_active, active)) _active = null;
+      _active.remove(active);
       _pump();
     }
   }
@@ -430,9 +410,8 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
     task.phase = DownloadPhase.paused;
     task.message = reason ?? '已暂停，继续时可能重新传输';
     task.automaticPause = automatic;
-    if (_active?.task == task) {
-      final active = _active!;
-      _active = null;
+    for (final active in _active.where((a) => a.task == task).toList()) {
+      _active.remove(active);
       active.stop();
     }
     _checkpoint();
@@ -448,17 +427,6 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
           DownloadPhase.failed,
           DownloadPhase.cancelled,
         ].contains(task.phase)) {
-      return;
-    }
-    final retained =
-        _tasks.values.where((t) => t.retained).map((t) => t.key).toSet()
-          ..add(task.key);
-    if (retained.length > settings().maxCacheFiles ||
-        _readyBytes >= settings().maxCacheMb * 1024 * 1024) {
-      task.phase = DownloadPhase.failed;
-      task.message = '超过下载上限，请清理下载或调整设置';
-      _checkpoint();
-      _emit();
       return;
     }
     task.phase = DownloadPhase.queued;
@@ -486,7 +454,7 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
       _serialized(() => _forget(vid, quality));
   Future<void> _forget(String vid, String quality) async {
     final key = '${vid}_$quality';
-    if (_active?.task.key == key) cancel(key);
+    if (_active.any((a) => a.task.key == key)) cancel(key);
     final old = _tasks.remove(key);
     try {
       await _save();
@@ -584,8 +552,10 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
     if (_closed) return;
     _closed = true;
     if (_attached) WidgetsBinding.instance.removeObserver(this);
-    _active?.stop();
-    _active = null;
+    for (final active in _active.toList()) {
+      active.stop();
+    }
+    _active.clear();
     for (final task in _tasks.values) {
       if (task.phase == DownloadPhase.running ||
           task.phase == DownloadPhase.queued) {

@@ -14,6 +14,7 @@ class AppSettings {
       maxCacheFiles,
       maxCacheMb,
       concurrentPreparations,
+      downloadConcurrent,
       timeoutSeconds;
   final String themeMode,
       defaultQuality,
@@ -47,6 +48,7 @@ class AppSettings {
     this.maxCacheFiles = 30,
     this.maxCacheMb = 512,
     this.concurrentPreparations = 2,
+    this.downloadConcurrent = 1,
     this.timeoutSeconds = 60,
     this.signLists = true,
     this.apiHost = 'api5-normal-sinfonlinea.fqnovel.com',
@@ -89,6 +91,7 @@ class AppSettings {
     'maxCacheFiles': maxCacheFiles,
     'maxCacheMb': maxCacheMb,
     'concurrentPreparations': concurrentPreparations,
+    'downloadConcurrent': downloadConcurrent,
   };
   factory AppSettings.fromJson(Map<String, dynamic> json) {
     const defaults = AppSettings();
@@ -125,6 +128,7 @@ class AppSettings {
         'concurrentPreparations',
         defaults.concurrentPreparations,
       ),
+      downloadConcurrent: read('downloadConcurrent', 1),
       timeoutSeconds: read('timeoutSeconds', defaults.timeoutSeconds),
       signLists: read('signLists', defaults.signLists),
       apiHost: read('apiHost', defaults.apiHost),
@@ -158,6 +162,7 @@ class AppSettings {
     int? maxCacheFiles,
     int? maxCacheMb,
     int? concurrentPreparations,
+    int? downloadConcurrent,
     int? timeoutSeconds,
     bool? signLists,
     String? apiHost,
@@ -191,6 +196,7 @@ class AppSettings {
     'maxCacheMb': maxCacheMb ?? this.maxCacheMb,
     'concurrentPreparations':
         concurrentPreparations ?? this.concurrentPreparations,
+    'downloadConcurrent': downloadConcurrent ?? this.downloadConcurrent,
     'timeoutSeconds': timeoutSeconds ?? this.timeoutSeconds,
     'signLists': signLists ?? this.signLists,
     'apiHost': apiHost ?? this.apiHost,
@@ -219,6 +225,9 @@ class AppSettings {
     }
     if (concurrentPreparations < 1 || concurrentPreparations > 3) {
       throw const FormatException('同时准备数量应为 1～3');
+    }
+    if (downloadConcurrent < 1 || downloadConcurrent > 3) {
+      throw const FormatException('同时下载数量应为 1～3');
     }
     if (timeoutSeconds < 10 || timeoutSeconds > 120) {
       throw const FormatException('请求超时应为 10～120 秒');

@@ -238,6 +238,7 @@ void main() {
         prefetchEnabled: false,
         prefetchEpisodes: 5,
         concurrentPreparations: 1,
+        downloadConcurrent: 2,
         maxCacheFiles: 20,
         maxCacheMb: 256,
         autoNext: false,
@@ -272,6 +273,7 @@ void main() {
       );
       await restarted.load();
       expect(restarted.settings.toJson(), next.toJson());
+      expect(restarted.settings.downloadConcurrent, 2);
       expect(restarted.deviceId, '1234567890123456');
       await root.delete(recursive: true);
     },

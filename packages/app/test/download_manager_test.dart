@@ -96,15 +96,11 @@ void main() {
       DownloadPhase.failed,
     );
   });
-  test('settings quota cancels oversized transfer and failed storage never starts a new task', () async {
+  test('cache budget no longer cancels oversized transfers; failed storage never starts a new task', () async {
     final runtime = DownloadFakeRuntime();
     addTearDown(runtime.dispose);
     runtime.settings = const AppSettings(maxCacheMb: 1, maxCacheFiles: 1);
     final detail = await runtime.catalog.detail('123');
-    await expectLater(
-      runtime.downloads.enqueue(detail, [0, 1], 'best'),
-      throwsStateError,
-    );
     runtime.backend.fail = true;
     await expectLater(
       runtime.downloads.enqueue(detail, [0], 'best'),
@@ -113,8 +109,11 @@ void main() {
     expect(runtime.calls, isEmpty);
     expect(runtime.downloads.tasks, isEmpty);
     runtime.backend.fail = false;
-    await runtime.downloads.enqueue(detail, [0], 'best');
+    // The old quota would have rejected two retained downloads under a
+    // one-file budget; downloads no longer check cache limits at all.
+    await runtime.downloads.enqueue(detail, [0, 1], 'best');
     await queueTick();
+    expect(runtime.calls, ['11_best']);
     runtime.jobs['11_best']!.progress(
       const PreparationProgress.bytes(
         '正在下载',
@@ -124,9 +123,83 @@ void main() {
       ),
     );
     await queueTick();
-    expect(runtime.jobs['11_best']!.cancelled, isTrue);
-    expect(runtime.downloads.tasks.single.phase, DownloadPhase.failed);
-    expect(runtime.downloads.tasks.single.message, contains('容量'));
+    expect(runtime.jobs['11_best']!.cancelled, isFalse);
+    expect(
+      runtime.downloads.taskFor('11', 'best')!.phase,
+      DownloadPhase.running,
+    );
+    await runtime.complete('11_best');
+    await queueTick();
+    expect(runtime.downloads.taskFor('11', 'best')!.phase, DownloadPhase.ready);
+    // The second transfer starts only after the first slot frees (default
+    // concurrency is one) and completes beyond the old file budget.
+    expect(runtime.calls, ['11_best', '12_best']);
+    await runtime.complete('12_best');
+    await queueTick();
+    expect(runtime.downloads.taskFor('12', 'best')!.phase, DownloadPhase.ready);
+    expect(runtime.downloads.readyCount, 2);
+  });
+  test(
+    'downloadConcurrent runs up to N transfers side by side and refills slots',
+    () async {
+      final runtime = DownloadFakeRuntime();
+      addTearDown(runtime.dispose);
+      final detail = await runtime.catalog.detail('123');
+      await runtime.downloads.enqueue(detail, [0, 1, 2], 'best');
+      await queueTick();
+      expect(runtime.calls, ['11_best']);
+      runtime.settings = runtime.settings.copyWith(downloadConcurrent: 3);
+      runtime.downloads.policyChanged();
+      await queueTick();
+      expect(runtime.calls, ['11_best', '12_best', '13_best']);
+      expect(
+        runtime.downloads.tasks
+            .where((t) => t.phase == DownloadPhase.running)
+            .length,
+        3,
+      );
+      await runtime.complete('12_best');
+      await queueTick();
+      expect(runtime.calls.length, 3);
+      expect(
+        runtime.downloads.tasks
+            .where((t) => t.phase == DownloadPhase.running)
+            .length,
+        2,
+      );
+    },
+  );
+  test('resume re-queues a task even beyond the old download budget', () async {
+    final runtime = DownloadFakeRuntime();
+    addTearDown(runtime.dispose);
+    runtime.settings = const AppSettings(maxCacheMb: 1, maxCacheFiles: 1);
+    final detail = await runtime.catalog.detail('123');
+    await runtime.downloads.enqueue(detail, [0, 1], 'best');
+    await queueTick();
+    await runtime.complete('11_best');
+    await queueTick();
+    expect(runtime.downloads.taskFor('11', 'best')!.phase, DownloadPhase.ready);
+    // 12 is now running while the retained budget already exceeds maxCacheFiles;
+    // pausing and resuming must not be rejected by any quota.
+    expect(
+      runtime.downloads.taskFor('12', 'best')!.phase,
+      DownloadPhase.running,
+    );
+    runtime.downloads.pause('12_best');
+    await queueTick();
+    runtime.downloads.resume('12_best');
+    expect(
+      runtime.downloads.taskFor('12', 'best')!.phase,
+      DownloadPhase.running,
+    );
+    await queueTick();
+    expect(
+      runtime.downloads.taskFor('12', 'best')!.message,
+      isNot(contains('上限')),
+    );
+    await runtime.complete('12_best');
+    await queueTick();
+    expect(runtime.downloads.readyCount, 2);
   });
   test(
     'a published download stays protected if final state storage fails',

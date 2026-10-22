@@ -17,6 +17,46 @@ String _clean(String value) => value.replaceAll(RegExp(r'<[^>]*>'), '').trim();
 String _first(Iterable<dynamic> values) =>
     values.map(_text).where((s) => s.isNotEmpty).firstOrNull ?? '';
 
+/// Upstream genre names live in `category_schema` — a stringified JSON array of
+/// `{"name": …}` entries present on both browse rows and `video_detail`
+/// (references/hongguo-web/server/src/service/client.js:324,1058) — with the
+/// single `tag_info.text` as fallback. `cover_tag_info_list` is deliberately
+/// ignored: it is cover badge copy (爆剧/新剧/独播, client.js:336-348) and can
+/// never equal a theme-panel name, so matching on it would label the 同题材
+/// block a lie. Missing or malformed everywhere yields an empty list.
+List<String> _tagNames(List<Map<String, dynamic>> sources) {
+  for (final source in sources) {
+    final names = <String>[];
+    void add(dynamic value) {
+      final name = _clean(_text(value));
+      if (name.isNotEmpty && !names.contains(name)) names.add(name);
+    }
+
+    final schema = source['category_schema'];
+    if (schema is String) {
+      for (final match in RegExp(
+        '"name"\\s*:\\s*"([^"]+)"',
+      ).allMatches(schema)) {
+        add(match.group(1));
+      }
+    } else if (schema is List) {
+      for (final entry in schema) {
+        if (entry is Map) add(entry['name']);
+      }
+    }
+    if (names.isEmpty) {
+      final tag = source['tag_info'];
+      if (tag is Map) {
+        add(tag['text']);
+      } else {
+        add(tag);
+      }
+    }
+    if (names.isNotEmpty) return List.unmodifiable(names);
+  }
+  return const [];
+}
+
 String _requestUuid() {
   final bytes = secureBytes(16);
   bytes[6] = (bytes[6] & 15) | 64;
@@ -28,12 +68,14 @@ String _requestUuid() {
 class Drama {
   final String id, title, cover, intro;
   final int episodeCount;
+  final List<String> tagNames;
   const Drama({
     required this.id,
     required this.title,
     this.cover = '',
     this.intro = '',
     this.episodeCount = 0,
+    this.tagNames = const [],
   });
   factory Drama.fromJson(Map<String, dynamic> value) {
     var raw = value['video_data'];
@@ -68,6 +110,7 @@ class Drama {
         ]),
       ),
       episodeCount: _int(data['episode_cnt'] ?? detail['episode_cnt']),
+      tagNames: _tagNames([data, detail]),
     );
   }
 }

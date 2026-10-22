@@ -500,6 +500,21 @@ class _SettingsPageState extends State<SettingsPage> {
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
+                      _number(
+                        '同时下载数量',
+                        draft.downloadConcurrent,
+                        [1, 2, 3],
+                        (v) => draft = draft.copyWith(downloadConcurrent: v),
+                        suffix: ' 个',
+                        key: const ValueKey('download-concurrent-setting'),
+                      ),
+                      Text(
+                        '手动下载按此数量同时进行，不占用播放与提前缓存的准备槽位。',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -648,21 +663,21 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                       ),
                       _number(
-                        '缓存剧集数量',
+                        '自动缓存剧集数量',
                         draft.maxCacheFiles,
                         [10, 20, 30, 50, 100, 200],
                         (v) => draft = draft.copyWith(maxCacheFiles: v),
                         suffix: ' 集',
                       ),
                       _number(
-                        '缓存空间上限',
+                        '自动缓存空间上限',
                         draft.maxCacheMb,
                         [128, 256, 512, 1024, 2048, 4096],
                         (v) => draft = draft.copyWith(maxCacheMb: v),
                         suffix: ' MB',
                       ),
                       Text(
-                        '保留手动下载、正在播放和预缓存窗口中的文件；手动下载请在下载管理中删除。被保留文件可能使使用量暂时超过上限。',
+                        '这两项只限制自动缓存（提前缓存与播放临时文件）；手动下载不受额度限制，请在下载管理中删除。正在播放和预缓存中的文件不会被自动清理。',
                         style: TextStyle(
                           fontSize: 12,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -812,7 +827,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                   suffix: ' 秒',
                                 ),
                                 Text(
-                                  '版本号、版本代码与 User-Agent 需要匹配。改完后保存，后续请求使用新参数。',
+                                  '版本号、版本代码与 User-Agent 需要匹配。内容加载采用独立短超时，总等待不超过 12 秒；上方超时设置不会延长内容加载。改完后保存，后续请求使用新参数。',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: Theme.of(context)
