@@ -54,19 +54,26 @@ void main() {
     });
     final detail = await runtime.catalog.detail(seriesId);
     say('catalog detail episodes=${detail.episodes.length}');
-    // One episode more than the limit stays queued, so the limit is what is
-    // being measured rather than the size of the queue.
-    final positions = [
-      for (var i = 0; i < wanted + 1 && i < detail.episodes.length; i++) i,
-    ];
+    // Slots come from the front of the series, skipping whatever this device
+    // already holds: an episode with a task record is skipped by enqueue and
+    // an episode whose file is cached becomes ready without a transfer, so
+    // neither can measure the limit. One slot more than the limit stays queued,
+    // so what is bounded is the limit rather than the size of the queue.
+    final local = await (runtime as LocalMediaRuntime).localEpisodes();
+    final owned = {...before, for (final e in local) '${e.vid}_${e.quality}'};
+    final positions = <int>[
+      for (var i = 0; i < detail.episodes.length; i++)
+        if (!owned.contains('${detail.episodes[i].vid}_best')) i,
+    ].take(wanted + 1).toList();
+    expect(
+      positions.length,
+      greaterThanOrEqualTo(wanted + 1),
+      reason:
+          'Series $seriesId has fewer than ${wanted + 1} episodes this device '
+          'has never downloaded, so the limit cannot be reached',
+    );
     final concurrent = positions.length - 1;
     expect(concurrent, greaterThanOrEqualTo(3));
-    // A queued episode would be skipped by enqueue, so the sample would shrink
-    // to whatever the operator already had instead of measuring the limit.
-    final clash = [for (final i in positions) '${detail.episodes[i].vid}_best']
-        .where(before.contains)
-        .toList();
-    expect(clash, isEmpty, reason: 'These episodes are already in your queue');
     await configurable.saveSettings(
       original.copyWith(downloadConcurrent: concurrent),
     );
@@ -76,7 +83,10 @@ void main() {
     lanes.resetTransferLanePeaks();
     await downloads.enqueue(detail, positions, 'best');
     expect(mine(), hasLength(positions.length));
-    say('enqueued=${positions.length} transferring up to $concurrent');
+    say(
+      'enqueued=${positions.length} transferring up to $concurrent '
+      'positions=$positions',
+    );
     var peak = 0;
     // The scheduler counts its own in-flight transfers at the instant it starts
     // one, so this is the real ceiling rather than what a 500 ms poll happens to
