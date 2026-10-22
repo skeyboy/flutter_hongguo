@@ -122,7 +122,7 @@ EpisodePager({
 
 已实现：§1 TV 动作行、§2 `EpisodePager` + 三端详情页接入（手机 3×100 / 桌面 4×120 / TV 4×170）、§3 `tagNames`（`category_schema`）+`related_dramas`+`RelatedDramasSection`+热门降级、§4 门禁移除/双台账预算/`downloadConcurrent`。
 
-门禁读数分两个口径，别混用。提交内容的独立工作树（`../flutter_hongguo-verify-v0.3.2`，只含本轮路径）：core 117、api 57、app 211（~1 skip）、tv 32、cast 52，CI 口径另跑 `dart test`（api）57、`flutter test test/tv_settings_test.dart --dart-define=HONGGUO_TV=true` 1、`python3 -m unittest discover -s tool/ci/tests` 9 全绿，`dart analyze --fatal-infos packages` → No issues found。开发工作树的读数是 core 117、api 71、app 215、tv 32、cast 52，多出来的用例属于另一会话尚未提交的请求控制与计时改动，不代表已入库。
+门禁读数分两个口径，别混用。提交内容的独立工作树（`../flutter_hongguo-verify-v0.3.2`，只含本轮路径；该 worktree 连同其中的 `build/verification/**` 原始日志已于 2026-10-22 删除，以下读数是该树被删前的历史记录）：core 117、api 57、app 211（~1 skip）、tv 32、cast 52，CI 口径另跑 `dart test`（api）57、`flutter test test/tv_settings_test.dart --dart-define=HONGGUO_TV=true` 1、`python3 -m unittest discover -s tool/ci/tests` 9 全绿，`dart analyze --fatal-infos packages` → No issues found。开发工作树的读数是 core 117、api 71、app 215、tv 32、cast 52，多出来的用例属于另一会话尚未提交的请求控制与计时改动，不代表已入库。
 
 本轮相关推荐取数已与 `CatalogRequestScope` 解耦后提交（该 API 与 `request_control.dart` 仍未入库），页面销毁时的取消待其落地后接回。
 
