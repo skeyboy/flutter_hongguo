@@ -66,7 +66,7 @@ EpisodePager({
    - **无 tag 或面板名不命中 → 退到 `browse(sort: 'hot_score')`，标题改为「平台热门」**（1/12 的实测覆盖率不允许整块常缺席；这条降级仍诚实：标签只声明这次请求按什么排序，口径同 `search_suggestions.dart:15-17,22-25`）；
    - 结果只进内存缓存 10 分钟，**不写 LibraryCache**（与搜索推荐位同一口径：陈旧数据会撒谎）；
    - 失败/无题材命中 → 返回空列表，UI 整块不出现，不弹错误、不占位（与 `search_suggestions.dart:87-93` 的吞失败策略一致）；
-   - 请求走 `CatalogRequestScope`（范式 `detail_page.dart:25-30,41-43`），离开页面即取消；限速由 `catalog.dart:238-251` 的 260ms 队列统一负责，不自建节流。
+   - 限速由 `catalog.dart` 的 260ms 串行队列统一负责，不自建节流。原计划让请求走 `CatalogRequestScope`（页面销毁即取消），但该 API（`packages/api/lib/src/request_control.dart` 与 api barrel 导出）属于另一会话尚未提交的改动，本轮已解耦提交；接回只需给 `RelatedDramaLoader.load/_start` 加回 `scope` 参数并用 `scope.run` 包住 `_read`——`_start` 的 catch-all 已经会吞掉 `RequestCancelled` 并且不写缓存。
 3. UI：详情页底部「相关推荐」横向封面条（封面 + 标题，点击进同端详情页；TV 用 `TvFocusable`，手机/桌面复用 `CachedNetworkImage` 卡片）。**不显示任何「最新/热度」角标**，标题只允许「同题材 · <题材名>」或降级后的「平台热门」，因为这是我们能证明的唯一两种关系。
 4. 实测补充：`category_schema` 里的 `id` 与面板 `selector_item_id` 不是同一命名空间（响应窗口内未出现 `cate_` 形式），所以只能按名称对齐，无法用 id 提升命中率。
 
@@ -118,12 +118,14 @@ EpisodePager({
 3. 下载：一次并发 3 任务、总量超过原 512MB 上限的场景，任务全部完成且自动预缓存仍可插入（不被下载预算饿死）；证据为下载管理页截图 + 日志。
 4. 无真机/无接收端的能力不得声称端到端通过；本轮相关推荐只有本地假数据测试 + 至少一次真实上游响应留样。
 
-## 6. 落地状态（2026-10-22 12:40，工作树未提交基线）
+## 6. 落地状态（2026-10-22 13:50，已提交 `7b76dcd` + `8afdbf8`）
 
 已实现：§1 TV 动作行、§2 `EpisodePager` + 三端详情页接入（手机 3×100 / 桌面 4×120 / TV 4×170）、§3 `tagNames`（`category_schema`）+`related_dramas`+`RelatedDramasSection`+热门降级、§4 门禁移除/双台账预算/`downloadConcurrent`。
 
-门禁读数（`.fvm` 3.47.4，包目录内跑）：core 117、api 71、app 215（~1 skip）、tv 32、cast 52；`dart analyze --fatal-infos packages` → No issues found。
+门禁读数分两个口径，别混用。提交内容的独立工作树（`../flutter_hongguo-verify-v0.3.2`，只含本轮路径）：core 117、api 57、app 211（~1 skip）、tv 32、cast 52，CI 口径另跑 `dart test`（api）57、`flutter test test/tv_settings_test.dart --dart-define=HONGGUO_TV=true` 1、`python3 -m unittest discover -s tool/ci/tests` 9 全绿，`dart analyze --fatal-infos packages` → No issues found。开发工作树的读数是 core 117、api 71、app 215、tv 32、cast 52，多出来的用例属于另一会话尚未提交的请求控制与计时改动，不代表已入库。
 
-真实上游留样（§5.4）：`packages/api/tool/related_sample.dart --dump-schema` → `docs/evidence/related-dramas/live-sample.json`（面板 29 项 / `cate_N`、首页 12 行仅 1 行名称命中面板、`category_schema` 出现 18 次且窗口内无 `cate_` id、未命中剧走 `hot_score` 拿到 12 条且不含当前剧）。
+本轮相关推荐取数已与 `CatalogRequestScope` 解耦后提交（该 API 与 `request_control.dart` 仍未入库），页面销毁时的取消待其落地后接回。
 
-仍未验收，不得当作已完成：三端详情页截图（§5.2）、并发 3 + 超 512MB 的真实下载场景（§5.3）。
+真实上游留样（§5.4）：`packages/api/tool/related_sample.dart --dump-schema` → `docs/evidence/related-dramas/live-sample.json`（面板 29 项 / `cate_N`、首页 12 行仅 1 行名称命中面板、`category_schema` 出现 18 次且窗口内无 `cate_` id、未命中剧走 `hot_score` 拿到 12 条且不含当前剧）。重跑该探针只读列表与详情接口，不打印 URL、请求头、请求体或任何签名。
+
+仍未验收，不得当作已完成：三端详情页截图（§5.2）、并发 3 + 超 512MB 的真实下载场景（§5.3）。v0.3.2 是在这两项未完成的情况下按决定先发的大包，发布说明里对应的两条只声明到组件与用例层，设备验证仍挂在验收清单上。
