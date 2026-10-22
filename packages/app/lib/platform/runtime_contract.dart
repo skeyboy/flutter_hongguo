@@ -133,3 +133,15 @@ SearchHistory searchHistoryFor(AppRuntime runtime) =>
 abstract interface class DownloadRuntime implements LocalMediaRuntime {
   DownloadManager get downloads;
 }
+
+/// The media scheduler's own record of how many transfers it had in flight at
+/// the same instant, per lane. Reading it beats polling the task list: a short
+/// episode can start and finish between two samples, so a poll reports fewer
+/// concurrent transfers than really ran.
+abstract interface class TransferLaneRuntime implements AppRuntime {
+  ({int manual, int automatic}) get transferLanePeaks;
+
+  /// Starts a fresh measurement window. The peaks only mean something to a run
+  /// that zeroes them before causing the traffic it wants to measure.
+  void resetTransferLanePeaks();
+}

@@ -71,11 +71,11 @@ void main() {
       throwsFormatException,
     );
     expect(
-      () => const AppSettings(downloadConcurrent: 4).validate(),
+      () => const AppSettings(downloadConcurrent: 6).validate(),
       throwsFormatException,
     );
-    const clamped = AppSettings(downloadConcurrent: 3);
-    expect(AppSettings.fromJson(clamped.toJson()).downloadConcurrent, 3);
+    const clamped = AppSettings(downloadConcurrent: 5);
+    expect(AppSettings.fromJson(clamped.toJson()).downloadConcurrent, 5);
     expect(clamped.protocolJson(), const AppSettings().protocolJson());
     expect(
       () => const AppSettings(maxCacheMb: 1).validate(),

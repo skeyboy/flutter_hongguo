@@ -503,7 +503,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       _number(
                         '同时下载数量',
                         draft.downloadConcurrent,
-                        [1, 2, 3],
+                        [1, 2, 3, 4, 5],
                         (v) => draft = draft.copyWith(downloadConcurrent: v),
                         suffix: ' 个',
                         key: const ValueKey('download-concurrent-setting'),

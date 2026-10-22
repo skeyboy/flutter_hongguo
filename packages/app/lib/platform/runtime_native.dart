@@ -59,7 +59,8 @@ class NativeRuntime
         DramaMetadataRuntime,
         PersonalLibraryRuntime,
         SearchHistoryRuntime,
-        DownloadRuntime {
+        DownloadRuntime,
+        TransferLaneRuntime {
   final SettingsStore store;
   @override
   late final DownloadManager downloads;
@@ -107,6 +108,7 @@ class NativeRuntime
       maxFiles: settings.maxCacheFiles,
       maxBytes: settings.maxCacheMb * 1024 * 1024,
       maxConcurrent: tvBuild ? 1 : settings.concurrentPreparations,
+      maxDownloadConcurrent: settings.downloadConcurrent,
       retainFile: (vid, quality) => downloads.retains(vid, quality),
       resolve: (vid, quality) => _model.fetchTrack(vid, quality: quality),
     );
@@ -126,6 +128,7 @@ class NativeRuntime
           task.episode.vid,
           quality: task.quality,
           background: true,
+          manual: true,
           onProgress: (p) => progress(
             PreparationProgress.bytes(
               switch (p.stage) {
@@ -227,6 +230,7 @@ class NativeRuntime
         files: settings.maxCacheFiles,
         bytes: settings.maxCacheMb * 1024 * 1024,
         concurrency: tvBuild ? 1 : settings.concurrentPreparations,
+        downloadConcurrency: settings.downloadConcurrent,
       );
     } finally {
       if (changeDownloadPolicy) {
@@ -253,6 +257,15 @@ class NativeRuntime
     _cache.cancelBackground(keep: downloads.running);
     _rebuildClients();
   }
+
+  @override
+  ({int manual, int automatic}) get transferLanePeaks => (
+    manual: _cache.peakManualTransfers,
+    automatic: _cache.peakAutomaticTransfers,
+  );
+
+  @override
+  void resetTransferLanePeaks() => _cache.resetPeakTransfers();
 
   @override
   PlaybackJob prepare(

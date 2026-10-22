@@ -226,8 +226,8 @@ class AppSettings {
     if (concurrentPreparations < 1 || concurrentPreparations > 3) {
       throw const FormatException('同时准备数量应为 1～3');
     }
-    if (downloadConcurrent < 1 || downloadConcurrent > 3) {
-      throw const FormatException('同时下载数量应为 1～3');
+    if (downloadConcurrent < 1 || downloadConcurrent > 5) {
+      throw const FormatException('同时下载数量应为 1～5');
     }
     if (timeoutSeconds < 10 || timeoutSeconds > 120) {
       throw const FormatException('请求超时应为 10～120 秒');

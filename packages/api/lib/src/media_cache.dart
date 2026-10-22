@@ -49,8 +49,19 @@ class _Job {
   final token = CancelToken();
   final leases = <MediaPreparation>{};
   bool background;
+
+  /// The user explicitly asked for this file (a manual download) rather than
+  /// the automatic prefetch lane producing it. Manual jobs run in their own
+  /// concurrency budget and are never stopped by prefetch policy changes.
+  bool manual;
   MediaProgress? latest;
-  _Job(this.key, this.vid, this.quality, this.background);
+  _Job(
+    this.key,
+    this.vid,
+    this.quality,
+    this.background, {
+    this.manual = false,
+  });
   void progress(MediaProgress p) {
     latest = p;
     for (final lease in leases.toList()) {
@@ -83,6 +94,11 @@ class MediaCache {
   final Future<VideoTrack> Function(String vid, String quality) resolve;
   int maxFiles, maxBytes, maxConcurrent;
 
+  /// Concurrent transfers for manual downloads. Separate from [maxConcurrent],
+  /// which budgets playback and automatic prefetch, so that raising the
+  /// download count cannot starve the next episode the player needs.
+  int maxDownloadConcurrent;
+
   /// Explicit user downloads survive ordinary LRU and cache clearing.
   final bool Function(String vid, String quality)? retainFile;
   final _jobs = <String, _Job>{};
@@ -95,6 +111,19 @@ class MediaCache {
   final _reserved = <_Job, int>{};
   final _pending = <_Job>[];
   final _active = <_Job>{};
+
+  /// High-water marks of transfers the scheduler had in flight at the same
+  /// instant, one per lane. Sampling from outside the scheduler cannot see
+  /// them: a short episode finishes inside one sample interval, so a UI-side
+  /// poll reports fewer concurrent transfers than actually ran. The count is
+  /// taken where a job leaves the queue, which is also where the limit is
+  /// enforced, so it is both the ceiling and the proof the ceiling was hit.
+  int _peakManual = 0, _peakAutomatic = 0;
+  int get peakManualTransfers => _peakManual;
+  int get peakAutomaticTransfers => _peakAutomatic;
+
+  /// Starts a fresh measurement window without disturbing running transfers.
+  void resetPeakTransfers() => _peakManual = _peakAutomatic = 0;
   bool _closed = false;
   int _serial = 0;
   MediaCache({
@@ -107,6 +136,7 @@ class MediaCache {
     this.maxFiles = 30,
     this.maxBytes = 512 * 1024 * 1024,
     this.maxConcurrent = 2,
+    this.maxDownloadConcurrent = 1,
     this.retainFile,
   });
   int get _autoPinnedBytes => _autoBytes.values.fold<int>(0, (a, b) => a + b);
@@ -133,13 +163,17 @@ class MediaCache {
     String quality = 'best',
     void Function(MediaProgress)? onProgress,
     bool background = false,
+    bool manual = false,
   }) {
     if (_closed) throw StateError('Media cache is closed');
     final key = _key(vid, quality);
     final lease = MediaPreparation(onProgress);
     var job = _jobs[key];
     final isNew = job == null;
-    job ??= _Job(key, vid, quality, background);
+    job ??= _Job(key, vid, quality, background, manual: manual);
+    // An explicit download claims the automatic job already fetching this file
+    // rather than starting a second transfer of it.
+    if (manual) job.manual = true;
     if (!background) {
       job.background = false;
       _reserved.remove(job);
@@ -207,17 +241,42 @@ class MediaCache {
   void _pump() {
     if (_closed) return;
     _pending.removeWhere((job) => job.token.isCancelled || job.leases.isEmpty);
-    while (_active.length < maxConcurrent && _pending.isNotEmpty) {
-      var index = _pending.indexWhere((job) => !job.background);
+    _drain((job) => job.manual, maxDownloadConcurrent);
+    _drain((job) => !job.manual, maxConcurrent, reserveForPlayer: true);
+  }
+
+  /// Starts pending jobs of one lane while that lane has room.
+  ///
+  /// [reserveForPlayer] keeps the last automatic slot free of queued prefetch,
+  /// so background preparation can never delay the episode being watched.
+  /// Manual downloads need neither reservation nor a share of that budget:
+  /// they are the user's own request, capped by the download setting.
+  void _drain(
+    bool Function(_Job job) lane,
+    int limit, {
+    bool reserveForPlayer = false,
+  }) {
+    while (_active.where(lane).length < limit) {
+      var index = _pending.indexWhere((job) => lane(job) && !job.background);
       if (index < 0) {
-        final backgroundLimit = maxConcurrent > 1 ? maxConcurrent - 1 : 1;
-        if (_active.where((job) => job.background).length >= backgroundLimit) {
-          break;
+        if (reserveForPlayer) {
+          final backgroundLimit = limit > 1 ? limit - 1 : 1;
+          if (_active.where((job) => lane(job) && job.background).length >=
+              backgroundLimit) {
+            return;
+          }
         }
-        index = 0;
+        index = _pending.indexWhere(lane);
       }
+      if (index < 0) return;
       final job = _pending.removeAt(index);
       _active.add(job);
+      final running = _active.where(lane).length;
+      if (job.manual) {
+        if (running > _peakManual) _peakManual = running;
+      } else if (running > _peakAutomatic) {
+        _peakAutomatic = running;
+      }
       unawaited(
         _run(job).whenComplete(() {
           _active.remove(job);
@@ -231,22 +290,33 @@ class MediaCache {
     required int files,
     required int bytes,
     required int concurrency,
+    required int downloadConcurrency,
   }) async {
-    if (files < 1 || bytes < 1 || concurrency < 1 || concurrency > 3) {
+    if (files < 1 ||
+        bytes < 1 ||
+        concurrency < 1 ||
+        concurrency > 3 ||
+        downloadConcurrency < 1) {
       throw ArgumentError('Invalid cache limits');
     }
     maxFiles = files;
     maxBytes = bytes;
     maxConcurrent = concurrency;
+    maxDownloadConcurrent = downloadConcurrency;
     _pump();
     await prune();
   }
 
+  /// Stops queued automatic work. A manual download is never cancelled here:
+  /// the caller changes the prefetch policy, not the user's download queue.
   void cancelBackground({bool Function(String vid, String quality)? keep}) {
     for (final job
         in _jobs.values
             .where(
-              (j) => j.background && !(keep?.call(j.vid, j.quality) ?? false),
+              (j) =>
+                  j.background &&
+                  !j.manual &&
+                  !(keep?.call(j.vid, j.quality) ?? false),
             )
             .toList()) {
       job.token.cancel('Background prefetch stopped');
