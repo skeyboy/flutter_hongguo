@@ -39,6 +39,65 @@ class AppNavigation extends InheritedWidget {
       router != oldWidget.router;
 }
 
+/// Push comes in from the right edge and pop leaves back to it, the one
+/// transition every build animates with. The platform defaults this app would
+/// otherwise get (fade-forwards on Android, zoom on Windows/Linux) differ per
+/// build and read as a cross-fade.
+Widget slidePageTransitions(
+  BuildContext context,
+  Animation<double> animation,
+  Animation<double> secondaryAnimation,
+  Widget child,
+) {
+  final forward = CurvedAnimation(
+    parent: animation,
+    curve: Curves.easeOutCubic,
+  );
+  final back = CurvedAnimation(
+    parent: secondaryAnimation,
+    curve: Curves.easeOutCubic,
+  );
+  return SlideTransition(
+    position: Tween<Offset>(
+      begin: const Offset(1, 0),
+      end: Offset.zero,
+    ).animate(forward),
+    child: SlideTransition(
+      position: Tween<Offset>(
+        begin: Offset.zero,
+        end: const Offset(-0.3, 0),
+      ).animate(back),
+      child: child,
+    ),
+  );
+}
+
+/// The theme-facing form of [slidePageTransitions].
+class SlidePageTransitions extends PageTransitionsBuilder {
+  const SlidePageTransitions();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) => slidePageTransitions(context, animation, secondaryAnimation, child);
+}
+
+/// Used by `MaterialPageRoute` pushes (the TV build has no auto_route stack).
+const PageTransitionsTheme slidePageTransitionsTheme = PageTransitionsTheme(
+  builders: {
+    TargetPlatform.android: SlidePageTransitions(),
+    TargetPlatform.fuchsia: SlidePageTransitions(),
+    TargetPlatform.iOS: SlidePageTransitions(),
+    TargetPlatform.linux: SlidePageTransitions(),
+    TargetPlatform.macOS: SlidePageTransitions(),
+    TargetPlatform.windows: SlidePageTransitions(),
+  },
+);
+
 Future<T?> pushAppPage<T>(
   BuildContext context,
   AppScreen screen,
@@ -80,6 +139,11 @@ class RoutedApplication extends StatefulWidget {
 class _RoutedApplicationState extends State<RoutedApplication> {
   late final home = ValueNotifier<Widget>(widget.configuration.home!);
   late final router = RootStackRouter.build(
+    // The router builds its own routes, which look their transition up here and
+    // not in the app theme.
+    defaultRouteType: RouteType.custom(
+      transitionsBuilder: slidePageTransitions,
+    ),
     routes: [
       NamedRouteDef(
         name: 'Catalog',

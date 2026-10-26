@@ -46,6 +46,7 @@ ThemeData buildAppTheme(Brightness brightness) {
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: background,
+    pageTransitionsTheme: slidePageTransitionsTheme,
     appBarTheme: AppBarTheme(
       backgroundColor: background,
       surfaceTintColor: Colors.transparent,

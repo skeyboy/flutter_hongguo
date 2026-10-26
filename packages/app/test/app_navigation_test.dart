@@ -61,4 +61,47 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('push and pop slide horizontally instead of fading', (
+    tester,
+  ) async {
+    final runtime = FakeRuntime();
+    addTearDown(runtime.dispose);
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [runtimeProvider.overrideWith((_) async => runtime)],
+        child: const HongguoApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('山海之间').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+
+    // Measured where the pages actually paint: the new one is still off to the
+    // right, the old one has slid left, and neither moved vertically.
+    final entering = tester.getRect(find.byType(DetailPage));
+    final covered = tester.getRect(find.byType(LibraryPage));
+    expect(entering.left, inInclusiveRange(20, 370));
+    expect(entering.top, 0);
+    expect(covered.left, inInclusiveRange(-370, -20));
+    expect(covered.top, 0);
+
+    await tester.binding.handlePopRoute();
+    final leaving = <Rect>[];
+    for (var i = 0; i < 3; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+      leaving.add(tester.getRect(find.byType(DetailPage)));
+    }
+    // Reversing the same tween walks the page back out to the right.
+    expect(leaving.first.left, inInclusiveRange(20, 370));
+    expect(leaving[1].left, greaterThan(leaving[0].left));
+    expect(leaving[2].left, greaterThan(leaving[1].left));
+    expect(leaving.every((r) => r.top == 0), isTrue);
+    await tester.pumpAndSettle();
+    expect(find.byType(DetailPage), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }
