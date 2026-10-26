@@ -213,8 +213,6 @@ void main() {
     await tester.pump();
     catalog.pending.last.complete(rows('发现'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('sticky-view')));
-    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('filter-view-rank')));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();

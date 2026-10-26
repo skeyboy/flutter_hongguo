@@ -452,10 +452,8 @@ void main() {
         await _resizeDesktop(tester, const Size(1280, 900));
         await tester.pumpAndSettle();
         await capture('library-pc');
-        await tester.tap(find.byKey(const ValueKey('sticky-genre')));
-        await tester.pumpAndSettle();
+        // There is no filter layer to open: the choices are a row of the list.
         await capture('horizontal-filters-pc');
-        await tester.tap(find.text('收起筛选'));
         await tester.pumpAndSettle();
         await tester.tap(
           find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '我的'),
@@ -477,10 +475,7 @@ void main() {
       await _resizeDesktop(tester, const Size(390, 844));
       await tester.pumpAndSettle();
       await capture('library-mobile');
-      await tester.tap(find.byKey(const ValueKey('sticky-genre')));
-      await tester.pumpAndSettle();
       await capture('horizontal-filters-mobile');
-      await tester.tap(find.text('收起筛选'));
       await tester.pumpAndSettle();
       await tester.tap(
         find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '我的'),

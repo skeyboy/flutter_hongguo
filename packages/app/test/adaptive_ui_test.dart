@@ -145,9 +145,9 @@ void main() {
     (tester) async {
       final runtime = FakeRuntime();
       await mount(tester, runtime, const Size(390, 844));
-      await tester.tap(
-        find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '我的'),
-      );
+      // The catalog header no longer repeats the navigation: the destination
+      // itself is the only way to 我的.
+      await tester.tap(find.byIcon(Icons.person_outline));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('my-settings')));
       await tester.pumpAndSettle();
@@ -182,9 +182,9 @@ void main() {
     (tester) async {
       final runtime = FakeRuntime();
       await mount(tester, runtime, const Size(1280, 900));
-      await tester.tap(
-        find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '我的'),
-      );
+      // The catalog header no longer repeats the navigation: the destination
+      // itself is the only way to 我的.
+      await tester.tap(find.byIcon(Icons.person_outline));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('my-settings')));
       await tester.pumpAndSettle();

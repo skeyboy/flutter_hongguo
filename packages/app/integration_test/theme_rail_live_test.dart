@@ -92,6 +92,31 @@ void main() {
     _mark('shot=rail');
     await _live(tester, 900);
 
+    // The choices are on screen now: switching type is one tap on a chip in the
+    // row above the rail, and the rail keeps its rectangle while its themes
+    // reload for the new type.
+    await tester.tap(find.byKey(const ValueKey('filter-genre-comic_series')));
+    await _live(tester, 1400);
+    _mark('shot=genre-comic');
+    await _live(tester, 900);
+    await tester.tap(find.byKey(const ValueKey('filter-genre-short_play')));
+    await _live(tester, 1200);
+
+    // 发现 carries the channel group next to the types; 榜单 takes the type
+    // group's place and the rail steps out with it.
+    await tester.tap(find.text('发现').first);
+    await _live(tester, 1600);
+    _mark('shot=discover');
+    await _live(tester, 900);
+    await tester.tap(find.byKey(const ValueKey('filter-view-rank')));
+    await _live(tester, 1600);
+    _mark('shot=rank');
+    await _live(tester, 900);
+    await tester.tap(find.byKey(const ValueKey('filter-view-recommend')));
+    await _live(tester, 1200);
+    await tester.tap(find.text('分类').first);
+    await _live(tester, 1600);
+
     // The second theme of the live list: a feed the viewer has never opened.
     await tester.tap(chips.at(1));
     await _live(tester, 1200);

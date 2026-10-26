@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hongguo_api/hongguo_api.dart';
@@ -48,138 +47,149 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// The three types every build offers. On a phone the channel row is wider
+  /// than the screen, so a choice is scrolled into view before it is tapped --
+  /// the same swipe the viewer makes.
+  Future<void> chooseGenre(WidgetTester tester, String genre) async {
+    final chip = find.byKey(ValueKey('filter-genre-$genre'));
+    await tester.ensureVisible(chip);
+    await tester.pumpAndSettle();
+    await tester.tap(chip);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+  }
+
   for (final size in [
     const Size(390, 600),
     const Size(600, 340),
     const Size(800, 600),
     const Size(1280, 900),
   ]) {
-    testWidgets(
-      'horizontal panel anchors below toolbar without overflow at $size',
-      (tester) async {
-        await mount(tester, FakeRuntime(), size);
-        final anchor = find.byKey(const ValueKey('sticky-genre'));
-        final top = tester.getTopLeft(anchor);
-        final results = find.byKey(const ValueKey('catalog-results'));
-        final listRect = tester.getRect(results);
-        final card = find.byType(DramaCard).first;
-        final cardRect = tester.getRect(card);
-        await tester.tap(anchor);
-        await tester.pumpAndSettle();
-        expect(find.byType(DropdownButton<String>), findsNothing);
-        expect(find.byType(BottomSheet), findsNothing);
-        expect(
-          find.byKey(const ValueKey('horizontal-filter-panel')),
-          findsOneWidget,
-        );
-        expect(tester.getTopLeft(anchor), top);
-        expect(tester.getRect(results), listRect);
-        expect(tester.getRect(card), cardRect);
-        expect(tester.takeException(), isNull);
-        await tester.tap(find.text('收起筛选'));
-        await tester.pumpAndSettle();
-        expect(
-          find.byKey(const ValueKey('horizontal-filter-panel')),
-          findsNothing,
-        );
-      },
-    );
+    testWidgets('every choice is already on screen without a sheet at $size', (
+      tester,
+    ) async {
+      final runtime = FakeRuntime();
+      await mount(tester, runtime, size);
+      final rail = find.byKey(const ValueKey('theme-rail'));
+      final railRect = tester.getRect(rail);
+      // No trigger to open and nothing to fold away afterwards: the options
+      // of each dimension are laid out where they are used.
+      expect(find.byKey(const ValueKey('sticky-genre')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('horizontal-filter-panel')),
+        findsNothing,
+      );
+      for (final genre in ['short_play', 'comic_series', 'ai_series']) {
+        expect(find.byKey(ValueKey('filter-genre-$genre')), findsOneWidget);
+      }
+      await chooseGenre(tester, 'comic_series');
+      expect(runtime.catalog.lastGenre, 'comic_series');
+      // Choosing a type refills the rail below it, but the rail keeps the
+      // same rectangle: 题材加载中 and the chips share one fixed height.
+      expect(tester.getRect(rail), railRect);
+      expect(tester.takeException(), isNull);
+    });
   }
+
   testWidgets(
-    'overlay preserves a scrolled results position until a filter changes',
+    'the rail pins at the top of a long scroll while the header scrolls out',
     (tester) async {
       await mount(tester, FakeRuntime(LongCatalog()), const Size(390, 844));
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -1600));
-      await tester.pumpAndSettle();
-      final dynamic state = tester.state(find.byType(LibraryPage));
-      final before = state.scroll.offset as double;
-      expect(before, greaterThan(100));
+      final rail = find.byKey(const ValueKey('theme-rail'));
       final viewport = tester.getRect(
         find.byKey(const ValueKey('catalog-results')),
       );
-      await tester.tap(find.byKey(const ValueKey('sticky-genre')));
+      // At rest the rail sits under the search box and the choice row.
+      expect(tester.getRect(rail).top, greaterThan(viewport.top + 60));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -1600));
       await tester.pumpAndSettle();
-      expect(state.scroll.offset, before);
-      expect(
-        tester.getRect(find.byKey(const ValueKey('catalog-results'))),
-        viewport,
-      );
-      await tester.tap(find.text('收起筛选'));
-      await tester.pumpAndSettle();
-      expect(state.scroll.offset, before);
+      final dynamic state = tester.state(find.byType(LibraryPage));
+      expect(state.scroll.offset as double, greaterThan(100));
+      // The search box and the choices are header content: they left with the
+      // brand band and are gone from the tree, not merely behind the fold.
+      expect(find.byKey(const ValueKey('filter-choices')), findsNothing);
+      // The rail is the one thing that stopped at the top, still tappable.
+      expect(tester.getRect(rail).top, closeTo(viewport.top, 1));
+      expect(rail.hitTestable(), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('theme-rail-cate_7')));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(state.theme, 'cate_7');
+      expect(tester.takeException(), isNull);
     },
   );
 
   testWidgets(
-    'rapid choices debounce one request, remain open and keep the anchor stable',
+    'rapid choices collapse into one request and keep the rail geometry',
     (tester) async {
       final runtime = FakeRuntime();
       await mount(tester, runtime, const Size(1280, 900));
-      final anchor = find.byKey(const ValueKey('sticky-genre'));
-      final top = tester.getTopLeft(anchor);
-      await tester.tap(anchor);
-      await tester.pumpAndSettle();
+      final rail = find.byKey(const ValueKey('theme-rail'));
+      final railRect = tester.getRect(rail);
       final calls = runtime.catalog.browseCalls;
-      await tester.tap(find.byKey(const ValueKey('filter-genre-comic_series')));
+      await chooseGenre(tester, 'comic_series');
       await tester.pump(const Duration(milliseconds: 100));
+      // The first choice already settled, so count from where it left off.
+      final settled = runtime.catalog.browseCalls;
+      expect(settled, greaterThan(calls));
       await tester.tap(find.byKey(const ValueKey('filter-genre-ai_series')));
       await tester.pump(const Duration(milliseconds: 100));
-      expect(runtime.catalog.browseCalls, calls);
+      expect(runtime.catalog.browseCalls, settled);
       await tester.pump(const Duration(milliseconds: 200));
       await tester.pumpAndSettle();
-      expect(runtime.catalog.browseCalls, calls + 1);
+      expect(runtime.catalog.browseCalls, settled + 1);
       expect(runtime.catalog.lastGenre, 'ai_series');
-      expect(
-        find.byKey(const ValueKey('horizontal-filter-panel')),
-        findsOneWidget,
-      );
-      expect(tester.getTopLeft(anchor), top);
-      await tester.tap(find.byKey(const ValueKey('filter-genre-ai_series')));
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(runtime.catalog.browseCalls, calls + 1);
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('horizontal-filter-panel')),
-        findsNothing,
-      );
+      expect(tester.getRect(rail), railRect);
     },
   );
+
   testWidgets(
-    'latest, rank and search show only supported options; outside tap only closes',
+    '频道 belongs to 发现, 榜单 takes the type place, search leaves neither',
     (tester) async {
       final runtime = FakeRuntime(RankCatalog());
       await mount(tester, runtime, const Size(1280, 900));
-      await tester.tap(find.byKey(const ValueKey('sticky-view')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('filter-view-latest')));
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('filter-sort-hot_score')), findsNothing);
       expect(
-        find.byKey(const ValueKey('filter-sort-online_time')),
-        findsNothing,
+        find.byKey(const ValueKey('filter-view-recommend')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('filter-genre-short_play')),
+        findsOneWidget,
       );
       await tester.tap(find.byKey(const ValueKey('filter-view-rank')));
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('filter-board-hot')), findsOneWidget);
+      // A board has no type of its own and no themes: the group under the
+      // channel row becomes the three boards, and the rail steps out.
       expect(
         find.byKey(const ValueKey('filter-genre-short_play')),
         findsNothing,
       );
-      await tester.tap(find.byKey(const ValueKey('filter-dismiss-area')));
+      expect(find.byKey(const ValueKey('filter-board-hot')), findsOneWidget);
+      expect(find.byKey(const ValueKey('theme-rail')), findsNothing);
+      expect(find.byKey(const ValueKey('filter-sort-hot_score')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('filter-board-hot')));
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
+      // 分类 never inherits 榜单: it shows its own types again.
+      await tester.tap(find.text('分类').first);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('filter-view-rank')), findsNothing);
       expect(
-        find.byKey(const ValueKey('horizontal-filter-panel')),
-        findsNothing,
+        find.byKey(const ValueKey('filter-genre-comic_series')),
+        findsOneWidget,
       );
-      expect(find.text('开始观看'), findsNothing);
+      expect(find.byKey(const ValueKey('theme-rail')), findsOneWidget);
+      // A search answers neither question, so the row keeps only the way out.
       await tester.enterText(find.byType(TextField), '故事');
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('sticky-genre')), findsNothing);
-      expect(find.text('清除搜索'), findsOneWidget);
+      expect(find.byKey(const ValueKey('clear-search')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('filter-genre-short_play')),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('theme-rail')), findsNothing);
+      expect(tester.takeException(), isNull);
     },
   );
 }

@@ -19,6 +19,11 @@ import '../search/search_suggestions.dart';
 import 'detail_page.dart';
 import 'my_page.dart';
 
+/// Both filter rows -- the choices above and the theme rail below -- hold this
+/// height in every state (chips, spinner, retry), so the two rows of one family
+/// read as one block and pinning the rail can never nudge the rows below it.
+const _filterRowHeight = 52.0;
+
 class LibraryPage extends StatefulWidget {
   final AppRuntime runtime;
   const LibraryPage({super.key, required this.runtime});
@@ -44,15 +49,20 @@ class _LibraryPageState extends State<LibraryPage> {
       query = '',
       view = 'recommend',
       board = 'recommend';
-  String get sort => settingsFor(widget.runtime).catalogSort;
+
+  /// 最新 is a channel the viewer picks, so it has to move the rows: it asks
+  /// the catalog for the newest online date instead of the configured sort.
+  /// The other channels keep whatever sort the viewer set in 设置.
+  String get sort => view == 'latest'
+      ? 'online_time'
+      : settingsFor(widget.runtime).catalogSort;
   String? theme;
   StreamSubscription<AppSettings>? sortEvents;
   late String lastSort;
   late CatalogRepository lastCatalog;
   List<CatalogFilter> themes = [];
   bool autoScheduled = false, settingsChanged = false;
-  bool filterOpen = false, themesLoading = false;
-  String focusedFilter = 'genre';
+  bool themesLoading = false;
   String? themesError;
   Timer? filterTimer;
   CatalogRequestScope _themesScope = CatalogRequestScope();
@@ -163,8 +173,7 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   void _nearEnd() {
-    if (filterOpen ||
-        suggestionsOpen ||
+    if (suggestionsOpen ||
         destination == 2 ||
         !settingsFor(widget.runtime).autoLoadMore ||
         loading ||
@@ -431,7 +440,7 @@ class _LibraryPageState extends State<LibraryPage> {
       return;
     }
     if (incoming.visited) {
-      if (scroll.hasClients) scroll.jumpTo(incoming.scroll);
+      _restoreScroll(incoming.scroll);
       // Coming back from 我的 only restores the view; the rows and their cursor
       // are already the ones the viewer left.
       if (!refresh) return;
@@ -446,6 +455,23 @@ class _LibraryPageState extends State<LibraryPage> {
       if (mounted && feedKey == key) {
         unawaited(_reload(incoming, refreshThemes: false));
       }
+    });
+  }
+
+  /// Put a kept-alive feed back at the offset it was left at. A jump is clamped
+  /// by what is laid out at the moment it is asked for, and while the feed being
+  /// left is still on screen that can be far shorter than the offset being
+  /// restored -- so the same jump is repeated once the incoming rows have been
+  /// laid out, which is what makes a theme come back where it was left.
+  void _restoreScroll(double offset) {
+    void jump() {
+      if (!scroll.hasClients) return;
+      scroll.jumpTo(offset.clamp(0, scroll.position.maxScrollExtent));
+    }
+
+    jump();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) jump();
     });
   }
 
@@ -555,13 +581,10 @@ class _LibraryPageState extends State<LibraryPage> {
     if (searchFocus.hasFocus) searchFocus.unfocus();
   }
 
-  /// Escape and the back gesture close the nearest layer only.
+  /// Escape and the back gesture dismiss the search suggestions; the filters
+  /// are part of the page now, so there is no layer under them to close.
   void _closeOverlays() {
-    if (suggestionsOpen) {
-      _closeSuggestions();
-      return;
-    }
-    _closeFilters();
+    if (suggestionsOpen) _closeSuggestions();
   }
 
   void _pickHistory(String value) {
@@ -593,7 +616,6 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   void _search() {
-    filterOpen = false;
     _closeSuggestions();
     query = search.text.trim();
     theme = null;
@@ -612,7 +634,9 @@ class _LibraryPageState extends State<LibraryPage> {
     final previous = destination;
     setState(() {
       destination = value;
-      filterOpen = false;
+      // 频道 belongs to 发现 alone: carrying 最新 or 榜单 into 分类 would silently
+      // change what that list asks for.
+      if (value != 0) view = 'recommend';
     });
     if (value == 2) {
       _switchFeed();
@@ -661,20 +685,6 @@ class _LibraryPageState extends State<LibraryPage> {
         });
       }
     }
-  }
-
-  void _toggleFilters(String group) {
-    setState(() {
-      filterOpen = !filterOpen || focusedFilter != group;
-      focusedFilter = group;
-    });
-    if (!filterOpen) _scheduleMore();
-  }
-
-  void _closeFilters() {
-    if (!filterOpen) return;
-    setState(() => filterOpen = false);
-    _scheduleMore();
   }
 
   void _selectFilter(String group, String value) {
@@ -917,101 +927,121 @@ class _LibraryPageState extends State<LibraryPage> {
     ),
   );
 
-  Widget _header(bool compact) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      if (compact) ...[
-        Row(
-          children: [
-            const Brand(),
-            const Spacer(),
-            IconButton(
-              tooltip: '离线检查',
-              onPressed: _diagnostics,
-              icon: const Icon(Icons.verified_outlined),
-            ),
-            IconButton(
-              tooltip: '我的',
-              onPressed: () => _navigate(2),
-              icon: const Icon(Icons.person_outline),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _searchBox(),
-        const SizedBox(height: 18),
-      ],
-      Text(
-        query.isNotEmpty
-            ? '“$query”'
-            : ranking
-            ? '漫剧榜单'
-            : destination == 1
-            ? '符合筛选的故事'
-            : view == 'latest'
-            ? '最新上架'
-            : '为你发现',
-        style: Theme.of(context).textTheme.titleLarge
-            ?.copyWith(fontWeight: FontWeight.w600),
-      ),
-    ],
+  /// The grid's own heading. The brand row and the 我的 shortcut are gone from
+  /// the top of this page on purpose: the bottom bar, the navigation rail and
+  /// the wide sidebar already carry them, so every pixel above the rows
+  /// belongs to the content instead.
+  Widget _sectionTitle() => Text(
+    query.isNotEmpty
+        ? '“$query”'
+        : ranking
+        ? '漫剧榜单'
+        : destination == 1
+        ? '符合筛选的故事'
+        : view == 'latest'
+        ? '最新上架'
+        : '为你发现',
+    style: Theme.of(context).textTheme.titleLarge
+        ?.copyWith(fontWeight: FontWeight.w600),
   );
 
-  Widget _stickyFilters(bool compact) {
-    Widget trigger(String group, String label) => TextButton.icon(
-      key: ValueKey('sticky-$group'),
-      onPressed: () => _toggleFilters(group),
-      iconAlignment: IconAlignment.end,
-      icon: Icon(
-        filterOpen && focusedFilter == group
-            ? Icons.expand_less
-            : Icons.expand_more,
-        size: 18,
-      ),
-      label: Text(label),
-      style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
-    );
-    return Material(
-      color: Theme.of(context).scaffoldBackgroundColor,
-      elevation: 1,
-      child: SizedBox(
-        height: 64,
+  void _clearSearch() {
+    query = '';
+    search.clear();
+    _switchFeed();
+    _reload(feed);
+  }
+
+  /// The channel, type and board choices, in the same chip language as the
+  /// theme rail under them: every option of a group is on screen at once, one
+  /// tap applies it, and the current value is the highlighted chip. Each of
+  /// these dimensions has three mutually exclusive values -- few enough to show
+  /// at once, which is why none of them belongs behind a trigger that opens a
+  /// sheet of every group at once.
+  Widget _choiceRow(bool compact) {
+    List<Widget> group(
+      String name,
+      String selected,
+      Map<String, String> values,
+    ) => [
+      for (final e in values.entries)
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: ChoiceChip(
+            key: ValueKey('filter-$name-${e.key}'),
+            label: Text(
+              e.value,
+              style: TextStyle(
+                fontWeight: selected == e.key
+                    ? FontWeight.w700
+                    : FontWeight.w400,
+              ),
+            ),
+            selected: selected == e.key,
+            onSelected: (_) {
+              if (selected != e.key) _selectFilter(name, e.key);
+            },
+            materialTapTargetSize: MaterialTapTargetSize.padded,
+          ),
+        ),
+    ];
+    final groups = <List<Widget>>[
+      if (query.isNotEmpty)
+        [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ActionChip(
+              key: const ValueKey('clear-search'),
+              avatar: const Icon(Icons.close, size: 18),
+              label: const Text('清除搜索'),
+              onPressed: _clearSearch,
+            ),
+          ),
+        ]
+      else if (destination == 0)
+        group('view', view, {
+          'recommend': '推荐',
+          'latest': '最新',
+          // A runtime whose catalog has no rank endpoint never offers 榜单 --
+          // a chip that silently reloads the same feed is worse than none.
+          if (widget.runtime.catalog is RankCatalogRepository) 'rank': '榜单',
+        }),
+      if (query.isEmpty)
+        ranking
+            ? group('board', board, const {
+                'recommend': '推荐榜',
+                'hot': '热播榜',
+                'new': '新剧榜',
+              })
+            : group('genre', genre, const {
+                'short_play': '短剧',
+                'comic_series': '漫剧',
+                'ai_series': 'AI 短剧',
+              }),
+    ];
+    return SizedBox(
+      height: _filterRowHeight,
+      child: Scrollbar(
         child: SingleChildScrollView(
+          key: const ValueKey('filter-choices'),
           scrollDirection: Axis.horizontal,
-          padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 24),
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 12 : 24,
+            vertical: 4,
+          ),
           child: Row(
             children: [
-              if (query.isNotEmpty) ...[
-                const Text('搜索结果'),
-                TextButton(
-                  onPressed: () {
-                    query = '';
-                    search.clear();
-                    _switchFeed();
-                    _reload(feed);
-                  },
-                  child: const Text('清除搜索'),
-                ),
-              ] else ...[
-                if (destination == 0)
-                  trigger(
-                    'view',
-                    {'recommend': '推荐', 'latest': '最新', 'rank': '榜单'}[view]!,
+              for (final (index, chips) in groups.indexed) ...[
+                if (index > 0)
+                  // 频道 answers "which stream", 类型/榜单 answers "which kind of
+                  // story"; the seam keeps the two from reading as one choice.
+                  Container(
+                    width: 1,
+                    height: 24,
+                    margin: const EdgeInsets.only(right: 12),
+                    color: Theme.of(context).colorScheme.outlineVariant,
                   ),
-                if (ranking)
-                  trigger(
-                    'board',
-                    {'recommend': '推荐榜', 'hot': '热播榜', 'new': '新剧榜'}[board]!,
-                  )
-                else
-                  trigger(
-                    'genre',
-                    {
-                      'short_play': '短剧',
-                      'comic_series': '漫剧',
-                      'ai_series': 'AI 短剧',
-                    }[genre]!,
-                  ),
+                ...chips,
               ],
             ],
           ),
@@ -1020,17 +1050,18 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  /// The themes of the current genre, laid out in one row that is always on
-  /// screen, the way the television build shows them. Tapping one opens that
-  /// theme's own feed rather than filtering the rows in place, so loading and
-  /// retry both keep their fixed height and never push the grid around.
+  /// The themes of the current genre, laid out in one row that pins to the top
+  /// of the list as everything above it scrolls away, the way the television
+  /// build keeps them reachable. Tapping one opens that theme's own feed rather
+  /// than filtering the rows in place, so loading and retry both keep their
+  /// fixed height and never push the grid around.
   Widget _themeRail(bool compact) {
     if (query.isNotEmpty || ranking) return const SizedBox.shrink();
     final selected = theme ?? '';
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: SizedBox(
-        height: 52,
+        height: _filterRowHeight,
         child: themesLoading
             ? const Center(
                 key: ValueKey('theme-rail-loading'),
@@ -1093,131 +1124,7 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  Widget _filterPanel(bool compact, double maxHeight) {
-    Widget group(
-      String name,
-      String label,
-      String selected,
-      Map<String, String> values,
-    ) {
-      final chips = [
-        for (final e in values.entries)
-          Padding(
-            padding: const EdgeInsets.only(right: 8, bottom: 6),
-            child: ChoiceChip(
-              key: ValueKey('filter-$name-${e.key}'),
-              label: Text(e.value),
-              selected: selected == e.key,
-              onSelected: (_) {
-                if (selected != e.key) _selectFilter(name, e.key);
-              },
-              materialTapTargetSize: MaterialTapTargetSize.padded,
-            ),
-          ),
-      ];
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 48,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 14),
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontWeight: focusedFilter == name
-                        ? FontWeight.w700
-                        : FontWeight.w400,
-                    color: focusedFilter == name
-                        ? Theme.of(context).colorScheme.primary
-                        : null,
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: compact
-                  ? Scrollbar(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(children: chips),
-                      ),
-                    )
-                  : Wrap(children: chips),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Material(
-      key: const ValueKey('horizontal-filter-panel'),
-      color: Theme.of(context).colorScheme.surface,
-      shape: Border(
-        bottom: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxHeight),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                  compact ? 16 : 28,
-                  8,
-                  compact ? 16 : 28,
-                  0,
-                ),
-                child: Column(
-                  children: [
-                    if (destination == 0)
-                      group('view', '频道', view, {
-                        'recommend': '推荐',
-                        'latest': '最新',
-                        if (widget.runtime.catalog is RankCatalogRepository)
-                          'rank': '榜单',
-                      }),
-                    if (ranking) ...[
-                      const Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text('当前为漫剧榜单'),
-                      ),
-                      group('board', '榜单', board, const {
-                        'recommend': '推荐榜',
-                        'hot': '热播榜',
-                        'new': '新剧榜',
-                      }),
-                    ] else ...[
-                      // 题材 is no longer a panel row: it lives in the rail below
-                      // the toolbar, where every choice is visible at once.
-                      group('genre', '类型', genre, const {
-                        'short_play': '短剧',
-                        'comic_series': '漫剧',
-                        'ai_series': 'AI 短剧',
-                      }),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: _closeFilters,
-                icon: const Icon(Icons.expand_less),
-                label: const Text('收起筛选'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _feed(bool compact, double viewportWidth, double viewportHeight) {
+  Widget _feed(bool compact, double viewportWidth) {
     final padding = compact ? 16.0 : 28.0;
     final list = RefreshIndicator(
       onRefresh: () => _reload(feed, refreshThemes: false, force: true),
@@ -1226,10 +1133,53 @@ class _LibraryPageState extends State<LibraryPage> {
         controller: scroll,
         key: const PageStorageKey('catalog-feed'),
         slivers: [
+          // Search is the page's own header now, and it scrolls: on a phone the
+          // brand band and the row of icon buttons gave up 150 logical pixels to
+          // nothing, and on the desktop the sidebar already repeats the title
+          // and the 我的 shortcut.
           SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.fromLTRB(padding, 16, padding, 18),
-              child: _header(false),
+              padding: EdgeInsets.fromLTRB(
+                padding,
+                compact ? 8 : 14,
+                padding,
+                0,
+              ),
+              child: Row(
+                children: [
+                  if (compact)
+                    Expanded(child: _searchBox())
+                  else
+                    SizedBox(
+                      width: (viewportWidth * .42).clamp(240.0, 440.0),
+                      child: _searchBox(),
+                    ),
+                  IconButton(
+                    tooltip: '离线检查',
+                    onPressed: _diagnostics,
+                    icon: const Icon(Icons.verified_outlined),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // The choices sit flush with the rail under them -- both rows start
+          // at the same inset, so they read as one family of narrowing.
+          SliverToBoxAdapter(child: _choiceRow(compact)),
+          SliverPersistentHeader(
+            // The rail is the one thing that never leaves. It rides up to the
+            // top as the search box and the choice row scroll out and stops
+            // there, so a theme stays one tap away from anywhere in the rows.
+            pinned: true,
+            delegate: _ThemeRailHeader(
+              height: query.isEmpty && !ranking ? _filterRowHeight : 0,
+              child: _themeRail(compact),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(padding, 12, padding, 10),
+              child: _sectionTitle(),
             ),
           ),
           if (refreshing || cachedAt != null || refreshError != null)
@@ -1398,117 +1348,11 @@ class _LibraryPageState extends State<LibraryPage> {
       child: Focus(
         autofocus: true,
         child: PopScope(
-          canPop: !filterOpen && !suggestionsOpen,
+          canPop: !suggestionsOpen,
           onPopInvokedWithResult: (didPop, _) {
             if (!didPop) _closeOverlays();
           },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  padding,
-                  compact ? 8 : 16,
-                  padding,
-                  8,
-                ),
-                child: compact && viewportHeight < 400
-                    ? Row(
-                        children: [
-                          Expanded(child: _searchBox()),
-                          IconButton(
-                            tooltip: '我的',
-                            onPressed: () => _navigate(2),
-                            icon: const Icon(Icons.person_outline),
-                          ),
-                        ],
-                      )
-                    : compact
-                    ? Column(
-                        children: [
-                          Row(
-                            children: [
-                              const Brand(),
-                              const Spacer(),
-                              IconButton(
-                                tooltip: '离线检查',
-                                onPressed: _diagnostics,
-                                icon: const Icon(Icons.verified_outlined),
-                              ),
-                              IconButton(
-                                tooltip: '我的',
-                                onPressed: () => _navigate(2),
-                                icon: const Icon(Icons.person_outline),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          _searchBox(),
-                        ],
-                      )
-                    : Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              destination == 1 ? '分类浏览' : '发现好故事',
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          SizedBox(
-                            width: (viewportWidth * .42).clamp(240, 440),
-                            child: _searchBox(),
-                          ),
-                          IconButton(
-                            tooltip: '离线检查',
-                            onPressed: _diagnostics,
-                            icon: const Icon(Icons.verified_outlined),
-                          ),
-                          IconButton(
-                            tooltip: '我的',
-                            onPressed: () => _navigate(2),
-                            icon: const Icon(Icons.person_outline),
-                          ),
-                        ],
-                      ),
-              ),
-              _stickyFilters(compact),
-              _themeRail(compact),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, area) => Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Positioned.fill(child: list),
-                      if (filterOpen) ...[
-                        Positioned.fill(
-                          child: GestureDetector(
-                            key: const ValueKey('filter-dismiss-area'),
-                            behavior: HitTestBehavior.opaque,
-                            onTap: _closeFilters,
-                            child: ColoredBox(
-                              color: Colors.black.withValues(alpha: .12),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          child: _filterPanel(
-                            compact,
-                            area.maxHeight.clamp(48, 320).toDouble(),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+          child: list,
         ),
       ),
     );
@@ -1529,7 +1373,7 @@ class _LibraryPageState extends State<LibraryPage> {
             )
           : LayoutBuilder(
               builder: (context, constraints) =>
-                  _feed(compact, constraints.maxWidth, constraints.maxHeight),
+                  _feed(compact, constraints.maxWidth),
             );
       const destinations = [
         NavigationDestination(
@@ -1659,6 +1503,33 @@ class _ThemeFeed {
       refreshing = false,
       autoPaused = false,
       visited = false;
+}
+
+/// The pinned slot the theme rail rides in: the search box and the trigger row
+/// scroll out above it and it stops at the top of the viewport, so changing
+/// theme stays possible from anywhere in a long list.
+class _ThemeRailHeader extends SliverPersistentHeaderDelegate {
+  const _ThemeRailHeader({required this.height, required this.child});
+
+  final double height;
+  final Widget child;
+
+  @override
+  double get minExtent => height;
+
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) => child;
+
+  @override
+  bool shouldRebuild(_ThemeRailHeader oldDelegate) =>
+      oldDelegate.height != height || oldDelegate.child != child;
 }
 
 class Brand extends StatelessWidget {

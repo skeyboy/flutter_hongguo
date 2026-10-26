@@ -40,12 +40,13 @@ void main() {
   testWidgets('category and search use the shared repository', (tester) async {
     final runtime = FakeRuntime();
     await mount(tester, runtime);
-    await tester.tap(find.byKey(const ValueKey('sticky-genre')));
+    // The choice row is wider than a phone, so the type is swiped into view
+    // before it is tapped.
+    final aiChip = find.byKey(const ValueKey('filter-genre-ai_series'));
+    await tester.ensureVisible(aiChip);
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('filter-genre-ai_series')));
+    await tester.tap(aiChip);
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.text('收起筛选'));
-    await tester.pumpAndSettle();
     expect(runtime.catalog.lastGenre, 'ai_series');
     await tester.enterText(find.byType(TextField), '玄幻故事');
     await tester.testTextInput.receiveAction(TextInputAction.search);

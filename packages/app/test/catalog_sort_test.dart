@@ -22,8 +22,6 @@ void main() {
       expect(runtime.catalog.lastSort, 'hot_collect');
       expect(find.byKey(const ValueKey('sticky-sort')), findsNothing);
       for (final genre in ['comic_series', 'ai_series']) {
-        await t.tap(find.byKey(const ValueKey('sticky-genre')));
-        await t.pumpAndSettle();
         await t.tap(find.byKey(ValueKey('filter-genre-$genre')));
         await t.pump(const Duration(milliseconds: 300));
         await t.pumpAndSettle();
@@ -33,9 +31,28 @@ void main() {
           find.byKey(const ValueKey('filter-sort-hot_collect')),
           findsNothing,
         );
-        await t.tap(find.text('收起筛选'));
-        await t.pumpAndSettle();
       }
+      // 最新 is the one page-level order the viewer is allowed to ask for, and
+      // it has to reach the request instead of only renaming the heading.
+      await t.tap(find.byKey(const ValueKey('filter-view-latest')));
+      await t.pump(const Duration(milliseconds: 300));
+      await t.pumpAndSettle();
+      expect(runtime.catalog.lastSort, 'online_time');
+      // Back to 推荐 asks for nothing: that channel's own page is already
+      // cached under its own key, which is what makes the switch instant.
+      final calls = runtime.catalog.browseCalls;
+      await t.tap(find.byKey(const ValueKey('filter-view-recommend')));
+      await t.pump(const Duration(milliseconds: 300));
+      await t.pumpAndSettle();
+      expect(runtime.catalog.browseCalls, calls);
+      expect(
+        t
+            .widget<ChoiceChip>(
+              find.byKey(const ValueKey('filter-view-recommend')),
+            )
+            .selected,
+        isTrue,
+      );
     },
   );
 }

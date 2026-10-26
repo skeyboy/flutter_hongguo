@@ -105,7 +105,7 @@ Future<void> mount(WidgetTester tester, FakeRuntime runtime, Size size) async {
 
 void main() {
   for (final width in [390.0, 1280.0]) {
-    testWidgets('filters remain interactive after long scroll at $width', (
+    testWidgets('the rail stays interactive after long scroll at $width', (
       tester,
     ) async {
       final catalog = ControlledCatalog();
@@ -130,19 +130,12 @@ void main() {
           const Offset(0, -2500),
         );
         await tester.pumpAndSettle();
+        // The search box and the trigger row are header content and scrolled
+        // out with it; the rail is the part that pinned, and it still works.
         expect(
-          find.byKey(const ValueKey('sticky-genre')).hitTestable(),
+          find.byKey(const ValueKey('theme-rail')).hitTestable(),
           findsOneWidget,
         );
-        // The panel still opens for the filters that stayed inside it.
-        await tester.tap(find.byKey(const ValueKey('sticky-genre')));
-        await tester.pumpAndSettle();
-        expect(
-          find.byKey(const ValueKey('horizontal-filter-panel')),
-          findsOneWidget,
-        );
-        await tester.tap(find.text('收起筛选'));
-        await tester.pumpAndSettle();
         // 题材 is on the rail at every width, so it never needs a sheet.
         await tester.tap(find.byKey(const ValueKey('theme-rail-cate_7')));
         await tester.pump(const Duration(milliseconds: 300));
@@ -398,10 +391,6 @@ void main() {
     final catalog = MetadataCatalog()..match = true;
     final runtime = CacheRuntime(catalog);
     await mount(tester, runtime, const Size(390, 900));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('sticky-genre')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('收起筛选'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('山海之间').last);
     await tester.tap(find.text('山海之间').last);
