@@ -153,3 +153,5 @@ class _ThemeFeed {
 现读证据：`git show HEAD:.../library_page.dart | grep -c CatalogRequestScope` = 0，工作树同一查询 = 5；`packages/api/lib/src/request_control.dart`（274 行，未跟踪）与 `hongguo_api.dart` 的导出改动都在另一条线上。因此本轮既不把别人的在途实现以本节的名义压上 main，也不做「只改索引提交本轮路径」——那样得到的树从来没编译过。
 
 处置：整棵工作树（除 `.idea/`）快照成分支 `feat/pc-mobile-theme-rail`，起点 `bcf8c6a`（v0.3.4），main 与工作树都不动；提交树在独立 worktree 里过了一遍 CI 同套门禁（app analyze 干净、app 238 通过 1 跳过、tv 36、core 117、api 77、cast 52、TV 标记用例 1）。等网络那条线自己落 main 后，本分支 rebase 上去只留题材横栏的增量。
+
+就地胶囊这一轮同样按整棵工作树快照续在分支上：`60db477`（产品 + 测试 + 证据 + 本节当时已有的文字），门禁全部跑在这一条的树上——独立 worktree 实测 app analyze 干净、app 238 通过 1 跳过、tv 36；core/api/cast 的字节与上一条快照 `1103c3b` 完全一致（`git diff --name-only 1103c3b 60db477` 只含 app 与 docs 两组路径），本轮没有重跑。`60db477` 之后本节的补写单独成一条 docs 提交，与已验证的树只差这份文档。校验用的 worktree 跑完即删。
