@@ -109,7 +109,7 @@ class _ThemeFeed {
 - macOS 窗口（1100×760）已验证：`rail.png` 常驻横栏（全部/悬疑/宫斗…横向滚动）、`theme-two.png` 与 `theme-three.png` 各题材自己的行、`theme-two-scrolled.png`（偏移 401）与 `theme-two-restored.png`（回切仍是 401，行与位置原样回来）、加载态下网格几何不动。
 - iPhone 模拟器 `yxy-iPhone17Pro` 本轮未能取证：真机夹具停在首帧之前（`pumpWidget` 后 115s 无任何输出），同一台模拟器上跑上一轮已通过的 `route_transition_live_test.dart` 对照复现同样卡死，说明与本节改造无关，属工作树在途网络改动/模拟器并发占用的启动阻塞，待其收口后重跑 `HONGGUO_RAIL_DEVICE=<UDID> tool/verify_theme_rail_live.sh`。
 - 390 紧凑布局由 `test/theme_rail_test.dart`、`test/adaptive_ui_test.dart` 的窗口用例覆盖。
-- Android 手机/模拟器：同一场景。
+- Android 手机 `23113RKC6C`（Android 16，`8c9cf729`）本轮未能取证：`--flavor mobile` 的 apk 预构建成功（`assembleMobileDebug` 20.8s，产物 195 MB），卡在装机这一步。机器上先装着 versionCode 2015 的旧包，直接安装报 `INSTALL_FAILED_VERSION_DOWNGRADE`；Flutter 自动卸载旧包后重装报 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`，手动 `adb install -r -t` 复现同一错误，且截屏确认屏幕上并没有等待用户点确认的弹窗——这是 MIUI/HyperOS 的「USB 安装」开关，只能在手机上手动打开，不在自动化能碰的范围里。副作用：那条自动卸载已经把这台上原有的 2015 版应用卸掉了，需要时重新装一次发布包。390 紧凑布局先由 `test/theme_rail_test.dart`、`test/adaptive_ui_test.dart`（`Size(390, 844)`）两组用例兜住；手机打开「USB 安装」后重跑 `HONGGUO_RAIL_DEVICE=8c9cf729 tool/verify_theme_rail_live.sh` 即可补齐 `docs/evidence/theme-rail/android-*.png`。
 
 ## 已知交织
 
