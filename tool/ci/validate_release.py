@@ -43,6 +43,7 @@ notes.write_text(f'''Native Flutter / shared Dart release {release}.
 - Downloads: choosing episodes no longer enforces a download size quota, so a whole series can be kept offline; a new 同时下载数量 setting (1–5) caps how many transfers run at once instead, and automatic prefetch keeps its own byte budget so manual downloads cannot starve it.
 - Manual downloads survive ordinary cache cleanup; resumed tasks keep independent recovery journals.
 - Android TV: the episode grid and other nested grids are reachable with the D-pad (Flutter only walked focus inside the scrollable that owned it), and an item that turns inert no longer drops the page into a state with no focus at all. Verified on an emulator with injected remote key events.
+- Navigation: pushing a page now slides it in from the right edge and popping walks it back out the same way on every build, replacing the platform defaults that faded forwards on Android and zoomed on Windows/Linux. Verified from recorded frame strips on a macOS window and an iPhone simulator.
 - Adaptive immersive player, unified episode/settings panel, auto_route navigation and cached images.
 - Application names follow the system language (English, Simplified and Traditional Chinese).
 - Only the selected platforms are built in this run; see the platform list below.
