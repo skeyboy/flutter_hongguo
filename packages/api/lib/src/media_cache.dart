@@ -7,6 +7,7 @@ import 'package:hongguo_core/hongguo_core.dart';
 import 'package:hongguo_core/hongguo_native.dart';
 
 import 'video_model_client.dart';
+import 'request_control.dart';
 
 enum MediaStage {
   queued,
@@ -23,6 +24,21 @@ class MediaProgress {
   final int received, total;
   const MediaProgress(this.stage, {this.received = 0, this.total = 0});
   double? get fraction => total > 0 ? received / total : null;
+}
+
+/// Preparation ends at a verified local file, not at the player's first frame.
+class MediaPreparationTiming {
+  final Duration elapsed;
+  final Map<String, Duration> stages;
+  final bool cacheHit, background;
+  final String? failureType;
+  MediaPreparationTiming({
+    required this.elapsed,
+    required Map<String, Duration> stages,
+    required this.cacheHit,
+    required this.background,
+    this.failureType,
+  }) : stages = Map.unmodifiable(stages);
 }
 
 class MediaCancelled implements Exception {
@@ -47,6 +63,20 @@ class MediaPreparation {
 class _Job {
   final String key, vid, quality;
   final token = CancelToken();
+  final metadataScope = CatalogRequestScope();
+  final clock = Stopwatch()..start();
+  final timings = <String, Duration>{};
+  String timingStage = 'queued';
+  Duration lastMark = Duration.zero;
+  void mark(String stage) {
+    if (stage == timingStage) return;
+    final elapsed = clock.elapsed;
+    timings[timingStage] =
+        (timings[timingStage] ?? Duration.zero) + elapsed - lastMark;
+    timingStage = stage;
+    lastMark = elapsed;
+  }
+
   final leases = <MediaPreparation>{};
   bool background;
 
@@ -61,8 +91,11 @@ class _Job {
     this.quality,
     this.background, {
     this.manual = false,
-  });
+  }) {
+    unawaited(token.whenCancel.then((_) => metadataScope.cancel()));
+  }
   void progress(MediaProgress p) {
+    mark(p.stage.name);
     latest = p;
     for (final lease in leases.toList()) {
       // UI observation cannot corrupt a download or make it fail.
@@ -79,6 +112,7 @@ class _Job {
 class MediaCache {
   final Directory directory;
   final Dio dio;
+  final void Function(MediaPreparationTiming)? onTiming;
   final Future<void> Function(
     String vid,
     String quality,
@@ -129,6 +163,7 @@ class MediaCache {
   MediaCache({
     required this.directory,
     required this.dio,
+    this.onTiming,
     this.download,
     this.onFinished,
     this.onJobFinished,
@@ -348,16 +383,39 @@ class MediaCache {
   Future<void> _run(_Job job) async {
     String? working;
     String? workingIdentity;
+    var cacheHit = false, reported = false;
+    void report(Object? error) {
+      if (reported) return;
+      reported = true;
+      job.mark('finished');
+      try {
+        onTiming?.call(
+          MediaPreparationTiming(
+            elapsed: job.clock.elapsed,
+            stages: job.timings,
+            cacheHit: cacheHit,
+            background: job.background,
+            failureType: error?.runtimeType.toString(),
+          ),
+        );
+      } catch (_) {
+        /* Timing observers cannot interrupt preparation. */
+      }
+    }
+
     try {
       _check(job);
+      job.mark('cacheLookup');
       await directory.create(recursive: true);
       final output = File('${directory.path}/${job.key}.mp4');
       final manifest = File('${output.path}.json');
-      final cached = await _cacheHit(output, manifest);
-      if (!cached) {
+      cacheHit = await _cacheHit(output, manifest);
+      if (!cacheHit) {
         _check(job);
         job.progress(const MediaProgress(MediaStage.resolving));
-        final track = await resolve(job.vid, job.quality);
+        final track = await job.metadataScope.run(
+          () => resolve(job.vid, job.quality),
+        );
         _check(job);
         // Manual downloads own a separate ledger: the byte budget below only
         // accounts for automatic cache files so prefetch is never squeezed by
@@ -472,8 +530,10 @@ class MediaCache {
         lease._result.complete(output.path);
       }
       job.progress(const MediaProgress(MediaStage.ready));
+      report(null);
       await prune();
     } catch (error, stack) {
+      report(job.token.isCancelled ? const MediaCancelled() : error);
       if (identical(_jobs[job.key], job)) _jobs.remove(job.key);
       for (final lease in job.leases.toList()) {
         if (!lease._result.isCompleted) {

@@ -74,13 +74,14 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('山海之间'), findsWidgets);
-    await tester.tap(find.byKey(const ValueKey('sticky-theme')));
-    await tester.pumpAndSettle();
-    expect(find.text('题材加载失败，重试'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('theme-rail-retry')),
+      findsOneWidget,
+    );
     catalog.failThemes = false;
-    await tester.tap(find.text('题材加载失败，重试'));
+    await tester.tap(find.byKey(const ValueKey('theme-rail-retry')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('filter-theme-cate_7')), findsOneWidget);
+    expect(find.byKey(const ValueKey('theme-rail-cate_7')), findsOneWidget);
     expect(find.text('山海之间'), findsWidgets);
     expect(tester.takeException(), isNull);
   });

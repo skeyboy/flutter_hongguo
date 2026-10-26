@@ -6,6 +6,7 @@ import 'package:hongguo_core/hongguo_core.dart';
 
 import 'video_model_client.dart';
 import 'network_retry.dart';
+import 'request_control.dart';
 
 String _text(dynamic value) => value == null ? '' : '$value';
 int _int(dynamic value) =>
@@ -165,6 +166,10 @@ class CatalogError implements Exception {
 class CatalogClient implements CatalogRepository, RankCatalogRepository {
   final NetworkRetry retry;
   final int browsePageSize;
+  late final CatalogRequests _requests;
+  final _themeCache =
+      <String, ({DateTime expires, List<CatalogFilter> value})>{};
+  final DateTime Function() now;
   final Dio dio;
   final String deviceId;
   final PureSign signer;
@@ -172,11 +177,15 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
   final bool signLists;
   bool _listSignatureRequired = false;
   final AppSettings protocol;
-  DateTime _lastRequest = DateTime.fromMillisecondsSinceEpoch(0);
+  final _requestClock = Stopwatch()..start();
+  Duration _lastRequest = const Duration(milliseconds: -260);
   Future<void> _queue = Future.value();
   final _details = <String, ({DateTime expires, DramaDetail value})>{};
   CatalogClient({
     this.browsePageSize = 18,
+    Duration requestDeadline = const Duration(seconds: 12),
+    DateTime Function()? now,
+    void Function(MetadataTiming)? onTiming,
     NetworkRetry? retry,
     required this.dio,
     required this.deviceId,
@@ -184,9 +193,11 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
     this.sessionHeaders = const {},
     this.signLists = true,
     this.protocol = const AppSettings(),
-  }) : retry = retry ?? NetworkRetry(),
+  }) : now = now ?? DateTime.now,
+       retry = retry ?? NetworkRetry(),
        signer = signer ?? PureSign() {
     protocol.validate();
+    _requests = CatalogRequests(deadline: requestDeadline, onTiming: onTiming);
     if (browsePageSize < 1 || browsePageSize > 50) {
       throw ArgumentError('Browse page size must be 1–50');
     }
@@ -194,60 +205,135 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
       throw ArgumentError('Invalid device identity');
     }
   }
+  void close() => _requests.cancelAll();
+
+  @override
+  Future<CatalogPage> browse({
+    String genre = 'short_play',
+    String sort = 'online_time',
+    String? theme,
+    String? cursor,
+    List<String> seen = const [],
+  }) {
+    final ids = List<String>.of(seen);
+    return _requests.run(
+      jsonEncode(['browse', genre, sort, theme, cursor, ids]),
+      () => _browse(
+        genre: genre,
+        sort: sort,
+        theme: theme,
+        cursor: cursor,
+        seen: ids,
+      ),
+      label: 'catalog.browse',
+    );
+  }
+
+  @override
+  Future<CatalogPage> rank({String board = 'recommend', String? cursor}) =>
+      _requests.run(
+        jsonEncode(['rank', board, cursor]),
+        () => _rank(board: board, cursor: cursor),
+        label: 'catalog.rank',
+      );
+  @override
+  Future<CatalogPage> search(String query, {String? cursor}) => _requests.run(
+    jsonEncode(['search', query.trim(), cursor]),
+    () => _search(query, cursor: cursor),
+    label: 'catalog.search',
+  );
+  @override
+  Future<DramaDetail> detail(String id) =>
+      _requests.run('detail:$id', () => _detail(id), label: 'catalog.detail');
+  @override
+  Future<List<CatalogFilter>> themes(String genre) =>
+      _requests.run('themes:$genre', () async {
+        final cached = _themeCache[genre];
+        if (cached != null && cached.expires.isAfter(now())) {
+          RequestBudget.current.cacheHit = true;
+          return cached.value;
+        }
+        final values = List<CatalogFilter>.unmodifiable(await _themes(genre));
+        _themeCache[genre] = (
+          expires: now().add(const Duration(hours: 6)),
+          value: values,
+        );
+        return values;
+      }, label: 'catalog.themes');
+
+  Duration _timeout(int seconds) {
+    final configured = Duration(
+      seconds: protocol.timeoutSeconds < seconds
+          ? protocol.timeoutSeconds
+          : seconds,
+    );
+    return RequestBudget.current.timeout(configured);
+  }
+
   Future<Map<String, dynamic>> _api(
     String path, {
     Map<String, dynamic>? body,
     Map<String, String> query = const {},
     bool signed = true,
   }) {
-    return retry.run(
-      () async {
-        // Serialize request starts only: a slow request must not block other genres.
-        final slot = _queue.then((_) async {
-          final wait =
-              const Duration(milliseconds: 260) -
-              DateTime.now().difference(_lastRequest);
-          if (wait > Duration.zero) await Future<void>.delayed(wait);
-          _lastRequest = DateTime.now();
-        });
-        _queue = slot;
-        await slot;
-        final effectiveSigned = signed || _listSignatureRequired;
-        final bytes = body == null
-            ? null
-            : Uint8List.fromList(utf8.encode(jsonEncode(body)));
-        final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-        final now = DateTime.now().millisecondsSinceEpoch;
-        String url = '';
-        for (var attempt = 0; attempt < 32; attempt++) {
-          final params = {
-            'aid': '8662',
-            'app_name': 'novelread',
-            'version_code': protocol.catalogVersionCode,
-            'version_name': protocol.catalogVersion,
-            'channel': 'audit',
-            'device_platform': 'android',
-            'device_type': 'audit-windows',
-            'os_version': '12',
-            'update_version_code': protocol.catalogVersionCode,
-            'device_id': deviceId,
-            ...query,
-            '_rticket': '${now + attempt}',
-          };
-          url =
-              'https://${protocol.apiHost}$path?${params.entries.map((e) => '${encodeQueryPart(e.key)}=${encodeQueryPart(e.value)}').join('&')}';
-          if (!effectiveSigned || signer.branchOf(url, bytes, ts) != 1) break;
+    final budget = RequestBudget.current;
+    return retry.run(() async {
+      // Serialize request starts only: a slow request must not block other genres.
+      final slot = _queue.then((_) async {
+        budget.check();
+        final wait =
+            const Duration(milliseconds: 260) -
+            (_requestClock.elapsed - _lastRequest);
+        if (wait > Duration.zero) {
+          await budget.guard(Future<void>.delayed(wait));
         }
-        if (effectiveSigned && signer.branchOf(url, bytes, ts) == 1) {
-          throw const CatalogError('签名暂时无法生成，请重试');
-        }
-        final response = await dio.fetch<String>(
+        budget.check();
+        _lastRequest = _requestClock.elapsed;
+      });
+      _queue = slot.catchError((Object _) {});
+      await budget.measure('queue', () => slot);
+      final signingClock = Stopwatch()..start();
+      final effectiveSigned = signed || _listSignatureRequired;
+      final bytes = body == null
+          ? null
+          : Uint8List.fromList(utf8.encode(jsonEncode(body)));
+      final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      String url = '';
+      for (var attempt = 0; attempt < 32; attempt++) {
+        final params = {
+          'aid': '8662',
+          'app_name': 'novelread',
+          'version_code': protocol.catalogVersionCode,
+          'version_name': protocol.catalogVersion,
+          'channel': 'audit',
+          'device_platform': 'android',
+          'device_type': 'audit-windows',
+          'os_version': '12',
+          'update_version_code': protocol.catalogVersionCode,
+          'device_id': deviceId,
+          ...query,
+          '_rticket': '${now + attempt}',
+        };
+        url =
+            'https://${protocol.apiHost}$path?${params.entries.map((e) => '${encodeQueryPart(e.key)}=${encodeQueryPart(e.value)}').join('&')}';
+        if (!effectiveSigned || signer.branchOf(url, bytes, ts) != 1) break;
+      }
+      if (effectiveSigned && signer.branchOf(url, bytes, ts) == 1) {
+        throw const CatalogError('签名暂时无法生成，请重试');
+      }
+      final signature = effectiveSigned
+          ? signer.sign(url, bytes, ts)
+          : <String, String>{};
+      budget.record('sign', signingClock.elapsed);
+      final response = await budget.transport(
+        () => dio.fetch<String>(
           Options(
                 method: bytes == null ? 'GET' : 'POST',
                 followRedirects: false,
                 responseType: ResponseType.plain,
-                receiveTimeout: Duration(seconds: protocol.timeoutSeconds),
-                sendTimeout: Duration(seconds: protocol.timeoutSeconds),
+                receiveTimeout: _timeout(8),
+                sendTimeout: _timeout(5),
                 headers: {
                   'user-agent': 'hongguo-web/1.0',
                   'x-tt-store-region': 'cn-sh',
@@ -260,51 +346,46 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
                     'content-length': '${bytes.length}',
                     'x-ss-stub': hex(md5(bytes)).toUpperCase(),
                   },
-                  if (effectiveSigned) ...signer.sign(url, bytes, ts),
+                  ...signature,
                 },
               )
               .compose(
                 dio.options,
                 url,
+                cancelToken: budget.token,
                 data: bytes == null ? null : Stream<Uint8List>.value(bytes),
               )
-              .copyWith(
-                connectTimeout: Duration(seconds: protocol.timeoutSeconds),
-              ),
+              .copyWith(connectTimeout: _timeout(5)),
+        ),
+      );
+      if (response.statusCode != 200) {
+        throw CatalogError('内容接口 HTTP ${response.statusCode}');
+      }
+      final text = response.data ?? '';
+      if (text.trim().isEmpty) {
+        // Some upstream list endpoints changed from unsigned responses to
+        // HTTP 200 + empty body. Upgrade only this client's request policy;
+        // do not rotate identity or manufacture/refresh account credentials.
+        if (!effectiveSigned) _listSignatureRequired = true;
+        throw const IncompleteCatalogResponse('内容接口未返回数据，请稍后重试');
+      }
+      final data = _map(jsonDecode(text));
+      final code = data['code'] ?? data['Code'] ?? data['status_code'];
+      if (code != null && _int(code) != 0) {
+        throw CatalogError(
+          '内容接口返回 $code：${_first([data['message'], data['msg'], '暂时不可用'])}',
         );
-        if (response.statusCode != 200) {
-          throw CatalogError('内容接口 HTTP ${response.statusCode}');
-        }
-        final text = response.data ?? '';
-        if (text.trim().isEmpty) {
-          // Some upstream list endpoints changed from unsigned responses to
-          // HTTP 200 + empty body. Upgrade only this client's request policy;
-          // do not rotate identity or manufacture/refresh account credentials.
-          if (!effectiveSigned) _listSignatureRequired = true;
-          throw const IncompleteCatalogResponse('内容接口未返回数据，请稍后重试');
-        }
-        final data = _map(jsonDecode(text));
-        final code = data['code'] ?? data['Code'] ?? data['status_code'];
-        if (code != null && _int(code) != 0) {
-          throw CatalogError(
-            '内容接口返回 $code：${_first([data['message'], data['msg'], '暂时不可用'])}',
-          );
-        }
-        if (body?['need_selector_panel'] == true &&
-            _map(data['data'])['selector_rows'] is! List) {
-          throw const IncompleteCatalogResponse('题材响应不完整，请重试');
-        }
-        if (body?['req_type'] == 'only_content' &&
-            _map(data['data'])['video_data'] is! List) {
-          throw const IncompleteCatalogResponse('影视列表响应不完整，请重试');
-        }
-        return data;
-      },
-      shouldRetry: (error) =>
-          error is CatalogError ||
-          error is FormatException ||
-          NetworkRetry.transient(error),
-    );
+      }
+      if (body?['need_selector_panel'] == true &&
+          _map(data['data'])['selector_rows'] is! List) {
+        throw const IncompleteCatalogResponse('题材响应不完整，请重试');
+      }
+      if (body?['req_type'] == 'only_content' &&
+          _map(data['data'])['video_data'] is! List) {
+        throw const IncompleteCatalogResponse('影视列表响应不完整，请重试');
+      }
+      return data;
+    }, budget: budget);
   }
 
   static void _genre(String genre) {
@@ -326,8 +407,7 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
     'sort': [sort],
     'category_dim_theme': theme == null ? [] : [theme],
   };
-  @override
-  Future<CatalogPage> browse({
+  Future<CatalogPage> _browse({
     String genre = 'short_play',
     String sort = 'online_time',
     String? theme,
@@ -375,8 +455,7 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
     );
   }
 
-  @override
-  Future<List<CatalogFilter>> themes(String genre) async {
+  Future<List<CatalogFilter>> _themes(String genre) async {
     _genre(genre);
     final j = await _api(
       '/reading/distribution/category/landpage/v',
@@ -412,8 +491,10 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
     return [];
   }
 
-  @override
-  Future<CatalogPage> rank({String board = 'recommend', String? cursor}) async {
+  Future<CatalogPage> _rank({
+    String board = 'recommend',
+    String? cursor,
+  }) async {
     const boards = {
       'recommend': 'comic_series_hot_rank',
       'hot': 'comic_series_hot_play',
@@ -457,14 +538,16 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
     );
   }
 
-  @override
-  Future<CatalogPage> search(String query, {String? cursor}) async {
+  Future<CatalogPage> _search(String query, {String? cursor}) async {
     query = query.trim();
     if (query.isEmpty) return const CatalogPage([]);
     if (cursor == null) {
       try {
-        final html = await _html(
-          'https://hongguoduanju.com/search/${encodeQueryPart(query)}',
+        final html = await RequestBudget.current.phase(
+          const Duration(seconds: 6),
+          () => _html(
+            'https://hongguoduanju.com/search/${encodeQueryPart(query)}',
+          ),
         );
         final web = parseWebSearch(html);
         if (web.isNotEmpty) return CatalogPage(web);
@@ -520,35 +603,38 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
     );
   }
 
-  @override
-  Future<DramaDetail> detail(String id) async {
+  Future<DramaDetail> _detail(String id) async {
     if (!RegExp(r'^\d{1,30}$').hasMatch(id)) {
       throw ArgumentError('Invalid series ID');
     }
     final cached = _details[id];
-    if (cached != null && cached.expires.isAfter(DateTime.now())) {
+    if (cached != null && cached.expires.isAfter(now())) {
+      RequestBudget.current.cacheHit = true;
       return cached.value;
     }
     DramaDetail? result;
     Object? firstError;
     try {
-      final j = await _api(
-        '/novel/player/multi_video_detail/preload/v1',
-        body: {
-          'series_id': id,
-          'dr_scene': 'preload',
-          'biz_param': {
-            'detail_page_version': 0,
-            'disable_digg_stat': false,
-            'image_shrink_datas_str': 'W3siaW1hZ2VfdHlwZSI6MywiaW1hZ2Vfd2lkdGgiOjkwMCwic2hyaW5rX3R5cGUiOjN9LHsiaW1hZ2VfdHlwZSI6NCwiaW1hZ2Vfd2lkdGgiOjU0LCJzaHJpbmtfdHlwZSI6NH1d',
-            'need_all_video_definition': false,
-            'need_mp4_align': false,
-            'screen_width_px': '900',
-            'source': 7,
-            'use_os_player': false,
-            'use_server_dns': false,
+      final j = await RequestBudget.current.phase(
+        const Duration(seconds: 7),
+        () => _api(
+          '/novel/player/multi_video_detail/preload/v1',
+          body: {
+            'series_id': id,
+            'dr_scene': 'preload',
+            'biz_param': {
+              'detail_page_version': 0,
+              'disable_digg_stat': false,
+              'image_shrink_datas_str': 'W3siaW1hZ2VfdHlwZSI6MywiaW1hZ2Vfd2lkdGgiOjkwMCwic2hyaW5rX3R5cGUiOjN9LHsiaW1hZ2VfdHlwZSI6NCwiaW1hZ2Vfd2lkdGgiOjU0LCJzaHJpbmtfdHlwZSI6NH1d',
+              'need_all_video_definition': false,
+              'need_mp4_align': false,
+              'screen_width_px': '900',
+              'source': 7,
+              'use_os_player': false,
+              'use_server_dns': false,
+            },
           },
-        },
+        ),
       );
       final data = _map(_map(_map(j['data'])[id])['video_data']);
       final episodes =
@@ -573,43 +659,47 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
       firstError = e;
     }
     if (result == null) {
+      RequestBudget.current.check();
       try {
         result = parseWebEpisodes(
           id,
           await _html('https://hongguoduanju.com/player/$id'),
         );
       } on Object {
+        RequestBudget.current.check();
         throw firstError ?? const CatalogError('无法获取分集');
       }
     }
     if (_details.length >= 100) _details.remove(_details.keys.first);
     _details[id] = (
-      expires: DateTime.now().add(const Duration(hours: 6)),
+      expires: now().add(const Duration(hours: 6)),
       value: result,
     );
     return result;
   }
 
   Future<String> _html(String url) async {
+    final budget = RequestBudget.current;
     final res = await retry.run(
-      () => dio.fetch<String>(
-        Options(
-              responseType: ResponseType.plain,
-              followRedirects: false,
-              receiveTimeout: Duration(seconds: protocol.timeoutSeconds),
-              sendTimeout: Duration(seconds: protocol.timeoutSeconds),
-              headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36',
-                'Accept': 'text/html',
-                'Accept-Language': 'zh-CN,zh;q=0.9',
-                'Referer': 'https://hongguoduanju.com/',
-              },
-            )
-            .compose(dio.options, url)
-            .copyWith(
-              connectTimeout: Duration(seconds: protocol.timeoutSeconds),
-            ),
+      () => budget.transport(
+        () => dio.fetch<String>(
+          Options(
+                responseType: ResponseType.plain,
+                followRedirects: false,
+                receiveTimeout: _timeout(8),
+                sendTimeout: _timeout(5),
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36',
+                  'Accept': 'text/html',
+                  'Accept-Language': 'zh-CN,zh;q=0.9',
+                  'Referer': 'https://hongguoduanju.com/',
+                },
+              )
+              .compose(dio.options, url, cancelToken: budget.token)
+              .copyWith(connectTimeout: _timeout(5)),
+        ),
       ),
+      budget: budget,
     );
     if (res.statusCode != 200) throw CatalogError('官网 HTTP ${res.statusCode}');
     return res.data ?? '';

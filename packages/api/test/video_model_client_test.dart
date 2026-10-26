@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -62,6 +63,30 @@ class FakeAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+class VideoDeadlineAdapter implements HttpClientAdapter {
+  final inner = FakeAdapter('https://test.fqnovel.com/info');
+  final cancelled = Completer<void>();
+  int calls = 0;
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? stream,
+    Future<void>? cancel,
+  ) async {
+    if (++calls == 1) {
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      return inner.fetch(options, stream, cancel);
+    }
+    cancel?.then((_) {
+      if (!cancelled.isCompleted) cancelled.complete();
+    });
+    return Completer<ResponseBody>().future;
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
   VideoRequestBuilder builder() => VideoRequestBuilder(
     clockMillis: () => 1700000000123,
@@ -73,6 +98,36 @@ void main() {
       'device_id': '7661622467441478681',
       'version_name': '7.1.3.32',
       'resolution': '1280*2772',
+    },
+  );
+  test('simultaneous qualities and track share both metadata hops', () async {
+    final adapter = FakeAdapter('https://test.fqnovel.com/info');
+    final dio = Dio()..httpClientAdapter = adapter;
+    addTearDown(dio.close);
+    final model = VideoModelClient(dio: dio, builder: builder());
+    await Future.wait<Object>([
+      model.fetchTrack('123'),
+      model.fetchQualities('123'),
+    ]);
+    expect(adapter.requests, hasLength(2));
+  });
+  test(
+    'video metadata fallback uses the same deadline and is cancelled',
+    () async {
+      final adapter = VideoDeadlineAdapter();
+      final dio = Dio()..httpClientAdapter = adapter;
+      addTearDown(dio.close);
+      final model = VideoModelClient(
+        dio: dio,
+        builder: builder(),
+        requestDeadline: const Duration(milliseconds: 120),
+      );
+      await expectLater(
+        model.fetchTrack('123'),
+        throwsA(isA<MetadataDeadlineExceeded>()),
+      );
+      expect(adapter.calls, 2);
+      await adapter.cancelled.future.timeout(const Duration(seconds: 1));
     },
   );
   test('quality options are real compatible resolutions, deduplicated and free of media secrets', () {

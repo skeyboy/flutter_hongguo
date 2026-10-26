@@ -117,9 +117,15 @@ class _Runtime
         ConfigurableRuntime,
         LibraryCacheRuntime,
         LocalMediaRuntime,
-        PersonalLibraryRuntime {
+        PersonalLibraryRuntime,
+        PlaybackDiagnosticsRuntime {
   @override
   late final LibraryCache libraryCache;
+  final startupTimings = <PlayerStartupTiming>[];
+  final mediaTimings = <MediaPreparationTiming>[];
+  @override
+  void recordPlayerStartup(PlayerStartupTiming value) =>
+      startupTimings.add(value);
   @override
   late final PersonalLibrary personalLibrary;
   @override
@@ -176,6 +182,7 @@ class _Runtime
       directory: directory,
       dio: dio,
       maxConcurrent: settings.concurrentPreparations,
+      onTiming: mediaTimings.add,
       resolve: (_, _) async => VideoTrack(
         url: Uri.parse('https://a.qznovelvod.com/offline.mp4'),
         spadeA: spade,
@@ -329,6 +336,72 @@ class _DownloadVault implements SessionVault {
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
+  testWidgets(
+    'measured preparation separates MP4 transfer decryption and player opening',
+    (tester) async {
+      final asset = await rootBundle.load('assets/verification.cenc.mp4');
+      final runtime = _Runtime(
+        asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
+        Directory.systemTemp.createTempSync('hongguo-network-performance-'),
+        settings: const AppSettings(autoNext: false, prefetchEnabled: false),
+      );
+      dynamic state;
+      try {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: PlayerPage(
+              runtime: runtime,
+              detail: await runtime.catalog.detail('123'),
+            ),
+          ),
+        );
+        await tester.pump();
+        state = tester.state(find.byType(PlayerPage));
+        final player = state.player as Player;
+        await player.setVolume(0);
+        for (var i = 0; i < 150; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+          if (player.state.width == 160 &&
+              !state.preparing &&
+              runtime.startupTimings.isNotEmpty) {
+            break;
+          }
+        }
+        expect(state.error, isNull);
+        expect(player.state.width, 160);
+        expect(player.state.height, 288);
+        expect(runtime.startupTimings.single.failureType, isNull);
+        expect(runtime.startupTimings.single.open, greaterThan(Duration.zero));
+        expect(runtime.mediaTimings.single.cacheHit, isFalse);
+        expect(
+          runtime.mediaTimings.single.stages.keys,
+          containsAll(['resolving', 'downloading', 'decrypting', 'validating']),
+        );
+        final cached = runtime.prepare('123');
+        await cached.source;
+        expect(runtime.mediaTimings.last.cacheHit, isTrue);
+        expect(
+          runtime.mediaTimings.last.stages.keys,
+          isNot(contains('downloading')),
+        );
+        cached.release();
+        if (_mobileDevice) {
+          expect(tester.view.physicalSize.width, greaterThan(0));
+          print(
+            'REAL_MOBILE_VIEWPORT=platform=${Platform.operatingSystem}; physical=${tester.view.physicalSize}; dpr=${tester.view.devicePixelRatio}; surfaceOverride=none',
+          );
+        }
+        print(
+          'STARTUP_TIMING=platform=${Platform.operatingSystem}; prepareMs=${runtime.startupTimings.single.preparation.inMilliseconds}; openMs=${runtime.startupTimings.single.open.inMilliseconds}; stages=${runtime.mediaTimings.first.stages.map((key, value) => MapEntry(key, value.inMilliseconds))}; cachedHit=${runtime.mediaTimings.last.cacheHit}',
+        );
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        if (state != null) await state.platformUpdates;
+        await runtime.dispose();
+      }
+    },
+  );
+
   testWidgets(
     'catalog → episode → streamed CENC → Dart decrypt → native local playback and seek',
     (tester) async {

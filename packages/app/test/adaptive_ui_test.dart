@@ -119,26 +119,27 @@ void main() {
     await tester.pumpAndSettle();
     expect(catalog.calls, 3);
   });
-  testWidgets(
-    'mobile category sheet applies theme, desktop keeps inline filters',
-    (tester) async {
-      final runtime = FakeRuntime();
-      await mount(tester, runtime, const Size(390, 844));
-      await tester.tap(find.text('分类'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('sticky-theme')));
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('horizontal-filter-panel')),
-        findsOneWidget,
-      );
-      await tester.tap(find.byKey(const ValueKey('filter-theme-cate_7')));
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pumpAndSettle();
-      expect(runtime.catalog.lastTheme, 'cate_7');
-      expect(tester.takeException(), isNull);
-    },
-  );
+  for (final size in [const Size(390, 844), const Size(1280, 900)]) {
+    testWidgets(
+      'the theme rail applies a choice without a sheet at $size',
+      (tester) async {
+        final runtime = FakeRuntime();
+        await mount(tester, runtime, size);
+        await tester.tap(find.text('分类').first);
+        await tester.pumpAndSettle();
+        // 题材 lives in the rail now, so choosing one never opens a sheet.
+        expect(
+          find.byKey(const ValueKey('horizontal-filter-panel')),
+          findsNothing,
+        );
+        await tester.tap(find.byKey(const ValueKey('theme-rail-cate_7')));
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pumpAndSettle();
+        expect(runtime.catalog.lastTheme, 'cate_7');
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   testWidgets(
     'settings save 5-episode lookahead and render in mobile navigation',
     (tester) async {

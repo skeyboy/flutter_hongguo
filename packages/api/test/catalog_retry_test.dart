@@ -72,7 +72,13 @@ void main() {
       dio: dio,
       deviceId: '1234567890123456',
       signLists: false,
-      retry: NetworkRetry(wait: (_) async {}),
+      retry: NetworkRetry(
+        delays: const [
+          Duration(milliseconds: 400),
+          Duration(milliseconds: 900),
+        ],
+        wait: (_) async {},
+      ),
     );
     await Future.wait<Object>([client.themes('short_play'), client.browse()]);
     expect(adapter.requests, hasLength(3));
@@ -98,7 +104,13 @@ void main() {
         'cookie': 'fixture-session',
         'x-tt-token': 'fixture-token',
       },
-      retry: NetworkRetry(wait: (_) async {}),
+      retry: NetworkRetry(
+        delays: const [
+          Duration(milliseconds: 400),
+          Duration(milliseconds: 900),
+        ],
+        wait: (_) async {},
+      ),
     );
     await expectLater(
       client.themes('short_play'),
@@ -142,7 +154,13 @@ void main() {
       dio: dio,
       deviceId: '1234567890123456',
       signLists: false,
-      retry: NetworkRetry(wait: (d) async => waits.add(d)),
+      retry: NetworkRetry(
+        delays: const [
+          Duration(milliseconds: 400),
+          Duration(milliseconds: 900),
+        ],
+        wait: (d) async => waits.add(d),
+      ),
     );
     expect(await client.themes('short_play'), hasLength(1));
     expect(adapter.requests, hasLength(2));
@@ -153,12 +171,12 @@ void main() {
       adapter.requests[0].uri.queryParameters['device_id'],
       adapter.requests[1].uri.queryParameters['device_id'],
     );
-    expect(waits, [const Duration(seconds: 1)]);
+    expect(waits, [const Duration(milliseconds: 400)]);
     await client.themes('comic_series');
     expect(adapter.requests, hasLength(3));
     expect(adapter.requests.last.headers['x-argus'], isNotEmpty);
   });
-  test('empty signed responses exhaust the same four-attempt bound', () async {
+  test('empty signed responses stop after two short recoveries', () async {
     final adapter = ScriptedAdapter(
       (_, _) async => ResponseBody.fromString('  ', 200),
     );
@@ -167,22 +185,28 @@ void main() {
     final client = CatalogClient(
       dio: dio,
       deviceId: '1234567890123456',
-      retry: NetworkRetry(wait: (_) async {}),
+      retry: NetworkRetry(
+        delays: const [
+          Duration(milliseconds: 400),
+          Duration(milliseconds: 900),
+        ],
+        wait: (_) async {},
+      ),
     );
     await expectLater(
       client.themes('short_play'),
       throwsA(isA<IncompleteCatalogResponse>()),
     );
-    expect(adapter.requests, hasLength(4));
+    expect(adapter.requests, hasLength(3));
   });
 
   test(
-    'theme timeouts retry with fresh POST bodies and extended timeouts',
+    'theme timeouts retry once with fresh POST bodies and metadata limits',
     () async {
       var calls = 0;
       final waits = <Duration>[];
       final adapter = ScriptedAdapter((options, _) async {
-        if (++calls < 4) {
+        if (++calls < 2) {
           throw DioException(
             requestOptions: options,
             type: DioExceptionType.receiveTimeout,
@@ -196,24 +220,26 @@ void main() {
         dio: dio,
         deviceId: '1234567890123456',
         signLists: true,
-        retry: NetworkRetry(wait: (v) async => waits.add(v)),
+        retry: NetworkRetry(
+          delays: const [
+            Duration(milliseconds: 400),
+            Duration(milliseconds: 900),
+          ],
+          wait: (v) async => waits.add(v),
+        ),
       );
       expect((await client.themes('short_play')).single.name, '都市');
-      expect(calls, 4);
-      expect(waits, [
-        const Duration(seconds: 1),
-        const Duration(seconds: 2),
-        const Duration(seconds: 4),
-      ]);
+      expect(calls, 2);
+      expect(waits, [const Duration(milliseconds: 400)]);
       expect(adapter.bodies, everyElement(adapter.bodies.first));
       expect(
         adapter.requests.map((r) => r.uri.queryParameters['_rticket']).toSet(),
-        hasLength(4),
+        hasLength(2),
       );
       for (final request in adapter.requests) {
-        expect(request.connectTimeout, const Duration(seconds: 60));
-        expect(request.receiveTimeout, const Duration(seconds: 60));
-        expect(request.sendTimeout, const Duration(seconds: 60));
+        expect(request.connectTimeout, const Duration(seconds: 5));
+        expect(request.receiveTimeout, const Duration(seconds: 8));
+        expect(request.sendTimeout, const Duration(seconds: 5));
         expect(request.headers['x-argus'], isNotNull);
       }
     },
@@ -231,7 +257,13 @@ void main() {
         dio: dio,
         deviceId: '1234567890123456',
         browsePageSize: 50,
-        retry: NetworkRetry(wait: (_) async {}),
+        retry: NetworkRetry(
+          delays: const [
+            Duration(milliseconds: 400),
+            Duration(milliseconds: 900),
+          ],
+          wait: (_) async {},
+        ),
       );
       expect(
         (await client.browse(cursor: '50', seen: ['12'])).items.single.id,
@@ -245,7 +277,7 @@ void main() {
       }
     },
   );
-  test('persistent failure stops after the initial request and three retries, and a later request can recover', () async {
+  test('persistent transport failure stops after one retry and a later request can recover', () async {
     var broken = true;
     final adapter = ScriptedAdapter(
       (_, _) async => broken ? response({}, 502) : response(page),
@@ -255,14 +287,20 @@ void main() {
     final client = CatalogClient(
       dio: dio,
       deviceId: '1234567890123456',
-      retry: NetworkRetry(wait: (_) async {}),
+      retry: NetworkRetry(
+        delays: const [
+          Duration(milliseconds: 400),
+          Duration(milliseconds: 900),
+        ],
+        wait: (_) async {},
+      ),
     );
     await expectLater(client.browse(), throwsA(isA<DioException>()));
-    expect(adapter.requests, hasLength(4));
+    expect(adapter.requests, hasLength(2));
     broken = false;
     expect((await client.browse()).items, hasLength(1));
   });
-  test('401 is not retried; business errors exhaust three retries; custom timeout is honored', () async {
+  test('authorization and business errors are not retried; metadata timeouts are capped', () async {
     for (final status in [401, 200]) {
       final adapter = ScriptedAdapter(
         (_, _) async => status == 401
@@ -275,14 +313,17 @@ void main() {
         dio: dio,
         deviceId: '1234567890123456',
         protocol: const AppSettings(timeoutSeconds: 90),
-        retry: NetworkRetry(wait: (_) async {}),
+        retry: NetworkRetry(
+          delays: const [
+            Duration(milliseconds: 400),
+            Duration(milliseconds: 900),
+          ],
+          wait: (_) async {},
+        ),
       );
       await expectLater(client.browse(), throwsA(anything));
-      expect(adapter.requests, hasLength(status == 401 ? 1 : 4));
-      expect(
-        adapter.requests.first.connectTimeout,
-        const Duration(seconds: 90),
-      );
+      expect(adapter.requests, hasLength(1));
+      expect(adapter.requests.first.connectTimeout, const Duration(seconds: 5));
     }
   });
   test(
@@ -304,7 +345,13 @@ void main() {
       final client = CatalogClient(
         dio: dio,
         deviceId: '1234567890123456',
-        retry: NetworkRetry(wait: (_) async {}),
+        retry: NetworkRetry(
+          delays: const [
+            Duration(milliseconds: 400),
+            Duration(milliseconds: 900),
+          ],
+          wait: (_) async {},
+        ),
       );
       expect(await client.themes('short_play'), isEmpty);
       expect(calls, 2);
@@ -332,14 +379,20 @@ void main() {
     gate.complete(response(themes));
     expect(await pending, hasLength(1));
   });
-  test('cancellation and bad certificates are never retried; 429 honors bounded Retry-After', () async {
+  test('cancellation and bad certificates are never retried; 429 never truncates Retry-After to send an early request', () async {
     for (final type in [
       DioExceptionType.cancel,
       DioExceptionType.badCertificate,
     ]) {
       var calls = 0;
       await expectLater(
-        NetworkRetry(wait: (_) async {}).run<void>(() async {
+        NetworkRetry(
+          delays: const [
+            Duration(milliseconds: 400),
+            Duration(milliseconds: 900),
+          ],
+          wait: (_) async {},
+        ).run<void>(() async {
           calls++;
           throw DioException(requestOptions: RequestOptions(), type: type);
         }),
@@ -349,8 +402,9 @@ void main() {
     }
     final waits = <Duration>[];
     var calls = 0;
-    await NetworkRetry(wait: (v) async => waits.add(v)).run(() async {
-      if (++calls == 1) {
+    await expectLater(
+      NetworkRetry(wait: (v) async => waits.add(v)).run(() async {
+        calls++;
         throw DioException(
           requestOptions: RequestOptions(),
           type: DioExceptionType.badResponse,
@@ -362,8 +416,10 @@ void main() {
             }),
           ),
         );
-      }
-    });
-    expect(waits, [const Duration(seconds: 30)]);
+      }),
+      throwsA(isA<DioException>()),
+    );
+    expect(waits, isEmpty);
+    expect(calls, 1);
   });
 }

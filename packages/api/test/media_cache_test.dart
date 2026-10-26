@@ -68,6 +68,41 @@ void main() {
     await temp.delete(recursive: true);
   });
   test(
+    'preparation timing separates transfer decrypt and cache hits',
+    () async {
+      final timings = <MediaPreparationTiming>[];
+      cache = MediaCache(
+        directory: temp,
+        dio: dio,
+        resolve: (_, _) async => track,
+        onTiming: timings.add,
+      );
+      final first = cache.prepare('11');
+      await first.result;
+      expect(timings.single.cacheHit, isFalse);
+      expect(
+        timings.single.stages.keys,
+        containsAll([
+          'queued',
+          'cacheLookup',
+          'resolving',
+          'downloading',
+          'decrypting',
+          'validating',
+        ]),
+      );
+      expect(timings.single.failureType, isNull);
+      cache.release(first);
+      final second = cache.prepare('11');
+      await second.result;
+      expect(timings.last.cacheHit, isTrue);
+      expect(timings.last.stages.keys, isNot(contains('downloading')));
+      expect(adapter.downloads, 1);
+      cache.release(second);
+    },
+  );
+
+  test(
     'manual downloads survive LRU and clear but remain explicitly deletable',
     () async {
       cache = MediaCache(

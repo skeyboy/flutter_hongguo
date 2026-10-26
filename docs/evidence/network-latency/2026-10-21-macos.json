@@ -1,0 +1,162 @@
+{
+  "at": "2026-10-21T06:22:51.964824Z",
+  "timeoutSeconds": 10,
+  "anonymous": true,
+  "mediaDownloaded": false,
+  "signBuild100Ms": 87,
+  "outcomes": [
+    {
+      "stage": "themes-0",
+      "ms": 3743,
+      "ok": true,
+      "requests": [
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 203,
+          "status": 200,
+          "bytes": 0
+        },
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 85,
+          "status": 200,
+          "bytes": 0
+        },
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 400,
+          "status": 200,
+          "bytes": 19411
+        }
+      ]
+    },
+    {
+      "stage": "browse-0",
+      "ms": 3634,
+      "ok": true,
+      "requests": [
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 95,
+          "status": 200,
+          "bytes": 0
+        },
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 81,
+          "status": 200,
+          "bytes": 0
+        },
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 430,
+          "status": 200,
+          "bytes": 59535
+        }
+      ]
+    },
+    {
+      "stage": "themes-1",
+      "ms": 511,
+      "ok": true,
+      "requests": [
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 504,
+          "status": 200,
+          "bytes": 19411
+        }
+      ]
+    },
+    {
+      "stage": "browse-1",
+      "ms": 7468,
+      "ok": false,
+      "error": "IncompleteCatalogResponse",
+      "requests": [
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 92,
+          "status": 200,
+          "bytes": 0
+        },
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 112,
+          "status": 200,
+          "bytes": 0
+        },
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 97,
+          "status": 200,
+          "bytes": 0
+        },
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 142,
+          "status": 200,
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "stage": "themes-2",
+      "ms": 477,
+      "ok": true,
+      "requests": [
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 357,
+          "status": 200,
+          "bytes": 19409
+        }
+      ]
+    },
+    {
+      "stage": "browse-2",
+      "ms": 445,
+      "ok": true,
+      "requests": [
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 438,
+          "status": 200,
+          "bytes": 59455
+        }
+      ]
+    },
+    {
+      "stage": "detail",
+      "ms": 190,
+      "ok": true,
+      "requests": [
+        {
+          "path": "/novel/player/multi_video_detail/preload/v1",
+          "ms": 178,
+          "status": 200,
+          "bytes": 83929
+        }
+      ]
+    },
+    {
+      "stage": "video-metadata",
+      "ms": 509,
+      "ok": true,
+      "requests": [
+        {
+          "path": "/novel/player/multi_video_model/v1/",
+          "ms": 222,
+          "status": 200,
+          "bytes": 22679
+        },
+        {
+          "path": "/video/fplay/[redacted]",
+          "ms": 251,
+          "status": 200,
+          "bytes": 22234
+        }
+      ]
+    }
+  ]
+}

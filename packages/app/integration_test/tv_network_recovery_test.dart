@@ -22,7 +22,7 @@ class _FaultAdapter implements HttpClientAdapter {
     final body =
         jsonDecode(utf8.decode(await stream!.expand((v) => v).toList())) as Map;
     if (body['need_selector_panel'] == true) {
-      if (++themeAttempts < 3) {
+      if (++themeAttempts < 2) {
         throw DioException(
           requestOptions: request,
           type: DioExceptionType.receiveTimeout,
@@ -121,7 +121,7 @@ void main() {
       await t.pumpAndSettle();
       expect(find.text('恢复的都市题材'), findsOneWidget);
       expect(find.text('恢复的剧集 0'), findsWidgets);
-      expect(faults.themeAttempts, 3);
+      expect(faults.themeAttempts, 2);
       expect(faults.listAttempts, 2);
       expect(FocusManager.instance.primaryFocus?.debugLabel, 'nav-0');
       Future<void> key(int code) async {
@@ -147,7 +147,7 @@ void main() {
         startsWith('tv-grid-'),
       );
       print(
-        'TV_NETWORK_RECOVERY_PASS theme_attempts=3 list_attempts=2 no_manual_retry=true focus_operable=true',
+        'TV_NETWORK_RECOVERY_PASS theme_attempts=2 list_attempts=2 no_manual_retry=true focus_operable=true',
       );
       print('TV_SCREENSHOT=network-recovered');
       await Future<void>.delayed(const Duration(milliseconds: 300));

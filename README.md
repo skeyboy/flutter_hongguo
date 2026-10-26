@@ -19,6 +19,7 @@ Android 调试包构建输出：`packages/app/build/app/outputs/flutter-apk/app-
 
 分析结果、主工程代码及验收记录均已集中在本目录。
 
+- [网络请求性能优化](docs/design/catalog-network-performance.md)：分类短重试、12 秒总预算、取消/去重、缓存新鲜期及起播分段计时；[实测与验证](docs/analysis/2026-10-21-network-latency.md)。
 - [文档总索引](docs/README.md)：原始分析、API、AI 流程、实现与验收报告。
 - [分析结论与代码目录对应表](docs/project-map.md)：每项流程对应的源码、测试与工具。
 - 主工程源码：[共享核心](packages/core/README.md)、[API/缓存](packages/api/README.md)、[Flutter App](packages/app/README.md)。

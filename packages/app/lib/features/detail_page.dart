@@ -24,6 +24,13 @@ class DetailPage extends StatefulWidget {
 class _DetailPageState extends State<DetailPage> {
   late Future<DramaDetail> detail;
   bool offlineSnapshot = false;
+  final _requestScope = CatalogRequestScope();
+  @override
+  void dispose() {
+    _requestScope.cancel();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -33,7 +40,9 @@ class _DetailPageState extends State<DetailPage> {
   Future<DramaDetail> _load() async {
     DramaDetail result;
     try {
-      result = await widget.runtime.catalog.detail(widget.initial.id);
+      result = await _requestScope.run(
+        () => widget.runtime.catalog.detail(widget.initial.id),
+      );
       offlineSnapshot = false;
     } catch (_) {
       final runtime = widget.runtime;

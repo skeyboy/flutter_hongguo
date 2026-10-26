@@ -63,7 +63,7 @@ void main() {
     },
   );
   testWidgets(
-    'no error until three retries fail, then manual retry starts a fresh request',
+    'no error until two short payload recoveries fail, then manual retry starts a fresh request',
     (t) async {
       var attempts = 0, fail = true;
       final gates = <Completer<void>>[];
@@ -79,7 +79,7 @@ void main() {
                 statusCode: 200,
                 data: jsonEncode(
                   fail
-                      ? {'code': 110001, 'message': '暂不可用'}
+                      ? {'code': 0, 'data': {}}
                       : {
                           'code': 0,
                           'data': {
@@ -134,7 +134,7 @@ void main() {
       }
 
       await tick();
-      for (var i = 0; i < 3; i++) {
+      for (var i = 0; i < 2; i++) {
         expect(attempts, i + 1);
         expect(find.text('加载失败'), findsNothing);
         expect(find.text('正在加载'), findsOneWidget);
@@ -142,13 +142,13 @@ void main() {
         gates[i].complete();
         await tick();
       }
-      expect(attempts, 4);
+      expect(attempts, 3);
       expect(find.text('加载失败'), findsOneWidget);
       fail = false;
       await t.tap(find.text('重试'));
       await tick();
       await t.pumpAndSettle();
-      expect(attempts, 5);
+      expect(attempts, 4);
       expect(find.text('加载失败'), findsNothing);
       expect(find.text('恢复成功'), findsWidgets);
       expect(find.byKey(const ValueKey('tv-feed-placeholder')), findsNothing);

@@ -707,6 +707,10 @@ class _PlayerPageState extends State<PlayerPage>
     _episodeCompleted = false;
     tvCompletionReported = false;
     final ticket = ++generation;
+    final startupClock = Stopwatch()..start();
+    final openClock = Stopwatch();
+    var preparationDuration = Duration.zero;
+    Object? startupError;
     final keepPip = macHost && platformPlayback.platformPip.value;
     final previous = job;
     final discard = error != null;
@@ -791,6 +795,7 @@ class _PlayerPageState extends State<PlayerPage>
       sourceVid = widget.detail.episodes[selected].vid;
       sourceQuality = quality;
       final source = await active.source;
+      preparationDuration = startupClock.elapsed;
       if (!mounted || ticket != generation) {
         active.release();
         return;
@@ -807,6 +812,7 @@ class _PlayerPageState extends State<PlayerPage>
       _resumeSnapshotOffset = offset;
       // Media.start is applied by the native file-loaded hook; an immediate
       // seek after open can run before the demuxer has loaded the timeline.
+      openClock.start();
       if (tvBuild) {
         await tvPlayback.open(source, offset: offset, play: mayPlay());
       } else {
@@ -830,6 +836,7 @@ class _PlayerPageState extends State<PlayerPage>
           previous?.release();
         }
       }
+      openClock.stop();
       if (!mounted || ticket != generation) return;
       _resumeOffset = Duration.zero;
       // The app can become hidden while the native player is opening a file.
@@ -841,6 +848,7 @@ class _PlayerPageState extends State<PlayerPage>
       _syncPrefetch();
       _configurePlatform();
     } catch (e) {
+      startupError = e;
       previous?.release();
       if (mounted && ticket == generation) {
         prefetch.clear();
@@ -848,6 +856,28 @@ class _PlayerPageState extends State<PlayerPage>
           error = e;
           preparing = false;
         });
+      }
+    } finally {
+      final runtime = widget.runtime;
+      if (runtime is PlaybackDiagnosticsRuntime) {
+        try {
+          runtime.recordPlayerStartup(
+            PlayerStartupTiming(
+              preparation: preparationDuration == Duration.zero
+                  ? startupClock.elapsed
+                  : preparationDuration,
+              open: openClock.elapsed,
+              elapsed: startupClock.elapsed,
+              failureType:
+                  startupError?.runtimeType.toString() ??
+                  (!mounted || ticket != generation
+                      ? 'RequestCancelled'
+                      : null),
+            ),
+          );
+        } catch (_) {
+          /* Diagnostics never affect playback. */
+        }
       }
     }
   }

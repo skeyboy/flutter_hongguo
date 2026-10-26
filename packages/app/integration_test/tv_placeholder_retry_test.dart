@@ -72,7 +72,7 @@ class _Runtime implements AppRuntime {
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   testWidgets(
-    'TV failure placeholder is centered after three retries and remote retry recovers',
+    'TV failure placeholder is centered after bounded transport recovery and remote retry recovers',
     (t) async {
       final faults = _Adapter();
       final dio = Dio()..httpClientAdapter = faults;
@@ -95,11 +95,11 @@ void main() {
       for (var i = 0; i < 160; i++) {
         await Future<void>.delayed(const Duration(milliseconds: 100));
         await t.pump();
-        if (faults.attempts <= 3) expect(find.text('加载失败'), findsNothing);
+        if (faults.attempts < 2) expect(find.text('加载失败'), findsNothing);
         if (find.text('加载失败').evaluate().isNotEmpty) break;
       }
       await t.pumpAndSettle();
-      expect(faults.attempts, 4);
+      expect(faults.attempts, 2);
       expect(find.text('加载失败'), findsOneWidget);
       final area = t.getRect(find.byKey(const ValueKey('tv-feed-placeholder')));
       final content = t.getRect(
@@ -127,11 +127,11 @@ void main() {
         await t.pump();
       }
       await t.pumpAndSettle();
-      expect(faults.attempts, 5);
+      expect(faults.attempts, 3);
       expect(find.text('加载失败'), findsNothing);
       expect(find.text('恢复的剧集 0'), findsWidgets);
       print(
-        'TV_PLACEHOLDER_RETRY_PASS initial_plus_three_retries=true centered=true no_early_error=true remote_retry=true',
+        'TV_PLACEHOLDER_RETRY_PASS initial_plus_one_retry=true centered=true no_early_error=true remote_retry=true',
       );
     },
   );

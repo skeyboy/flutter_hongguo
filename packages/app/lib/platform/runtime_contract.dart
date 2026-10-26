@@ -29,6 +29,22 @@ abstract interface class PlaybackJob {
   void release();
 }
 
+/// Local startup metrics distinguish preparation from player opening; not first-frame timing.
+class PlayerStartupTiming {
+  final Duration preparation, open, elapsed;
+  final String? failureType;
+  const PlayerStartupTiming({
+    required this.preparation,
+    required this.open,
+    required this.elapsed,
+    this.failureType,
+  });
+}
+
+abstract interface class PlaybackDiagnosticsRuntime implements AppRuntime {
+  void recordPlayerStartup(PlayerStartupTiming value);
+}
+
 abstract interface class AppRuntime {
   CatalogRepository get catalog;
   PlaybackJob prepare(

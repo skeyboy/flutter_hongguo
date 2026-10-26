@@ -45,26 +45,25 @@ class _LibraryPageState extends State<LibraryPage> {
       view = 'recommend',
       board = 'recommend';
   String get sort => settingsFor(widget.runtime).catalogSort;
-  String? theme, cursor;
+  String? theme;
   StreamSubscription<AppSettings>? sortEvents;
   late String lastSort;
-  List<Drama> items = [];
+  late CatalogRepository lastCatalog;
   List<CatalogFilter> themes = [];
-  bool loading = true,
-      loadingMore = false,
-      autoPaused = false,
-      autoScheduled = false,
-      settingsChanged = false;
-  Object? error;
+  bool autoScheduled = false, settingsChanged = false;
   bool filterOpen = false, themesLoading = false;
   String focusedFilter = 'genre';
   String? themesError;
   Timer? filterTimer;
+  CatalogRequestScope _themesScope = CatalogRequestScope();
   int themesRevision = 0;
-  String? refreshError;
-  DateTime? cachedAt;
-  bool refreshing = false;
   late final LibraryCache feedCache;
+
+  /// One entry per feed the viewer has opened, keyed by [feedKey]. A theme the
+  /// viewer already scrolled through keeps its rows, cursor and scroll offset
+  /// here instead of being rebuilt from the disk snapshot on every visit.
+  final feeds = <String, _ThemeFeed>{};
+  String _activeKey = '';
   String get feedKey => jsonEncode({
     'destination': destination,
     'query': query,
@@ -74,36 +73,58 @@ class _LibraryPageState extends State<LibraryPage> {
     'theme': theme,
     'board': board,
   });
-  int revision = 0, emptyPages = 0, destination = 0;
+  _ThemeFeed get feed => feeds.putIfAbsent(feedKey, () => _ThemeFeed());
+  List<Drama> get items => feed.items;
+  String? get cursor => feed.cursor;
+  Object? get error => feed.error;
+  String? get refreshError => feed.refreshError;
+  DateTime? get cachedAt => feed.cachedAt;
+  bool get loading => feed.loading;
+  bool get loadingMore => feed.loadingMore;
+  bool get refreshing => feed.refreshing;
+  bool get autoPaused => feed.autoPaused;
+  int destination = 0;
   bool get ranking => query.isEmpty && destination == 0 && view == 'rank';
   bool get mobile => MediaQuery.sizeOf(context).width < 720;
   @override
   void initState() {
     super.initState();
     final runtime = widget.runtime;
+    _activeKey = feedKey;
     feedCache = runtime is LibraryCacheRuntime
         ? runtime.libraryCache
         : LibraryCache();
     lastSort = sort;
+    lastCatalog = runtime.catalog;
     if (runtime is ConfigurableRuntime) {
       sortEvents = runtime.settingsChanges.listen((value) {
-        if (!mounted || value.catalogSort == lastSort) return;
+        if (!mounted) return;
+        final clientChanged = !identical(lastCatalog, runtime.catalog);
+        if (value.catalogSort == lastSort && !clientChanged) return;
+        lastCatalog = runtime.catalog;
         lastSort = value.catalogSort;
         settingsChanged = true;
-        if (destination != 2 && query.isEmpty && !ranking) unawaited(_reload());
+        if (destination != 2 && query.isEmpty && !ranking) {
+          _switchFeed();
+          unawaited(_reload(feed));
+        }
       });
     }
     scroll.addListener(_nearEnd);
     searchFocus.addListener(_onSearchFocus);
     search.addListener(_onSearchText);
-    _reload();
+    _reload(feed);
   }
 
   @override
   void dispose() {
-    revision++;
+    for (final entry in feeds.entries) {
+      entry.value.revision++;
+      entry.value.scope.cancel();
+    }
     suggestionsEntry?.remove();
     suggestionsEntry = null;
+    _themesScope.cancel();
     unawaited(sortEvents?.cancel());
     filterTimer?.cancel();
     scroll.dispose();
@@ -112,7 +133,10 @@ class _LibraryPageState extends State<LibraryPage> {
     super.dispose();
   }
 
-  Future<CatalogPage> _page({String? next}) {
+  Future<CatalogPage> _page(_ThemeFeed feed, {String? next}) =>
+      feed.scope.run(() => _requestPage(feed, next: next));
+
+  Future<CatalogPage> _requestPage(_ThemeFeed feed, {String? next}) {
     if (query.isNotEmpty) {
       return widget.runtime.catalog.search(query, cursor: next);
     }
@@ -125,7 +149,7 @@ class _LibraryPageState extends State<LibraryPage> {
       sort: sort,
       theme: theme,
       cursor: next,
-      seen: next == null ? [] : items.map((d) => d.id).toList(),
+      seen: next == null ? [] : feed.items.map((d) => d.id).toList(),
     );
   }
 
@@ -155,128 +179,274 @@ class _LibraryPageState extends State<LibraryPage> {
     if (scroll.position.extentAfter < 600) _more(automatic: true);
   }
 
-  Future<void> _reload({
+  /// Loads one feed from the first page. The record is captured rather than
+  /// looked up again, so a late response can only ever land in the feed that
+  /// asked for it.
+  Future<void> _reload(
+    _ThemeFeed feed, {
     bool refreshThemes = true,
     bool preserveContent = false,
+    bool force = false,
   }) async {
     filterTimer?.cancel();
-    final current = ++revision;
+    feed.scope.cancel();
+    feed.scope = CatalogRequestScope();
+    final current = ++feed.revision;
     final key = feedKey;
     setState(() {
-      loading = !preserveContent || items.isEmpty;
-      refreshing = true;
-      refreshError = null;
-      cachedAt = null;
-      loadingMore = false;
-      autoPaused = false;
-      emptyPages = 0;
-      error = null;
-      if (!preserveContent) items = [];
-      cursor = null;
+      feed.loading = !preserveContent || feed.items.isEmpty;
+      feed.refreshing = true;
+      feed.refreshError = null;
+      feed.cachedAt = null;
+      feed.loadingMore = false;
+      feed.autoPaused = false;
+      feed.emptyPages = 0;
+      feed.error = null;
+      if (!preserveContent) feed.items.clear();
+      feed.cursor = null;
     });
     if (scroll.hasClients) scroll.jumpTo(0);
     if (refreshThemes && query.isEmpty && !ranking) {
       unawaited(_loadThemes(genre));
     }
     final cached = await feedCache.readFeed(key);
-    if (!mounted || current != revision) return;
+    if (!mounted || current != feed.revision) return;
     if (cached != null) {
       setState(() {
-        items = cached.page.items;
-        cursor = cached.page.nextCursor;
-        cachedAt = cached.updated;
-        loading = false;
+        feed.items
+          ..clear()
+          ..addAll(cached.page.items);
+        feed.cursor = cached.page.nextCursor;
+        feed.firstPage = cached.page;
+        feed.cachedAt = cached.updated;
+        feed.loading = false;
       });
+      final age = feedCache.now().difference(cached.updated);
+      if (!force && !age.isNegative && age < const Duration(seconds: 30)) {
+        setState(() => feed.refreshing = false);
+        feed.visited = true;
+        _scheduleMore();
+        return;
+      }
     }
     try {
-      final page = await _page();
-      if (!mounted || current != revision) return;
+      final page = await _page(feed);
+      if (!mounted || current != feed.revision) return;
       final seen = <String>{};
       setState(() {
-        items = page.items.where((d) => seen.add(d.id)).toList();
-        cursor = page.nextCursor;
-        loading = false;
-        refreshing = false;
-        cachedAt = null;
+        feed.items
+          ..clear()
+          ..addAll(page.items.where((d) => seen.add(d.id)));
+        feed.cursor = page.nextCursor;
+        feed.firstPage = page;
+        feed.loading = false;
+        feed.refreshing = false;
+        feed.cachedAt = null;
       });
-      await _saveSnapshot(key, current);
+      feed.visited = true;
+      await _saveSnapshot(feed, key, current);
       _scheduleMore();
     } catch (e) {
-      if (mounted && current == revision) {
+      if (mounted && current == feed.revision) {
         setState(() {
-          if (cached != null || items.isNotEmpty) {
-            refreshError = cached != null
+          if (cached != null || feed.items.isNotEmpty) {
+            feed.refreshError = cached != null
                 ? '网络刷新失败，正在显示本地缓存。'
                 : '网络刷新失败，仍显示上次结果。';
-            autoPaused = true;
+            feed.autoPaused = true;
           } else {
-            error = e;
+            feed.error = e;
           }
-          refreshing = false;
-          loading = false;
+          feed.refreshing = false;
+          feed.loading = false;
         });
       }
     }
   }
 
-  Future<void> _saveSnapshot(String key, int current) async {
-    final page = CatalogPage(List.of(items), nextCursor: cursor);
+  /// Refreshes a feed the viewer already has on screen: only its head is
+  /// re-requested, and the rows plus the cursor that produced them stay put
+  /// unless the first page itself changed.
+  Future<void> _refreshKept(_ThemeFeed feed) async {
+    filterTimer?.cancel();
+    final current = ++feed.revision;
+    setState(() {
+      feed.refreshing = true;
+      feed.refreshError = null;
+      feed.error = null;
+    });
+    try {
+      final page = await _page(feed);
+      if (!mounted || current != feed.revision) return;
+      final head = feed.firstPage;
+      final unchanged =
+          head != null &&
+          head.items.length == page.items.length &&
+          List.generate(
+            page.items.length,
+            (i) => head.items[i].id == page.items[i].id,
+          ).every((same) => same);
+      setState(() {
+        if (unchanged) {
+          if (feed.items.length == page.items.length) {
+            feed.cursor = page.nextCursor;
+          }
+        } else {
+          final oldHead = head?.items.map((d) => d.id).toSet() ?? <String>{};
+          final tail = feed.items
+              .where((d) => !oldHead.contains(d.id))
+              .toList();
+          final ids = page.items.map((d) => d.id).toSet();
+          feed.items
+            ..clear()
+            ..addAll(page.items)
+            ..addAll(tail.where((d) => ids.add(d.id)));
+          feed.cursor = page.nextCursor;
+          feed.emptyPages = 0;
+        }
+        feed.firstPage = page;
+        feed.loading = false;
+        feed.refreshing = false;
+        feed.cachedAt = null;
+      });
+      await _saveSnapshot(feed, feedKey, current);
+      _scheduleMore();
+    } catch (_) {
+      if (mounted && current == feed.revision) {
+        setState(() {
+          feed.refreshError = '网络刷新失败，仍显示上次结果。';
+          feed.autoPaused = true;
+          feed.refreshing = false;
+          feed.loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _saveSnapshot(_ThemeFeed feed, String key, int current) async {
+    final page = CatalogPage(List.of(feed.items), nextCursor: feed.cursor);
     try {
       await feedCache.writeFeed(key, page);
     } catch (_) {
-      if (mounted && current == revision) {
-        setState(() => refreshError = '内容已更新，但本地缓存保存失败。');
+      if (mounted && current == feed.revision) {
+        setState(() => feed.refreshError = '内容已更新，但本地缓存保存失败。');
       }
     }
   }
 
   Future<void> _more({bool automatic = false}) async {
-    if (cursor == null ||
-        loadingMore ||
-        loading ||
-        refreshing ||
-        (automatic && autoPaused)) {
+    final feed = this.feed;
+    if (feed.cursor == null ||
+        feed.loadingMore ||
+        feed.loading ||
+        feed.refreshing ||
+        (automatic && feed.autoPaused)) {
       return;
     }
-    final current = revision, requested = cursor!, key = feedKey;
+    final current = feed.revision, requested = feed.cursor!, key = feedKey;
     setState(() {
-      loadingMore = true;
-      autoPaused = false;
-      error = null;
+      feed.loadingMore = true;
+      feed.autoPaused = false;
+      feed.error = null;
     });
     try {
-      final page = await _page(next: requested);
-      if (!mounted || current != revision) return;
-      final seen = items.map((d) => d.id).toSet(), fresh = <Drama>[];
+      final page = await _page(feed, next: requested);
+      if (!mounted || current != feed.revision) return;
+      final seen = feed.items.map((d) => d.id).toSet(), fresh = <Drama>[];
       for (final drama in page.items) {
         if (seen.add(drama.id)) fresh.add(drama);
       }
       setState(() {
-        items = [...items, ...fresh];
-        loadingMore = false;
-        emptyPages = fresh.isEmpty ? emptyPages + 1 : 0;
+        feed.items.addAll(fresh);
+        feed.loadingMore = false;
+        feed.emptyPages = fresh.isEmpty ? feed.emptyPages + 1 : 0;
         if (page.nextCursor == requested) {
-          autoPaused = true;
-          error = '分页暂未推进，请稍后重试或刷新。';
+          feed.autoPaused = true;
+          feed.error = '分页暂未推进，请稍后重试或刷新。';
         } else {
-          cursor = page.nextCursor;
+          feed.cursor = page.nextCursor;
         }
-        if (emptyPages >= 3 && cursor != null) {
-          autoPaused = true;
-          error = '暂时没有更多新内容，可手动重试。';
+        if (feed.emptyPages >= 3 && feed.cursor != null) {
+          feed.autoPaused = true;
+          feed.error = '暂时没有更多新内容，可手动重试。';
         }
       });
-      await _saveSnapshot(key, current);
+      await _saveSnapshot(feed, key, current);
       _scheduleMore();
     } catch (e) {
-      if (mounted && current == revision) {
+      if (mounted && current == feed.revision) {
         setState(() {
-          error = e;
-          loadingMore = false;
-          autoPaused = true;
+          feed.error = e;
+          feed.loadingMore = false;
+          feed.autoPaused = true;
         });
       }
     }
+  }
+
+  /// How long a switch waits before it touches the network. Rapid taps along the
+  /// theme rail therefore cost one request for the theme finally stayed on.
+  static const _switchWait = Duration(milliseconds: 220);
+
+  /// Leaving a feed stops its requests but keeps its rows; entering one paints
+  /// what it already holds before anything is fetched, which is what makes a
+  /// theme the viewer already opened come back exactly as it was left.
+  void _switchFeed({
+    bool keepAlive = false,
+    bool seed = false,
+    bool refresh = true,
+  }) {
+    final key = feedKey;
+    _ThemeFeed? outgoing;
+    if (key != _activeKey) {
+      outgoing = feeds[_activeKey];
+      if (outgoing != null) {
+        if (scroll.hasClients) outgoing.scroll = scroll.offset;
+        outgoing.revision++;
+        outgoing.scope.cancel();
+        outgoing.scope = CatalogRequestScope();
+        outgoing.loading = false;
+        outgoing.loadingMore = false;
+        outgoing.refreshing = false;
+      }
+      _activeKey = key;
+    }
+    filterTimer?.cancel();
+    final incoming = feed;
+    if (!keepAlive) {
+      // A filter change keeps the previous rows on screen while the new query
+      // is in flight; a theme switch never shows another theme's rows.
+      if (seed &&
+          !incoming.visited &&
+          outgoing != null &&
+          outgoing.items.isNotEmpty) {
+        final seedFrom = outgoing;
+        setState(() {
+          incoming.items.addAll(seedFrom.items);
+          incoming.loading = false;
+          incoming.autoPaused = true;
+        });
+      }
+      if (scroll.hasClients) scroll.jumpTo(0);
+      return;
+    }
+    if (incoming.visited) {
+      if (scroll.hasClients) scroll.jumpTo(incoming.scroll);
+      // Coming back from 我的 only restores the view; the rows and their cursor
+      // are already the ones the viewer left.
+      if (!refresh) return;
+      filterTimer = Timer(_switchWait, () {
+        if (mounted && feedKey == key) unawaited(_refreshKept(incoming));
+      });
+      return;
+    }
+    setState(() => incoming.loading = true);
+    if (scroll.hasClients) scroll.jumpTo(0);
+    filterTimer = Timer(_switchWait, () {
+      if (mounted && feedKey == key) {
+        unawaited(_reload(incoming, refreshThemes: false));
+      }
+    });
   }
 
   void _onSearchFocus() {
@@ -431,7 +601,8 @@ class _LibraryPageState extends State<LibraryPage> {
     if (query.isNotEmpty) {
       unawaited(searchHistoryFor(widget.runtime).record(query));
     }
-    _reload(refreshThemes: false);
+    _switchFeed();
+    _reload(feed, refreshThemes: false);
   }
 
   int _lastFeedDestination = 0;
@@ -443,8 +614,15 @@ class _LibraryPageState extends State<LibraryPage> {
       destination = value;
       filterOpen = false;
     });
-    if (value == 2) return;
+    if (value == 2) {
+      _switchFeed();
+      _themesScope.cancel();
+      themesRevision++;
+      settingsChanged = true;
+      return;
+    }
     if (previous == 2 && !settingsChanged && value == _lastFeedDestination) {
+      _switchFeed(keepAlive: true, refresh: false);
       _scheduleMore();
       return;
     }
@@ -453,17 +631,22 @@ class _LibraryPageState extends State<LibraryPage> {
     query = '';
     search.clear();
     theme = null;
-    _reload();
+    _switchFeed();
+    _reload(feed);
   }
 
   Future<void> _loadThemes(String requestedGenre) async {
+    _themesScope.cancel();
+    final scope = _themesScope = CatalogRequestScope();
     final ticket = ++themesRevision;
     setState(() {
       themesLoading = true;
       themesError = null;
     });
     try {
-      final values = await widget.runtime.catalog.themes(requestedGenre);
+      final values = await scope.run(
+        () => widget.runtime.catalog.themes(requestedGenre),
+      );
       if (mounted && genre == requestedGenre && ticket == themesRevision) {
         setState(() {
           themes = values;
@@ -514,6 +697,7 @@ class _LibraryPageState extends State<LibraryPage> {
             theme = null;
             themes = [];
             themesRevision++;
+            _themesScope.cancel();
             themesLoading = false;
           } else if (themes.isEmpty) {
             unawaited(_loadThemes(genre));
@@ -521,31 +705,43 @@ class _LibraryPageState extends State<LibraryPage> {
       }
     });
     if (before == feedKey) return;
-    final key = feedKey, current = ++revision;
-    filterTimer?.cancel();
+    if (group == 'theme') {
+      // A theme is its own feed now: switching to one the viewer already opened
+      // restores it, switching to a new one loads it, and neither rebuilds the
+      // rows of the theme being left.
+      _switchFeed(keepAlive: true);
+      return;
+    }
+    _switchFeed(seed: true);
+    final key = feedKey, target = feed, current = target.revision;
     setState(() {
-      refreshing = true;
-      loadingMore = false;
-      autoPaused = true;
-      cursor = null;
-      error = null;
-      refreshError = null;
+      target.refreshing = true;
+      target.loadingMore = false;
+      target.autoPaused = true;
+      target.cursor = null;
+      target.error = null;
+      target.refreshError = null;
     });
     unawaited(
       feedCache.readFeed(key).then((cached) {
-        if (mounted && current == revision && cached != null) {
+        if (mounted && current == target.revision && cached != null) {
           setState(() {
-            items = cached.page.items;
-            cachedAt = cached.updated;
-            loading = false;
+            target.items
+              ..clear()
+              ..addAll(cached.page.items);
+            target.cursor = cached.page.nextCursor;
+            target.firstPage = cached.page;
+            target.cachedAt = cached.updated;
+            target.loading = false;
           });
         }
       }),
     );
     filterTimer = Timer(const Duration(milliseconds: 250), () {
-      if (mounted) _reload(refreshThemes: false, preserveContent: true);
+      if (mounted) {
+        _reload(target, refreshThemes: false, preserveContent: true);
+      }
     });
-    if (scroll.hasClients) scroll.jumpTo(0);
   }
 
   void _diagnostics() {
@@ -791,7 +987,8 @@ class _LibraryPageState extends State<LibraryPage> {
                   onPressed: () {
                     query = '';
                     search.clear();
-                    _reload();
+                    _switchFeed();
+                    _reload(feed);
                   },
                   child: const Text('清除搜索'),
                 ),
@@ -806,7 +1003,7 @@ class _LibraryPageState extends State<LibraryPage> {
                     'board',
                     {'recommend': '推荐榜', 'hot': '热播榜', 'new': '新剧榜'}[board]!,
                   )
-                else ...[
+                else
                   trigger(
                     'genre',
                     {
@@ -815,21 +1012,83 @@ class _LibraryPageState extends State<LibraryPage> {
                       'ai_series': 'AI 短剧',
                     }[genre]!,
                   ),
-                  trigger(
-                    'theme',
-                    theme == null
-                        ? '全部题材'
-                        : themes
-                                  .where((e) => e.id == theme)
-                                  .firstOrNull
-                                  ?.name ??
-                              '已选题材',
-                  ),
-                ],
               ],
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// The themes of the current genre, laid out in one row that is always on
+  /// screen, the way the television build shows them. Tapping one opens that
+  /// theme's own feed rather than filtering the rows in place, so loading and
+  /// retry both keep their fixed height and never push the grid around.
+  Widget _themeRail(bool compact) {
+    if (query.isNotEmpty || ranking) return const SizedBox.shrink();
+    final selected = theme ?? '';
+    return Material(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: SizedBox(
+        height: 52,
+        child: themesLoading
+            ? const Center(
+                key: ValueKey('theme-rail-loading'),
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            : themesError != null
+            ? Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 24),
+                  child: TextButton(
+                    key: const ValueKey('theme-rail-retry'),
+                    onPressed: () => unawaited(_loadThemes(genre)),
+                    child: Text('$themesError · 重试题材'),
+                  ),
+                ),
+              )
+            : Scrollbar(
+                child: SingleChildScrollView(
+                  key: const ValueKey('theme-rail'),
+                  scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: compact ? 12 : 24,
+                    vertical: 4,
+                  ),
+                  child: Row(
+                    children: [
+                      for (final (id, name) in [
+                        const ('', '全部'),
+                        for (final e in themes) (e.id, e.name),
+                      ])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            key: ValueKey('theme-rail-$id'),
+                            label: Text(
+                              name,
+                              style: TextStyle(
+                                fontWeight: id == selected
+                                    ? FontWeight.w700
+                                    : FontWeight.w400,
+                              ),
+                            ),
+                            selected: id == selected,
+                            onSelected: (_) {
+                              if (id != selected) _selectFilter('theme', id);
+                            },
+                            materialTapTargetSize: MaterialTapTargetSize.padded,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
       ),
     );
   }
@@ -932,23 +1191,13 @@ class _LibraryPageState extends State<LibraryPage> {
                         'new': '新剧榜',
                       }),
                     ] else ...[
+                      // 题材 is no longer a panel row: it lives in the rail below
+                      // the toolbar, where every choice is visible at once.
                       group('genre', '类型', genre, const {
                         'short_play': '短剧',
                         'comic_series': '漫剧',
                         'ai_series': 'AI 短剧',
                       }),
-                      if (themesLoading)
-                        const LinearProgressIndicator()
-                      else if (themesError != null)
-                        TextButton(
-                          onPressed: () => _loadThemes(genre),
-                          child: Text('$themesError，重试'),
-                        )
-                      else
-                        group('theme', '题材', theme ?? '', {
-                          '': '全部',
-                          for (final e in themes) e.id: e.name,
-                        }),
                     ],
                   ],
                 ),
@@ -971,7 +1220,7 @@ class _LibraryPageState extends State<LibraryPage> {
   Widget _feed(bool compact, double viewportWidth, double viewportHeight) {
     final padding = compact ? 16.0 : 28.0;
     final list = RefreshIndicator(
-      onRefresh: () => _reload(refreshThemes: false),
+      onRefresh: () => _reload(feed, refreshThemes: false, force: true),
       key: const ValueKey('catalog-results'),
       child: CustomScrollView(
         controller: scroll,
@@ -1002,14 +1251,18 @@ class _LibraryPageState extends State<LibraryPage> {
                     Expanded(
                       child: Text(
                         refreshError ??
-                            (cachedAt != null ? '已显示本地缓存，正在刷新…' : '正在更新内容…'),
+                            (cachedAt != null
+                                ? (refreshing ? '已显示本地缓存，正在刷新…' : '已显示本地缓存')
+                                : '正在更新内容…'),
                       ),
                     ),
                     if (!refreshing)
                       TextButton(
                         onPressed: () => _reload(
+                          feed,
                           refreshThemes: false,
                           preserveContent: true,
+                          force: true,
                         ),
                         child: Text(refreshError == null ? '刷新' : '重试刷新'),
                       ),
@@ -1093,7 +1346,8 @@ class _LibraryPageState extends State<LibraryPage> {
                     const SizedBox(height: 10),
                     OutlinedButton(
                       onPressed: items.isEmpty
-                          ? () => _reload(refreshThemes: false)
+                          ? () =>
+                                _reload(feed, refreshThemes: false, force: true)
                           : () => _more(),
                       child: const Text('重试'),
                     ),
@@ -1221,6 +1475,7 @@ class _LibraryPageState extends State<LibraryPage> {
                       ),
               ),
               _stickyFilters(compact),
+              _themeRail(compact),
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, area) => Stack(
@@ -1383,6 +1638,27 @@ class _LibraryPageState extends State<LibraryPage> {
       );
     },
   );
+}
+
+/// Everything one feed of the catalog owns: its rows, where its pagination got
+/// to, and the requests still in flight for it. One of these exists per feed the
+/// viewer has opened, so a theme they come back to is the same list they left
+/// rather than a fresh request that starts at the top.
+class _ThemeFeed {
+  final items = <Drama>[];
+  CatalogRequestScope scope = CatalogRequestScope();
+  CatalogPage? firstPage;
+  String? cursor;
+  Object? error;
+  String? refreshError;
+  DateTime? cachedAt;
+  int revision = 0, emptyPages = 0;
+  double scroll = 0;
+  bool loading = true,
+      loadingMore = false,
+      refreshing = false,
+      autoPaused = false,
+      visited = false;
 }
 
 class Brand extends StatelessWidget {

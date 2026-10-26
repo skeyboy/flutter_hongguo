@@ -1,5 +1,7 @@
 # 上游更新、空响应故障与协议维护
 
+> 历史设计/验收记录。2026-10-21 的重试次数、总时限、取消与缓存新策略已由[请求性能设计](../design/catalog-network-performance.md)取代；下文旧策略及测试数字不代表当前行为。
+
 2026-10-21（Asia/Shanghai），Flutter 项目 `/Users/lee/Desktop/flutter_hongguo`。
 
 ## 本次结论与更新

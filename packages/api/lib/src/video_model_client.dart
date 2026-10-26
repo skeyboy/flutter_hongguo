@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 
+import 'request_control.dart';
+
 /// Raw bytes and the exact encoded URI are frozen together before signing.
 class SignedVideoRequest {
   final String url;
@@ -176,21 +178,54 @@ class VideoTrack {
 class VideoModelClient {
   final Dio dio;
   final VideoRequestBuilder builder;
-  VideoModelClient({required this.dio, VideoRequestBuilder? builder})
-    : builder = builder ?? VideoRequestBuilder();
+  final CatalogRequests _requests;
+  VideoModelClient({
+    required this.dio,
+    VideoRequestBuilder? builder,
+    Duration requestDeadline = const Duration(seconds: 12),
+    void Function(MetadataTiming)? onTiming,
+  }) : builder = builder ?? VideoRequestBuilder(),
+       _requests = CatalogRequests(
+         deadline: requestDeadline,
+         onTiming: onTiming,
+       );
+  void close() => _requests.cancelAll();
+  Future<Map<String, dynamic>> fetchVideoInfo(String vid) => _requests.run(
+    'video:$vid',
+    () => _fetchVideoInfo(vid),
+    label: 'video.metadata',
+  );
 
-  Future<Map<String, dynamic>> fetchVideoInfo(String vid) async {
+  Duration _timeout(int maximum) => RequestBudget.current.timeout(
+    Duration(
+      seconds: builder.protocol.timeoutSeconds < maximum
+          ? builder.protocol.timeoutSeconds
+          : maximum,
+    ),
+  );
+
+  Future<Map<String, dynamic>> _fetchVideoInfo(String vid) async {
+    final budget = RequestBudget.current;
+    final clock = Stopwatch()..start();
     final request = builder.build(vid);
-    final first = await dio.post<String>(
-      request.url,
-      // Stream prevents Dio from JSON-serializing an already signed byte list.
-      data: Stream<Uint8List>.value(request.body),
-      options: Options(
-        headers: request.headers,
-        responseType: ResponseType.plain,
-        followRedirects: false,
-        sendTimeout: Duration(seconds: builder.protocol.timeoutSeconds),
-        receiveTimeout: Duration(seconds: builder.protocol.timeoutSeconds),
+    budget.record('sign', clock.elapsed);
+    final first = await budget.transport(
+      () => dio.fetch<String>(
+        Options(
+              method: 'POST',
+              headers: request.headers,
+              responseType: ResponseType.plain,
+              followRedirects: false,
+              sendTimeout: _timeout(5),
+              receiveTimeout: _timeout(8),
+            )
+            .compose(
+              dio.options,
+              request.url,
+              data: Stream<Uint8List>.value(request.body),
+              cancelToken: budget.token,
+            )
+            .copyWith(connectTimeout: _timeout(5)),
       ),
     );
     if (first.statusCode != 200) {
@@ -205,13 +240,16 @@ class VideoModelClient {
       'fqnovel.com',
       'snssdk.com',
     ]);
-    final second = await dio.get<String>(
-      uri.toString(),
-      options: Options(
-        headers: {'User-Agent': builder.protocol.videoUserAgent},
-        responseType: ResponseType.plain,
-        followRedirects: false,
-        receiveTimeout: Duration(seconds: builder.protocol.timeoutSeconds),
+    final second = await budget.transport(
+      () => dio.fetch<String>(
+        Options(
+              headers: {'User-Agent': builder.protocol.videoUserAgent},
+              responseType: ResponseType.plain,
+              followRedirects: false,
+              receiveTimeout: _timeout(8),
+            )
+            .compose(dio.options, uri.toString(), cancelToken: budget.token)
+            .copyWith(connectTimeout: _timeout(5)),
       ),
     );
     if (second.statusCode != 200) {

@@ -1,0 +1,143 @@
+{
+  "at": "2026-10-21T07:15:18.748011Z",
+  "timeoutSeconds": 10,
+  "anonymous": true,
+  "mediaDownloaded": false,
+  "signBuild100Ms": 80,
+  "outcomes": [
+    {
+      "stage": "themes-0",
+      "ms": 650,
+      "ok": true,
+      "requests": [
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 612,
+          "status": 200,
+          "bytes": 19562
+        }
+      ]
+    },
+    {
+      "stage": "browse-0",
+      "ms": 1611,
+      "ok": false,
+      "error": "IncompleteCatalogResponse",
+      "requests": [
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 101,
+          "status": 200,
+          "bytes": 0
+        },
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 119,
+          "status": 200,
+          "bytes": 0
+        },
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 99,
+          "status": 200,
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "stage": "themes-1",
+      "ms": 0,
+      "ok": true,
+      "requests": []
+    },
+    {
+      "stage": "browse-1",
+      "ms": 1821,
+      "ok": false,
+      "error": "IncompleteCatalogResponse",
+      "requests": [
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 99,
+          "status": 200,
+          "bytes": 0
+        },
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 139,
+          "status": 200,
+          "bytes": 0
+        },
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 137,
+          "status": 200,
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "stage": "themes-2",
+      "ms": 0,
+      "ok": true,
+      "requests": []
+    },
+    {
+      "stage": "browse-2",
+      "ms": 1027,
+      "ok": true,
+      "requests": [
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 107,
+          "status": 200,
+          "bytes": 0
+        },
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 403,
+          "status": 200,
+          "bytes": 59747
+        }
+      ]
+    },
+    {
+      "stage": "detail",
+      "ms": 669,
+      "ok": true,
+      "requests": [
+        {
+          "path": "/novel/player/multi_video_detail/preload/v1",
+          "ms": 83,
+          "status": 200,
+          "bytes": 0
+        },
+        {
+          "path": "/novel/player/multi_video_detail/preload/v1",
+          "ms": 183,
+          "status": 200,
+          "bytes": 42053
+        }
+      ]
+    },
+    {
+      "stage": "video-metadata",
+      "ms": 491,
+      "ok": true,
+      "requests": [
+        {
+          "path": "/novel/player/multi_video_model/v1/",
+          "ms": 301,
+          "status": 200,
+          "bytes": 22417
+        },
+        {
+          "path": "/video/fplay/[redacted]",
+          "ms": 159,
+          "status": 200,
+          "bytes": 22429
+        }
+      ]
+    }
+  ]
+}

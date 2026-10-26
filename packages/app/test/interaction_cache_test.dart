@@ -38,10 +38,11 @@ class ControlledCatalog extends FakeCatalog {
 class CacheRuntime extends FakeRuntime
     implements LibraryCacheRuntime, LocalMediaRuntime {
   @override
-  final libraryCache = LibraryCache();
+  final LibraryCache libraryCache;
   List<LocalEpisode> files = [];
   bool rejectSave = false;
-  CacheRuntime([super.catalog]);
+  CacheRuntime([super.catalog, LibraryCache? cache])
+    : libraryCache = cache ?? LibraryCache();
   @override
   Future<void> saveSettings(
     AppSettings value, {
@@ -133,24 +134,20 @@ void main() {
           find.byKey(const ValueKey('sticky-genre')).hitTestable(),
           findsOneWidget,
         );
-        if (width < 720) {
-          await tester.tap(find.byKey(const ValueKey('sticky-theme')));
-          await tester.pumpAndSettle();
-          expect(
-            find.byKey(const ValueKey('horizontal-filter-panel')),
-            findsOneWidget,
-          );
-          await tester.tap(find.byKey(const ValueKey('filter-theme-cate_7')));
-        } else {
-          await tester.tap(find.byKey(const ValueKey('sticky-theme')));
-          await tester.pumpAndSettle();
-          await tester.tap(find.byKey(const ValueKey('filter-theme-cate_7')));
-        }
+        // The panel still opens for the filters that stayed inside it.
+        await tester.tap(find.byKey(const ValueKey('sticky-genre')));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('horizontal-filter-panel')),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('收起筛选'));
+        await tester.pumpAndSettle();
+        // 题材 is on the rail at every width, so it never needs a sheet.
+        await tester.tap(find.byKey(const ValueKey('theme-rail-cate_7')));
         await tester.pump(const Duration(milliseconds: 300));
         expect(catalog.lastTheme, 'cate_7');
         catalog.pending.last.complete(const CatalogPage([]));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('收起筛选'));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       }
@@ -160,7 +157,8 @@ void main() {
     'cached list appears before network; failure retains it and refresh replaces cursor',
     (tester) async {
       final catalog = ControlledCatalog();
-      final runtime = CacheRuntime(catalog)
+      var clock = DateTime.utc(2026, 10, 21);
+      final runtime = CacheRuntime(catalog, LibraryCache(now: () => clock))
         ..settings = const AppSettings(autoLoadMore: false);
       await mount(tester, runtime, const Size(390, 900));
       final dynamic state = tester.state(find.byType(LibraryPage));
@@ -175,6 +173,7 @@ void main() {
         const CatalogPage([Drama(id: '2', title: '分类内容')]),
       );
       await tester.pumpAndSettle();
+      clock = clock.add(const Duration(seconds: 31));
       await tester.tap(find.text('发现').first);
       await tester.pump();
       await tester.pump();
@@ -378,6 +377,10 @@ void main() {
         await tester.pumpAndSettle();
       }
       await tester.tap(find.text('发现').last);
+      await tester.pumpAndSettle();
+      // Explicit refresh starts a new pagination snapshot; fresh cache reuse
+      // deliberately preserves an already-exhausted cursor.
+      await tester.tap(find.text('刷新'));
       await tester.pumpAndSettle();
       final calls = runtime.catalog.browseCalls;
       await tester.drag(find.byType(CustomScrollView), const Offset(0, -1000));

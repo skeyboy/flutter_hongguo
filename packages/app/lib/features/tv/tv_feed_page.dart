@@ -36,6 +36,7 @@ class _TvFeedPageState extends State<TvFeedPage> {
   final visited = <String>{};
   StreamSubscription<AppSettings>? settingsSubscription;
   Timer? refreshTimer;
+  CatalogRequestScope _requestScope = CatalogRequestScope();
   String? cursor, error;
   bool loading = false, failedMore = false, scheduled = false;
   int revision = 0, emptyPages = 0;
@@ -69,6 +70,7 @@ class _TvFeedPageState extends State<TvFeedPage> {
   void _configurationChanged() {
     if (!mounted || applied == key) return;
     revision++;
+    _requestScope.cancel();
     applied = key;
     final saved = cache.read(applied);
     setState(() {
@@ -88,7 +90,9 @@ class _TvFeedPageState extends State<TvFeedPage> {
   void _activated() {
     refreshTimer?.cancel();
     if (!active) {
-      setState(() {});
+      _requestScope.cancel();
+      revision++;
+      setState(() => loading = false);
       return;
     }
     setState(() => loading = true);
@@ -125,6 +129,10 @@ class _TvFeedPageState extends State<TvFeedPage> {
 
   Future<void> load({bool more = false}) async {
     if (!mounted || (more && (loading || cursor == null))) return;
+    if (!more) {
+      _requestScope.cancel();
+      _requestScope = CatalogRequestScope();
+    }
     final requested = applied;
     final ticket = more ? revision : ++revision;
     final requestedCursor = more ? cursor : null;
@@ -134,18 +142,20 @@ class _TvFeedPageState extends State<TvFeedPage> {
       failedMore = more;
     });
     try {
-      final page = requested.query.isNotEmpty
-          ? await widget.runtime.catalog.search(
-              requested.query,
-              cursor: requestedCursor,
-            )
-          : await widget.runtime.catalog.browse(
-              genre: requested.genre,
-              theme: requested.theme.isEmpty ? null : requested.theme,
-              sort: requested.sort,
-              cursor: requestedCursor,
-              seen: more ? items.map((d) => d.id).toList() : const [],
-            );
+      final page = await _requestScope.run(
+        () => requested.query.isNotEmpty
+            ? widget.runtime.catalog.search(
+                requested.query,
+                cursor: requestedCursor,
+              )
+            : widget.runtime.catalog.browse(
+                genre: requested.genre,
+                theme: requested.theme.isEmpty ? null : requested.theme,
+                sort: requested.sort,
+                cursor: requestedCursor,
+                seen: more ? items.map((d) => d.id).toList() : const [],
+              ),
+      );
       if (!mounted || ticket != revision || requested != applied) return;
       setState(() {
         if (!more) {
@@ -217,6 +227,7 @@ class _TvFeedPageState extends State<TvFeedPage> {
   @override
   void dispose() {
     revision++;
+    _requestScope.cancel();
     refreshTimer?.cancel();
     widget.active.removeListener(_activated);
     widget.searchQuery?.removeListener(_configurationChanged);

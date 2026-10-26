@@ -1,0 +1,223 @@
+{
+  "at": "2026-10-21T07:29:19.335285Z",
+  "timeoutSeconds": 10,
+  "metadataDeadlineMs": 12000,
+  "logicalRequests": [
+    {
+      "id": 1,
+      "operation": "catalog.themes",
+      "attempts": 3,
+      "cacheHit": false,
+      "failureType": null,
+      "elapsedMs": 2193.037,
+      "stagesMs": {
+        "queue": 2.026,
+        "sign": 53.609,
+        "transport": 918.164,
+        "backoff": 1202.618
+      }
+    },
+    {
+      "id": 2,
+      "operation": "catalog.browse",
+      "attempts": 1,
+      "cacheHit": false,
+      "failureType": null,
+      "elapsedMs": 444.873,
+      "stagesMs": {
+        "queue": 0.081,
+        "sign": 3.299,
+        "transport": 437.243
+      }
+    },
+    {
+      "id": 3,
+      "operation": "catalog.themes",
+      "attempts": 0,
+      "cacheHit": true,
+      "failureType": null,
+      "elapsedMs": 0.085,
+      "stagesMs": {}
+    },
+    {
+      "id": 4,
+      "operation": "catalog.browse",
+      "attempts": 1,
+      "cacheHit": false,
+      "failureType": null,
+      "elapsedMs": 448.362,
+      "stagesMs": {
+        "queue": 0.02,
+        "sign": 2.245,
+        "transport": 444.207
+      }
+    },
+    {
+      "id": 5,
+      "operation": "catalog.themes",
+      "attempts": 0,
+      "cacheHit": true,
+      "failureType": null,
+      "elapsedMs": 0.06,
+      "stagesMs": {}
+    },
+    {
+      "id": 6,
+      "operation": "catalog.browse",
+      "attempts": 1,
+      "cacheHit": false,
+      "failureType": null,
+      "elapsedMs": 521.649,
+      "stagesMs": {
+        "queue": 0.02,
+        "sign": 1.868,
+        "transport": 518.902
+      }
+    },
+    {
+      "id": 7,
+      "operation": "catalog.detail",
+      "attempts": 2,
+      "cacheHit": false,
+      "failureType": null,
+      "elapsedMs": 708.553,
+      "stagesMs": {
+        "queue": 0.068,
+        "sign": 5.453,
+        "transport": 320.525,
+        "backoff": 379.092
+      }
+    },
+    {
+      "id": 1,
+      "operation": "video.metadata",
+      "attempts": 2,
+      "cacheHit": false,
+      "failureType": null,
+      "elapsedMs": 566.843,
+      "stagesMs": {
+        "sign": 7.504,
+        "transport": 556.822
+      }
+    }
+  ],
+  "anonymous": true,
+  "mediaDownloaded": false,
+  "signBuild100Ms": 174,
+  "outcomes": [
+    {
+      "stage": "themes-0",
+      "ms": 2194,
+      "ok": true,
+      "requests": [
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 257,
+          "status": 200,
+          "bytes": 0
+        },
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 118,
+          "status": 200,
+          "bytes": 0
+        },
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 526,
+          "status": 200,
+          "bytes": 19560
+        }
+      ]
+    },
+    {
+      "stage": "browse-0",
+      "ms": 445,
+      "ok": true,
+      "requests": [
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 436,
+          "status": 200,
+          "bytes": 59807
+        }
+      ]
+    },
+    {
+      "stage": "themes-1",
+      "ms": 0,
+      "ok": true,
+      "requests": []
+    },
+    {
+      "stage": "browse-1",
+      "ms": 448,
+      "ok": true,
+      "requests": [
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 443,
+          "status": 200,
+          "bytes": 59815
+        }
+      ]
+    },
+    {
+      "stage": "themes-2",
+      "ms": 0,
+      "ok": true,
+      "requests": []
+    },
+    {
+      "stage": "browse-2",
+      "ms": 521,
+      "ok": true,
+      "requests": [
+        {
+          "path": "/reading/distribution/category/landpage/v",
+          "ms": 518,
+          "status": 200,
+          "bytes": 59815
+        }
+      ]
+    },
+    {
+      "stage": "detail",
+      "ms": 708,
+      "ok": true,
+      "requests": [
+        {
+          "path": "/novel/player/multi_video_detail/preload/v1",
+          "ms": 87,
+          "status": 200,
+          "bytes": 0
+        },
+        {
+          "path": "/novel/player/multi_video_detail/preload/v1",
+          "ms": 231,
+          "status": 200,
+          "bytes": 42052
+        }
+      ]
+    },
+    {
+      "stage": "video-metadata",
+      "ms": 573,
+      "ok": true,
+      "requests": [
+        {
+          "path": "/novel/player/multi_video_model/v1/",
+          "ms": 225,
+          "status": 200,
+          "bytes": 22632
+        },
+        {
+          "path": "/video/fplay/[redacted]",
+          "ms": 329,
+          "status": 200,
+          "bytes": 22384
+        }
+      ]
+    }
+  ]
+}

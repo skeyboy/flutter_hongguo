@@ -60,7 +60,8 @@ class NativeRuntime
         PersonalLibraryRuntime,
         SearchHistoryRuntime,
         DownloadRuntime,
-        TransferLaneRuntime {
+        TransferLaneRuntime,
+        PlaybackDiagnosticsRuntime {
   final SettingsStore store;
   @override
   late final DownloadManager downloads;
@@ -72,6 +73,24 @@ class NativeRuntime
   late final LibraryCache libraryCache;
   final _settingsEvents = StreamController<AppSettings>.broadcast();
   final Dio _dio = Dio();
+  final _metadataTimings = <MetadataTiming>[];
+  final _mediaTimings = <MediaPreparationTiming>[];
+  final _playerTimings = <PlayerStartupTiming>[];
+  List<MetadataTiming> get metadataTimings =>
+      List.unmodifiable(_metadataTimings);
+  List<MediaPreparationTiming> get mediaTimings =>
+      List.unmodifiable(_mediaTimings);
+  List<PlayerStartupTiming> get playerTimings =>
+      List.unmodifiable(_playerTimings);
+  void _retain<T>(List<T> records, T value) {
+    records.add(value);
+    if (records.length > 100) records.removeAt(0);
+  }
+
+  @override
+  void recordPlayerStartup(PlayerStartupTiming value) =>
+      _retain(_playerTimings, value);
+  bool _clientsReady = false;
   late CatalogClient _catalog;
   late VideoModelClient _model;
   late final MediaCache _cache;
@@ -99,6 +118,7 @@ class NativeRuntime
     _cache = MediaCache(
       directory: Directory('${root.path}/media-cache'),
       dio: _dio,
+      onTiming: (value) => _retain(_mediaTimings, value),
       download: _downloads.download,
       onJobFinished: (vid, quality, path) async {
         if (path != null) {
@@ -176,8 +196,13 @@ class NativeRuntime
   @override
   String? get settingsWarning => store.warning;
   void _rebuildClients() {
+    if (_clientsReady) {
+      _catalog.close();
+      _model.close();
+    }
     _dio.options.connectTimeout = Duration(seconds: settings.timeoutSeconds);
     _catalog = CatalogClient(
+      onTiming: (value) => _retain(_metadataTimings, value),
       browsePageSize: tvBuild ? settings.tvPageSize : 18,
       dio: _dio,
       deviceId: deviceId,
@@ -187,11 +212,13 @@ class NativeRuntime
     );
     _model = VideoModelClient(
       dio: _dio,
+      onTiming: (value) => _retain(_metadataTimings, value),
       builder: VideoRequestBuilder(
         protocol: settings,
         sessionHeaders: credentials.headers,
       ),
     );
+    _clientsReady = true;
   }
 
   @override
@@ -400,6 +427,8 @@ class NativeRuntime
     personalLibrary.dispose();
     await searchHistory.flush();
     _cache.close();
+    _catalog.close();
+    _model.close();
     await _downloads.cancel();
     _artwork.close();
     _dio.close(force: true);
