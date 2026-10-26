@@ -104,12 +104,12 @@ class _ThemeFeed {
 
 ## 真机验证
 
-`tool/verify_theme_rail_live.sh` + `packages/app/integration_test/theme_rail_live_test.dart`：真接口跑一遍 分类 → 悬疑 → 下滚 → 宫斗 → 回切悬疑，按标记从录屏里取每个状态的一帧存进 `docs/evidence/theme-rail/`。
+`tool/verify_theme_rail_live.sh` + `packages/app/integration_test/theme_rail_live_test.dart`：真接口跑一遍 分类 → 悬疑 → 下滚 → 宫斗 → 回切悬疑，每个状态打一条 `HGRAIL t=... ev=shot=<名>` 标记，脚本按标记取帧存进 `docs/evidence/theme-rail/`。取帧方式按设备分两种：macOS 只能整屏录一段再按夹具自报的窗口矩形裁剪；模拟器和手机改成「标记一到就截图」（`simctl io screenshot` / `adb exec-out screencap`），因为录像本身有 ~1.5s 起录延迟，按时间戳回推抽帧会抓到下一个状态。
 
 - macOS 窗口（1100×760）已验证：`rail.png` 常驻横栏（全部/悬疑/宫斗…横向滚动）、`theme-two.png` 与 `theme-three.png` 各题材自己的行、`theme-two-scrolled.png`（偏移 401）与 `theme-two-restored.png`（回切仍是 401，行与位置原样回来）、加载态下网格几何不动。
-- iPhone 模拟器 `yxy-iPhone17Pro` 本轮未能取证：真机夹具停在首帧之前（`pumpWidget` 后 115s 无任何输出），同一台模拟器上跑上一轮已通过的 `route_transition_live_test.dart` 对照复现同样卡死，说明与本节改造无关，属工作树在途网络改动/模拟器并发占用的启动阻塞，待其收口后重跑 `HONGGUO_RAIL_DEVICE=<UDID> tool/verify_theme_rail_live.sh`。
-- 390 紧凑布局由 `test/theme_rail_test.dart`、`test/adaptive_ui_test.dart` 的窗口用例覆盖。
-- Android 手机 `23113RKC6C`（Android 16，`8c9cf729`）本轮未能取证：`--flavor mobile` 的 apk 预构建成功（`assembleMobileDebug` 20.8s，产物 195 MB），卡在装机这一步。机器上先装着 versionCode 2015 的旧包，直接安装报 `INSTALL_FAILED_VERSION_DOWNGRADE`；Flutter 自动卸载旧包后重装报 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`，手动 `adb install -r -t` 复现同一错误，且截屏确认屏幕上并没有等待用户点确认的弹窗——这是 MIUI/HyperOS 的「USB 安装」开关，只能在手机上手动打开，不在自动化能碰的范围里。副作用：那条自动卸载已经把这台上原有的 2015 版应用卸掉了，需要时重新装一次发布包。390 紧凑布局先由 `test/theme_rail_test.dart`、`test/adaptive_ui_test.dart`（`Size(390, 844)`）两组用例兜住；手机打开「USB 安装」后重跑 `HONGGUO_RAIL_DEVICE=8c9cf729 tool/verify_theme_rail_live.sh` 即可补齐 `docs/evidence/theme-rail/android-*.png`。
+- iPhone 模拟器 `yxy-iPhone17Pro` 已验证（`ios-*.png`）：`ios-rail.png` 进 分类 即见常驻横栏（全部/悬疑/宫斗/脑洞/青春…），此刻网格正在做进场的防抖头部刷新（骨架屏 + 正在更新内容…），横栏与标题几何不动；`ios-theme-two.png` 选中悬疑是自己的行；`ios-theme-two-scrolled.png` 下滚到偏移 401（顶部一行被裁在屏幕外）；`ios-theme-three.png` 切到宫斗换成《母凭子贵…》《陛下别太爱…》且回到顶部；`ios-theme-two-restored.png` 回切悬疑与滚动帧逐字节一致 —— 行和 401 的位置当场回来，没有重新加载的中间态。上一轮记录的「模拟器停在首帧之前」本轮自行消失（同一夹具第二次跑就正常），但真接口在模拟器上仍会偶发整站空返回（`ev=boot-failed err=内容接口未返回数据，请稍后重试`，三次里两次），夹具已把这条原因打印出来，取证遇到时先重跑再定性。
+- Android 手机 `23113RKC6C`（Android 16，`8c9cf729`）本轮未能取证：`--flavor mobile` 的 apk 预构建成功（`assembleMobileDebug` 20.8s，产物 195 MB），卡在装机这一步。机器上先装着 versionCode 2015 的旧包，直接安装报 `INSTALL_FAILED_VERSION_DOWNGRADE`；Flutter 自动卸载旧包后重装报 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`，手动 `adb install -r -t` 复现同一错误，且截屏确认屏幕上并没有等待用户点确认的弹窗——这是 MIUI/HyperOS 的「USB 安装」开关，只能在手机上手动打开，不在自动化能碰的范围里。副作用：那条自动卸载已经把这台上原有的 2015 版应用卸掉了，需要时重新装一次发布包。手机打开「USB 安装」后重跑 `HONGGUO_RAIL_DEVICE=8c9cf729 tool/verify_theme_rail_live.sh` 即可补齐 `docs/evidence/theme-rail/android-*.png`。
+- 390 紧凑布局另有 `test/theme_rail_test.dart`、`test/adaptive_ui_test.dart`（`Size(390, 844)`）两组用例兜住，不依赖上面任何一台设备。
 
 ## 已知交织
 

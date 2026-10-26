@@ -6,9 +6,11 @@
 #
 # HONGGUO_RAIL_DEVICE selects the target: macos (default), an Android serial
 # (a phone needs its release installed first -- see docs/design/pc-mobile-theme-rail.md),
-# or an iOS simulator UDID/name. macOS cannot record a single window, so that
-# clip is full-screen and every still is cropped to the window rect the
-# fixture reports; a simulator recording is already exactly the device screen.
+# or an iOS simulator UDID/name. Only macOS is recorded: it cannot capture a
+# single window, so its clip is full-screen and every still is cropped to the
+# window rect the fixture reports. A device or simulator is screenshotted the
+# moment each state marker is printed, which needs no clip, no cropping, and
+# no guessing where the recorder's own start delay landed in the timeline.
 set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SDK_BIN="${HONGGUO_FLUTTER_BIN:-$PROJECT_ROOT/.fvm/flutter_sdk/bin}"
@@ -18,24 +20,21 @@ LOG="$BUILD/run.log"
 DEVICE="${HONGGUO_RAIL_DEVICE:-macos}"
 RECORD_SECONDS="${HONGGUO_RAIL_SECONDS:-30}"
 [[ "$(uname -s)" == Darwin ]] || { echo 'This acceptance script targets macOS.' >&2; exit 1; }
-# macos and the iOS simulator are recorded and cut afterwards; a phone is
-# captured straight from adb the moment each state marker is printed, so it
-# needs no clip, no cropping and no ffmpeg.
+# macos is recorded and cut afterwards; a phone or simulator is screenshotted
+# per state marker, so neither needs ffmpeg.
 MODE=ios
 if [[ "$DEVICE" == macos ]]; then MODE=macos
 elif adb -s "$DEVICE" get-state 2>/dev/null | grep -q device; then MODE=android
 fi
-if [[ "$MODE" != android ]]; then
-  command -v ffmpeg >/dev/null || { echo 'ffmpeg is needed to cut the clip.' >&2; exit 1; }
-fi
-if [[ "$MODE" == macos ]]; then
+TAG=''
+[[ "$MODE" == ios ]] && TAG='ios-'
+[[ "$MODE" == android ]] && TAG='android-'
+if [[ "$MODE" == ios ]]; then
+  command -v xcrun >/dev/null || { echo 'xcrun is needed to screenshot the simulator.' >&2; exit 1; }
+elif [[ "$MODE" == macos ]]; then
   CLIP="$BUILD/clip.mov"
   command -v screencapture >/dev/null || { echo 'screencapture not found.' >&2; exit 1; }
-elif [[ "$MODE" == ios ]]; then
-  # simctl's recorder is an AVFoundation writer and is denied the project volume,
-  # so the clip is staged in the scratch directory and only its stills are kept.
-  CLIP="${TMPDIR:-/tmp}/hongguo-theme-rail-clip.mp4"
-  command -v xcrun >/dev/null || { echo 'xcrun is needed to record the simulator.' >&2; exit 1; }
+  command -v ffmpeg >/dev/null || { echo 'ffmpeg is needed to cut the clip.' >&2; exit 1; }
 fi
 rm -rf "$BUILD"; mkdir -p "$BUILD" "$EVIDENCE"
 
@@ -66,53 +65,55 @@ while kill -0 "$TEST_PID" 2>/dev/null; do
   sleep 1
 done
 grep -q 'ev=armed' "$LOG" || { echo 'The fixture never armed:'; tail -30 "$LOG"; exit 1; }
-ARMED_T=$(sed -n 's/.*HGRAIL t=\([0-9]*\) ev=armed.*/\1/p' "$LOG" | head -1)
 
-# The clip starts here; the fixture waits 4s after arming, which is the
-# recorder's head start.
-RECORD_T0=$(python3 -c "import time; print(int(time.time() * 1000))")
 if [[ "$MODE" == macos ]]; then
+  # The clip starts here; the fixture waits 4s after arming, which is the
+  # recorder's head start.
+  RECORD_T0=$(python3 -c "import time; print(int(time.time() * 1000))")
   screencapture -V "$RECORD_SECONDS" -x "$CLIP" &
-elif [[ "$MODE" == ios ]]; then
-  xcrun simctl io "$DEVICE" recordVideo --codec=h264 --mask=ignored --force "$CLIP" &
+  RECORD_PID=$!
 else
-  # A phone needs no clip: every state is screenshotted the moment its marker
-  # reaches the log, which lands inside the window the fixture holds it up.
+  # No clip: every state is screenshotted the moment its marker reaches the
+  # log, which lands inside the window the fixture holds that state up.
   (
     captured=''
     while :; do
-      for name in $(sed -n 's/.*HGRAIL [0-9]* ev=shot=\([A-Za-z0-9_-]*\).*/\1/p' "$LOG"); do
+      for name in $(sed -n 's/.*HGRAIL t=[0-9]* ev=shot=\([A-Za-z0-9_-]*\).*/\1/p' "$LOG"); do
         case " $captured " in *" $name "*) continue ;; esac
         captured="$captured $name"
-        adb -s "$DEVICE" exec-out screencap -p > "$EVIDENCE/android-$name.png"
-        echo "android-$name: screencap -> $EVIDENCE/android-$name.png"
+        if [[ "$MODE" == android ]]; then
+          adb -s "$DEVICE" exec-out screencap -p > "$EVIDENCE/$TAG$name.png"
+        else
+          # The simulator writes as a sandboxed process and is denied the
+          # project volume, so the still is staged in the scratch directory.
+          shot="${TMPDIR:-/tmp}/hongguo-theme-rail-$name.png"
+          xcrun simctl io "$DEVICE" screenshot --type=png "$shot" \
+            && cp "$shot" "$EVIDENCE/$TAG$name.png" \
+            || { echo "the simulator refused to write $shot" >&2; continue; }
+        fi
+        echo "$TAG$name: screenshot -> $EVIDENCE/$TAG$name.png"
       done
       kill -0 "$TEST_PID" 2>/dev/null || break
       sleep 0.2
     done
   ) &
+  RECORD_PID=$!
 fi
-RECORD_PID=$!
 
 set +e
 wait "$TEST_PID"
 TEST_STATUS=$?
 set -e
-if [[ "$MODE" == ios ]]; then
-  # simctl records until told to stop; SIGINT is what flushes the file to disk.
-  kill -INT "$RECORD_PID" 2>/dev/null || true
-  sleep 2
-fi
 wait "$RECORD_PID" 2>/dev/null || true
 if [[ "$TEST_STATUS" != 0 ]]; then echo 'The fixture failed:'; tail -40 "$LOG"; exit "$TEST_STATUS"; fi
 grep -E '^HGWIN|^HGRAIL' "$LOG"
 
-if [[ "$MODE" == android ]]; then
-  echo 'The phone stills are already on disk; there is no clip to cut.'
+if [[ "$MODE" != macos ]]; then
+  echo "The $MODE stills are already on disk; there is no clip to cut."
   exit 0
 fi
 
-python3 - "$LOG" "$CLIP" "$EVIDENCE" "$RECORD_T0" "$([[ $DEVICE == macos ]] && echo '' || echo 'ios-')" <<'PY'
+python3 - "$LOG" "$CLIP" "$EVIDENCE" "$RECORD_T0" '' <<'PY'
 import os, re, subprocess, sys
 
 log, clip, evidence, record_t0, tag = sys.argv[1:6]

@@ -55,6 +55,11 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 100));
       await tester.pump();
     }
+    if (cards.evaluate().isEmpty) {
+      // Name the transport failure instead of leaving the next run to guess.
+      final dynamic probe = tester.state(find.byType(LibraryPage));
+      _mark('boot-failed err=${probe.error} loading=${probe.loading}');
+    }
     expect(cards, findsWidgets, reason: 'the live catalog never rendered');
 
     if (isDesktop) {
