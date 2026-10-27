@@ -42,13 +42,18 @@ void main() {
     await mount(tester, runtime);
     // The choice row is wider than a phone, so the type is swiped into view
     // before it is tapped.
-    final aiChip = find.byKey(const ValueKey('filter-genre-ai_series'));
+    final aiChip = find.byKey(
+      const ValueKey('filter-genre-discover-ai_series'),
+    );
     await tester.ensureVisible(aiChip);
     await tester.pumpAndSettle();
     await tester.tap(aiChip);
     await tester.pump(const Duration(milliseconds: 300));
     expect(runtime.catalog.lastGenre, 'ai_series');
-    await tester.enterText(find.byType(TextField), '玄幻故事');
+    await tester.enterText(
+      find.byKey(const ValueKey('search-field-discover')),
+      '玄幻故事',
+    );
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
     expect(runtime.catalog.lastQuery, '玄幻故事');

@@ -75,8 +75,26 @@ Future<void> openCategory(WidgetTester tester, RailCatalog catalog) async {
   }
   await tester.pump();
   await tester.tap(find.text('分类').first);
-  await tester.pump();
+  // A page that has never been opened waits out the switch pause before it
+  // asks for its first page, so the request is not there yet right after the
+  // tap.
+  await tester.pump(const Duration(milliseconds: 300));
   catalog.pending.last.complete(rows('全部'));
+  await tester.pumpAndSettle();
+}
+
+/// Answers every request a move between the two pages woke up. Entering a page
+/// refreshes the one it left, and a held request keeps that refresh spinner
+/// turning, so nothing here may be left to [WidgetTester.pumpAndSettle] alone.
+Future<void> answer(
+  WidgetTester tester,
+  RailCatalog catalog,
+  String tag,
+) async {
+  await tester.pump(const Duration(milliseconds: 300));
+  for (final page in catalog.pending) {
+    if (!page.isCompleted) page.complete(rows(tag));
+  }
   await tester.pumpAndSettle();
 }
 
@@ -104,7 +122,10 @@ void main() {
     catalog.pending.last.complete(rows('玄幻'));
     await tester.pumpAndSettle();
     expect(find.text('玄幻故事0'), findsWidgets);
-    await tester.drag(find.byType(CustomScrollView), const Offset(0, -2000));
+    await tester.drag(
+      find.byKey(const ValueKey('catalog-results-categories')),
+      const Offset(0, -2000),
+    );
     await tester.pumpAndSettle();
     final dynamic state = tester.state(find.byType(LibraryPage));
     final offset = state.scroll.offset as double;
@@ -116,7 +137,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('都市故事0'), findsWidgets);
     expect(find.text('玄幻故事0'), findsNothing);
-    expect(state.cursor, '都市-next');
+    expect(state.feed.cursor, '都市-next');
 
     // Back to 玄幻: the rows and the scroll position are already there, even
     // though its refresh is still in flight. The restored offset means the
@@ -126,7 +147,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.textContaining('玄幻故事'), findsWidgets);
     expect(state.scroll.offset, offset);
-    expect(state.cursor, '玄幻-next');
+    expect(state.feed.cursor, '玄幻-next');
     expect(catalog.pending.length, before + 1);
     catalog.pending.last.complete(rows('玄幻'));
     await tester.pumpAndSettle();
@@ -181,7 +202,7 @@ void main() {
     final catalog = RailCatalog();
     await mount(tester, FakeRuntime(catalog), const Size(1280, 900));
     await openCategory(tester, catalog);
-    final results = find.byKey(const ValueKey('catalog-results'));
+    final results = find.byKey(const ValueKey('catalog-results-categories'));
     final rail = find.byKey(const ValueKey('theme-rail'));
     final resultsRect = tester.getRect(results);
     final railRect = tester.getRect(rail);
@@ -200,7 +221,10 @@ void main() {
     final catalog = RailRankCatalog();
     await mount(tester, FakeRuntime(catalog), const Size(1280, 900));
     await openCategory(tester, catalog);
-    await tester.enterText(find.byType(TextField), '故事');
+    await tester.enterText(
+      find.byKey(const ValueKey('search-field-categories')),
+      '故事',
+    );
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('theme-rail')), findsNothing);
@@ -210,9 +234,7 @@ void main() {
 
     // 排行 boards have no themes, so the rail steps aside there too.
     await tester.tap(find.text('发现').first);
-    await tester.pump();
-    catalog.pending.last.complete(rows('发现'));
-    await tester.pumpAndSettle();
+    await answer(tester, catalog, '发现');
     await tester.tap(find.byKey(const ValueKey('filter-view-rank')));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
@@ -241,7 +263,9 @@ void main() {
 /// through an indeterminate spinner that never lets pumpAndSettle finish.
 Future<void> tabUntilFocused(WidgetTester tester, Finder target) async {
   final wanted = target.evaluate().single;
-  for (var i = 0; i < 15; i++) {
+  // Both pages are alive, so the traversal passes the whole 发现 page -- and
+  // the suggestions panel its search box opens -- before it reaches the rail.
+  for (var i = 0; i < 40; i++) {
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));

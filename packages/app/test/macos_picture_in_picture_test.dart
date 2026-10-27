@@ -69,7 +69,7 @@ void main() {
         isTrue,
       );
       expect(replacement!['source'], 'file:///tmp/second.mp4');
-    expect(platform.externalPlaying, isTrue);
+      expect(platform.externalPlaying, isTrue);
       expect(platform.externalPosition, Duration.zero);
       await event('completed', {'source': 'file:///tmp/first.mp4'});
       expect(completions, 1);

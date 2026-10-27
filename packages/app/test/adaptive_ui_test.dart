@@ -88,7 +88,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(catalog.calls, 2);
       final dynamic state = tester.state(find.byType(LibraryPage));
-      expect(state.items.length, 24);
+      expect(state.feed.items.length, 24);
       await tester.drag(find.byType(CustomScrollView), const Offset(0, -4000));
       await tester.pumpAndSettle();
       expect(catalog.calls, 2);
@@ -103,7 +103,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(catalog.calls, 2);
     final dynamic state = tester.state(find.byType(LibraryPage));
-    expect(state.autoPaused, isTrue);
+    expect(state.feed.autoPaused, isTrue);
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -1000));
     await tester.pumpAndSettle();
     expect(catalog.calls, 2);
@@ -120,25 +120,24 @@ void main() {
     expect(catalog.calls, 3);
   });
   for (final size in [const Size(390, 844), const Size(1280, 900)]) {
-    testWidgets(
-      'the theme rail applies a choice without a sheet at $size',
-      (tester) async {
-        final runtime = FakeRuntime();
-        await mount(tester, runtime, size);
-        await tester.tap(find.text('分类').first);
-        await tester.pumpAndSettle();
-        // 题材 lives in the rail now, so choosing one never opens a sheet.
-        expect(
-          find.byKey(const ValueKey('horizontal-filter-panel')),
-          findsNothing,
-        );
-        await tester.tap(find.byKey(const ValueKey('theme-rail-cate_7')));
-        await tester.pump(const Duration(milliseconds: 300));
-        await tester.pumpAndSettle();
-        expect(runtime.catalog.lastTheme, 'cate_7');
-        expect(tester.takeException(), isNull);
-      },
-    );
+    testWidgets('the theme rail applies a choice without a sheet at $size', (
+      tester,
+    ) async {
+      final runtime = FakeRuntime();
+      await mount(tester, runtime, size);
+      await tester.tap(find.text('分类').first);
+      await tester.pumpAndSettle();
+      // 题材 lives in the rail now, so choosing one never opens a sheet.
+      expect(
+        find.byKey(const ValueKey('horizontal-filter-panel')),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const ValueKey('theme-rail-cate_7')));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(runtime.catalog.lastTheme, 'cate_7');
+      expect(tester.takeException(), isNull);
+    });
   }
   testWidgets(
     'settings save 5-episode lookahead and render in mobile navigation',

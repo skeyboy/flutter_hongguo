@@ -22,7 +22,7 @@ void main() {
       expect(runtime.catalog.lastSort, 'hot_collect');
       expect(find.byKey(const ValueKey('sticky-sort')), findsNothing);
       for (final genre in ['comic_series', 'ai_series']) {
-        await t.tap(find.byKey(ValueKey('filter-genre-$genre')));
+        await t.tap(find.byKey(ValueKey('filter-genre-discover-$genre')));
         await t.pump(const Duration(milliseconds: 300));
         await t.pumpAndSettle();
         expect(runtime.catalog.lastGenre, genre);

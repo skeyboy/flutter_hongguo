@@ -3,6 +3,7 @@ import '../navigation/app_navigation.dart';
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hongguo_api/hongguo_api.dart';
@@ -24,6 +25,23 @@ import 'my_page.dart';
 /// read as one block and pinning the rail can never nudge the rows below it.
 const _filterRowHeight = 52.0;
 
+/// The three types, in the one place that names them: the level shared by both
+/// pages and the parent name the theme rail carries.
+const _genreNames = {
+  'short_play': '短剧',
+  'comic_series': '漫剧',
+  'ai_series': 'AI 短剧',
+};
+
+/// The three boards of 榜单. Upstream all three are 漫剧 boards
+/// (`hongguo_api`'s `_rank` sends `selected_items: comic_series_rank` with a
+/// `comic_series_*` sub-board), and `rank(board)` takes no genre parameter --
+/// so the board says which genre it ranks in the title, which is the honest
+/// version of the old write that moved the shared first level behind the
+/// viewer's back.
+const _boardGenre = 'comic_series';
+const _boardNames = {'recommend': '推荐榜', 'hot': '热播榜', 'new': '新剧榜'};
+
 class LibraryPage extends StatefulWidget {
   final AppRuntime runtime;
   const LibraryPage({super.key, required this.runtime});
@@ -32,30 +50,41 @@ class LibraryPage extends StatefulWidget {
 }
 
 class _LibraryPageState extends State<LibraryPage> {
-  final search = TextEditingController();
-  final searchFocus = FocusNode();
-  final searchField = GlobalKey();
-  final searchTapGroup = Object();
+  /// 发现 and 分类 are two pages of one catalog, and both of them are alive for
+  /// as long as a swipe is in flight -- so everything a page owns (its search
+  /// field, its focus, its scroll position, its query text) is held once per
+  /// page. A `TextEditingController` and a `ScrollController` can each only be
+  /// attached to one live widget, which is what forces the split.
+  static const panes = [0, 1];
+  final paneScroll = <int, ScrollController>{
+    for (final p in panes) p: ScrollController(),
+  };
+  final paneSearch = <int, TextEditingController>{
+    for (final p in panes) p: TextEditingController(),
+  };
+  final paneFocus = <int, FocusNode>{for (final p in panes) p: FocusNode()};
+  final paneField = <int, GlobalKey>{for (final p in panes) p: GlobalKey()};
+  final paneTapGroup = <int, Object>{for (final p in panes) p: Object()};
+  final paneQuery = <int, String>{for (final p in panes) p: ''};
+
   final suggester = SearchSuggester();
   OverlayEntry? suggestionsEntry;
   List<String> historyRows = const [];
   List<Suggestion> suggestionRows = const [];
-  bool suggestionsOpen = false, suggestionsLoading = false;
+  int? suggestionsPane;
+  bool suggestionsLoading = false;
   int suggestionsRevision = 0;
   String? suggestionsGenre;
   Rect? suggestionAnchor;
-  final scroll = ScrollController();
-  String genre = 'short_play',
-      query = '',
-      view = 'recommend',
-      board = 'recommend';
 
-  /// 最新 is a channel the viewer picks, so it has to move the rows: it asks
-  /// the catalog for the newest online date instead of the configured sort.
-  /// The other channels keep whatever sort the viewer set in 设置.
-  String get sort => view == 'latest'
-      ? 'online_time'
-      : settingsFor(widget.runtime).catalogSort;
+  /// 一级，跨两页共享：在分类挑了「漫剧」再甩回发现，发现仍然在漫剧上。
+  String genre = 'short_play';
+
+  /// 发现的二级（频道）与它自己的子选择。分类永远不读 `view`，所以离开发现
+  /// 不再需要把它复位——它属于发现这一页。
+  String view = 'recommend', board = 'recommend';
+
+  /// 分类的二级：题材是类型的孩子，只有分类这一页有它。
   String? theme;
   StreamSubscription<AppSettings>? sortEvents;
   late String lastSort;
@@ -69,33 +98,127 @@ class _LibraryPageState extends State<LibraryPage> {
   int themesRevision = 0;
   late final LibraryCache feedCache;
 
-  /// One entry per feed the viewer has opened, keyed by [feedKey]. A theme the
+  /// One entry per feed the viewer has opened, keyed by [feedKeyOf]. A theme the
   /// viewer already scrolled through keeps its rows, cursor and scroll offset
   /// here instead of being rebuilt from the disk snapshot on every visit.
+  ///
+  /// Both pages are alive at once, so every record carries the pane it belongs
+  /// to and the key it was made under: a response that lands late has to be
+  /// filed in the feed that asked for it, not in whichever page is on screen.
   final feeds = <String, _ThemeFeed>{};
   String _activeKey = '';
-  String get feedKey => jsonEncode({
-    'destination': destination,
-    'query': query,
-    'view': view,
+
+  /// The request a page would ask for right now. Both pages compute their own
+  /// key, so a swipe can show what the other page holds while the drag is
+  /// still moving. 频道 and 榜单 only exist on 发现, 题材 only on 分类, and 类型 is
+  /// the one dimension both pages read -- see docs/design/discover-catalog-cascade-tabs.md.
+  String feedKeyOf(int pane) => jsonEncode({
+    'destination': pane,
+    'query': queryOf(pane),
+    'view': pane == 0 ? view : 'recommend',
     'genre': genre,
-    'sort': sort,
-    'theme': theme,
-    'board': board,
+    'sort': sortFor(pane),
+    'theme': pane == 1 ? theme : null,
+    'board': pane == 0 ? board : 'recommend',
   });
-  _ThemeFeed get feed => feeds.putIfAbsent(feedKey, () => _ThemeFeed());
-  List<Drama> get items => feed.items;
-  String? get cursor => feed.cursor;
-  Object? get error => feed.error;
-  String? get refreshError => feed.refreshError;
-  DateTime? get cachedAt => feed.cachedAt;
-  bool get loading => feed.loading;
-  bool get loadingMore => feed.loadingMore;
-  bool get refreshing => feed.refreshing;
-  bool get autoPaused => feed.autoPaused;
+  String get feedKey => feedKeyOf(destination);
+  _ThemeFeed get feed => feedOf(destination);
+  _ThemeFeed feedOf(int pane) => feeds.putIfAbsent(
+    feedKeyOf(pane),
+    () => _ThemeFeed(feedKeyOf(pane), pane),
+  );
+
+  /// Which page a feed record belongs to, read back out of its own key. A timer
+  /// or a late response only ever knows the record, never the current screen.
+  int paneOf(String key) => (jsonDecode(key) as Map)['destination'] as int;
+
+  String queryOf(int pane) => paneQuery[pane]!;
+
+  /// 榜单 asks `rank(board)`, which has no genre parameter at all -- so while
+  /// that channel is selected the second row of 发现 shows the three boards
+  /// instead of the types, rather than a control that changes nothing.
+  bool isRanking(int pane) =>
+      pane == 0 && queryOf(pane).isEmpty && view == 'rank';
+
+  /// 最新 is a channel the viewer picks, so it has to move the rows: it asks
+  /// the catalog for the newest online date instead of the configured sort.
+  /// The other channels keep whatever sort the viewer set in 设置.
+  String sortFor(int pane) => pane == 0 && view == 'latest'
+      ? 'online_time'
+      : settingsFor(widget.runtime).catalogSort;
+
+  /// Which page is on screen. It mirrors the nested tab router, so a swipe and
+  /// a tap on the navigation bar end up in the same place.
   int destination = 0;
-  bool get ranking => query.isEmpty && destination == 0 && view == 'rank';
-  bool get mobile => MediaQuery.sizeOf(context).width < 720;
+
+  /// 我的 is a destination, not a page in the swipe: flinging past 分类 into
+  /// your personal library by accident costs more than it gives.
+  bool mineOpen = false;
+
+  /// The one gesture the phone has and the desktop does not: shown until the
+  /// viewer has actually moved between the two pages.
+  bool swipeHintSeen = false;
+
+  /// How wide the shell laid itself out as, read by the routed pages: one
+  /// measure decides phone or desktop for the whole screen, navigation and
+  /// content together.
+  bool compact = true;
+
+  static const paneRoutes = ['CatalogDiscover', 'CatalogCategories'];
+
+  /// The word every scoped key on a page carries. These are the page names the
+  /// viewer sees -- 发现 and 分类 -- not a second word for the whole catalog.
+  static String paneName(int pane) => pane == 0 ? 'discover' : 'categories';
+
+  /// The two catalog pages live behind their own router, the way the television
+  /// build keeps its sidebar panes; `setActiveIndex` is the only way either page
+  /// is entered, so the swipe and the navigation bar cannot drift apart.
+  late final router = RootStackRouter.build(
+    routes: [
+      NamedRouteDef(
+        name: 'CatalogShell',
+        path: '/',
+        initial: true,
+        builder: (_, _) => _CatalogShell(this),
+        children: [
+          for (final pane in panes)
+            NamedRouteDef(
+              name: paneRoutes[pane],
+              path: 'catalog-$pane',
+              builder: (_, _) => _CatalogPane(state: this, pane: pane),
+            ),
+        ],
+      ),
+    ],
+  );
+
+  /// Stable route instances: a rebuilt shell hands the same list to the tabs
+  /// router, which then knows the pages did not change.
+  late final tabRoutes = [
+    for (final pane in panes) NamedRoute(paneRoutes[pane]),
+  ];
+
+  /// Captured from the tabs builder, which is the only place that has it.
+  TabsRouter? tabs;
+
+  /// A rebuild of `LibraryPage` stops at the nested `Router`, which only
+  /// re-renders its routed subtree when its own delegate notifies -- so every
+  /// `setState` bumps this as well, and the routed shell and panes watch it.
+  final viewRev = ValueNotifier<int>(0);
+
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    viewRev.value++;
+  }
+
+  /// The scroll, focus and query of the page currently on screen. Everything
+  /// that still has to speak about "this page" reads through these, and every
+  /// widget that renders a page passes its own pane index instead.
+  ScrollController get scroll => paneScroll[destination]!;
+  String get query => queryOf(destination);
+  bool get ranking => isRanking(destination);
+  String get sort => sortFor(destination);
   @override
   void initState() {
     super.initState();
@@ -114,15 +237,19 @@ class _LibraryPageState extends State<LibraryPage> {
         lastCatalog = runtime.catalog;
         lastSort = value.catalogSort;
         settingsChanged = true;
-        if (destination != 2 && query.isEmpty && !ranking) {
+        // The active page reloads; the other one reloads when it is entered.
+        if (!mineOpen && query.isEmpty && !ranking) {
           _switchFeed();
           unawaited(_reload(feed));
         }
       });
     }
-    scroll.addListener(_nearEnd);
-    searchFocus.addListener(_onSearchFocus);
-    search.addListener(_onSearchText);
+    for (final pane in panes) {
+      paneScroll[pane]!.addListener(() => _nearEnd(pane));
+      paneFocus[pane]!.addListener(() => _onSearchFocus(pane));
+      paneSearch[pane]!.addListener(() => _onSearchText(pane));
+    }
+    unawaited(router.replaceAll([const NamedRoute('CatalogShell')]));
     _reload(feed);
   }
 
@@ -137,9 +264,14 @@ class _LibraryPageState extends State<LibraryPage> {
     _themesScope.cancel();
     unawaited(sortEvents?.cancel());
     filterTimer?.cancel();
-    scroll.dispose();
-    search.dispose();
-    searchFocus.dispose();
+    tabs?.removeListener(_onTabChanged);
+    for (final pane in panes) {
+      paneScroll[pane]!.dispose();
+      paneSearch[pane]!.dispose();
+      paneFocus[pane]!.dispose();
+    }
+    router.dispose();
+    viewRev.dispose();
     super.dispose();
   }
 
@@ -147,45 +279,56 @@ class _LibraryPageState extends State<LibraryPage> {
       feed.scope.run(() => _requestPage(feed, next: next));
 
   Future<CatalogPage> _requestPage(_ThemeFeed feed, {String? next}) {
-    if (query.isNotEmpty) {
-      return widget.runtime.catalog.search(query, cursor: next);
+    final pane = feed.pane;
+    final text = queryOf(pane);
+    if (text.isNotEmpty) {
+      return widget.runtime.catalog.search(text, cursor: next);
     }
     final catalog = widget.runtime.catalog;
-    if (ranking && catalog is RankCatalogRepository) {
+    if (isRanking(pane) && catalog is RankCatalogRepository) {
       return catalog.rank(board: board, cursor: next);
     }
     return catalog.browse(
       genre: genre,
-      sort: sort,
-      theme: theme,
+      sort: sortFor(pane),
+      // 题材 is 分类's second level; 发现 asks the same repository without it so
+      // a theme picked over there never silently narrows the recommendation
+      // stream the viewer is swiping back to.
+      theme: pane == 1 ? theme : null,
       cursor: next,
       seen: next == null ? [] : feed.items.map((d) => d.id).toList(),
     );
   }
 
-  void _scheduleMore() {
+  void _scheduleMore(int pane) {
     if (autoScheduled || !mounted) return;
     autoScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       autoScheduled = false;
-      if (mounted) _nearEnd();
+      if (mounted) _nearEnd(pane);
     });
   }
 
-  void _nearEnd() {
-    if (suggestionsOpen ||
-        destination == 2 ||
-        !settingsFor(widget.runtime).autoLoadMore ||
-        loading ||
-        refreshing ||
-        loadingMore ||
-        autoPaused ||
-        error != null ||
-        cursor == null ||
-        !scroll.hasClients) {
+  void _nearEnd(int pane) {
+    if (pane != destination ||
+        mineOpen ||
+        suggestionsPane != null ||
+        !settingsFor(widget.runtime).autoLoadMore) {
       return;
     }
-    if (scroll.position.extentAfter < 600) _more(automatic: true);
+    final feed = feedOf(pane), controller = paneScroll[pane]!;
+    if (feed.loading ||
+        feed.refreshing ||
+        feed.loadingMore ||
+        feed.autoPaused ||
+        feed.error != null ||
+        feed.cursor == null ||
+        !controller.hasClients) {
+      return;
+    }
+    if (controller.position.extentAfter < 600) {
+      _more(automatic: true);
+    }
   }
 
   /// Loads one feed from the first page. The record is captured rather than
@@ -201,7 +344,7 @@ class _LibraryPageState extends State<LibraryPage> {
     feed.scope.cancel();
     feed.scope = CatalogRequestScope();
     final current = ++feed.revision;
-    final key = feedKey;
+    final pane = feed.pane, key = feed.key, controller = paneScroll[pane]!;
     setState(() {
       feed.loading = !preserveContent || feed.items.isEmpty;
       feed.refreshing = true;
@@ -214,8 +357,8 @@ class _LibraryPageState extends State<LibraryPage> {
       if (!preserveContent) feed.items.clear();
       feed.cursor = null;
     });
-    if (scroll.hasClients) scroll.jumpTo(0);
-    if (refreshThemes && query.isEmpty && !ranking) {
+    if (controller.hasClients) controller.jumpTo(0);
+    if (refreshThemes && queryOf(pane).isEmpty && !isRanking(pane)) {
       unawaited(_loadThemes(genre));
     }
     final cached = await feedCache.readFeed(key);
@@ -234,7 +377,7 @@ class _LibraryPageState extends State<LibraryPage> {
       if (!force && !age.isNegative && age < const Duration(seconds: 30)) {
         setState(() => feed.refreshing = false);
         feed.visited = true;
-        _scheduleMore();
+        _scheduleMore(pane);
         return;
       }
     }
@@ -254,7 +397,7 @@ class _LibraryPageState extends State<LibraryPage> {
       });
       feed.visited = true;
       await _saveSnapshot(feed, key, current);
-      _scheduleMore();
+      _scheduleMore(pane);
     } catch (e) {
       if (mounted && current == feed.revision) {
         setState(() {
@@ -318,8 +461,8 @@ class _LibraryPageState extends State<LibraryPage> {
         feed.refreshing = false;
         feed.cachedAt = null;
       });
-      await _saveSnapshot(feed, feedKey, current);
-      _scheduleMore();
+      await _saveSnapshot(feed, feed.key, current);
+      _scheduleMore(feed.pane);
     } catch (_) {
       if (mounted && current == feed.revision) {
         setState(() {
@@ -352,7 +495,7 @@ class _LibraryPageState extends State<LibraryPage> {
         (automatic && feed.autoPaused)) {
       return;
     }
-    final current = feed.revision, requested = feed.cursor!, key = feedKey;
+    final current = feed.revision, requested = feed.cursor!, key = feed.key;
     setState(() {
       feed.loadingMore = true;
       feed.autoPaused = false;
@@ -381,7 +524,7 @@ class _LibraryPageState extends State<LibraryPage> {
         }
       });
       await _saveSnapshot(feed, key, current);
-      _scheduleMore();
+      _scheduleMore(feed.pane);
     } catch (e) {
       if (mounted && current == feed.revision) {
         setState(() {
@@ -410,7 +553,11 @@ class _LibraryPageState extends State<LibraryPage> {
     if (key != _activeKey) {
       outgoing = feeds[_activeKey];
       if (outgoing != null) {
-        if (scroll.hasClients) outgoing.scroll = scroll.offset;
+        // Where the page being left had got to is read from the record's own
+        // pane: during a swipe the destination has already moved, so the
+        // active controller belongs to the page coming in, not the one going.
+        final leaving = paneScroll[outgoing.pane]!;
+        if (leaving.hasClients) outgoing.scroll = leaving.offset;
         outgoing.revision++;
         outgoing.scope.cancel();
         outgoing.scope = CatalogRequestScope();
@@ -440,7 +587,7 @@ class _LibraryPageState extends State<LibraryPage> {
       return;
     }
     if (incoming.visited) {
-      _restoreScroll(incoming.scroll);
+      _restoreScroll(incoming.pane, incoming.scroll);
       // Coming back from 我的 only restores the view; the rows and their cursor
       // are already the ones the viewer left.
       if (!refresh) return;
@@ -451,6 +598,19 @@ class _LibraryPageState extends State<LibraryPage> {
     }
     setState(() => incoming.loading = true);
     if (scroll.hasClients) scroll.jumpTo(0);
+    if (incoming.pane == 1 &&
+        themes.isEmpty &&
+        themesError == null &&
+        !themesLoading) {
+      // A rail that has not been given its parent's children is filled by the
+      // page that shows it: 题材 belongs to 分类, 类型 is shared. A load already
+      // in flight is left alone -- `themes` is one shared flight, so starting a
+      // second one here cancels the first and then joins its cancellation,
+      // which the viewer would read as 题材加载失败. A failed load is left alone
+      // for the same reason: the retry chip is the way back, not a silent
+      // re-request.
+      unawaited(_loadThemes(genre));
+    }
     filterTimer = Timer(_switchWait, () {
       if (mounted && feedKey == key) {
         unawaited(_reload(incoming, refreshThemes: false));
@@ -463,10 +623,11 @@ class _LibraryPageState extends State<LibraryPage> {
   /// left is still on screen that can be far shorter than the offset being
   /// restored -- so the same jump is repeated once the incoming rows have been
   /// laid out, which is what makes a theme come back where it was left.
-  void _restoreScroll(double offset) {
+  void _restoreScroll(int pane, double offset) {
+    final controller = paneScroll[pane]!;
     void jump() {
-      if (!scroll.hasClients) return;
-      scroll.jumpTo(offset.clamp(0, scroll.position.maxScrollExtent));
+      if (!controller.hasClients) return;
+      controller.jumpTo(offset.clamp(0, controller.position.maxScrollExtent));
     }
 
     jump();
@@ -475,26 +636,27 @@ class _LibraryPageState extends State<LibraryPage> {
     });
   }
 
-  void _onSearchFocus() {
-    if (searchFocus.hasFocus) {
-      _openSuggestions();
-    } else if (suggestionsOpen) {
+  void _onSearchFocus(int pane) {
+    if (paneFocus[pane]!.hasFocus) {
+      _openSuggestions(pane);
+    } else if (suggestionsPane == pane) {
       _closeSuggestions();
     }
   }
 
-  void _onSearchText() {
-    if (suggestionsOpen) _openSuggestions();
+  void _onSearchText(int pane) {
+    if (suggestionsPane == pane) _openSuggestions(pane);
   }
 
-  void _openSuggestions() {
+  void _openSuggestions(int pane) {
     final store = searchHistoryFor(widget.runtime);
+    final text = paneSearch[pane]!.text;
     setState(() {
-      suggestionsOpen = true;
-      historyRows = store.matching(search.text);
-      suggestionAnchor = _anchoredSearchRect();
+      suggestionsPane = pane;
+      historyRows = store.matching(text);
+      suggestionAnchor = _anchoredSearchRect(pane);
     });
-    unawaited(_loadHistory(store));
+    unawaited(_loadHistory(store, pane));
     if (suggestionAnchor == null) {
       _closeSuggestions();
       return;
@@ -502,7 +664,7 @@ class _LibraryPageState extends State<LibraryPage> {
     _showSuggestions();
     // Recommendations only answer a blank field; a typed term already has the
     // results grid below it.
-    if (search.text.isNotEmpty || suggestionsLoading) return;
+    if (text.isNotEmpty || suggestionsLoading) return;
     if (suggestionsGenre == genre && suggestionRows.isNotEmpty) return;
     unawaited(_loadSuggestions());
   }
@@ -510,17 +672,17 @@ class _LibraryPageState extends State<LibraryPage> {
   /// A fresh session holds nothing in memory yet, so the panel has to read what
   /// the last one left on disk. A damaged history file only costs the history
   /// rows, never the focus event.
-  Future<void> _loadHistory(SearchHistory store) async {
+  Future<void> _loadHistory(SearchHistory store, int pane) async {
     try {
       await store.load();
     } on Object catch (_) {
       return;
     }
     if (!mounted) return;
-    final hits = store.matching(search.text);
+    final hits = store.matching(paneSearch[pane]!.text);
     if (hits.isEmpty) return;
-    if (!suggestionsOpen) {
-      if (searchFocus.hasFocus) _openSuggestions();
+    if (suggestionsPane != pane) {
+      if (paneFocus[pane]!.hasFocus) _openSuggestions(pane);
       return;
     }
     setState(() => historyRows = hits);
@@ -539,8 +701,8 @@ class _LibraryPageState extends State<LibraryPage> {
     }
   }
 
-  Rect? _anchoredSearchRect() {
-    final field = searchField.currentContext?.findRenderObject();
+  Rect? _anchoredSearchRect(int pane) {
+    final field = paneField[pane]!.currentContext?.findRenderObject();
     final overlay = Overlay.of(context).context.findRenderObject();
     if (field is! RenderBox || overlay is! RenderBox) return null;
     final origin = overlay.globalToLocal(field.localToGlobal(Offset.zero));
@@ -565,7 +727,7 @@ class _LibraryPageState extends State<LibraryPage> {
     if (rows.isEmpty && historyRows.isEmpty) {
       // Nothing to offer: leave the caret in the field instead of painting an
       // empty card over the feed.
-      setState(() => suggestionsOpen = false);
+      setState(() => suggestionsPane = null);
       suggestionsEntry?.remove();
       suggestionsEntry = null;
       return;
@@ -577,28 +739,32 @@ class _LibraryPageState extends State<LibraryPage> {
     suggestionsRevision++;
     suggestionsEntry?.remove();
     suggestionsEntry = null;
-    if (suggestionsOpen && mounted) setState(() => suggestionsOpen = false);
-    if (searchFocus.hasFocus) searchFocus.unfocus();
+    final pane = suggestionsPane;
+    if (pane == null) return;
+    if (mounted) setState(() => suggestionsPane = null);
+    if (paneFocus[pane]!.hasFocus) paneFocus[pane]!.unfocus();
   }
 
   /// Escape and the back gesture dismiss the search suggestions; the filters
   /// are part of the page now, so there is no layer under them to close.
   void _closeOverlays() {
-    if (suggestionsOpen) _closeSuggestions();
+    if (suggestionsPane != null) _closeSuggestions();
   }
 
   void _pickHistory(String value) {
-    search.text = value;
-    _search();
+    final pane = suggestionsPane ?? destination;
+    paneSearch[pane]!.text = value;
+    _search(pane);
   }
 
   Future<void> _removeHistory(String value) async {
     final store = searchHistoryFor(widget.runtime);
     await store.remove(value);
     if (!mounted) return;
-    setState(() => historyRows = store.matching(search.text));
+    final pane = suggestionsPane ?? destination;
+    setState(() => historyRows = store.matching(paneSearch[pane]!.text));
     if (historyRows.isEmpty && suggestionRows.isEmpty) {
-      setState(() => suggestionsOpen = false);
+      setState(() => suggestionsPane = null);
       suggestionsEntry?.remove();
       suggestionsEntry = null;
       return;
@@ -615,48 +781,65 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  void _search() {
+  /// A search belongs to the page it was typed on: 发现 and 分类 keep their own
+  /// term, so swiping back does not hand a title over to the other filter tree.
+  void _search(int pane) {
     _closeSuggestions();
-    query = search.text.trim();
-    theme = null;
-    destination = 0;
-    if (query.isNotEmpty) {
-      unawaited(searchHistoryFor(widget.runtime).record(query));
+    final text = paneSearch[pane]!.text.trim();
+    setState(() => paneQuery[pane] = text);
+    if (text.isNotEmpty) {
+      unawaited(searchHistoryFor(widget.runtime).record(text));
     }
-    _switchFeed();
-    _reload(feed, refreshThemes: false);
+    if (pane == destination) {
+      _switchFeed();
+      _reload(feed, refreshThemes: false);
+    } else {
+      unawaited(_reload(feedOf(pane), refreshThemes: false));
+    }
   }
 
-  int _lastFeedDestination = 0;
+  /// The pages are switched through the tabs router, never by writing
+  /// [destination]: that would let a swipe and a tap disagree about what is on
+  /// screen, and [destination] is only ever refreshed from the router itself.
+  void _selectTab(int index) {
+    if (index == 2) {
+      _openMine();
+      return;
+    }
+    final wasMine = mineOpen;
+    if (wasMine) setState(() => mineOpen = false);
+    if (index == destination) {
+      if (wasMine) {
+        // Back from 我的: the rows and the cursor are the ones that were left,
+        // unless the viewer changed something in there that moves the feed.
+        _switchFeed(keepAlive: true, refresh: settingsChanged);
+        settingsChanged = false;
+        _scheduleMore(destination);
+      }
+      return;
+    }
+    tabs?.setActiveIndex(index);
+  }
 
-  void _navigate(int value) {
-    if (value == destination) return;
-    final previous = destination;
-    setState(() {
-      destination = value;
-      // 频道 belongs to 发现 alone: carrying 最新 or 榜单 into 分类 would silently
-      // change what that list asks for.
-      if (value != 0) view = 'recommend';
-    });
-    if (value == 2) {
-      _switchFeed();
-      _themesScope.cancel();
-      themesRevision++;
-      settingsChanged = true;
-      return;
-    }
-    if (previous == 2 && !settingsChanged && value == _lastFeedDestination) {
-      _switchFeed(keepAlive: true, refresh: false);
-      _scheduleMore();
-      return;
-    }
-    settingsChanged = false;
-    _lastFeedDestination = value;
-    query = '';
-    search.clear();
-    theme = null;
-    _switchFeed();
-    _reload(feed);
+  void _openMine() {
+    if (mineOpen) return;
+    _closeSuggestions();
+    final active = paneScroll[destination]!;
+    if (active.hasClients) feed.scroll = active.offset;
+    setState(() => mineOpen = true);
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
+  /// Called by the tabs router -- a settled swipe, or a tap that went through
+  /// [_selectTab]. The feed layer keeps every page's rows, so entering a page
+  /// shows what it already holds instead of starting a request.
+  void _onTabChanged() {
+    final next = tabs?.activeIndex;
+    if (next == null || next == destination) return;
+    swipeHintSeen = true;
+    setState(() => destination = next);
+    _switchFeed(keepAlive: true);
+    _scheduleMore(next);
   }
 
   Future<void> _loadThemes(String requestedGenre) async {
@@ -677,7 +860,10 @@ class _LibraryPageState extends State<LibraryPage> {
           themesLoading = false;
         });
       }
-    } catch (_) {
+    } catch (failure) {
+      // The UI only ever says 题材加载失败, but the live evidence run has to
+      // tell a cancelled flight from an upstream that answered nothing.
+      debugPrint('catalog.themes($requestedGenre) failed: $failure');
       if (mounted && genre == requestedGenre && ticket == themesRevision) {
         setState(() {
           themesLoading = false;
@@ -701,17 +887,12 @@ class _LibraryPageState extends State<LibraryPage> {
         case 'board':
           board = value;
         case 'view':
+          // 频道 is 发现's own second level: `rank(board)` takes no genre and
+          // no theme, so choosing a board reaches into neither the shared first
+          // level nor 分类's rail. It used to write 漫剧 and drop the rail, which
+          // made a channel read like a filter and stole the type the viewer
+          // picked over there.
           view = value;
-          if (value == 'rank') {
-            genre = 'comic_series';
-            theme = null;
-            themes = [];
-            themesRevision++;
-            _themesScope.cancel();
-            themesLoading = false;
-          } else if (themes.isEmpty) {
-            unawaited(_loadThemes(genre));
-          }
       }
     });
     if (before == feedKey) return;
@@ -784,20 +965,27 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  Widget _searchBox() => TextField(
-    key: searchField,
-    controller: search,
-    focusNode: searchFocus,
-    groupId: searchTapGroup,
-    textInputAction: TextInputAction.search,
-    onSubmitted: (_) => _search(),
-    decoration: InputDecoration(
-      hintText: '搜索剧名…',
-      prefixIcon: const Icon(Icons.search_rounded),
-      suffixIcon: IconButton(
-        tooltip: '搜索',
-        onPressed: _search,
-        icon: const Icon(Icons.arrow_forward_rounded),
+  /// One search field per page. A [TextEditingController] can only be attached
+  /// to one live widget, and both pages are live for as long as a swipe is in
+  /// flight -- so the field is part of the page, and so is what it is looking
+  /// for.
+  Widget _searchBox(int pane) => RepaintBoundary(
+    key: paneField[pane],
+    child: TextField(
+      key: ValueKey('search-field-${paneName(pane)}'),
+      controller: paneSearch[pane],
+      focusNode: paneFocus[pane],
+      groupId: paneTapGroup[pane]!,
+      textInputAction: TextInputAction.search,
+      onSubmitted: (_) => _search(pane),
+      decoration: InputDecoration(
+        hintText: '搜索剧名…',
+        prefixIcon: const Icon(Icons.search_rounded),
+        suffixIcon: IconButton(
+          tooltip: '搜索',
+          onPressed: () => _search(pane),
+          icon: const Icon(Icons.arrow_forward_rounded),
+        ),
       ),
     ),
   );
@@ -822,6 +1010,7 @@ class _LibraryPageState extends State<LibraryPage> {
             top: anchor.top,
             width: anchor.width,
             child: _suggestionPanel(
+              suggestionsPane ?? destination,
               (viewport.height - anchor.top - 24)
                   .clamp(120.0, 320.0)
                   .toDouble(),
@@ -832,12 +1021,12 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  Widget _suggestionPanel(double maxHeight) {
+  Widget _suggestionPanel(int pane, double maxHeight) {
     final latest = suggestionRows.any(
       (row) => row.mark == SuggestionMark.latest,
     );
     return TextFieldTapRegion(
-      groupId: searchTapGroup,
+      groupId: paneTapGroup[pane]!,
       child: Material(
         key: const ValueKey('search-suggestions'),
         elevation: 6,
@@ -931,44 +1120,54 @@ class _LibraryPageState extends State<LibraryPage> {
   /// the top of this page on purpose: the bottom bar, the navigation rail and
   /// the wide sidebar already carry them, so every pixel above the rows
   /// belongs to the content instead.
-  Widget _sectionTitle() => Text(
-    query.isNotEmpty
-        ? '“$query”'
-        : ranking
-        ? '漫剧榜单'
-        : destination == 1
-        ? '符合筛选的故事'
-        : view == 'latest'
-        ? '最新上架'
-        : '为你发现',
-    style: Theme.of(context).textTheme.titleLarge
-        ?.copyWith(fontWeight: FontWeight.w600),
-  );
-
-  void _clearSearch() {
-    query = '';
-    search.clear();
-    _switchFeed();
-    _reload(feed);
+  Widget _sectionTitle(int pane) {
+    final text = queryOf(pane);
+    return Text(
+      text.isNotEmpty
+          ? '“$text”'
+          : isRanking(pane)
+          ? '${_genreNames[_boardGenre]} · ${_boardNames[board] ?? '榜单'}'
+          : pane == 1
+          ? '符合筛选的故事'
+          : view == 'latest'
+          ? '最新上架'
+          : '为你发现',
+      style: Theme.of(context).textTheme.titleLarge
+          ?.copyWith(fontWeight: FontWeight.w600),
+    );
   }
 
-  /// The channel, type and board choices, in the same chip language as the
-  /// theme rail under them: every option of a group is on screen at once, one
-  /// tap applies it, and the current value is the highlighted chip. Each of
-  /// these dimensions has three mutually exclusive values -- few enough to show
-  /// at once, which is why none of them belongs behind a trigger that opens a
-  /// sheet of every group at once.
-  Widget _choiceRow(bool compact) {
+  void _clearSearch(int pane) {
+    paneSearch[pane]!.clear();
+    setState(() => paneQuery[pane] = '');
+    if (pane == destination) {
+      _switchFeed();
+      _reload(feed);
+    } else {
+      unawaited(_reload(feedOf(pane)));
+    }
+  }
+
+  /// The two levels of one page, in the same chip language as the theme rail:
+  /// every option of a group is on screen at once, one tap applies it, and the
+  /// current value is the highlighted chip.
+  ///
+  /// 发现 leads with 频道 (推荐 / 最新 / 榜单) and its second row is 类型 -- or the
+  /// three boards when 榜单 is selected, because `rank` has no genre parameter at
+  /// all and a type row that changes nothing would be a false control. 分类 leads
+  /// with 类型 and puts 题材, its real child, in the pinned rail under this row.
+  Widget _choiceRow(int pane, bool compact) {
     List<Widget> group(
       String name,
       String selected,
-      Map<String, String> values,
-    ) => [
+      Map<String, String> values, {
+      String? keyPrefix,
+    }) => [
       for (final e in values.entries)
         Padding(
           padding: const EdgeInsets.only(right: 8),
           child: ChoiceChip(
-            key: ValueKey('filter-$name-${e.key}'),
+            key: ValueKey('filter-${keyPrefix ?? name}-${e.key}'),
             label: Text(
               e.value,
               style: TextStyle(
@@ -985,20 +1184,21 @@ class _LibraryPageState extends State<LibraryPage> {
           ),
         ),
     ];
+    final text = queryOf(pane);
     final groups = <List<Widget>>[
-      if (query.isNotEmpty)
+      if (text.isNotEmpty)
         [
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ActionChip(
-              key: const ValueKey('clear-search'),
+              key: ValueKey('clear-search-${paneName(pane)}'),
               avatar: const Icon(Icons.close, size: 18),
               label: const Text('清除搜索'),
-              onPressed: _clearSearch,
+              onPressed: () => _clearSearch(pane),
             ),
           ),
         ]
-      else if (destination == 0)
+      else if (pane == 0)
         group('view', view, {
           'recommend': '推荐',
           'latest': '最新',
@@ -1006,24 +1206,23 @@ class _LibraryPageState extends State<LibraryPage> {
           // a chip that silently reloads the same feed is worse than none.
           if (widget.runtime.catalog is RankCatalogRepository) 'rank': '榜单',
         }),
-      if (query.isEmpty)
-        ranking
-            ? group('board', board, const {
-                'recommend': '推荐榜',
-                'hot': '热播榜',
-                'new': '新剧榜',
-              })
-            : group('genre', genre, const {
-                'short_play': '短剧',
-                'comic_series': '漫剧',
-                'ai_series': 'AI 短剧',
-              }),
+      if (text.isEmpty)
+        // Both pages offer 类型, so the chip keys carry the page: a shared first
+        // level means one value, never two widgets with one name.
+        isRanking(pane)
+            ? group('board', board, _boardNames)
+            : group(
+                'genre',
+                genre,
+                _genreNames,
+                keyPrefix: 'genre-${paneName(pane)}',
+              ),
     ];
     return SizedBox(
       height: _filterRowHeight,
       child: Scrollbar(
         child: SingleChildScrollView(
-          key: const ValueKey('filter-choices'),
+          key: ValueKey('filter-choices-${paneName(pane)}'),
           scrollDirection: Axis.horizontal,
           padding: EdgeInsets.symmetric(
             horizontal: compact ? 12 : 24,
@@ -1055,8 +1254,13 @@ class _LibraryPageState extends State<LibraryPage> {
   /// build keeps them reachable. Tapping one opens that theme's own feed rather
   /// than filtering the rows in place, so loading and retry both keep their
   /// fixed height and never push the grid around.
-  Widget _themeRail(bool compact) {
-    if (query.isNotEmpty || ranking) return const SizedBox.shrink();
+  Widget _themeRail(int pane, bool compact) {
+    // 题材 is 分类's second level alone. It is the same child of the same type on
+    // both pages, so showing it twice is the duplication the filter panel used
+    // to carry -- and 发现 is one swipe away.
+    if (pane == 0 || queryOf(pane).isNotEmpty || isRanking(pane)) {
+      return const SizedBox.shrink();
+    }
     final selected = theme ?? '';
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
@@ -1094,7 +1298,9 @@ class _LibraryPageState extends State<LibraryPage> {
                   child: Row(
                     children: [
                       for (final (id, name) in [
-                        const ('', '全部'),
+                        // The parent name rides along, so what this row is a
+                        // child of is on screen rather than remembered.
+                        ('', '全部 · ${_genreNames[genre] ?? genre}'),
                         for (final e in themes) (e.id, e.name),
                       ])
                         Padding(
@@ -1124,14 +1330,20 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  Widget _feed(bool compact, double viewportWidth) {
+  /// One catalog page: its own search, its own two levels of narrowing, its own
+  /// scroll position -- and, for 分类, the pinned 题材 rail. Both of these are
+  /// built while a swipe is in flight, so nothing here may read the shell's
+  /// "currently on screen" getters; every one of them is asked of [pane].
+  Widget _pane(int pane, bool compact, double viewportWidth) {
     final padding = compact ? 16.0 : 28.0;
-    final list = RefreshIndicator(
-      onRefresh: () => _reload(feed, refreshThemes: false, force: true),
-      key: const ValueKey('catalog-results'),
+    final f = feedOf(pane);
+    final controller = paneScroll[pane]!;
+    return RefreshIndicator(
+      onRefresh: () => _reload(f, refreshThemes: false, force: true),
+      key: ValueKey('catalog-results-${paneName(pane)}'),
       child: CustomScrollView(
-        controller: scroll,
-        key: const PageStorageKey('catalog-feed'),
+        controller: controller,
+        key: PageStorageKey('catalog-feed-${paneName(pane)}'),
         slivers: [
           // Search is the page's own header now, and it scrolls: on a phone the
           // brand band and the row of icon buttons gave up 150 logical pixels to
@@ -1148,11 +1360,11 @@ class _LibraryPageState extends State<LibraryPage> {
               child: Row(
                 children: [
                   if (compact)
-                    Expanded(child: _searchBox())
+                    Expanded(child: _searchBox(pane))
                   else
                     SizedBox(
                       width: (viewportWidth * .42).clamp(240.0, 440.0),
-                      child: _searchBox(),
+                      child: _searchBox(pane),
                     ),
                   IconButton(
                     tooltip: '离线检查',
@@ -1165,24 +1377,39 @@ class _LibraryPageState extends State<LibraryPage> {
           ),
           // The choices sit flush with the rail under them -- both rows start
           // at the same inset, so they read as one family of narrowing.
-          SliverToBoxAdapter(child: _choiceRow(compact)),
-          SliverPersistentHeader(
-            // The rail is the one thing that never leaves. It rides up to the
-            // top as the search box and the choice row scroll out and stops
-            // there, so a theme stays one tap away from anywhere in the rows.
-            pinned: true,
-            delegate: _ThemeRailHeader(
-              height: query.isEmpty && !ranking ? _filterRowHeight : 0,
-              child: _themeRail(compact),
+          SliverToBoxAdapter(child: _choiceRow(pane, compact)),
+          if (pane == 1)
+            SliverPersistentHeader(
+              // The rail is the one thing that never leaves. It rides up to the
+              // top as the search box and the choice row scroll out and stops
+              // there, so a theme stays one tap away from anywhere in the rows.
+              pinned: true,
+              delegate: _ThemeRailHeader(
+                height: queryOf(pane).isEmpty ? _filterRowHeight : 0,
+                child: _themeRail(pane, compact),
+              ),
             ),
-          ),
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.fromLTRB(padding, 12, padding, 10),
-              child: _sectionTitle(),
+              child: _sectionTitle(pane),
             ),
           ),
-          if (refreshing || cachedAt != null || refreshError != null)
+          if (compact && !swipeHintSeen)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(padding, 0, padding, 8),
+                child: Text(
+                  '左右滑动切换 发现 · 分类',
+                  key: const ValueKey('swipe-hint'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+          if (f.refreshing || f.cachedAt != null || f.refreshError != null)
             SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.symmetric(
@@ -1191,7 +1418,7 @@ class _LibraryPageState extends State<LibraryPage> {
                 ),
                 child: Row(
                   children: [
-                    if (refreshing)
+                    if (f.refreshing)
                       const SizedBox(
                         width: 16,
                         height: 16,
@@ -1200,27 +1427,27 @@ class _LibraryPageState extends State<LibraryPage> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        refreshError ??
-                            (cachedAt != null
-                                ? (refreshing ? '已显示本地缓存，正在刷新…' : '已显示本地缓存')
+                        f.refreshError ??
+                            (f.cachedAt != null
+                                ? (f.refreshing ? '已显示本地缓存，正在刷新…' : '已显示本地缓存')
                                 : '正在更新内容…'),
                       ),
                     ),
-                    if (!refreshing)
+                    if (!f.refreshing)
                       TextButton(
                         onPressed: () => _reload(
-                          feed,
+                          f,
                           refreshThemes: false,
                           preserveContent: true,
                           force: true,
                         ),
-                        child: Text(refreshError == null ? '刷新' : '重试刷新'),
+                        child: Text(f.refreshError == null ? '刷新' : '重试刷新'),
                       ),
                   ],
                 ),
               ),
             ),
-          if (loading)
+          if (f.loading)
             SliverPadding(
               padding: EdgeInsets.symmetric(horizontal: padding),
               sliver: SliverGrid(
@@ -1243,7 +1470,7 @@ class _LibraryPageState extends State<LibraryPage> {
                 ),
               ),
             ),
-          if (!loading && items.isNotEmpty)
+          if (!f.loading && f.items.isNotEmpty)
             SliverPadding(
               padding: EdgeInsets.symmetric(horizontal: padding),
               sliver: SliverGrid(
@@ -1255,21 +1482,21 @@ class _LibraryPageState extends State<LibraryPage> {
                 ),
                 delegate: SliverChildBuilderDelegate(
                   (context, index) => DramaCard(
-                    drama: items[index],
+                    drama: f.items[index],
                     onTap: () => pushAppPage<void>(
                       context,
                       AppScreen.detail,
                       (_) => DetailPage(
                         runtime: widget.runtime,
-                        initial: items[index],
+                        initial: f.items[index],
                       ),
                     ),
                   ),
-                  childCount: items.length,
+                  childCount: f.items.length,
                 ),
               ),
             ),
-          if (!loading && items.isEmpty && error == null)
+          if (!f.loading && f.items.isEmpty && f.error == null)
             const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.all(40),
@@ -1284,7 +1511,7 @@ class _LibraryPageState extends State<LibraryPage> {
                 ),
               ),
             ),
-          if (error != null)
+          if (f.error != null)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(24),
@@ -1292,25 +1519,24 @@ class _LibraryPageState extends State<LibraryPage> {
                   children: [
                     const Icon(Icons.cloud_off_outlined, size: 32),
                     const SizedBox(height: 12),
-                    Text('$error', textAlign: TextAlign.center),
+                    Text('${f.error}', textAlign: TextAlign.center),
                     const SizedBox(height: 10),
                     OutlinedButton(
-                      onPressed: items.isEmpty
-                          ? () =>
-                                _reload(feed, refreshThemes: false, force: true)
-                          : () => _more(),
+                      onPressed: f.items.isEmpty
+                          ? () => _reload(f, refreshThemes: false, force: true)
+                          : _more,
                       child: const Text('重试'),
                     ),
                   ],
                 ),
               ),
             ),
-          if (!loading && cursor != null && error == null)
+          if (!f.loading && f.cursor != null && f.error == null)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Center(
-                  child: loadingMore
+                  child: f.loadingMore
                       ? const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -1323,14 +1549,11 @@ class _LibraryPageState extends State<LibraryPage> {
                             Text('正在加载更多…'),
                           ],
                         )
-                      : TextButton(
-                          onPressed: () => _more(),
-                          child: const Text('加载更多'),
-                        ),
+                      : TextButton(onPressed: _more, child: const Text('加载更多')),
                 ),
               ),
             ),
-          if (!loading && cursor == null && items.isNotEmpty)
+          if (!f.loading && f.cursor == null && f.items.isNotEmpty)
             const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.all(24),
@@ -1341,40 +1564,37 @@ class _LibraryPageState extends State<LibraryPage> {
         ],
       ),
     );
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.escape): _closeOverlays,
-      },
-      child: Focus(
-        autofocus: true,
-        child: PopScope(
-          canPop: !suggestionsOpen,
-          onPopInvokedWithResult: (didPop, _) {
-            if (!didPop) _closeOverlays();
-          },
-          child: list,
-        ),
-      ),
-    );
   }
 
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
+  /// The frame the two pages share: the navigation, and the swipeable stack.
+  /// 我的 is layered over the stack instead of replacing it, because unmounting
+  /// the pages would throw away the rows and the scroll positions the whole
+  /// feed layer exists to keep.
+  Widget _shell(BuildContext context) => LayoutBuilder(
     builder: (context, size) {
-      final compact = size.maxWidth < 720, wide = size.maxWidth >= 1100;
-      _scheduleMore();
-      final body = destination == 2
-          ? MyPage(
-              key: const ValueKey('my-page'),
-              runtime: widget.runtime,
-              onSettingsChanged: () {
-                settingsChanged = true;
+      this.compact = size.maxWidth < 720;
+      final wide = size.maxWidth >= 1100;
+      final compact = this.compact;
+      _scheduleMore(destination);
+      final pages = AutoTabsRouter.pageView(
+        routes: tabRoutes,
+        animatePageTransition: true,
+        builder: (context, child, _) {
+          _attachTabs(AutoTabsRouter.of(context));
+          return CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.escape): _closeOverlays,
+            },
+            child: PopScope(
+              canPop: suggestionsPane == null,
+              onPopInvokedWithResult: (didPop, _) {
+                if (!didPop) _closeOverlays();
               },
-            )
-          : LayoutBuilder(
-              builder: (context, constraints) =>
-                  _feed(compact, constraints.maxWidth),
-            );
+              child: child,
+            ),
+          );
+        },
+      );
       const destinations = [
         NavigationDestination(
           icon: Icon(Icons.explore_outlined),
@@ -1392,11 +1612,13 @@ class _LibraryPageState extends State<LibraryPage> {
           label: '我的',
         ),
       ];
+      final selected = mineOpen ? 2 : destination;
       return Scaffold(
         bottomNavigationBar: compact
             ? NavigationBar(
-                selectedIndex: destination,
-                onDestinationSelected: _navigate,
+                key: const ValueKey('catalog-tabs'),
+                selectedIndex: selected,
+                onDestinationSelected: _selectTab,
                 destinations: destinations,
               )
             : null,
@@ -1427,16 +1649,17 @@ class _LibraryPageState extends State<LibraryPage> {
                                 vertical: 4,
                               ),
                               child: ListTile(
+                                key: ValueKey('catalog-tab-$index'),
                                 leading: destinations[index].icon,
                                 title: Text(destinations[index].label),
-                                selected: destination == index,
+                                selected: selected == index,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 selectedTileColor: Theme.of(context)
                                     .colorScheme
                                     .primaryContainer,
-                                onTap: () => _navigate(index),
+                                onTap: () => _selectTab(index),
                               ),
                             ),
                           const Spacer(),
@@ -1458,9 +1681,9 @@ class _LibraryPageState extends State<LibraryPage> {
                   )
                 else
                   NavigationRail(
-                    selectedIndex: destination,
+                    selectedIndex: selected,
                     labelType: NavigationRailLabelType.selected,
-                    onDestinationSelected: _navigate,
+                    onDestinationSelected: _selectTab,
                     destinations: [
                       for (final item in destinations)
                         NavigationRailDestination(
@@ -1475,12 +1698,83 @@ class _LibraryPageState extends State<LibraryPage> {
                   color: Theme.of(context).dividerColor,
                 ),
               ],
-              Expanded(child: body),
+              Expanded(
+                // StackFit.expand, because the pages under 我的 are laid out but
+                // not painted -- and an offstage child contributes no size, so a
+                // loose Stack would collapse to nothing and take 我的 with it.
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Offstage(offstage: mineOpen, child: pages),
+                    if (mineOpen)
+                      Positioned.fill(
+                        child: MyPage(
+                          key: const ValueKey('my-page'),
+                          runtime: widget.runtime,
+                          onSettingsChanged: () {
+                            settingsChanged = true;
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
       );
     },
+  );
+
+  /// The tabs router is only reachable from inside its own builder, and it is
+  /// the single thing allowed to change pages -- a swipe settles into it, and a
+  /// tap on the navigation asks it.
+  void _attachTabs(TabsRouter value) {
+    if (identical(tabs, value)) return;
+    tabs?.removeListener(_onTabChanged);
+    tabs = value;
+    value.addListener(_onTabChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _onTabChanged();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      Router(routerDelegate: router.delegate());
+}
+
+/// The routed frame. `Router` re-renders its routed tree only when its own
+/// delegate reports a change, so the shell watches the revision every `setState`
+/// bumps instead of relying on a rebuild arriving from above.
+class _CatalogShell extends StatelessWidget {
+  final _LibraryPageState state;
+  const _CatalogShell(this.state);
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<int>(
+    valueListenable: state.viewRev,
+    builder: (context, _, _) => state._shell(context),
+  );
+}
+
+/// One routed catalog page, kept alive so the other one stays visible in the
+/// middle of a swipe and its rows survive the trip.
+class _CatalogPane extends StatelessWidget {
+  final _LibraryPageState state;
+  final int pane;
+  const _CatalogPane({required this.state, required this.pane});
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<int>(
+    valueListenable: state.viewRev,
+    builder: (context, _, _) => LayoutBuilder(
+      builder: (context, constraints) => state._pane(
+        pane,
+        // The same rule the shell laid itself out by, from the same measure: a
+        // page must not read as a phone while the navigation still is a rail.
+        state.compact,
+        constraints.maxWidth,
+      ),
+    ),
   );
 }
 
@@ -1489,6 +1783,9 @@ class _LibraryPageState extends State<LibraryPage> {
 /// viewer has opened, so a theme they come back to is the same list they left
 /// rather than a fresh request that starts at the top.
 class _ThemeFeed {
+  final String key;
+  final int pane;
+  _ThemeFeed(this.key, this.pane);
   final items = <Drama>[];
   CatalogRequestScope scope = CatalogRequestScope();
   CatalogPage? firstPage;

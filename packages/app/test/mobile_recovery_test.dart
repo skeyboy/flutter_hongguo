@@ -74,10 +74,10 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('山海之间'), findsWidgets);
-    expect(
-      find.byKey(const ValueKey('theme-rail-retry')),
-      findsOneWidget,
-    );
+    // 题材 is 分类's second level, so its failure is read on that page.
+    await tester.tap(find.text('分类').first);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('theme-rail-retry')), findsOneWidget);
     catalog.failThemes = false;
     await tester.tap(find.byKey(const ValueKey('theme-rail-retry')));
     await tester.pumpAndSettle();

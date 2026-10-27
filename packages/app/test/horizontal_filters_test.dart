@@ -47,11 +47,18 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// 题材 is 分类's second level, so a rail assertion starts by entering that
+  /// page -- the same swipe the viewer makes.
+  Future<void> openCategories(WidgetTester tester) async {
+    await tester.tap(find.text('分类').first);
+    await tester.pumpAndSettle();
+  }
+
   /// The three types every build offers. On a phone the channel row is wider
   /// than the screen, so a choice is scrolled into view before it is tapped --
   /// the same swipe the viewer makes.
   Future<void> chooseGenre(WidgetTester tester, String genre) async {
-    final chip = find.byKey(ValueKey('filter-genre-$genre'));
+    final chip = find.byKey(ValueKey('filter-genre-categories-$genre'));
     await tester.ensureVisible(chip);
     await tester.pumpAndSettle();
     await tester.tap(chip);
@@ -70,6 +77,7 @@ void main() {
     ) async {
       final runtime = FakeRuntime();
       await mount(tester, runtime, size);
+      await openCategories(tester);
       final rail = find.byKey(const ValueKey('theme-rail'));
       final railRect = tester.getRect(rail);
       // No trigger to open and nothing to fold away afterwards: the options
@@ -80,7 +88,10 @@ void main() {
         findsNothing,
       );
       for (final genre in ['short_play', 'comic_series', 'ai_series']) {
-        expect(find.byKey(ValueKey('filter-genre-$genre')), findsOneWidget);
+        expect(
+          find.byKey(ValueKey('filter-genre-categories-$genre')),
+          findsOneWidget,
+        );
       }
       await chooseGenre(tester, 'comic_series');
       expect(runtime.catalog.lastGenre, 'comic_series');
@@ -95,21 +106,29 @@ void main() {
     'the rail pins at the top of a long scroll while the header scrolls out',
     (tester) async {
       await mount(tester, FakeRuntime(LongCatalog()), const Size(390, 844));
+      await openCategories(tester);
       final rail = find.byKey(const ValueKey('theme-rail'));
-      final viewport = tester.getRect(
-        find.byKey(const ValueKey('catalog-results')),
-      );
+      final viewport = find.byKey(const ValueKey('catalog-results-categories'));
       // At rest the rail sits under the search box and the choice row.
-      expect(tester.getRect(rail).top, greaterThan(viewport.top + 60));
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -1600));
+      expect(
+        tester.getRect(rail).top,
+        greaterThan(tester.getRect(viewport).top + 60),
+      );
+      await tester.drag(viewport, const Offset(0, -1600));
       await tester.pumpAndSettle();
       final dynamic state = tester.state(find.byType(LibraryPage));
       expect(state.scroll.offset as double, greaterThan(100));
       // The search box and the choices are header content: they left with the
       // brand band and are gone from the tree, not merely behind the fold.
-      expect(find.byKey(const ValueKey('filter-choices')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('filter-choices-categories')),
+        findsNothing,
+      );
       // The rail is the one thing that stopped at the top, still tappable.
-      expect(tester.getRect(rail).top, closeTo(viewport.top, 1));
+      expect(
+        tester.getRect(rail).top,
+        closeTo(tester.getRect(viewport).top, 1),
+      );
       expect(rail.hitTestable(), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('theme-rail-cate_7')));
       await tester.pump(const Duration(milliseconds: 300));
@@ -123,6 +142,7 @@ void main() {
     (tester) async {
       final runtime = FakeRuntime();
       await mount(tester, runtime, const Size(1280, 900));
+      await openCategories(tester);
       final rail = find.byKey(const ValueKey('theme-rail'));
       final railRect = tester.getRect(rail);
       final calls = runtime.catalog.browseCalls;
@@ -131,7 +151,9 @@ void main() {
       // The first choice already settled, so count from where it left off.
       final settled = runtime.catalog.browseCalls;
       expect(settled, greaterThan(calls));
-      await tester.tap(find.byKey(const ValueKey('filter-genre-ai_series')));
+      await tester.tap(
+        find.byKey(const ValueKey('filter-genre-categories-ai_series')),
+      );
       await tester.pump(const Duration(milliseconds: 100));
       expect(runtime.catalog.browseCalls, settled);
       await tester.pump(const Duration(milliseconds: 200));
@@ -152,7 +174,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.byKey(const ValueKey('filter-genre-short_play')),
+        find.byKey(const ValueKey('filter-genre-discover-short_play')),
         findsOneWidget,
       );
       await tester.tap(find.byKey(const ValueKey('filter-view-rank')));
@@ -161,31 +183,56 @@ void main() {
       // A board has no type of its own and no themes: the group under the
       // channel row becomes the three boards, and the rail steps out.
       expect(
-        find.byKey(const ValueKey('filter-genre-short_play')),
+        find.byKey(const ValueKey('filter-genre-discover-short_play')),
         findsNothing,
       );
       expect(find.byKey(const ValueKey('filter-board-hot')), findsOneWidget);
       expect(find.byKey(const ValueKey('theme-rail')), findsNothing);
       expect(find.byKey(const ValueKey('filter-sort-hot_score')), findsNothing);
+      // `rank(board)` takes no genre, so the title states the genre the board
+      // actually ranks (upstream all three are 漫剧 boards) next to the board's
+      // own name -- and nothing is written into the shared first level.
+      expect(find.text('漫剧榜单'), findsNothing);
+      expect(find.text('漫剧 · 推荐榜'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('filter-board-hot')));
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
+      expect(find.text('漫剧 · 热播榜'), findsOneWidget);
       // 分类 never inherits 榜单: it shows its own types again.
       await tester.tap(find.text('分类').first);
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('filter-view-rank')), findsNothing);
       expect(
-        find.byKey(const ValueKey('filter-genre-comic_series')),
+        find.byKey(const ValueKey('filter-genre-categories-comic_series')),
         findsOneWidget,
       );
+      // And the type still lit is the one the viewer was on -- 榜单 read as a
+      // channel, not as a filter, so it never moved the shared first level.
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(const ValueKey('filter-genre-categories-short_play')),
+            )
+            .selected,
+        isTrue,
+      );
+      // And the rail 分类 owns is still there, holding the children of that same
+      // shared first level -- 榜单 never cancelled or emptied it on the way by.
       expect(find.byKey(const ValueKey('theme-rail')), findsOneWidget);
+      expect(find.byKey(const ValueKey('theme-rail-cate_7')), findsOneWidget);
       // A search answers neither question, so the row keeps only the way out.
-      await tester.enterText(find.byType(TextField), '故事');
+      await tester.enterText(
+        find.byKey(const ValueKey('search-field-categories')),
+        '故事',
+      );
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('clear-search')), findsOneWidget);
       expect(
-        find.byKey(const ValueKey('filter-genre-short_play')),
+        find.byKey(const ValueKey('clear-search-categories')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('filter-genre-categories-comic_series')),
         findsNothing,
       );
       expect(find.byKey(const ValueKey('theme-rail')), findsNothing);

@@ -1,6 +1,6 @@
 # PC 与手机的题材展开与保活
 
-日期：2026-10-26。状态：设计已确认方向，代码待实施。
+日期：2026-10-26。状态：已实施并发版（v0.3.5）；本轮（2026-10-27）被 `discover-catalog-cascade-tabs.md` 部分接管，见文末「后续」。
 
 ## 一句话目标
 
@@ -155,3 +155,11 @@ class _ThemeFeed {
 处置：整棵工作树（除 `.idea/`）快照成分支 `feat/pc-mobile-theme-rail`，起点 `bcf8c6a`（v0.3.4），main 与工作树都不动；提交树在独立 worktree 里过了一遍 CI 同套门禁（app analyze 干净、app 238 通过 1 跳过、tv 36、core 117、api 77、cast 52、TV 标记用例 1）。等网络那条线自己落 main 后，本分支 rebase 上去只留题材横栏的增量。
 
 就地胶囊这一轮同样按整棵工作树快照续在分支上：`60db477`（产品 + 测试 + 证据 + 本节当时已有的文字），门禁全部跑在这一条的树上——独立 worktree 实测 app analyze 干净、app 238 通过 1 跳过、tv 36；core/api/cast 的字节与上一条快照 `1103c3b` 完全一致（`git diff --name-only 1103c3b 60db477` 只含 app 与 docs 两组路径），本轮没有重跑。`60db477` 之后本节的补写单独成一条 docs 提交，与已验证的树只差这份文档。校验用的 worktree 跑完即删。
+
+## 后续（2026-10-27，`discover-catalog-cascade-tabs.md`）
+
+本节里被下一轮改掉的两条，以新文档为准：
+
+- 「进分类/我的时把 `view` 复位为 `recommend`」不再是复位，而是**另一页根本不读它**：`view` 还在 shell 上，但只有 `feedKeyOf(pane)` 的 `pane == 0` 分支、`isRanking(pane)`、`sortFor(pane)` 会看它，分类的键/排序/榜单各自读成默认值。行为等价，写法更难漏。
+- 键位不再只按 `filter-<组>-<值>` 全局唯一：发现与分类同时存活，`filter-genre-*`、`catalog-results`、`catalog-feed`、`filter-choices`、`search-field`、`clear-search` 都带上了页名后缀（`-discover` / `-categories`）；`filter-view-*`、`filter-board-*`、`theme-rail*` 仍只在它们所属的那一页里出现，键名不变。取证时找键要按页找。
+- 上面「真机验证」里 `rank.png` / `ios-rank.png` 那两条记的标题「漫剧榜单」不再是那个字符串：榜单仍是上游的漫剧榜（这一点写在标题里，现在是「漫剧 · 推荐榜 / 漫剧 · 热播榜 / 漫剧 · 新剧榜」），但进入榜单不再顺手把共享的一级类型改写成漫剧、也不再清空分类的题材栏。旧帧里「第二组换成榜单、类型让位、题材栏整行消失」这几条不变。详见 `discover-catalog-cascade-tabs.md` §5 末条与 §8。

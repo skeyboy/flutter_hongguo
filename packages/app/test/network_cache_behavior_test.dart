@@ -43,21 +43,31 @@ void main() {
         );
         await t.pumpAndSettle();
         await t.tap(find.text('分类').first);
-        await t.pump();
+        await t.pump(const Duration(milliseconds: 300));
         catalog.pending[1].complete(
           const CatalogPage([Drama(id: '2', title: '已缓存分类')]),
         );
         await t.pumpAndSettle();
+        // Swiping back to a page the viewer already loaded keeps its rows on
+        // screen and asks for them again in the background -- the same promise
+        // a kept theme makes.
         await t.tap(find.text('发现').first);
-        await t.pumpAndSettle();
-        expect(catalog.pending, hasLength(2));
+        await t.pump(const Duration(milliseconds: 300));
+        await t.pump(const Duration(milliseconds: 300));
+        expect(catalog.pending, hasLength(3));
         expect(find.text('已缓存发现'), findsWidgets);
         final dynamic state = t.state(find.byType(LibraryPage));
-        expect(state.refreshing, isFalse);
-        await t.tap(find.text('刷新'));
+        expect(state.feed.refreshing, isTrue);
+        catalog.pending[2].completeError(const CatalogError('offline'));
+        await t.pumpAndSettle();
+        expect(find.text('已缓存发现'), findsWidgets);
+        expect(find.text('网络刷新失败，仍显示上次结果。'), findsOneWidget);
+        // 刷新 is the explicit path: it reads the stored page back first, so a
+        // failure still leaves the cached rows and their message on screen.
+        await t.tap(find.text('重试刷新'));
         await t.pump();
         await t.pump();
-        expect(catalog.pending, hasLength(3));
+        expect(catalog.pending, hasLength(4));
         expect(find.text('已缓存发现'), findsWidgets);
         catalog.pending.last.completeError(const CatalogError('offline'));
         await t.pumpAndSettle();
@@ -73,7 +83,7 @@ void main() {
       await mount(t, runtime, Size(width, 900));
       expect(catalog.scopes.first, isNotNull);
       await t.tap(find.text('分类').first);
-      await t.pump();
+      await t.pump(const Duration(milliseconds: 300));
       expect(catalog.scopes.first!.isCancelled, isTrue);
       expect(catalog.scopes.last!.isCancelled, isFalse);
       catalog.pending.last.complete(

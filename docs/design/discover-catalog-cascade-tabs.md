@@ -1,0 +1,137 @@
+# 发现/分类：一级页面横滑切换 + 二级联动筛选
+
+日期：2026-10-27。状态：代码已落地（含 §5 末条那处「点榜单改写共享一级」的越权写入，经确认后本轮一并修掉）、`tool/verify_all.sh` 全绿、iPhone 模拟器取证已按修复后的形态重取并逐帧看过；剩 macOS 那一路的窗口取证（这台机器当前没有可录的窗口层，见 §8）。§10 记了三处「实现与方案文本不一致」的更正和本轮新立的保活规则。本轮只本地提交，未推送、未打 tag（发布等下一次确认）。
+
+## 1. 现状（现读代码，`packages/app/lib/features/library_page.dart`）
+
+> §1–§2 里的 `:行号` 是本轮改动前（`aa3cfb7`，v0.3.5）的读数，作为「改之前长什么样」的基线保留；改动后的对应位置写在 §3–§4 与 §10。
+
+- 页面切换是一个本地整数：`int destination = 0`（:96），由 `_navigate`（:632）用 `setState` 改写，底部 `NavigationBar`（:1397）、窄屏外的 `NavigationRail`（:1460）、宽屏侧栏 `ListTile`（:1439）都调它。它不是路由：`app_navigation.dart:148` 里根路由 `/` 只有一个 `Catalog`，`LibraryPage` 就是它的全部内容；`docs/evidence/theme-rail/` 里那批真机帧拍的都是这一个页面的三次 `setState`。
+- 筛选条件全在一个 State 里：`genre / view / board / theme / query / sort`（:48-59），喂给 `feedKey`（:77）与 `feeds` 保活表（:75）。
+- 胶囊行 `_choiceRow`（:961）按当前状态摆两组：有搜索词→只有「清除搜索」；发现→`[推荐|最新|榜单]` 再接 `[短剧|漫剧|AI 短剧]`；榜单态→后一组就地换成 `[推荐榜|热播榜|新剧榜]`。题材栏 `_themeRail`（:1058）钉在下方，搜索或榜单时高度归零。
+- 真机上一屏最多同时出现：搜索框 + 离线检查、频道一组、类型一组、题材一栏、标题、网格——**四个筛选维度加一个搜索挤在同一头部**，而它们并不平级。这就是这轮要解决的形状问题。
+
+## 2. 一级 / 二级的真实关系（按接口能问什么来定）
+
+接口只有三条取数路径（`_requestPage` :149）：`search(query)` 吃掉一切、`rank(board)` 只吃 `board`、`browse(gen题材, sort, theme)` 吃 `genre + sort + theme`；`themes(genre)`（:671）说明**题材是类型的子集**。据此，维度之间不是并列的四个开关，而是两棵父子树：
+
+| | 一级（选它才决定二级有什么） | 二级（内容随一级变） | 说明 |
+|---|---|---|---|
+| 发现 | 频道 `view`：推荐 / 最新 / 榜单 | 推荐·最新 → 类型；榜单 → 榜单（推荐榜/热播榜/新剧榜） | 二级整行换掉，是因为 `rank` 接口根本没有 `genre` 参数，榜单态留着一个改了也没用的类型行就是假控件 |
+| 分类 | 类型 `genre`：短剧 / 漫剧 / AI 短剧 | 题材 `theme`（吸顶栏） | `themes(genre)` 是唯一的父子依赖；换一级必然清空并重装二级 |
+
+两条硬性约束，决定「发现不该再有题材栏」：
+
+1. 发现里的题材与分类里的题材是同一个 `theme` 字段、同一个父子（都挂在 `genre` 下）。同一维度在两个页面各自出现一次，就是上一轮从面板里删掉的那种重复。
+2. 发现的推荐/最新确实吃 `theme`（`browse` 有这个参数），所以撤掉它是一次**能力收口**，不是接口做不到：收口的理由是发现回答「平台在推什么、什么类型」，分类回答「这一类里具体哪一路故事」。横滑把两者缝在一起之后，从发现甩到分类只需一次手势，比在发现里再堆一栏更便宜，也让每个页面各自只剩两级。
+
+跨页共享的是**一级里的类型**：`genre` 上收到 shell。在分类选了「漫剧」再甩回发现，发现的二级类型行仍然选中「漫剧」；在发现选「最新」甩到分类，分类的排序不受影响（旧实现是 `_navigate` :639 离开发现就把 `view` 复位；本轮 `view` 仍是 shell 上的一个字段，但它只在 `feedKeyOf(pane)` 的 `pane == 0` 分支里参与取数，分类的键、排序、榜单都各自读成默认值——同一条规则换了个更硬的写法：不是「出门时清零」，而是「另一页根本不看它」。
+
+## 3. 方案
+
+### 3.1 路由：嵌套 tabs router，滑动即路由切换
+
+- `LibraryPage` 变成 **shell**：仿 TV 的 `features/tv/tv_library_page.dart:24-86`，在 State 内建一个局部 `RootStackRouter.build`（:176），根路由 `CatalogShell`（path `/`）带两个子路由 `CatalogDiscover`（path `catalog-0`）与 `CatalogCategories`（path `catalog-1`），`build` 用 `AutoTabsRouter.pageView(routes: tabRoutes, animatePageTransition: true, builder:)`（:1579）——`pageView` 而不是手搭 `PageView`，因为换页时的 children 复用、`preload` 与 `_warpToCurrentIndex` 都在它内部。路由名与键名共用一份 `paneRoutes` / `paneName`（:167-171），所以「页面叫什么」在文件里只有一个出处。切换只有 `tabs.setActiveIndex(i)` 一个入口（`_selectTab` :804 → :821），`NavigationBar/NavigationRail/侧栏` 的点击和滑动手势都走它；`destination`（:152）退化成 router 的镜像，只有 `_onTabChanged`（:836）写它。
+- 为什么不用主路由的 children：`app_navigation.dart:152` 的根 `Catalog` 是 `ValueListenableBuilder`，热换 runtime/主题时必须不换 router、不丢滚动位置（:121 的注释就是这条约束）；把 tabs 挂到主路由上，等于让 `home.value` 的每一次刷新去重建一层路由树。测试面也小：`test/` 下 14 个文件会挂出这个页面，其中只有 5 个直接构造 `LibraryPage(...)`，其余经 `HongguoApp()` 进来（本轮现读 `grep -rl "HongguoApp()\|LibraryPage(" test/`），嵌套 router 自包含，主 router 行为不动（`app_navigation_test.dart` 断言的 root 状态对象存活、`slidePageTransitions` 几何都不变）。
+- 历史栈不增长：`setActiveIndex` 是兄弟页切换而非 push，因此 Alt+←、返回键、`MacWindowFrame(immersive:)` 的判断都不受影响；`PopScope` 仍然只管搜索建议。
+- 嵌套 router 有自己的一个坑，实测到并补上了：`Router` 重建父级时不会重画被路由的子树，所以 shell 的 `setState` 到不了 pane。做法是覆写 `setState`（:210）顺带 bump 一个 `viewRev`（:207），`_CatalogShell` / `_CatalogPane`（:1750 / :1762）都是它的 `ValueListenableBuilder`。
+- 我的 (`destination == 2`) 不进滑动集合：它盖在两个 tab 之上（`Stack` + `Offstage(offstage: mineOpen, child: pages)`，:1708），`_selectTab(2)` 走 `_openMine`（:824）而不是 `setActiveIndex`。误甩进个人库的代价比甩一次分类大得多，且我的没有 feed。用 `Offstage` 而不是 `if` 替换，是因为被遮住的两个 pane 仍要参与布局——`StackFit.expand` 配松散 Stack 会让离屏子节点贡献零尺寸，把「我的」一起压没。
+
+### 3.2 手势：PageView + 默认触控族输入，行内横滑不被抢
+
+- 两个 pane 各是一个完整目录页（搜索框、两级筛选、吸顶题材栏、网格、翻页），承载它们的 `PageView` 就是 `AutoTabsRouter.pageView` 内部那个 `EagerPageView`（`cacheExtent: _children.length`，两页都常驻，换页不重建）。反向没有手写的 `PageController.animateToPage`：`TabsRouter` 本身是 `ChangeNotifier`，shell 只 `_attachTabs`（:1732）挂一个监听，`_selectTab → setActiveIndex → router.notifyAll → 内部 controller 动画`，页面自己跟着走。
+- 成环是 auto_route 内部两个闸门挡住的，不是本轮加的：它的 `_handleScrollNotification` 先 `if (notification.depth != 0) return false`，所以内层纵向列表与胶囊行的横向滚动都动不了页索引；`setActiveIndex` 又被 `if (_activeIndex != index)` 包着，所以 `_onTabChanged` 天然幂等（首次提示 `swipeHintSeen` 也因此不会被重复置位）。
+- 设备族策略最终是**沿用默认，而不是加自定义 `ScrollConfiguration`**：`ScrollBehavior.dragDevices` 的默认集合是 SDK 里的 `_kTouchLikeDeviceTypes`（`.fvm/flutter_sdk/packages/flutter/lib/src/widgets/scroll_configuration.dart:29-37`：touch、stylus、invertedStylus、trackpad、unknown），本来就不含鼠标，所以桌面上「鼠标拖列表」从来不动，页面切换继承同一条。鼠标拖同一段距离不换页因此写成断言钉住（`catalog_tabs_test.dart` 的 `createGesture(kind: mouse)`），而不是靠文案约定；原来的方案文本（沿用 `episode_swipe.dart` 的 `fromFinger` 再叠一层 `ScrollConfiguration`）是同一结论的重复实现，删掉了。TV 遥控器没有对应输入，所以首次提示只在 `compact`（手机/平板宽度）出现。
+- 竞技场事实：栏内的 `SingleChildScrollView(scrollDirection: Axis.horizontal)`（本轮 `filter-choices-<页>` :1224、`theme-rail` :1291，键在 :1225 / :1292）在内层，横向拖拽先被它们拿走——**手指在胶囊行/题材栏上横滑 = 滚这一行，在网格空白处横滑 = 换页**。这是要写进用例的行为，不是待修的冲突；窄屏上胶囊行本来就溢出需要横滑，抢不得。
+- 首次提示按平台×设备分派已落地：`compact && !swipeHintSeen` 时在网格下方给一行「左右滑动切换 发现 · 分类」（:1398-1404，键 `swipe-hint`），一旦真的换过页就不再出现；桌面与 TV 因为宽度不 `compact` 而拿不到这条文案，与它们没有对应输入是一致的。
+
+### 3.3 两级联动的可见化
+
+- 一级行与二级行同高（`_filterRowHeight = 52`，本轮 :26）但**不同层级语言**：选中态一级/二级都用 `ChoiceChip`，选中项加粗到 `w700`（:1175）；两组之间立一条 1×24 的竖缝（:1237-1242），让「频道回答的是看哪一路流、类型/榜单回答的是看哪一类故事」不糊成一行；二级的父名直接写进标签——分类题材栏首枚是「全部 · 漫剧」（:1303）。
+- 一级变更对二级的动作显式化：分类换类型 → 题材栏立刻进 `theme-rail-loading`（本轮 :1271）；发现 `view` 切到 榜单 → 二级整行换成榜单三档（`_selectFilter` :876 的 `case 'view'` 分支只剩 `view = value`，榜单三档与标题都读同一份 `_boardNames` :43），频道的选择到此为止——它不改共享的 `genre`，也不碰分类的题材栏，理由见 §5 末条。
+- 发现不再渲染题材栏（`_themeRail(pane, compact)` :1257 只在 `pane == 1` 的 sliver 列表里出现，:1385），分类不再有频道行（`_choiceRow` :1201 那条 `if (pane == 0)` 分支——旧文件 :1001 的 `destination == 0` 换成了 pane 自己的条件）。
+- 搜索仍然吃掉两级：`query` 非空时两级行只剩「清除搜索」（本轮 :1189-1200，清除键 `clear-search-<页>`），且 `query` 已经是 per-pane 的：`paneQuery` / `paneFocus`（:65-68）各 pane 一份，`queryOf(pane)`（:135）读。两个 TextField 共用一个 controller 会被 Flutter 断言拒绝，这条拆法是先写进设计的，落地时按它执行。
+
+## 4. 键位与作用域（两个 pane 同时存活 ⇒ 键必须唯一）
+
+| 旧键 | 新键 |
+|---|---|
+| `catalog-results` | `catalog-results-discover` / `catalog-results-categories`（:1343） |
+| `catalog-feed`(PageStorageKey) | `catalog-feed-discover` / `catalog-feed-categories`（:1346） |
+| `filter-choices` | `filter-choices-discover` / `filter-choices-categories`（:1225） |
+| `search-field` / `clear-search` | 各 pane 一份：`search-field-<页>`（:975）/ `clear-search-<页>`（:1194） |
+| `theme-rail(-loading/-retry/-<id>)` | 分类 pane 保留原名；发现 pane 不再有该键 |
+| `filter-view-*` / `filter-board-*` | 只在发现 pane，键名不变 |
+| `filter-genre-*` | 发现（非榜单）与分类各一份：`filter-genre-discover-<值>` / `filter-genre-categories-<值>`（由 `keyPrefix: 'genre-${paneName(pane)}'` :1218 生成） |
+| `search-suggestions(-dismiss)` | 键名不变，但同一时刻只有一份浮层存在：`suggestionsPane`（:74）记录它属于哪个 pane |
+| 新增 | `catalog-tabs`（底部 `NavigationBar` :1619）、`catalog-tab-<index>`（宽屏侧栏 :1652）、`swipe-hint`（:1404） |
+| `my-page` | 不变（不在滑动集合里） |
+
+页名只有一个出处：`paneName(pane)`（:171）——`discover` / `categories`，与路由名 `CatalogDiscover` / `CatalogCategories`（:167）同一对词。上一轮写表时用的 `-catalog` 已弃用：分类在屏幕上就叫「分类」，不需要第二个词指代整个目录。
+
+滚动控制器同样按 pane 一个：`paneScroll`（:59）为两个 pane 各建一个，`scroll`（:218）只是「当前 pane 的那个」的读法；`_nearEnd(pane)`（:312）、`_restoreScroll(pane, offset)`、各处跳顶都按 pane 取，`_ThemeFeed.scroll` 仍按 feed 记录存偏移，回切时两帧补跳（上一轮 :466 的修复在新结构里是 :347 一带的 `pane = feed.pane`）。
+
+## 5. 后端配合清单（不改接口也能落地，但记下来）
+
+- `rank` 不吃 `genre`：榜单态无法按类型收窄，所以二级只能整行换成榜单。若上游给出 `rank(genre)`，发现的榜单二级可以再挂一层类型。
+- `search` 不吃 `theme`：搜索态必须撤掉两级行，否则是假控件（现状保持）。
+- 推荐流若希望继续支持题材收窄，需要上游确认 `browse` 的 `theme` 在推荐排序下是否有意义；当前 UI 收口到分类，不依赖这条确认。
+- **本轮修掉的一条前端遗留（不是接口缺口）**：`_selectFilter` 的 `case 'view'` 里，进入榜单曾把共享的 `genre` 写成 `comic_series`（旧 :874，连带清掉 `theme`/`themes`、`themesRevision++`、`_themesScope.cancel()`；自首提交 `4711d2d` 起就在，无注释说明动机）。横滑之后 `genre` 成了两页共享的一级，于是「在发现点一下榜单」会看不见地改掉分类的一级——而 `rank(board)` 根本不吃 `genre`（改了也不影响榜单的取数，只影响甩过去之后的分类）。**但接口事实要说全**：三档榜单在上游就是漫剧榜（`packages/api/lib/src/catalog.dart:498-515` 固定发 `selected_items: comic_series_rank` + `comic_series_hot_rank / comic_series_hot_play / comic_series_new_rank`），`docs/design/pc-mobile-ui.md:26`、`docs/design/horizontal-filter-panel.md:67` 也要求 UI 明说它是漫剧榜、不能冒充别的体裁排行。所以本轮经确认的改法是**把这件事从「改状态」换成「写在标题上」**：频道分支只剩 `view = value`（:889-895），标题由 `_sectionTitle`（:1123-1134）拼成「漫剧 · 推荐榜 / 漫剧 · 热播榜 / 漫剧 · 新剧榜」（漫剧那一截取 `_genreNames[_boardGenre]`，`_boardGenre` / `_boardNames` 在 :42-43），榜单三档也共用这份 `_boardNames`（原来在胶囊行里还内联写过一遍）。连带效果：分类的题材栏不再被点一下榜单就清空，§10 那条「甩进分类时补一次题材」的门因此只需要处理「真的还没跑完/跑失败」两种情况。回归断言在 `test/horizontal_filters_test.dart` 的「频道 belongs to 发现, 榜单 takes the type place, search leaves neither」：标题是「漫剧 · 推荐榜」、点热播榜后变成「漫剧 · 热播榜」、切到分类后选中的一级仍是短剧。
+
+## 6. 验收标准
+
+- 手指在网格区左右甩：发现↔分类换页，且 `tabs.activeIndex` 与导航栏选中项一致；鼠标在桌面拖同一段距离不换页。
+- 手指在胶囊行、题材栏上左右甩：只滚该行，不换页。
+- 换页不重新请求：分类已翻过三页的题材，甩到发现再甩回来还是那三页与那个偏移（保活在 shell 的 `feeds`，不在 pane）。
+- 每个页面同时最多两级可见：发现 = 频道 + (类型|榜单)；分类 = 类型 + 题材；搜索态只剩「清除搜索」。
+- 在分类选「漫剧 · 悬疑」，甩到发现：发现的二级类型行选中「漫剧」，且发现的列表不因带上了 theme 而变化（`theme` 只属于分类的 feedKey 分支）。
+- 在发现点「榜单」：共享的一级不动（甩回分类仍停在 viewer 自己选的那个类型）、分类的题材栏不被清空也不被取消在途请求、榜单是漫剧榜这件事写在标题里（「漫剧 · 推荐榜 / 漫剧 · 热播榜 / 漫剧 · 新剧榜」），不再靠偷偷改写一级来表达。
+- `flutter analyze` 两包干净，`packages/app` 全量、`packages/tv` 全量、core/api/cast 全量通过；本轮改动文件 `dart format` 干净。
+
+## 7. 测试
+
+- 新增 `test/catalog_tabs_test.dart`：滑动换页与路由索引一致；鼠标不换页；行内横滑不越权；换页保留两个 pane 各自的 feed；`genre` 跨页共享；一级变更后二级行的形态（榜单↔类型）正确。
+- 改点：`horizontal_filters_test.dart`、`theme_rail_test.dart`、`interaction_cache_test.dart`、`adaptive_ui_test.dart`、`app_navigation_test.dart`、`catalog_sort_test.dart`、`widget_test.dart`、`mobile_recovery_test.dart`、`network_cache_behavior_test.dart` 里所有裸键查找换成带 pane 作用域的键，「开面板」相关残留按上一轮口径复核。`horizontal_filters_test.dart` 的「频道 belongs to 发现…」这一条在本轮多担四件事：榜单态标题是「漫剧 · 推荐榜」、点热播榜后是「漫剧 · 热播榜」（旧实现写死「漫剧榜单」）、切到分类后被选中的一级仍是短剧（`ChoiceChip.selected`）、题材栏没被点榜单这件事清空。
+- `integration_test/theme_rail_live_test.dart` 已加两个标记：`shot=tab-swipe-to-categories`、`shot=tab-swipe-back-to-discover`（`_swipe()` 按页宽取距离：起点在中心偏 `-dir × 0.28 × 页宽`、拖 `dir × 0.56 × 页宽`，touch 族默认输入，拖完立刻断言 `destination` 与 `tabs.activeIndex` 都真的落了位），并把裸键换成作用域键（`filter-genre-categories-*`、`catalog-results-discover|categories`）；两处题材帧（`shot=theme-two`、`shot=theme-three`）改成先 `_waitRows` 等到 `feed.items` 非空再拍，后面的下滚断言才有真实列表可拖（见 §8 第 5 次那次 `the live list never scrolled`）；取帧脚本 `tool/verify_theme_rail_live.sh` 不动——它按 `shot=([\w-]+)` 取标，新标记自动进 `docs/evidence/theme-rail/`。
+
+## 8. 真机验证
+
+macOS 窗口（1100×760）与 iPhone 模拟器（390×844）各录一遍：发现顶部（两级=频道+类型）、甩到分类（类型+题材，栏吸顶）、分类里甩回发现、榜单态二级换成榜单三档。合成点击不用于验证原生手势（本条链路只用 `drag` 于 widget 测试，真机帧靠夹具自己打到目标状态）。
+
+本轮结果（2026-10-27）：
+
+- iPhone 模拟器 `yxy-iPhone17Pro` **一整批同次运行**通过（`harness exit=0`，`ev=armed → ev=done`，`enter-categories destination=1 themes=26`，`shot=theme-two-scrolled offset=400` 与 `shot=theme-two-restored offset=400`），十帧全部落在 10:21 同一批并逐帧看过：
+  - `ios-rail.png` = 进分类后一级 ✓短剧、二级栏 ✓全部 · 短剧 + 动作|冒险|魔幻|爱情，列表此刻还是骨架 +「正在更新内容…」——栏已填好、分类首页数据还没回，是真实的首帧而不是失败。
+  - `ios-genre-comic.png` = 一级切到漫剧后，栏首枚跟着变成「全部 · 漫剧」，后面是 剧情|奇幻|玄幻|末世，行是漫剧（1000 集 / 399 集）——§3.3 那条二级随一级换血。
+  - `ios-discover.png` = 发现的两级是 `✓推荐|最新|榜单 ‖ ✓短剧|漫剧`，**没有题材栏**，标题「为你发现」。
+  - `ios-rank.png` = 点榜单后二级整行换成 `✓榜单 ‖ ✓推荐榜|热播榜…`，标题「漫剧 · 推荐榜」（旧实现写死「漫剧榜单」，把一级借来当标题；§5 末条），行确实是漫剧。
+  - `ios-tab-swipe-to-categories.png` = 从榜单态甩进分类：底部导航选中「分类」+ **一级仍是「短剧」** + 二级题材栏首枚「全部 · 短剧」+ 满格列表、无报错行——夹具在 `integration_test/theme_rail_live_test.dart:171` 已把类型选回短剧，旧代码会在点榜单时把它改写成漫剧，这一帧就是那条越权写入的反证。
+  - `ios-tab-swipe-back-to-discover.png` = 甩回之后发现自己的两级是 `推荐|最新|榜单 ‖ 短剧|漫剧`（共享的一级跟过来了）、**没有题材栏**、标题「为你发现」、网格直接接在标题下面——没有骨架、没有「正在更新」那一行，说明回来读的是留着的行而不是重新取的一份，即 §10 第一条保活规则在真机上的样子。
+  - `ios-theme-two.png` / `ios-theme-two-scrolled.png` / `ios-theme-three.png` / `ios-theme-two-restored.png` = 栏吸顶（一级行已随列表划走）、「动作」自己的行、下滚到偏移 400、切「冒险」换另一套行、再切回「动作」仍是同一批行且偏移仍是 400、全程没有骨架也没有「正在更新」——每条题材一份保活 feed 与「回切夹平偏移」那两处修复在同一批帧里读得出来。
+  - 一句要收口的更正：上一批（09:08 那次）里 `ios-tab-swipe-to-categories.png` 顶部曾有一行「网络刷新失败，仍显示上次结果。」+「重试刷新」，是回切时后台 `_refreshKept` 撞上一次真实网络抖动，走的正是 §10 那条保活路径的失败文案（行没被动过）。本批这一帧没有这行，所以它不是这条链路的常态，只是那一次抖动的记录。
+- 这一批之前挡了三次，都记下来免得下次再猜：第 2、3 次 `enter-categories themes=0` → `rail-empty error=题材加载失败`，而产品代码 `catch (_)` 把原因吞了，于是在 `_loadThemes`（:845）的 catch 里加一行 `debugPrint('catalog.themes($requestedGenre) failed: $failure')`（:866）——UI 仍然只显示「题材加载失败」，但取证跑必须分得清「被取消的 flight」和「上游什么都没回」。加上之后第 4 次打出真实原因是「内容接口未返回数据，请稍后重试」，定性为上游返空（这个端点本轮多次偶发返空），不是产品缺陷。第 5 次卡在 `the live list never scrolled`（偏移 0.0），它自己那批的 `ios-theme-two.png` 显示「动作」当时还是骨架：夹具在拖之前没等行到位，拖的是一份骨架，属夹具时序而不是产品缺陷。第 6 次因此加了 `_waitRows(tester, where)`（`integration_test/theme_rail_live_test.dart:35`，读 `state.feed.items` 直到非空，超时打 `rows-timeout where=… loading=… error=…`），把 `shot=theme-two`、`shot=theme-three` 两处从「固定等 1.2 s」改成「等到真有行再拍」。
+- macOS 那一路本轮**没取到**：这台会话此刻的 `screencapture` 只返回壁纸（无菜单栏、无 Dock、无任何窗口层），录屏窗口矩形里根本没有应用窗口，十帧全是风景。已把被覆盖的 8 张 v0.3.5 帧从 git 恢复、删掉本轮两张废帧；`rail.png / discover.png / rank.png / tab-swipe-*` 等 macOS 帧要等屏幕解锁后重跑 `HONGGUO_RAIL_DEVICE=macos tool/verify_theme_rail_live.sh` 补。横滑本身在两处被钉住：`test/catalog_tabs_test.dart` 的 8 条（含鼠标不换页、行内横滑不越权）与上面这组 iPhone 帧。
+- 夹具另外两处顺手修的：`_swipe` 的拖拽距离改为按页宽取（桌面一页 900 px，原来写死的 320 px 只够手机一页，桌面上弹簧回弹后 `catalog-results-categories` 根本不存在）；开机探针改读 `feed.error / feed.loading / feed.items`（这两个字段本轮迁到了每条 feed 的记录上，探针还在按旧形状读，一失败就自己先崩）。
+
+## 9. 风险与回滚
+
+- 最大风险是两个 pane 同时存活带来的重复键与重复 controller，处理方式是 §4 的作用域化；如果测试面冲突过多，回滚点是把 `PageView` 换成「只有当前 pane 存在 + 切换时瞬时替换」（保住路由与联动，放弃拖拽中的双页可视）。实际落地没有触发这条回滚：作用域化之后全部旧用例只需改键与加一次换页等待，未拆掉常驻双页。
+- 单文件仍是同一个文件（本轮从 1649 行到 1946 行），shell / pane 是同一个文件里的两个 Widget（`_CatalogShell` :1750、`_CatalogPane` :1762），拆分粒度停在「读得动」这一档；改动集中在同一文件内，不改 TV 与主路由；回滚只需 `git revert` 本轮提交。
+
+## 10. 落地状态（本轮实际做了什么，与方案有出入的地方）
+
+三处与 §3 的写法不同，都是「实现选择了更硬的那条路」，方案文本已就地改成实际形态：
+
+1. §3.1 原写 `AutoTabsRouter(routes:, duration: Duration.zero, transitionBuilder: 直通)` → 实际是 `AutoTabsRouter.pageView(routes: tabRoutes, animatePageTransition: true, builder:)`；换页要有滑动过程，直通动画和它互斥。
+2. §3.2 原写「给页面切换加只放 touch+stylus 的 `ScrollConfiguration`」→ 实际**没有加**：Flutter 默认 `dragDevices` 本来就不含鼠标，桌面上的「鼠标拖不换页」是默认行为，本轮把它写成断言而不是新配置。
+3. §3.2 原写「`onPageChanged` + `animateToPage`，两边用谁先动的闸门外环成」→ 实际是 `TabsRouter` 监听（:1732-1736）单向驱动，回环由 auto_route 自己的 `depth != 0` 与索引守卫消掉，不需要本地闸门。
+
+三条新的保活/取数规则，测试与真机帧都要按它们判：
+
+- 进入一个**已看过**的页面 = 保留原有行 + 后台 `_refreshKept`（220 ms 去抖后在 :594 触发，本体 :422），失败文案是「网络刷新失败，仍显示上次结果。」；这条路径不再走 `_reload`，所以旧文案「网络刷新失败，正在显示本地缓存。」只属于显式 `_reload`。
+- 甩进**没看过**的分类、且题材栏还是空的（这一次进入之前谁也没为共享的一级跑过题材，或跑了但返回空）→ 立刻补一次 `_loadThemes(genre)`（`_switchFeed` 里 :601 的 `incoming.pane == 1 && themes.isEmpty && themesError == null && !themesLoading`）。**在途不补、失败不补**：`themes` 在请求控制层是同一把 label 的一份 flight（`packages/api/lib/src/request_control.dart:206-210` 的 `_flights[key]` 合并），补一次会先 `_themesScope.cancel()` 掐掉正在跑的那次（`request_control.dart:45-47`），而加入的正是那份已被取消的 flight——真机上直接落到「题材加载失败」——这条是 macOS 取证第一跑被它挡下之后加的门，回归用例见 `test/catalog_tabs_test.dart` 的「entering 分类 mid-flight leaves the theme request alone」。失败本身仍只有重试胶囊这一个入口。写这条规则时它还要兜住「发现停在榜单上、题材请求被取消过」那种空栏，§5 末条把那次取消删掉之后，这个来源没有了。
+- 从「我的」返回不再重读缓存（`_selectTab` :804-822 只在设置改动过的时候才 refresh），所以旧版那次「回目录必然重进缓存、头部出现『刷新』一行」的现象消失了；`interaction_cache_test.dart` 里依赖它的断言已改走「换类型拿新 cursor」这条路。
+
+门禁读数（本轮工作树，SDK `.fvm/flutter_sdk`，`tool/verify_all.sh` 全量退出码 0；这一遍是在标题改成「漫剧 · 推荐榜」、`_loadThemes` 加了那行 `debugPrint`、夹具加了 `_waitRows` 之后重跑的，与之前那次读数一致）：格式门（`dart format --output=none --set-exit-if-changed packages tool`）与 `dart analyze --fatal-infos` 干净；`core +117`、`api +77`、`cast +52`、`tv +36`、`app +246 ~1`（含新增 `test/catalog_tabs_test.dart` 的 8 条）全绿；oracle 103 向量、离线解密样本 84 条通过。§6 最后一条「两包 analyze + 各包全量」由此满足。本轮按约定只本地提交、不推送也不打 tag，所以这是**工作树**读数；提交树的那一份要等真正推送前在分离 worktree 里再跑一遍。
+
+取证进度见 §8：iPhone 帧已拿到**一整批同一次运行**的十帧并逐帧看过；macOS 帧因这台机器当前没有可录的窗口层而缺，等屏幕可用时补一次 `HONGGUO_RAIL_DEVICE=macos tool/verify_theme_rail_live.sh`。本轮为取证可归因加的唯一产品侧改动是一行 `debugPrint`（`library_page.dart:866`，只在 `_loadThemes` 的 catch 里，UI 文案不变）。

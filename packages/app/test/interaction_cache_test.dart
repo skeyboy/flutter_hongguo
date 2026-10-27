@@ -114,36 +114,32 @@ void main() {
         CatalogPage(List.generate(90, (i) => Drama(id: '$i', title: '故事$i'))),
       );
       await tester.pumpAndSettle();
-      for (final destination in ['发现', '分类']) {
-        if (destination == '分类') {
-          await tester.tap(find.text('分类').first);
-          await tester.pump();
-          catalog.pending.last.complete(
-            CatalogPage(
-              List.generate(90, (i) => Drama(id: '$i', title: '故事$i')),
-            ),
-          );
-          await tester.pumpAndSettle();
-        }
-        await tester.drag(
-          find.byType(CustomScrollView),
-          const Offset(0, -2500),
-        );
-        await tester.pumpAndSettle();
-        // The search box and the trigger row are header content and scrolled
-        // out with it; the rail is the part that pinned, and it still works.
-        expect(
-          find.byKey(const ValueKey('theme-rail')).hitTestable(),
-          findsOneWidget,
-        );
-        // 题材 is on the rail at every width, so it never needs a sheet.
-        await tester.tap(find.byKey(const ValueKey('theme-rail-cate_7')));
-        await tester.pump(const Duration(milliseconds: 300));
-        expect(catalog.lastTheme, 'cate_7');
-        catalog.pending.last.complete(const CatalogPage([]));
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull);
-      }
+      // 题材 is 分类's second level, so the rail -- and the scroll that has to
+      // keep it pinned -- belongs to that page alone.
+      await tester.tap(find.text('分类').first);
+      await tester.pump(const Duration(milliseconds: 300));
+      catalog.pending.last.complete(
+        CatalogPage(List.generate(90, (i) => Drama(id: '$i', title: '故事$i'))),
+      );
+      await tester.pumpAndSettle();
+      await tester.drag(
+        find.byKey(const ValueKey('catalog-results-categories')),
+        const Offset(0, -2500),
+      );
+      await tester.pumpAndSettle();
+      // The search box and the trigger row are header content and scrolled
+      // out with it; the rail is the part that pinned, and it still works.
+      expect(
+        find.byKey(const ValueKey('theme-rail')).hitTestable(),
+        findsOneWidget,
+      );
+      // 题材 is on the rail at every width, so it never needs a sheet.
+      await tester.tap(find.byKey(const ValueKey('theme-rail-cate_7')));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(catalog.lastTheme, 'cate_7');
+      catalog.pending.last.complete(const CatalogPage([]));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
     });
   }
   testWidgets(
@@ -161,21 +157,23 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.tap(find.text('分类').first);
-      await tester.pump();
+      // A page entered for the first time asks after the switch pause.
+      await tester.pump(const Duration(milliseconds: 300));
       catalog.pending.last.complete(
         const CatalogPage([Drama(id: '2', title: '分类内容')]),
       );
       await tester.pumpAndSettle();
       clock = clock.add(const Duration(seconds: 31));
       await tester.tap(find.text('发现').first);
-      await tester.pump();
-      await tester.pump();
+      // The swipe settles, then the page being come back to refreshes itself.
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('旧缓存'), findsWidgets);
-      expect(state.refreshing, isTrue);
+      expect(state.feed.refreshing, isTrue);
       catalog.pending.last.completeError(const CatalogError('offline'));
       await tester.pumpAndSettle();
       expect(find.text('旧缓存'), findsWidgets);
-      expect(find.text('网络刷新失败，正在显示本地缓存。'), findsOneWidget);
+      expect(find.text('网络刷新失败，仍显示上次结果。'), findsOneWidget);
       await tester.tap(find.text('重试刷新'));
       await tester.pump();
       await tester.pump();
@@ -197,7 +195,7 @@ void main() {
     final catalog = ControlledCatalog();
     await mount(tester, CacheRuntime(catalog), const Size(390, 900));
     await tester.tap(find.text('分类').first);
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     catalog.pending.last.complete(
       const CatalogPage([Drama(id: '2', title: '当前分类')]),
     );
@@ -371,12 +369,21 @@ void main() {
       }
       await tester.tap(find.text('发现').last);
       await tester.pumpAndSettle();
-      // Explicit refresh starts a new pagination snapshot; fresh cache reuse
-      // deliberately preserves an already-exhausted cursor.
-      await tester.tap(find.text('刷新'));
+      // Back from 我的 the list is the one that was left -- its cursor already
+      // exhausted, nothing asked again. A type that has not been opened yet is
+      // the list that still has a next page, so that is where manual paging is
+      // checked with 自动加载下一页 switched off.
+      await tester.tap(find.text('分类').first);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('filter-genre-categories-comic_series')),
+      );
       await tester.pumpAndSettle();
       final calls = runtime.catalog.browseCalls;
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -1000));
+      await tester.drag(
+        find.byKey(const ValueKey('catalog-results-categories')),
+        const Offset(0, -1000),
+      );
       await tester.pumpAndSettle();
       expect(runtime.catalog.browseCalls, calls);
       expect(find.text('加载更多'), findsOneWidget);
