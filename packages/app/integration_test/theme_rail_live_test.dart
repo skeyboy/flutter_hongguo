@@ -78,9 +78,15 @@ Future<void> _swipe(WidgetTester tester, String from, String to) async {
       spentInside++;
       continue;
     }
-    if (spentInside > 0) {
-      _mark('inner-first from=$from pulls=$spentInside');
-    }
+    // Both answers are evidence, and they say opposite things: pulls > 0 means
+    // the page's own level absorbed the pulls before the shell heard anything,
+    // pulls == 0 means the level was already at its end and the very first pull
+    // was handed up.
+    _mark(
+      spentInside > 0
+          ? 'inner-first from=$from pulls=$spentInside'
+          : 'edge-first from=$from pulls=0',
+    );
     expect(
       state.tabs!.activeIndex,
       expected,
@@ -254,6 +260,18 @@ void main() {
     await _live(tester, 400);
     _mark('shot=tab-swipe-to-categories');
     await _live(tester, 900);
+
+    // 分类 answers the same question with its own level: 短剧/漫剧/AI 短剧 are
+    // pages here, so two pulls walk to the end of them without the shell
+    // hearing a word, and the rail under the chips follows the page it is on.
+    await _swipeInner(tester, 'categories', -1, 'comic_series');
+    await _swipeInner(tester, 'categories', -1, 'ai_series');
+    _mark('shot=inner-categories-last');
+    await _live(tester, 900);
+    await _swipeInner(tester, 'categories', 1, 'comic_series');
+    await _swipeInner(tester, 'categories', 1, 'short_play');
+    await _live(tester, 900);
+
     await _swipe(tester, 'categories', 'discover');
     _mark('shot=tab-swipe-back-to-discover');
     await _live(tester, 900);
