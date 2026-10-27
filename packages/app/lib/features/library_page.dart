@@ -56,9 +56,45 @@ class _LibraryPageState extends State<LibraryPage> {
   /// page. A `TextEditingController` and a `ScrollController` can each only be
   /// attached to one live widget, which is what forces the split.
   static const panes = [0, 1];
-  final paneScroll = <int, ScrollController>{
-    for (final p in panes) p: ScrollController(),
+
+  /// The first level of each page, in the order that page's own tabs router
+  /// pages through it: 发现 pages 频道, 分类 pages 类型. A slot is a route, so
+  /// the list is fixed for the life of the router -- 榜单 is only in it when the
+  /// runtime's catalog can answer `rank` at all.
+  late final slotSets = <int, List<String>>{
+    0: [
+      'recommend',
+      'latest',
+      if (widget.runtime.catalog is RankCatalogRepository) 'rank',
+    ],
+    1: _genreOrder,
   };
+  static const _genreOrder = ['short_play', 'comic_series', 'ai_series'];
+
+  /// Which first-level page of the page the shell is asking about right now.
+  String slotOfPane(int pane) => pane == 0 ? view : genre;
+
+  /// One list per first-level page, because three of them can be laid out at
+  /// once during a swipe and a `ScrollController` attaches to exactly one live
+  /// scrollable -- one controller per page would throw mid-gesture.
+  final slotScroll = <String, ScrollController>{};
+
+  /// What identifies one first-level page of a pane: the key for its controller
+  /// and for its own debounce.
+  String slotKey(int pane, String slot) => '$pane/$slot';
+
+  ScrollController scrollAt(int pane, String slot) =>
+      slotScroll.putIfAbsent(slotKey(pane, slot), () {
+        final controller = ScrollController();
+        // Each first-level list asks for its own next page, through the record
+        // that belongs to it.
+        controller.addListener(() => _nearEnd(feedAt(pane, slot)));
+        return controller;
+      });
+
+  /// The list of one first-level page, looked up through its own record. A late
+  /// response and a pending debounce only ever know the record they belong to.
+  ScrollController scrollOf(_ThemeFeed feed) => scrollAt(feed.pane, feed.slot);
   final paneSearch = <int, TextEditingController>{
     for (final p in panes) p: TextEditingController(),
   };
@@ -90,12 +126,18 @@ class _LibraryPageState extends State<LibraryPage> {
   late String lastSort;
   late CatalogRepository lastCatalog;
   List<CatalogFilter> themes = [];
-  bool autoScheduled = false, settingsChanged = false;
+  final autoScheduled = <_ThemeFeed>{};
+  bool settingsChanged = false;
   bool themesLoading = false;
   String? themesError;
-  Timer? filterTimer;
+
+  /// One debounce per first-level page: a choice pending on the page that is not
+  /// on screen -- or on the page next to it inside this one -- must not be
+  /// cancelled by whatever the visible page does with its own.
+  final slotFilterTimer = <String, Timer?>{};
   CatalogRequestScope _themesScope = CatalogRequestScope();
   int themesRevision = 0;
+  String? themesRequested;
   late final LibraryCache feedCache;
 
   /// One entry per feed the viewer has opened, keyed by [feedKeyOf]. A theme the
@@ -108,42 +150,82 @@ class _LibraryPageState extends State<LibraryPage> {
   final feeds = <String, _ThemeFeed>{};
   String _activeKey = '';
 
-  /// The request a page would ask for right now. Both pages compute their own
-  /// key, so a swipe can show what the other page holds while the drag is
-  /// still moving. 频道 and 榜单 only exist on 发现, 题材 only on 分类, and 类型 is
-  /// the one dimension both pages read -- see docs/design/discover-catalog-cascade-tabs.md.
-  String feedKeyOf(int pane) => jsonEncode({
+  /// The request one first-level page would ask for. The key carries its own
+  /// slot, so a swipe can show what the page next to it holds while the drag is
+  /// still moving, and a response that lands late is filed where it was asked
+  /// for. 频道 is 发现's first level and 类型 分类's, and 类型 is the one dimension
+  /// both pages read -- see docs/design/discover-catalog-cascade-tabs.md.
+  String feedKeyAt(int pane, String slot) => jsonEncode({
     'destination': pane,
     'query': queryOf(pane),
-    'view': pane == 0 ? view : 'recommend',
-    'genre': genre,
-    'sort': sortFor(pane),
+    'view': pane == 0 ? slot : 'recommend',
+    'genre': pane == 0 ? genre : slot,
+    'sort': sortFor(pane, slot),
     'theme': pane == 1 ? theme : null,
     'board': pane == 0 ? board : 'recommend',
   });
+  String feedKeyOf(int pane) => feedKeyAt(pane, slotOfPane(pane));
   String get feedKey => feedKeyOf(destination);
   _ThemeFeed get feed => feedOf(destination);
-  _ThemeFeed feedOf(int pane) => feeds.putIfAbsent(
-    feedKeyOf(pane),
-    () => _ThemeFeed(feedKeyOf(pane), pane),
-  );
+
+  /// How many kept-alive feeds the shell holds. The disk snapshot is bounded by
+  /// `LibraryCache` (80 keys, seven days); this is the same promise for the
+  /// rows in memory, which a free-text search would otherwise grow without
+  /// limit -- one retained page per term typed.
+  static const _feedKeep = 32;
+
+  _ThemeFeed feedAt(int pane, String slot) {
+    final key = feedKeyAt(pane, slot);
+    final kept = feeds.putIfAbsent(key, () => _ThemeFeed(key, pane, slot));
+    if (feeds.length > _feedKeep) _evictFeeds();
+    return kept;
+  }
+
+  _ThemeFeed feedOf(int pane) => feedAt(pane, slotOfPane(pane));
+
+  /// Drops the oldest feeds no page is reading. The two pages' own first-level
+  /// pages stay whatever their state, and a record with a request still running
+  /// stays too -- its response has somewhere to land.
+  void _evictFeeds() {
+    final keep = {for (final p in panes) feedKeyOf(p), _activeKey};
+    for (final entry in feeds.values.toList()) {
+      if (feeds.length <= _feedKeep) return;
+      if (keep.contains(entry.key)) continue;
+      if (entry.loading || entry.refreshing || entry.loadingMore) continue;
+      entry.revision++;
+      entry.scope.cancel();
+      feeds.remove(entry.key);
+    }
+  }
 
   /// Which page a feed record belongs to, read back out of its own key. A timer
   /// or a late response only ever knows the record, never the current screen.
   int paneOf(String key) => (jsonDecode(key) as Map)['destination'] as int;
+  String slotOf(String key) {
+    final value = jsonDecode(key) as Map;
+    return (value[value['destination'] == 0 ? 'view' : 'genre'] ?? '')
+        as String;
+  }
+
+  /// The request itself is asked of the record's own key, not of the shell's
+  /// current state: with three first-level pages alive at once, the record that
+  /// is fetching is not necessarily the one on screen.
+  Map<String, dynamic> paramsOf(String key) =>
+      Map<String, dynamic>.from(jsonDecode(key) as Map);
 
   String queryOf(int pane) => paneQuery[pane]!;
 
   /// 榜单 asks `rank(board)`, which has no genre parameter at all -- so while
-  /// that channel is selected the second row of 发现 shows the three boards
+  /// that channel is the page on screen, 发现's second row shows the three boards
   /// instead of the types, rather than a control that changes nothing.
-  bool isRanking(int pane) =>
-      pane == 0 && queryOf(pane).isEmpty && view == 'rank';
+  bool isRankingAt(int pane, String slot) =>
+      pane == 0 && queryOf(pane).isEmpty && slot == 'rank';
+  bool isRanking(int pane) => isRankingAt(pane, slotOfPane(pane));
 
   /// 最新 is a channel the viewer picks, so it has to move the rows: it asks
   /// the catalog for the newest online date instead of the configured sort.
   /// The other channels keep whatever sort the viewer set in 设置.
-  String sortFor(int pane) => pane == 0 && view == 'latest'
+  String sortFor(int pane, String slot) => pane == 0 && slot == 'latest'
       ? 'online_time'
       : settingsFor(widget.runtime).catalogSort;
 
@@ -158,6 +240,91 @@ class _LibraryPageState extends State<LibraryPage> {
   /// The one gesture the phone has and the desktop does not: shown until the
   /// viewer has actually moved between the two pages.
   bool swipeHintSeen = false;
+
+  /// How far past the end of the page itself the finger has travelled, in the
+  /// direction it is going. One level spends this once: the switch resets it, so
+  /// a long pull cannot run the viewer through both pages at once.
+  double edgePull = 0;
+
+  /// The same, held per page, for what the chip rows of that band hand over: a
+  /// row that has run out of width is asked in the narrowest question first, so
+  /// the pull is spent on that page's own first level before the shell hears of
+  /// it at all.
+  final bandEdgePull = <int, double>{};
+
+  /// A row -- or a page -- that has run out of width hands the rest of the drag
+  /// one level up, which is what lets 推荐 → 最新 → 榜单 be reached from inside
+  /// the chip rows, and 发现 → 分类 reached once the inner pages have run out.
+  static const _edgePullExtent = 48.0;
+
+  bool _onNestedScroll(ScrollNotification notification) {
+    // The page list itself is depth 0 and already pages on a swipe.
+    if (notification.depth == 0) return false;
+    if (notification is ScrollStartNotification ||
+        notification is ScrollEndNotification) {
+      edgePull = 0;
+      return false;
+    }
+    if (notification is! OverscrollNotification) return false;
+    final overscroll = notification.overscroll;
+    // Only a drag: momentum has no intent behind it, and only a row lying
+    // across the axis -- the list running out of rows vertically is not a
+    // reason to leave the page.
+    if (overscroll == 0 ||
+        notification.dragDetails == null ||
+        notification.metrics.axis != Axis.horizontal) {
+      edgePull = 0;
+      return false;
+    }
+    // Turning around at the edge is a new question, not a refund of the pull
+    // already spent.
+    if (overscroll.sign != edgePull.sign) edgePull = 0;
+    edgePull += overscroll;
+    if (edgePull.abs() < _edgePullExtent) return false;
+    final wanted = edgePull > 0 ? destination + 1 : destination - 1;
+    edgePull = 0;
+    // 我的 is not in the swipe, and nothing lies before 发现.
+    if (panes.contains(wanted)) _selectTab(wanted);
+    return false;
+  }
+
+  /// The band of one page, asked about a drag that ran out of row width inside
+  /// it. What it cannot spend -- the page next to that edge does not exist -- it
+  /// hands to the shell, which is where the other page of the catalog waits.
+  bool _onBandScroll(int pane, ScrollNotification notification) {
+    if (notification is ScrollStartNotification ||
+        notification is ScrollEndNotification) {
+      bandEdgePull[pane] = 0;
+      return false;
+    }
+    if (notification is! OverscrollNotification) return false;
+    final overscroll = notification.overscroll;
+    if (overscroll == 0 ||
+        notification.dragDetails == null ||
+        notification.metrics.axis != Axis.horizontal) {
+      bandEdgePull[pane] = 0;
+      return false;
+    }
+    var pull = bandEdgePull[pane] ?? 0;
+    if (overscroll.sign != pull.sign) pull = 0;
+    pull += overscroll;
+    final tabs = innerTabs[pane];
+    final wanted = tabs == null ? -1 : tabs.activeIndex + (pull > 0 ? 1 : -1);
+    if (tabs == null || !slotSets[pane]!.asMap().containsKey(wanted)) {
+      // Nothing lies that way inside this page. Hand the whole drag to the
+      // shell from here, so what this level counted is not counted twice.
+      bandEdgePull[pane] = 0;
+      return false;
+    }
+    if (pull.abs() < _edgePullExtent) {
+      bandEdgePull[pane] = pull;
+      // Spent here, so it is not spent again one level up.
+      return true;
+    }
+    bandEdgePull[pane] = 0;
+    tabs.setActiveIndex(wanted);
+    return true;
+  }
 
   /// How wide the shell laid itself out as, read by the routed pages: one
   /// measure decides phone or desktop for the whole screen, navigation and
@@ -186,6 +353,22 @@ class _LibraryPageState extends State<LibraryPage> {
               name: paneRoutes[pane],
               path: 'catalog-$pane',
               builder: (_, _) => _CatalogPane(state: this, pane: pane),
+              children: [
+                for (final slot in slotSets[pane]!)
+                  NamedRouteDef(
+                    name: slotRouteName(pane, slot),
+                    path: slot,
+                    // A first-level page the viewer swiped away from leaves the
+                    // tree once the swipe settles. Nothing is lost: the rows,
+                    // the cursor and where the list stood live in the feed
+                    // record, and only the page on screen is on screen -- which
+                    // is what keeps its search box and its chip rows the only
+                    // ones of their name.
+                    maintainState: false,
+                    builder: (_, _) =>
+                        _CatalogSlot(state: this, pane: pane, slot: slot),
+                  ),
+              ],
             ),
         ],
       ),
@@ -198,8 +381,35 @@ class _LibraryPageState extends State<LibraryPage> {
     for (final pane in panes) NamedRoute(paneRoutes[pane]),
   ];
 
+  /// The name one first-level page is routed under. Both pages keep their own
+  /// route even where the slot is the same word, so a route never means two
+  /// different lists.
+  static String slotRouteName(int pane, String slot) =>
+      'CatalogSlot$pane-$slot';
+
+  /// The tabs of one page's own first level, in the order that page pages
+  /// through them. Instances are stable for the same reason [tabRoutes] is.
+  late final innerRoutes = <int, List<PageRouteInfo>>{
+    for (final pane in panes)
+      pane: [
+        for (final slot in slotSets[pane]!)
+          NamedRoute(slotRouteName(pane, slot)),
+      ],
+  };
+
   /// Captured from the tabs builder, which is the only place that has it.
   TabsRouter? tabs;
+
+  /// The same, once per page, for that page's own first level: a chip tap and a
+  /// swipe inside one page both go through the router of that page, and it is
+  /// only reachable from inside its own builder.
+  final innerTabs = <int, TabsRouter>{};
+
+  /// One stable listener per page -- a router keeps holding the closure it was
+  /// handed, so a fresh one on every rebuild would leave the old ones attached.
+  late final innerChanged = <int, VoidCallback>{
+    for (final pane in panes) pane: () => _onInnerTabChanged(pane),
+  };
 
   /// A rebuild of `LibraryPage` stops at the nested `Router`, which only
   /// re-renders its routed subtree when its own delegate notifies -- so every
@@ -214,11 +424,12 @@ class _LibraryPageState extends State<LibraryPage> {
 
   /// The scroll, focus and query of the page currently on screen. Everything
   /// that still has to speak about "this page" reads through these, and every
-  /// widget that renders a page passes its own pane index instead.
-  ScrollController get scroll => paneScroll[destination]!;
+  /// widget that renders a page passes its own pane index instead. The list
+  /// itself belongs to a first-level page, so it is read through the record.
+  ScrollController get scroll => scrollOf(feed);
   String get query => queryOf(destination);
   bool get ranking => isRanking(destination);
-  String get sort => sortFor(destination);
+  String get sort => sortFor(destination, slotOfPane(destination));
   @override
   void initState() {
     super.initState();
@@ -245,7 +456,6 @@ class _LibraryPageState extends State<LibraryPage> {
       });
     }
     for (final pane in panes) {
-      paneScroll[pane]!.addListener(() => _nearEnd(pane));
       paneFocus[pane]!.addListener(() => _onSearchFocus(pane));
       paneSearch[pane]!.addListener(() => _onSearchText(pane));
     }
@@ -263,12 +473,19 @@ class _LibraryPageState extends State<LibraryPage> {
     suggestionsEntry = null;
     _themesScope.cancel();
     unawaited(sortEvents?.cancel());
-    filterTimer?.cancel();
+    for (final timer in slotFilterTimer.values) {
+      timer?.cancel();
+    }
     tabs?.removeListener(_onTabChanged);
     for (final pane in panes) {
-      paneScroll[pane]!.dispose();
+      innerTabs[pane]?.removeListener(innerChanged[pane]!);
+    }
+    for (final pane in panes) {
       paneSearch[pane]!.dispose();
       paneFocus[pane]!.dispose();
+    }
+    for (final controller in slotScroll.values) {
+      controller.dispose();
     }
     router.dispose();
     viewRev.dispose();
@@ -279,44 +496,54 @@ class _LibraryPageState extends State<LibraryPage> {
       feed.scope.run(() => _requestPage(feed, next: next));
 
   Future<CatalogPage> _requestPage(_ThemeFeed feed, {String? next}) {
-    final pane = feed.pane;
-    final text = queryOf(pane);
+    // Asked of the record's own key: three first-level pages can be alive at
+    // once, so the shell's current choice is not necessarily the one fetching.
+    final params = paramsOf(feed.key);
+    final text = params['query'] as String;
     if (text.isNotEmpty) {
       return widget.runtime.catalog.search(text, cursor: next);
     }
     final catalog = widget.runtime.catalog;
-    if (isRanking(pane) && catalog is RankCatalogRepository) {
-      return catalog.rank(board: board, cursor: next);
+    if (params['view'] == 'rank' && catalog is RankCatalogRepository) {
+      return catalog.rank(board: params['board'] as String, cursor: next);
     }
     return catalog.browse(
-      genre: genre,
-      sort: sortFor(pane),
+      genre: params['genre'] as String,
+      sort: params['sort'] as String,
       // 题材 is 分类's second level; 发现 asks the same repository without it so
       // a theme picked over there never silently narrows the recommendation
       // stream the viewer is swiping back to.
-      theme: pane == 1 ? theme : null,
+      theme: params['theme'] as String?,
       cursor: next,
       seen: next == null ? [] : feed.items.map((d) => d.id).toList(),
     );
   }
 
-  void _scheduleMore(int pane) {
-    if (autoScheduled || !mounted) return;
-    autoScheduled = true;
+  /// Ask for the next page of one record once it has been laid out. The set
+  /// holds the record, not the page index: inside one page there are three
+  /// first-level lists, and each of them can be near its own end.
+  void _scheduleMore(_ThemeFeed feed) {
+    if (autoScheduled.contains(feed) || !mounted) return;
+    autoScheduled.add(feed);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      autoScheduled = false;
-      if (mounted) _nearEnd(pane);
+      autoScheduled.remove(feed);
+      if (mounted) _nearEnd(feed);
     });
   }
 
-  void _nearEnd(int pane) {
-    if (pane != destination ||
+  /// Only the list that is actually on screen pages itself: a record belonging
+  /// to a first-level page that has been swiped away from, or to the other page
+  /// of the shell, is asked to stay where it is.
+  void _nearEnd(_ThemeFeed feed) {
+    if (!identical(feeds[feed.key], feed) ||
+        feed.pane != destination ||
+        feed.slot != slotOfPane(feed.pane) ||
         mineOpen ||
         suggestionsPane != null ||
         !settingsFor(widget.runtime).autoLoadMore) {
       return;
     }
-    final feed = feedOf(pane), controller = paneScroll[pane]!;
+    final controller = scrollOf(feed);
     if (feed.loading ||
         feed.refreshing ||
         feed.loadingMore ||
@@ -327,7 +554,7 @@ class _LibraryPageState extends State<LibraryPage> {
       return;
     }
     if (controller.position.extentAfter < 600) {
-      _more(automatic: true);
+      _more(feed: feed, automatic: true);
     }
   }
 
@@ -340,11 +567,12 @@ class _LibraryPageState extends State<LibraryPage> {
     bool preserveContent = false,
     bool force = false,
   }) async {
-    filterTimer?.cancel();
+    slotFilterTimer[slotKey(feed.pane, feed.slot)]?.cancel();
     feed.scope.cancel();
     feed.scope = CatalogRequestScope();
     final current = ++feed.revision;
-    final pane = feed.pane, key = feed.key, controller = paneScroll[pane]!;
+    final key = feed.key, controller = scrollOf(feed);
+    final params = paramsOf(key);
     setState(() {
       feed.loading = !preserveContent || feed.items.isEmpty;
       feed.refreshing = true;
@@ -358,7 +586,13 @@ class _LibraryPageState extends State<LibraryPage> {
       feed.cursor = null;
     });
     if (controller.hasClients) controller.jumpTo(0);
-    if (refreshThemes && queryOf(pane).isEmpty && !isRanking(pane)) {
+    // The rail is the shared first level's child, so only the record that is
+    // actually on that type may refill it; a page left behind with an older
+    // type would cancel the one flight every 分类 is waiting on.
+    if (refreshThemes &&
+        (params['query'] as String).isEmpty &&
+        params['view'] != 'rank' &&
+        params['genre'] == genre) {
       unawaited(_loadThemes(genre));
     }
     final cached = await feedCache.readFeed(key);
@@ -377,7 +611,7 @@ class _LibraryPageState extends State<LibraryPage> {
       if (!force && !age.isNegative && age < const Duration(seconds: 30)) {
         setState(() => feed.refreshing = false);
         feed.visited = true;
-        _scheduleMore(pane);
+        _scheduleMore(feed);
         return;
       }
     }
@@ -397,7 +631,7 @@ class _LibraryPageState extends State<LibraryPage> {
       });
       feed.visited = true;
       await _saveSnapshot(feed, key, current);
-      _scheduleMore(pane);
+      _scheduleMore(feed);
     } catch (e) {
       if (mounted && current == feed.revision) {
         setState(() {
@@ -420,10 +654,15 @@ class _LibraryPageState extends State<LibraryPage> {
   /// re-requested, and the rows plus the cursor that produced them stay put
   /// unless the first page itself changed.
   Future<void> _refreshKept(_ThemeFeed feed) async {
-    filterTimer?.cancel();
+    slotFilterTimer[slotKey(feed.pane, feed.slot)]?.cancel();
     final current = ++feed.revision;
+    // A refresh supersedes whatever page was on its way: that response is
+    // dropped by the revision check in `_more`, so the flag has to be cleared
+    // here or the footer keeps spinning for a request that already stopped
+    // existing and paging stays blocked.
     setState(() {
       feed.refreshing = true;
+      feed.loadingMore = false;
       feed.refreshError = null;
       feed.error = null;
     });
@@ -462,7 +701,7 @@ class _LibraryPageState extends State<LibraryPage> {
         feed.cachedAt = null;
       });
       await _saveSnapshot(feed, feed.key, current);
-      _scheduleMore(feed.pane);
+      _scheduleMore(feed);
     } catch (_) {
       if (mounted && current == feed.revision) {
         setState(() {
@@ -486,8 +725,11 @@ class _LibraryPageState extends State<LibraryPage> {
     }
   }
 
-  Future<void> _more({bool automatic = false}) async {
-    final feed = this.feed;
+  /// The next page of one record's own feed. The record is passed in rather
+  /// than looked up from the screen: a footer button belongs to the list that
+  /// painted it, and appending its second page to whichever list happens to be
+  /// visible is exactly what the per-record feed layer exists to prevent.
+  Future<void> _more({required _ThemeFeed feed, bool automatic = false}) async {
     if (feed.cursor == null ||
         feed.loadingMore ||
         feed.loading ||
@@ -524,7 +766,7 @@ class _LibraryPageState extends State<LibraryPage> {
         }
       });
       await _saveSnapshot(feed, key, current);
-      _scheduleMore(feed.pane);
+      _scheduleMore(feed);
     } catch (e) {
       if (mounted && current == feed.revision) {
         setState(() {
@@ -554,9 +796,9 @@ class _LibraryPageState extends State<LibraryPage> {
       outgoing = feeds[_activeKey];
       if (outgoing != null) {
         // Where the page being left had got to is read from the record's own
-        // pane: during a swipe the destination has already moved, so the
-        // active controller belongs to the page coming in, not the one going.
-        final leaving = paneScroll[outgoing.pane]!;
+        // controller: during a swipe the destination has already moved, so the
+        // page going out is not the one the active list belongs to.
+        final leaving = scrollOf(outgoing);
         if (leaving.hasClients) outgoing.scroll = leaving.offset;
         outgoing.revision++;
         outgoing.scope.cancel();
@@ -567,8 +809,8 @@ class _LibraryPageState extends State<LibraryPage> {
       }
       _activeKey = key;
     }
-    filterTimer?.cancel();
     final incoming = feed;
+    slotFilterTimer[slotKey(incoming.pane, incoming.slot)]?.cancel();
     if (!keepAlive) {
       // A filter change keeps the previous rows on screen while the new query
       // is in flight; a theme switch never shows another theme's rows.
@@ -587,13 +829,22 @@ class _LibraryPageState extends State<LibraryPage> {
       return;
     }
     if (incoming.visited) {
-      _restoreScroll(incoming.pane, incoming.scroll);
+      _restoreScroll(incoming, incoming.scroll);
       // Coming back from 我的 only restores the view; the rows and their cursor
       // are already the ones the viewer left.
       if (!refresh) return;
-      filterTimer = Timer(_switchWait, () {
-        if (mounted && feedKey == key) unawaited(_refreshKept(incoming));
-      });
+      slotFilterTimer[slotKey(incoming.pane, incoming.slot)] = Timer(
+        _switchWait,
+        () {
+          // "Still the feed this page would ask for" is asked of the record's
+          // own first-level page: the viewer may have swiped on while this was
+          // waiting, and the page being left still gets the refresh it was
+          // entered for.
+          if (mounted && feedKeyAt(incoming.pane, incoming.slot) == key) {
+            unawaited(_refreshKept(incoming));
+          }
+        },
+      );
       return;
     }
     setState(() => incoming.loading = true);
@@ -611,11 +862,14 @@ class _LibraryPageState extends State<LibraryPage> {
       // re-request.
       unawaited(_loadThemes(genre));
     }
-    filterTimer = Timer(_switchWait, () {
-      if (mounted && feedKey == key) {
-        unawaited(_reload(incoming, refreshThemes: false));
-      }
-    });
+    slotFilterTimer[slotKey(incoming.pane, incoming.slot)] = Timer(
+      _switchWait,
+      () {
+        if (mounted && feedKeyAt(incoming.pane, incoming.slot) == key) {
+          unawaited(_reload(incoming, refreshThemes: false));
+        }
+      },
+    );
   }
 
   /// Put a kept-alive feed back at the offset it was left at. A jump is clamped
@@ -623,8 +877,8 @@ class _LibraryPageState extends State<LibraryPage> {
   /// left is still on screen that can be far shorter than the offset being
   /// restored -- so the same jump is repeated once the incoming rows have been
   /// laid out, which is what makes a theme come back where it was left.
-  void _restoreScroll(int pane, double offset) {
-    final controller = paneScroll[pane]!;
+  void _restoreScroll(_ThemeFeed target, double offset) {
+    final controller = scrollOf(target);
     void jump() {
       if (!controller.hasClients) return;
       controller.jumpTo(offset.clamp(0, controller.position.maxScrollExtent));
@@ -814,7 +1068,7 @@ class _LibraryPageState extends State<LibraryPage> {
         // unless the viewer changed something in there that moves the feed.
         _switchFeed(keepAlive: true, refresh: settingsChanged);
         settingsChanged = false;
-        _scheduleMore(destination);
+        _scheduleMore(feed);
       }
       return;
     }
@@ -824,7 +1078,7 @@ class _LibraryPageState extends State<LibraryPage> {
   void _openMine() {
     if (mineOpen) return;
     _closeSuggestions();
-    final active = paneScroll[destination]!;
+    final active = scrollOf(feed);
     if (active.hasClients) feed.scroll = active.offset;
     setState(() => mineOpen = true);
     FocusManager.instance.primaryFocus?.unfocus();
@@ -839,10 +1093,16 @@ class _LibraryPageState extends State<LibraryPage> {
     swipeHintSeen = true;
     setState(() => destination = next);
     _switchFeed(keepAlive: true);
-    _scheduleMore(next);
+    _scheduleMore(feed);
   }
 
   Future<void> _loadThemes(String requestedGenre) async {
+    // The rail is one shared flight per parent type. A second call for the type
+    // already loading would cancel the first and then join its cancellation,
+    // which the viewer reads as 题材加载失败 -- and both pages enter through here
+    // now, so the guard belongs to the loader rather than to one caller.
+    if (themesLoading && themesRequested == requestedGenre) return;
+    themesRequested = requestedGenre;
     _themesScope.cancel();
     final scope = _themesScope = CatalogRequestScope();
     final ticket = ++themesRevision;
@@ -873,8 +1133,18 @@ class _LibraryPageState extends State<LibraryPage> {
     }
   }
 
-  void _selectFilter(String group, String value) {
-    final before = feedKey;
+  /// A choice made on one page changes that page's feed. [pane] comes from the
+  /// row that painted the chip: both pages are alive, so a keyboard activation
+  /// on the one that is not on screen must not be filed against whichever page
+  /// happens to be visible. 类型 is the shared dimension and moves both keys.
+  void _selectFilter(String group, String value, int pane) {
+    if (group == 'view' || (group == 'genre' && pane == 1)) {
+      // This chip is one of the page's own first-level pages, not a narrowing
+      // of the list already on it: it changes the page.
+      _gotoSlot(pane, value);
+      return;
+    }
+    final before = feedKeyOf(pane);
     setState(() {
       switch (group) {
         case 'genre':
@@ -886,16 +1156,20 @@ class _LibraryPageState extends State<LibraryPage> {
           theme = value.isEmpty ? null : value;
         case 'board':
           board = value;
-        case 'view':
-          // 频道 is 发现's own second level: `rank(board)` takes no genre and
-          // no theme, so choosing a board reaches into neither the shared first
-          // level nor 分类's rail. It used to write 漫剧 and drop the rail, which
-          // made a channel read like a filter and stole the type the viewer
-          // picked over there.
-          view = value;
       }
     });
-    if (before == feedKey) return;
+    if (group == 'genre') {
+      // 类型 is also the name of a page over there: 分类's own first level
+      // follows the shared value the way its own chip would have moved it.
+      _syncInnerIndex(1);
+    }
+    if (before == feedKeyOf(pane)) return;
+    if (pane != destination) {
+      // The visible page keeps its rows, its cursor and the shell's active
+      // feed; this one only re-arms its own record.
+      _rearmFeed(feedOf(pane));
+      return;
+    }
     if (group == 'theme') {
       // A theme is its own feed now: switching to one the viewer already opened
       // restores it, switching to a new one loads it, and neither rebuilds the
@@ -904,7 +1178,15 @@ class _LibraryPageState extends State<LibraryPage> {
       return;
     }
     _switchFeed(seed: true);
-    final key = feedKey, target = feed, current = target.revision;
+    _rearmFeed(feed);
+  }
+
+  /// Put a feed whose key just changed into its waiting shape: the rows cached
+  /// for the new key come back as soon as the disk has them, and one debounced
+  /// reload asks for the rest. Rapid taps along a row therefore cost one request
+  /// for the choice finally stayed on.
+  void _rearmFeed(_ThemeFeed target) {
+    final key = target.key, current = target.revision;
     setState(() {
       target.refreshing = true;
       target.loadingMore = false;
@@ -928,11 +1210,14 @@ class _LibraryPageState extends State<LibraryPage> {
         }
       }),
     );
-    filterTimer = Timer(const Duration(milliseconds: 250), () {
-      if (mounted) {
-        _reload(target, refreshThemes: false, preserveContent: true);
-      }
-    });
+    slotFilterTimer[slotKey(target.pane, target.slot)] = Timer(
+      const Duration(milliseconds: 250),
+      () {
+        if (mounted) {
+          _reload(target, refreshThemes: false, preserveContent: true);
+        }
+      },
+    );
   }
 
   void _diagnostics() {
@@ -1120,16 +1405,20 @@ class _LibraryPageState extends State<LibraryPage> {
   /// the top of this page on purpose: the bottom bar, the navigation rail and
   /// the wide sidebar already carry them, so every pixel above the rows
   /// belongs to the content instead.
-  Widget _sectionTitle(int pane) {
+  ///
+  /// It names the first-level page it sits above, not whichever page the shell
+  /// is on: mid-swipe two of them are laid out at once, and each list has to
+  /// say what it itself is holding.
+  Widget _sectionTitleAt(int pane, String slot) {
     final text = queryOf(pane);
     return Text(
       text.isNotEmpty
           ? '“$text”'
-          : isRanking(pane)
+          : isRankingAt(pane, slot)
           ? '${_genreNames[_boardGenre]} · ${_boardNames[board] ?? '榜单'}'
           : pane == 1
           ? '符合筛选的故事'
-          : view == 'latest'
+          : slot == 'latest'
           ? '最新上架'
           : '为你发现',
       style: Theme.of(context).textTheme.titleLarge
@@ -1178,7 +1467,7 @@ class _LibraryPageState extends State<LibraryPage> {
             ),
             selected: selected == e.key,
             onSelected: (_) {
-              if (selected != e.key) _selectFilter(name, e.key);
+              if (selected != e.key) _selectFilter(name, e.key, pane);
             },
             materialTapTargetSize: MaterialTapTargetSize.padded,
           ),
@@ -1249,11 +1538,12 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  /// The themes of the current genre, laid out in one row that pins to the top
-  /// of the list as everything above it scrolls away, the way the television
-  /// build keeps them reachable. Tapping one opens that theme's own feed rather
-  /// than filtering the rows in place, so loading and retry both keep their
-  /// fixed height and never push the grid around.
+  /// The themes of the current genre, laid out in the band that sits above the
+  /// page rather than inside its list: one row of chips answers the second
+  /// level of every first-level page this pane pages through, so it belongs to
+  /// the page, not to one of its lists. Tapping one opens that theme's own feed
+  /// rather than filtering the rows in place, so loading and retry both keep
+  /// their fixed height and never push the grid around.
   Widget _themeRail(int pane, bool compact) {
     // 题材 is 分类's second level alone. It is the same child of the same type on
     // both pages, so showing it twice is the duplication the filter panel used
@@ -1317,7 +1607,8 @@ class _LibraryPageState extends State<LibraryPage> {
                             ),
                             selected: id == selected,
                             onSelected: (_) {
-                              if (id != selected) _selectFilter('theme', id);
+                              if (id == selected) return;
+                              _selectFilter('theme', id, pane);
                             },
                             materialTapTargetSize: MaterialTapTargetSize.padded,
                           ),
@@ -1330,85 +1621,120 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  /// One catalog page: its own search, its own two levels of narrowing, its own
-  /// scroll position -- and, for 分类, the pinned 题材 rail. Both of these are
-  /// built while a swipe is in flight, so nothing here may read the shell's
-  /// "currently on screen" getters; every one of them is asked of [pane].
-  Widget _pane(int pane, bool compact, double viewportWidth) {
+  /// One catalog page: the band it keeps on screen, then the first-level pages
+  /// it slides sideways through. Both of these are built while a swipe is in
+  /// flight, so nothing here may read the shell's "currently on screen"
+  /// getters; every one of them is asked of [pane].
+  Widget _pane(int pane, bool compact, double viewportWidth) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _paneBand(pane, compact, viewportWidth),
+      // The list is the only thing here that scrolls, so it gets whatever the
+      // band left of the page.
+      Expanded(child: _innerPages(pane)),
+    ],
+  );
+
+  /// The band asks the page's own question once: the search field, the two rows
+  /// of chips and, for 分类, the 题材 rail under them. It stays put while the
+  /// list inside it scrolls because this row of chips is also the tab strip of
+  /// the pages the viewer swipes between -- a strip that slid away would leave a
+  /// swipe with nothing that shows where it landed.
+  Widget _paneBand(int pane, bool compact, double viewportWidth) {
     final padding = compact ? 16.0 : 28.0;
-    final f = feedOf(pane);
-    final controller = paneScroll[pane]!;
-    return RefreshIndicator(
-      onRefresh: () => _reload(f, refreshThemes: false, force: true),
-      key: ValueKey('catalog-results-${paneName(pane)}'),
-      child: CustomScrollView(
-        controller: controller,
-        key: PageStorageKey('catalog-feed-${paneName(pane)}'),
-        slivers: [
-          // Search is the page's own header now, and it scrolls: on a phone the
-          // brand band and the row of icon buttons gave up 150 logical pixels to
-          // nothing, and on the desktop the sidebar already repeats the title
-          // and the 我的 shortcut.
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                padding,
-                compact ? 8 : 14,
-                padding,
-                0,
-              ),
-              child: Row(
-                children: [
-                  if (compact)
-                    Expanded(child: _searchBox(pane))
-                  else
-                    SizedBox(
-                      width: (viewportWidth * .42).clamp(240.0, 440.0),
-                      child: _searchBox(pane),
-                    ),
-                  IconButton(
-                    tooltip: '离线检查',
-                    onPressed: _diagnostics,
-                    icon: const Icon(Icons.verified_outlined),
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) => _onBandScroll(pane, notification),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(padding, compact ? 8 : 14, padding, 0),
+            child: Row(
+              children: [
+                if (compact)
+                  Expanded(child: _searchBox(pane))
+                else
+                  SizedBox(
+                    width: (viewportWidth * .42).clamp(240.0, 440.0),
+                    child: _searchBox(pane),
                   ),
-                ],
-              ),
+                IconButton(
+                  tooltip: '离线检查',
+                  onPressed: _diagnostics,
+                  icon: const Icon(Icons.verified_outlined),
+                ),
+              ],
             ),
           ),
           // The choices sit flush with the rail under them -- both rows start
           // at the same inset, so they read as one family of narrowing.
-          SliverToBoxAdapter(child: _choiceRow(pane, compact)),
+          _choiceRow(pane, compact),
           if (pane == 1)
-            SliverPersistentHeader(
-              // The rail is the one thing that never leaves. It rides up to the
-              // top as the search box and the choice row scroll out and stops
-              // there, so a theme stays one tap away from anywhere in the rows.
-              pinned: true,
-              delegate: _ThemeRailHeader(
-                height: queryOf(pane).isEmpty ? _filterRowHeight : 0,
-                child: _themeRail(pane, compact),
-              ),
+            SizedBox(
+              // 题材 is the one thing that never leaves: it stays one tap away
+              // from anywhere in the rows, whatever the list has got to.
+              height: queryOf(pane).isEmpty && !isRanking(pane)
+                  ? _filterRowHeight
+                  : 0,
+              child: _themeRail(pane, compact),
             ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(padding, 12, padding, 10),
-              child: _sectionTitle(pane),
-            ),
-          ),
           if (compact && !swipeHintSeen)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(padding, 0, padding, 8),
-                child: Text(
-                  '左右滑动切换 发现 · 分类',
-                  key: const ValueKey('swipe-hint'),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(padding, 0, padding, 8),
+              child: Text(
+                // Both levels are true of one gesture, so the sentence names
+                // them in the order they are reached: a swipe first moves this
+                // page's own level, and only runs the other page over once
+                // there is nothing left of this one.
+                '左右滑动切换本页，滑到尽头再切换 发现 · 分类',
+                key: const ValueKey('swipe-hint'),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  /// The page's own first level, as the tabs router of its route: 推荐/最新/榜单
+  /// for 发现, the three types for 分类.
+  Widget _innerPages(int pane) => AutoTabsRouter.pageView(
+    routes: innerRoutes[pane]!,
+    animatePageTransition: true,
+    builder: (context, child, _) {
+      _attachInnerTabs(pane, AutoTabsRouter.of(context));
+      return child;
+    },
+  );
+
+  /// One first-level page of one catalog page: its own rows, its own scroll
+  /// position, its own pull-to-refresh.
+  Widget _slotPage(int pane, String slot, bool compact, double viewportWidth) {
+    final padding = compact ? 16.0 : 28.0;
+    final f = feedAt(pane, slot);
+    // Each list asks for its own next page as it gets laid out, so a swipe
+    // that lays two of them out feeds both records rather than only the one
+    // the shell says is on screen.
+    _scheduleMore(f);
+    return RefreshIndicator(
+      onRefresh: () => _reload(f, refreshThemes: false, force: true),
+      key: ValueKey('catalog-results-${paneName(pane)}'),
+      child: CustomScrollView(
+        controller: scrollOf(f),
+        // Slot-qualified: a first-level page that has not been visited yet must
+        // not inherit where the page next to it was scrolled to, since the
+        // scrollable it replaces is filed under the same pane.
+        key: PageStorageKey('catalog-feed-${paneName(pane)}-$slot'),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(padding, 12, padding, 10),
+              child: _sectionTitleAt(pane, slot),
+            ),
+          ),
           if (f.refreshing || f.cachedAt != null || f.refreshError != null)
             SliverToBoxAdapter(
               child: Padding(
@@ -1524,7 +1850,7 @@ class _LibraryPageState extends State<LibraryPage> {
                     OutlinedButton(
                       onPressed: f.items.isEmpty
                           ? () => _reload(f, refreshThemes: false, force: true)
-                          : _more,
+                          : () => _more(feed: f),
                       child: const Text('重试'),
                     ),
                   ],
@@ -1549,7 +1875,10 @@ class _LibraryPageState extends State<LibraryPage> {
                             Text('正在加载更多…'),
                           ],
                         )
-                      : TextButton(onPressed: _more, child: const Text('加载更多')),
+                      : TextButton(
+                          onPressed: () => _more(feed: f),
+                          child: const Text('加载更多'),
+                        ),
                 ),
               ),
             ),
@@ -1575,7 +1904,6 @@ class _LibraryPageState extends State<LibraryPage> {
       this.compact = size.maxWidth < 720;
       final wide = size.maxWidth >= 1100;
       final compact = this.compact;
-      _scheduleMore(destination);
       final pages = AutoTabsRouter.pageView(
         routes: tabRoutes,
         animatePageTransition: true,
@@ -1705,7 +2033,16 @@ class _LibraryPageState extends State<LibraryPage> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Offstage(offstage: mineOpen, child: pages),
+                    Offstage(
+                      offstage: mineOpen,
+                      // Whatever the chip rows and the inner pages cannot spend
+                      // -- no page that way inside this one -- is spent here,
+                      // where the other page of the catalog waits.
+                      child: NotificationListener<ScrollNotification>(
+                        onNotification: _onNestedScroll,
+                        child: pages,
+                      ),
+                    ),
                     if (mineOpen)
                       Positioned.fill(
                         child: MyPage(
@@ -1739,6 +2076,89 @@ class _LibraryPageState extends State<LibraryPage> {
     });
   }
 
+  /// The same, for one page's own first level. A page that has never been on
+  /// screen starts its router at its first slot, so whatever that page's level
+  /// actually holds has to be filed into the router before the viewer sees it.
+  void _attachInnerTabs(int pane, TabsRouter value) {
+    if (identical(innerTabs[pane], value)) return;
+    innerTabs[pane]?.removeListener(innerChanged[pane]!);
+    innerTabs[pane] = value;
+    value.addListener(innerChanged[pane]!);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _syncInnerIndex(pane);
+    });
+  }
+
+  /// Put that page's router on the slot its own level says. A page reaches this
+  /// from the other side of the catalog too -- 类型 is shared, so a pick over
+  /// there names a page here -- and the router is the only thing allowed to say
+  /// which page is on screen.
+  void _syncInnerIndex(int pane) {
+    final tabs = innerTabs[pane];
+    if (tabs == null) return;
+    final wanted = slotSets[pane]!.indexOf(slotOfPane(pane));
+    if (wanted == -1 || wanted == tabs.activeIndex) return;
+    tabs.setActiveIndex(wanted);
+  }
+
+  /// The router settled somewhere else -- a swipe inside the page, or a tap on
+  /// one of its own chips -- so the level of that page is what changes.
+  void _onInnerTabChanged(int pane) {
+    final tabs = innerTabs[pane];
+    if (tabs == null) return;
+    final slot = slotSets[pane]![tabs.activeIndex];
+    if (slot == slotOfPane(pane)) return;
+    _applySlot(pane, slot);
+  }
+
+  /// A tap on one of a page's own first-level chips is a page change, not a
+  /// filter change. The level moves and the router is filed to match, which is
+  /// the only way a chip and a swipe can end on the same page: the router never
+  /// hears a second answer for the choice already made, because the level it
+  /// would report is the one just written.
+  void _gotoSlot(int pane, String slot) {
+    if (slot == slotOfPane(pane)) return;
+    _applySlot(pane, slot);
+    _syncInnerIndex(pane);
+  }
+
+  /// What a page's own level moving costs: the shared or page-local value is
+  /// written, and the record it names is either shown -- when that page is the
+  /// one on screen -- or re-armed for the next time it is.
+  void _applySlot(int pane, String slot) {
+    setState(() => _writeSlot(pane, slot));
+    if (pane != destination) {
+      _rearmFeed(feedOf(pane));
+      return;
+    }
+    // Entering one of this page's own first-level pages shows what it already
+    // holds and asks for nothing: unlike a trip to 我的, nothing about this
+    // record's request changed while it was away, so the rows and the offset
+    // it was left at are the answer. A slot never opened yet takes the load
+    // path below the visited check, which is cache-first.
+    _switchFeed(keepAlive: true, refresh: false);
+  }
+
+  /// What a page's own level actually is, written once the page is agreed.
+  void _writeSlot(int pane, String slot) {
+    if (pane == 0) {
+      // 频道 moves which page of 发现 is on screen and nothing else: a board
+      // asks `rank(board)`, which takes no genre and no theme, so a channel must
+      // not reach into the shared first level or 分类's rail -- it used to write
+      // 漫剧 and drop the rail, which made a channel read like a filter and stole
+      // the type the viewer picked over there.
+      view = slot;
+      return;
+    }
+    // 题材 is a child of the type, and every type has its own: leaving one
+    // drops the theme picked inside it rather than carrying an id that belongs
+    // to a different parent over to the next page.
+    genre = slot;
+    theme = null;
+    themes = [];
+    unawaited(_loadThemes(slot));
+  }
+
   @override
   Widget build(BuildContext context) =>
       Router(routerDelegate: router.delegate());
@@ -1758,7 +2178,9 @@ class _CatalogShell extends StatelessWidget {
 }
 
 /// One routed catalog page, kept alive so the other one stays visible in the
-/// middle of a swipe and its rows survive the trip.
+/// middle of a swipe and its rows survive the trip. Its own first level is the
+/// tabs router inside it, so the band above that router is laid out once for
+/// whichever page of it is on screen.
 class _CatalogPane extends StatelessWidget {
   final _LibraryPageState state;
   final int pane;
@@ -1778,6 +2200,28 @@ class _CatalogPane extends StatelessWidget {
   );
 }
 
+/// One first-level page of one catalog page -- 推荐, or 漫剧. It is routed, so a
+/// swipe inside the page lands on it the same way a chip tap does, and its rows
+/// come from the feed record filed under that same slot.
+class _CatalogSlot extends StatelessWidget {
+  final _LibraryPageState state;
+  final int pane;
+  final String slot;
+  const _CatalogSlot({
+    required this.state,
+    required this.pane,
+    required this.slot,
+  });
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<int>(
+    valueListenable: state.viewRev,
+    builder: (context, _, _) => LayoutBuilder(
+      builder: (context, constraints) =>
+          state._slotPage(pane, slot, state.compact, constraints.maxWidth),
+    ),
+  );
+}
+
 /// Everything one feed of the catalog owns: its rows, where its pagination got
 /// to, and the requests still in flight for it. One of these exists per feed the
 /// viewer has opened, so a theme they come back to is the same list they left
@@ -1785,7 +2229,12 @@ class _CatalogPane extends StatelessWidget {
 class _ThemeFeed {
   final String key;
   final int pane;
-  _ThemeFeed(this.key, this.pane);
+
+  /// Which first-level page of that pane asked for these rows: 推荐/最新/榜单 on
+  /// 发现, 短剧/漫剧/AI 短剧 on 分类. The list and its scroll position belong to
+  /// this page, not to the pane.
+  final String slot;
+  _ThemeFeed(this.key, this.pane, this.slot);
   final items = <Drama>[];
   CatalogRequestScope scope = CatalogRequestScope();
   CatalogPage? firstPage;
@@ -1800,33 +2249,6 @@ class _ThemeFeed {
       refreshing = false,
       autoPaused = false,
       visited = false;
-}
-
-/// The pinned slot the theme rail rides in: the search box and the trigger row
-/// scroll out above it and it stops at the top of the viewport, so changing
-/// theme stays possible from anywhere in a long list.
-class _ThemeRailHeader extends SliverPersistentHeaderDelegate {
-  const _ThemeRailHeader({required this.height, required this.child});
-
-  final double height;
-  final Widget child;
-
-  @override
-  double get minExtent => height;
-
-  @override
-  double get maxExtent => height;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) => child;
-
-  @override
-  bool shouldRebuild(_ThemeRailHeader oldDelegate) =>
-      oldDelegate.height != height || oldDelegate.child != child;
 }
 
 class Brand extends StatelessWidget {

@@ -91,7 +91,9 @@ class FakeRuntime implements ConfigurableRuntime {
   }
 
   @override
-  final FakeCatalog catalog;
+  /// Not `final`: a test can hand the runtime a new catalog object to stand in
+  /// for the viewer pointing the app at a different upstream.
+  FakeCatalog catalog;
   FakeRuntime([FakeCatalog? catalog]) : catalog = catalog ?? FakeCatalog();
   @override
   PlaybackJob prepare(

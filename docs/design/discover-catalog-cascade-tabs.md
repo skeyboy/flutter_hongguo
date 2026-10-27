@@ -1,10 +1,12 @@
 # 发现/分类：一级页面横滑切换 + 二级联动筛选
 
-日期：2026-10-27。状态：代码已落地（含 §5 末条那处「点榜单改写共享一级」的越权写入，经确认后本轮一并修掉）、`tool/verify_all.sh` 全绿、iPhone 模拟器取证已按修复后的形态重取并逐帧看过；剩 macOS 那一路的窗口取证（这台机器当前没有可录的窗口层，见 §8）。§10 记了三处「实现与方案文本不一致」的更正和本轮新立的保活规则。本轮只本地提交，未推送、未打 tag（发布等下一次确认）。
+日期：2026-10-27。状态：§1–§10 是上一轮（发现↔分类外层横滑，已提交为 `7e5ea8a`）的方案与落地记录；**§11 是本轮**——把每一页自己的一级也做成可横滑的页面（嵌套 `AutoTabsRouter.pageView`）并把边际逐级交接，代码已落地、`tool/verify_all.sh` 全量退出码 0、iPhone 实机帧已重取（读数见 §11 末两条；macOS 那一路仍录不到窗口层，本轮实机证据只有 `ios-*` 那批）。本轮按「梳理修复优化 → 提交 → 推送 → 发版」这一条指令继续走推送与 `v0.3.6` 打标（进度记在 §11 末）。
+
+> 行号基线：§1–§2 是改动前（`aa3cfb7`，v0.3.5）的读数，§3–§10 是上一轮落地后的读数，**本轮之后它们都过期了**；当前文件的对应位置与本轮新增结构一律写在 §11。
 
 ## 1. 现状（现读代码，`packages/app/lib/features/library_page.dart`）
 
-> §1–§2 里的 `:行号` 是本轮改动前（`aa3cfb7`，v0.3.5）的读数，作为「改之前长什么样」的基线保留；改动后的对应位置写在 §3–§4 与 §10。
+> §1–§2 里的 `:行号` 是本轮改动前（`aa3cfb7`，v0.3.5）的读数，作为「改之前长什么样」的基线保留；改动后的对应位置写在 §3–§4 与 §10（上一轮那一份），再往后的见 §11。
 
 - 页面切换是一个本地整数：`int destination = 0`（:96），由 `_navigate`（:632）用 `setState` 改写，底部 `NavigationBar`（:1397）、窄屏外的 `NavigationRail`（:1460）、宽屏侧栏 `ListTile`（:1439）都调它。它不是路由：`app_navigation.dart:148` 里根路由 `/` 只有一个 `Catalog`，`LibraryPage` 就是它的全部内容；`docs/evidence/theme-rail/` 里那批真机帧拍的都是这一个页面的三次 `setState`。
 - 筛选条件全在一个 State 里：`genre / view / board / theme / query / sort`（:48-59），喂给 `feedKey`（:77）与 `feeds` 保活表（:75）。
@@ -56,8 +58,8 @@
 
 | 旧键 | 新键 |
 |---|---|
-| `catalog-results` | `catalog-results-discover` / `catalog-results-categories`（:1343） |
-| `catalog-feed`(PageStorageKey) | `catalog-feed-discover` / `catalog-feed-categories`（:1346） |
+| `catalog-results` | `catalog-results-discover` / `catalog-results-categories`（:1343）——本轮之后它仍是**按 pane** 的键，因为静止时一个 pane 只有一级页在树里（§11） |
+| `catalog-feed`(PageStorageKey) | `catalog-feed-discover` / `catalog-feed-categories`（:1346）→ **本轮再细一层**：`catalog-feed-<页>-<一级>`（§11，一处真实回归） |
 | `filter-choices` | `filter-choices-discover` / `filter-choices-categories`（:1225） |
 | `search-field` / `clear-search` | 各 pane 一份：`search-field-<页>`（:975）/ `clear-search-<页>`（:1194） |
 | `theme-rail(-loading/-retry/-<id>)` | 分类 pane 保留原名；发现 pane 不再有该键 |
@@ -71,6 +73,8 @@
 
 滚动控制器同样按 pane 一个：`paneScroll`（:59）为两个 pane 各建一个，`scroll`（:218）只是「当前 pane 的那个」的读法；`_nearEnd(pane)`（:312）、`_restoreScroll(pane, offset)`、各处跳顶都按 pane 取，`_ThemeFeed.scroll` 仍按 feed 记录存偏移，回切时两帧补跳（上一轮 :466 的修复在新结构里是 :347 一带的 `pane = feed.pane`）。
 
+> **本轮更正这一条**：一级成为页面之后「按 pane 一个 controller」不成立了——拖拽中同页的两级会同时布局，一个 controller 只能挂一处。**现为「按 (pane, 一级) 一个」**，见 §11 第 2 条；这一条当时的写法保留作基线。
+
 ## 5. 后端配合清单（不改接口也能落地，但记下来）
 
 - `rank` 不吃 `genre`：榜单态无法按类型收窄，所以二级只能整行换成榜单。若上游给出 `rank(genre)`，发现的榜单二级可以再挂一层类型。
@@ -79,6 +83,8 @@
 - **本轮修掉的一条前端遗留（不是接口缺口）**：`_selectFilter` 的 `case 'view'` 里，进入榜单曾把共享的 `genre` 写成 `comic_series`（旧 :874，连带清掉 `theme`/`themes`、`themesRevision++`、`_themesScope.cancel()`；自首提交 `4711d2d` 起就在，无注释说明动机）。横滑之后 `genre` 成了两页共享的一级，于是「在发现点一下榜单」会看不见地改掉分类的一级——而 `rank(board)` 根本不吃 `genre`（改了也不影响榜单的取数，只影响甩过去之后的分类）。**但接口事实要说全**：三档榜单在上游就是漫剧榜（`packages/api/lib/src/catalog.dart:498-515` 固定发 `selected_items: comic_series_rank` + `comic_series_hot_rank / comic_series_hot_play / comic_series_new_rank`），`docs/design/pc-mobile-ui.md:26`、`docs/design/horizontal-filter-panel.md:67` 也要求 UI 明说它是漫剧榜、不能冒充别的体裁排行。所以本轮经确认的改法是**把这件事从「改状态」换成「写在标题上」**：频道分支只剩 `view = value`（:889-895），标题由 `_sectionTitle`（:1123-1134）拼成「漫剧 · 推荐榜 / 漫剧 · 热播榜 / 漫剧 · 新剧榜」（漫剧那一截取 `_genreNames[_boardGenre]`，`_boardGenre` / `_boardNames` 在 :42-43），榜单三档也共用这份 `_boardNames`（原来在胶囊行里还内联写过一遍）。连带效果：分类的题材栏不再被点一下榜单就清空，§10 那条「甩进分类时补一次题材」的门因此只需要处理「真的还没跑完/跑失败」两种情况。回归断言在 `test/horizontal_filters_test.dart` 的「频道 belongs to 发现, 榜单 takes the type place, search leaves neither」：标题是「漫剧 · 推荐榜」、点热播榜后变成「漫剧 · 热播榜」、切到分类后选中的一级仍是短剧。
 
 ## 6. 验收标准
+
+> 本轮把「左右滑动」这件事分成两层来验收（内层翻页、边际交接），新增的验收条目写在 §11 第 5 条。
 
 - 手指在网格区左右甩：发现↔分类换页，且 `tabs.activeIndex` 与导航栏选中项一致；鼠标在桌面拖同一段距离不换页。
 - 手指在胶囊行、题材栏上左右甩：只滚该行，不换页。
@@ -89,6 +95,8 @@
 - `flutter analyze` 两包干净，`packages/app` 全量、`packages/tv` 全量、core/api/cast 全量通过；本轮改动文件 `dart format` 干净。
 
 ## 7. 测试
+
+> 下列是第一版落地时那 8 条；本轮把 `catalog_tabs_test.dart` 按两级语义重写成 16 条并改了 `horizontal_filters_test.dart` 的吸顶用例，现读清单见 §11 第 7 条。
 
 - 新增 `test/catalog_tabs_test.dart`：滑动换页与路由索引一致；鼠标不换页；行内横滑不越权；换页保留两个 pane 各自的 feed；`genre` 跨页共享；一级变更后二级行的形态（榜单↔类型）正确。
 - 改点：`horizontal_filters_test.dart`、`theme_rail_test.dart`、`interaction_cache_test.dart`、`adaptive_ui_test.dart`、`app_navigation_test.dart`、`catalog_sort_test.dart`、`widget_test.dart`、`mobile_recovery_test.dart`、`network_cache_behavior_test.dart` 里所有裸键查找换成带 pane 作用域的键，「开面板」相关残留按上一轮口径复核。`horizontal_filters_test.dart` 的「频道 belongs to 发现…」这一条在本轮多担四件事：榜单态标题是「漫剧 · 推荐榜」、点热播榜后是「漫剧 · 热播榜」（旧实现写死「漫剧榜单」）、切到分类后被选中的一级仍是短剧（`ChoiceChip.selected`）、题材栏没被点榜单这件事清空。
@@ -128,10 +136,35 @@ macOS 窗口（1100×760）与 iPhone 模拟器（390×844）各录一遍：发�
 
 三条新的保活/取数规则，测试与真机帧都要按它们判：
 
-- 进入一个**已看过**的页面 = 保留原有行 + 后台 `_refreshKept`（220 ms 去抖后在 :594 触发，本体 :422），失败文案是「网络刷新失败，仍显示上次结果。」；这条路径不再走 `_reload`，所以旧文案「网络刷新失败，正在显示本地缓存。」只属于显式 `_reload`。
+- 进入一个**已看过**的页面 = 保留原有行 + 后台 `_refreshKept`（220 ms 去抖后在 :594 触发，本体 :422），失败文案是「网络刷新失败，仍显示上次结果。」；这条路径不再走 `_reload`，所以旧文案「网络刷新失败，正在显示本地缓存。」只属于显式 `_reload`。**本轮把这条的范围收窄了**：它只说「从 我的 回目录」那一种进入；在页内横滑换一级（推荐↔最新、类型↔类型）是「原位继续」，不再问上游，理由与回归见 §11 第 6 条。
 - 甩进**没看过**的分类、且题材栏还是空的（这一次进入之前谁也没为共享的一级跑过题材，或跑了但返回空）→ 立刻补一次 `_loadThemes(genre)`（`_switchFeed` 里 :601 的 `incoming.pane == 1 && themes.isEmpty && themesError == null && !themesLoading`）。**在途不补、失败不补**：`themes` 在请求控制层是同一把 label 的一份 flight（`packages/api/lib/src/request_control.dart:206-210` 的 `_flights[key]` 合并），补一次会先 `_themesScope.cancel()` 掐掉正在跑的那次（`request_control.dart:45-47`），而加入的正是那份已被取消的 flight——真机上直接落到「题材加载失败」——这条是 macOS 取证第一跑被它挡下之后加的门，回归用例见 `test/catalog_tabs_test.dart` 的「entering 分类 mid-flight leaves the theme request alone」。失败本身仍只有重试胶囊这一个入口。写这条规则时它还要兜住「发现停在榜单上、题材请求被取消过」那种空栏，§5 末条把那次取消删掉之后，这个来源没有了。
 - 从「我的」返回不再重读缓存（`_selectTab` :804-822 只在设置改动过的时候才 refresh），所以旧版那次「回目录必然重进缓存、头部出现『刷新』一行」的现象消失了；`interaction_cache_test.dart` 里依赖它的断言已改走「换类型拿新 cursor」这条路。
 
 门禁读数（本轮工作树，SDK `.fvm/flutter_sdk`，`tool/verify_all.sh` 全量退出码 0；这一遍是在标题改成「漫剧 · 推荐榜」、`_loadThemes` 加了那行 `debugPrint`、夹具加了 `_waitRows` 之后重跑的，与之前那次读数一致）：格式门（`dart format --output=none --set-exit-if-changed packages tool`）与 `dart analyze --fatal-infos` 干净；`core +117`、`api +77`、`cast +52`、`tv +36`、`app +246 ~1`（含新增 `test/catalog_tabs_test.dart` 的 8 条）全绿；oracle 103 向量、离线解密样本 84 条通过。§6 最后一条「两包 analyze + 各包全量」由此满足。本轮按约定只本地提交、不推送也不打 tag，所以这是**工作树**读数；提交树的那一份要等真正推送前在分离 worktree 里再跑一遍。
 
-取证进度见 §8：iPhone 帧已拿到**一整批同一次运行**的十帧并逐帧看过；macOS 帧因这台机器当前没有可录的窗口层而缺，等屏幕可用时补一次 `HONGGUO_RAIL_DEVICE=macos tool/verify_theme_rail_live.sh`。本轮为取证可归因加的唯一产品侧改动是一行 `debugPrint`（`library_page.dart:866`，只在 `_loadThemes` 的 catch 里，UI 文案不变）。
+取证进度见 §8：iPhone 帧已拿到**一整批同一次运行**的十帧并逐帧看过；macOS 帧因这台机器当前没有可录的窗口层而缺，等屏幕可用时补一次 `HONGGUO_RAIL_DEVICE=macos tool/verify_theme_rail_live.sh`。那一轮为取证可归因加的唯一产品侧改动是一行 `debugPrint`（当时在 `library_page.dart:866`，本轮之后是 :1126；只在 `_loadThemes` 的 catch 里，UI 文案不变）。
+
+## 11. 本轮：把每页自己的一级也做成页面，边际逐级交接（2026-10-27）
+
+用户原话：「发现 和 分类内部的同样需要可执行左右滑动切换。当"发现"和"分类"左右滑动到到边际后继续滑动再执行 "发现" "分类" 这两个tab间的自动切换」，并指定「参照 `AutoTabsRouter.pageView` / `AutoTabsRouter.tabBar` 这种方式」。两条经确认的选择：① 内层用**嵌套 `AutoTabsRouter.pageView`**（不是手搭 `PageView`，也不是把类型行改成 `tabBar`）；② 分类的题材栏**保持横栏 + 只做边际交接**，不升级为第三层内滑页。本节全部 `:行号` 是当前工作树 `packages/app/lib/features/library_page.dart`（2368 行）的现读值。
+
+1. 一级成为路由（slot）。`slotSets`（:64）：发现 = `[recommend, latest]` + 仅当 catalog 实现了 `RankCatalogRepository` 才有的 `rank`；分类 = `_genreOrder`（:72，短剧/漫剧/AI 短剧）。`slotOfPane(pane)`（:75）读的还是那两个老字段（发现的 `view`、分类的共享 `genre`），所以「一级是什么」在状态层只有一个出处，路由只是它的名字：`slotRouteName`（:387-388，`CatalogSlot$pane-$slot`）、`innerRoutes`（:392）、router 里每个 pane 的 RouteDef 挂上 `children`（:356-374）。slot 路由一律 `maintainState: false`（:367）——静止时同 pane 只有一级页在树里，键、`Text` finder、焦点遍历都保持唯一；拖拽中 auto_route 的 `preload` 会把邻页拉进来，这正是下面第 2 条「controller 必须一级一个」的原因。
+2. 每 (pane, 一级) 一份控制器与去抖，feed 键不变。`slotScroll`（:80）+ `slotKey`（:84）+ `scrollAt`（:86）+ `scrollOf(feed)`（:97）；`slotFilterTimer`（:137）；自动翻页的在跑集合从「按页」变成「按记录」（`autoScheduled` :129），`_nearEnd`（:537）用 `feed.slot != slotOfPane(feed.pane)` 挡掉不在屏上的那一页——三条列表可能在拖拽中同时有 client，只有屏上那条许它继续翻。**`feedKeyAt`（:158）不新增字段**：`view`/`genre` 本来就编码了一级，所以磁盘快照的键与 v0.3.5 兼容，回切读的还是同一份缓存。
+3. 视图结构：`_pane`（:1628）= 固定的 `_paneBand`（:1643）+ `Expanded(_innerPages(pane))`（:1704）。band 里是搜索框、离线检查、胶囊行、（分类）题材栏、首次提示；`_slotPage`（:1715）只剩标题、状态行、网格、页脚。**这是对 `docs/design/pc-mobile-theme-rail.md` §5「顶部瘦身：搜索与筛选随列表划走，题材栏吸顶」的一次反转**，代价说清楚：手机端搜索框与胶囊行不再随列表划走，列表能用的可见高度比以前少一整个 band（一行搜索 + 52 的胶囊行 + 分类再一道 52 的题材栏，`_filterRowHeight` :26）。为什么非反转不可：一个 `TextEditingController` 与一个 `ScrollController` 都只能挂一处，而内层横滑要求拖拽中把两页同时铺开；把 chrome 复制进每个一级页就是同键双份，`find` 与状态都会撞。题材栏本来就是这一页的「二级 tab」，跟着页走而不是跟着列表走。`_themeRail` 的注释（:1539 一带）已按此改写，上一轮那个 `SliverPersistentHeaderDelegate`（`_ThemeRailHeader`）随吸顶机制一起删掉了。
+4. 边际逐级交接：三层各听各的，一次手势最多换一层。
+   - 胶囊行/题材栏的横滑先到 band 的 `_onBandScroll`（:294；累计量 `bandEdgePull` :253，阈值 `_edgePullExtent = 48.0` :258）：这一页在那一侧还有下一页 ⇒ 花掉并 `return true`（通知到此为止，所以 shell 不会重复计数）；没有了 ⇒ 清零、`return false` 把整段上交。
+   - 列表区直接压在内层 `EagerPageView` 上，由它自己的 `PageScrollPhysics` 翻页；内层到头之后它的 `OverscrollNotification` 冒到 shell 的 `_onNestedScroll`（:260，挂在 :2042），同一 48 px 阈值 → `_selectTab`（:1058）。
+   - shell 自己的 `AutoTabsRouter.pageView`（:1907）是 `depth == 0` 那一层，`_onNestedScroll` 第一句就把它让开：外层翻页由它自己的物理做，不需要累计。
+   - 「默认 `dragDevices` 不含鼠标」这条继承不变，所以鼠标在两层都不换页（写成断言，见第 7 条）。
+   - 两个 router 的接入只有一份方向：`_attachInnerTabs`（:2082）在内层 builder 里挂 `innerChanged`（:410），`_onInnerTabChanged`（:2106）把 router 的落点写回状态，`_gotoSlot`（:2119）反过来让 chip 驱动 router，`_syncInnerIndex`（:2096）负责「共享的一级在对面也把自己那页翻过去」。回声由守卫消掉：`slot == slotOfPane(pane)` 直接 return，所以 chip 与甩不会各进一次。
+5. 本轮验收标准（加在 §6 之上）：一次拖拽只换一层；内层到头之后同向再拖才换外层；`我的` 仍不在集合里（分类最后一个类型上再往左甩，什么都不动）；胶囊行自己还有宽度时先滚自己；换一级不重新问已经拿过的行；共享类型在两边同时选中，且对面的 router 跟着落在那一页上。
+6. 本轮修的两处真实回归，都是新结构带出来的：
+   - **PageStorage 串偏移**：三个一级 controller 曾共用 `catalog-feed-<页>` 这一把 `PageStorageKey`，新进入的一级页一上屏就恢复了上一页的偏移（实测那一例 68 px，正是 band 头部的高度），题材栏被顶到视口顶——`horizontal_filters_test.dart` 里 rail 的 top 从 116 变成 48 就是这个。键加一级后缀（:1730 `catalog-feed-${paneName(pane)}-$slot`）之后恢复。
+   - **换一级多发一次首屏请求**：`_applySlot`（:2128）原先走 `_switchFeed(keepAlive: true)` 的默认 `refresh`（:791），「回 推荐」被 `_refreshKept`（:844 那台定时器）又问了一次上游，`catalog_sort_test.dart` 的「回切不再发请求（各频道自己的页缓存）」当场 +1。现在是 `refresh: false`：页内横滑是「原位继续」，只有从 我的 回目录才后台刷新（§10 第一条的范围因此收窄，已就地标注）。
+7. 测试面（现读计数）：`catalog_tabs_test.dart` **16 条**——内层一次拖拽只换本页级（`a swipe moves one page of 发现…`）、内层尽头再甩才交给 shell（`the pull past the last of a page is handed to the shell`）、分类的三个类型自己翻且 past 分类没有下一页、导航栏与甩一致、鼠标两层都不动、胶囊行还有宽度时只滚自己、胶囊行耗尽时**逐级**交接（`a row that runs out hands over one level at a time`：只要本页还有下一页，shell 就不许动）、换页各留自己的行、共享类型从对面开出的正是那一页、在途不补题材请求、页在途离开仍填自己的行、搜索浮层挡住两级、一份类型只跑一次题材、刷新接管在途页、保活上限。`horizontal_filters_test.dart` 7 条，其中原「吸顶」用例改名 `the band stays put over a long scroll and the rail keeps answering`，断言从「胶囊行随头部从树里消失」翻成「band 不动、rail 矩形不动、列表在底下滚」。
+8. 首次提示文案跟着覆盖两级：`左右滑动切换本页，滑到尽头再切换 发现 · 分类`（:1689-1690）。置位时机仍然是「真的换过外层页」（`_onTabChanged` :1090-1093），因为这句话的后半件没做到之前，提示没有理由消失。
+9. 门禁读数（本轮**工作树**，SDK `.fvm/flutter_sdk`）：`tool/verify_all.sh` 全量退出码 0；格式门 202 文件 0 changed、`dart analyze --fatal-infos` No issues found；`core +117`、`api +77`、`cast +52`、`tv +36`、`app +254 ~1`；oracle 103 向量、离线解密样本 84 条通过。提交树那份在推送前于分离 worktree 再跑一遍，两个读数分开记。
+10. 取证（本轮已补，读数如下）：`integration_test/theme_rail_live_test.dart` 的 `_swipe()` 原来「一次拖拽 + 断言 `destination`」在新语义下必然停在 最新 页——已改成同向连甩直到 shell 应答，并打 `inner-first from=… pulls=…` 记录花掉了几次内层；新增 `_swipeInner()` 与 `_mark('shot=inner-latest')`，专门取「内层换页而外层没动」这一帧。取帧脚本 `tool/verify_theme_rail_live.sh` 不动（按 `shot=([\w-]+)` 取标，新标记自动进 `docs/evidence/theme-rail/`）。
+    - iPhone `yxy-iPhone17Pro`：三跑，前两跑被上游挡下（第一跑 `boot-failed error=内容接口未返回数据` 整页 0 行；第二跑到 `theme-two` 又 `rows-timeout` 同一个文案，之后的「列表没滚起来」是它的下游后果，不是产品缺陷），第三跑一整套 10 帧同一次运行、`ev=done`，全部逐帧看过：`ios-rail`（分类首进，band 里 类型 + 题材两行都在、列表在骨架）、`ios-genre-comic`、`ios-discover`（甩回 发现，仍选中 推荐，band 上方一行「正在更新内容…」）、**`ios-inner-latest`（本轮新增这一帧：一级已经翻到 最新、标题「最新上架」，底部导航仍然选中 发现——内层换页而外层没动）**、`ios-rank`（发现停在 榜单 一级，二级整行换成 推荐榜/热播榜）、`ios-tab-swipe-to-categories` / `ios-tab-swipe-back-to-discover`（连甩两次内层才交接一次，日志 `inner-first from=discover pulls=2`；甩回来仍落在 榜单 那一页）、`ios-theme-two` / `-scrolled offset=400` / `theme-three` / `-two-restored offset=400`（切「宫斗」换一套行，切回「悬疑」还是 400 那一屏，band 与栏矩形全程不动）。
+    - macOS：`HONGGUO_RAIL_DEVICE=macos tool/verify_theme_rail_live.sh` 两跑，夹具侧都是好的（第一跑上游 `themes=0` → `rail-empty error=题材加载失败`；第二跑 `ev=done` 十个标记齐），但录出来的每一帧都是桌面壁纸——这台机器仍然没有可录的窗口层（窗口矩形由夹具如实报出，裁剪到的那块屏上根本没有窗口的画面，和 §8 那次的结论同一条）。所以 `docs/evidence/theme-rail/` 里无前缀的那批还是上一轮 08:28 的帧（band 之前的结构），本轮的实机证据只有 `ios-*` 这一批；那 9 张被这次空录覆盖的文件已按提交态还原，本轮新落的 3 张壁纸帧（`inner-latest.png`、`tab-swipe-*.png`）已删除。屏幕可用时再补一次同一条命令即可。
+

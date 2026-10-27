@@ -48,7 +48,8 @@ void main() {
   }
 
   /// 题材 is 分类's second level, so a rail assertion starts by entering that
-  /// page -- the same swipe the viewer makes.
+  /// page -- by its own item of the navigation bar, which is where a viewer
+  /// who wants the whole row of types goes.
   Future<void> openCategories(WidgetTester tester) async {
     await tester.tap(find.text('分类').first);
     await tester.pumpAndSettle();
@@ -103,32 +104,30 @@ void main() {
   }
 
   testWidgets(
-    'the rail pins at the top of a long scroll while the header scrolls out',
+    'the band stays put over a long scroll and the rail keeps answering',
     (tester) async {
       await mount(tester, FakeRuntime(LongCatalog()), const Size(390, 844));
       await openCategories(tester);
       final rail = find.byKey(const ValueKey('theme-rail'));
       final viewport = find.byKey(const ValueKey('catalog-results-categories'));
-      // At rest the rail sits under the search box and the choice row.
-      expect(
-        tester.getRect(rail).top,
-        greaterThan(tester.getRect(viewport).top + 60),
-      );
+      // At rest the rail sits under the search box and the choice row, and the
+      // list begins below all three.
+      final bandBottom = tester.getRect(rail).bottom;
+      expect(bandBottom, lessThanOrEqualTo(tester.getRect(viewport).top));
       await tester.drag(viewport, const Offset(0, -1600));
       await tester.pumpAndSettle();
       final dynamic state = tester.state(find.byType(LibraryPage));
       expect(state.scroll.offset as double, greaterThan(100));
-      // The search box and the choices are header content: they left with the
-      // brand band and are gone from the tree, not merely behind the fold.
+      // The choices did not leave with the header: the level a viewer can
+      // change is not allowed to be somewhere they have to scroll back up to
+      // reach, so the band is laid out above the page it filters.
       expect(
         find.byKey(const ValueKey('filter-choices-categories')),
-        findsNothing,
+        findsOneWidget,
       );
-      // The rail is the one thing that stopped at the top, still tappable.
-      expect(
-        tester.getRect(rail).top,
-        closeTo(tester.getRect(viewport).top, 1),
-      );
+      // Nothing moved while the list ran under it, and the rail is still
+      // tappable from anywhere in a long scroll.
+      expect(tester.getRect(rail).bottom, bandBottom);
       expect(rail.hitTestable(), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('theme-rail-cate_7')));
       await tester.pump(const Duration(milliseconds: 300));

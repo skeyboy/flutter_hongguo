@@ -67,7 +67,7 @@ class _ThemeFeed {
 
 ### 3. 视图层：常驻题材横栏
 
-- 位置：类型/频道胶囊行（第 6 节的 `_choiceRow`）之下、结果区之上，与 TV 的 header + 状态行同构；第 5 节之后它是这一族里唯一吸顶的一行。
+- 位置：类型/频道胶囊行（第 6 节的 `_choiceRow`）之下、结果区之上，与 TV 的 header + 状态行同构；第 5 节之后它是这一族里唯一吸顶的一行（**再两轮之后连「吸顶」这个机制也没有了**：band 固定在列表之上，栏从来不在滚动区里，见 `discover-catalog-cascade-tabs.md` §11 第 3 条）。
 - 内容：`全部` + 当前类型的题材，单行水平滚动，选中项用 primary 容器底色加粗，选中态同时有颜色和字重（不只靠颜色）。
 - 稳定高度：整条横栏固定高度，`题材加载中` / `题材加载失败 · 重试` 占用同一行，切换不推动网格（TV 的 28 高度状态行同理）。
 - 移除 `sticky-theme` 触发器和面板里的 `题材` 分组：同一维度不在两处出现。
@@ -85,6 +85,8 @@ class _ThemeFeed {
 | 胶囊行里的类型/频道/榜单 | 保持 250ms 合并刷新不变 |
 
 ### 5. 顶部瘦身：搜索与筛选随列表划走，题材栏吸顶
+
+> **本节已被两轮之后的实现反转**（2026-10-27，`docs/design/discover-catalog-cascade-tabs.md` §11 第 3 条）：每页的一级改成嵌套 `AutoTabsRouter.pageView` 之后，搜索框、胶囊行、题材栏一起住进列表**上方固定的 band**，不再随内容划走；`SliverPersistentHeader(pinned: true)` 与 `_ThemeRailHeader` 已删除，「吸顶」这件事由「根本不在滚动区里」承担。下面四条保留作当时那轮的记录，其中的键与行为断言请按 §11 复核后再引用。
 
 - 删除顶部品牌/标题条：`Brand` 行与「我的」快捷按钮在本页不再出现。底部导航、导航轨、宽屏侧栏已经各自带着它们，列表上方的每一像素留给内容；页面自己的标题降级为网格上方的一行 `_sectionTitle`。
 - 搜索框、离线检查、筛选触发器都改成列表自己的头两个 sliver：它们随内容划出屏幕，不再常驻。
@@ -125,7 +127,7 @@ class _ThemeFeed {
 - 点「最新」必须真的换排序：请求里 `sort=online_time`；点「推荐」回到设置里的排序。榜单只在运行时支持榜单接口时出现。
 - PC 键盘可完成整条栏的选择；手机返回键与 Esc 只收起搜索建议这一层，不误退页面。
 - 题材加载失败时，之前已保活的题材仍可正常浏览。
-- 下滚之后，屏幕上留下的只有 52 高的题材栏；搜索框、离线检查、胶囊行都随内容划走。
+- 下滚之后，屏幕上留下的只有 52 高的题材栏；搜索框、离线检查、胶囊行都随内容划走。**（本轮之后不成立：这三行都在列表上方的固定 band 里，下滚什么都不划走——见 `discover-catalog-cascade-tabs.md` §11 第 3 条。）**
 
 ## 测试
 
@@ -133,7 +135,7 @@ class _ThemeFeed {
 - 真机那条 `integration_test/offline_playback_test.dart` 同样跟着改了：它原来靠「点 `sticky-genre` → 截图 → 点『收起筛选』」演示面板，面板删掉后这两步都没有目标，现在直接截就地胶囊行。
 - 新增 `test/theme_rail_test.dart`：常驻可见、切回保活（条目与 offset 不变）、每题材独立游标翻页、连点只发一次请求、迟到响应不覆盖、失败重试不推动网格、PC 键盘选中。
 - 回归：`horizontal_filters_test.dart` 四个尺寸无溢出。
-- 顶部瘦身与就地胶囊这两轮之后，`horizontal_filters_test.dart` 整份按新结构重写：四个尺寸断言「不开任何面板就看得见全部类型、选类型不推动横栏」；吸顶用例改为断言胶囊行随头部一起从树里消失、横栏停在视口顶部仍可点；连点合并只发一次请求；频道/榜单/搜索三种状态下各自该出现哪一组胶囊。`catalog_sort_test.dart` 补上「点 最新 → 请求里 `sort=online_time`，回 推荐 不再发请求（各频道自己的页缓存）」。`widget_test.dart`、`theme_rail_test.dart`、`interaction_cache_test.dart` 里「开面板 → 选值 → 收起筛选」的三步都缩成一步点胶囊。
+- 顶部瘦身与就地胶囊这两轮之后，`horizontal_filters_test.dart` 整份按新结构重写：四个尺寸断言「不开任何面板就看得见全部类型、选类型不推动横栏」；吸顶用例改为断言胶囊行随头部一起从树里消失、横栏停在视口顶部仍可点（**本轮之后这条又翻了一次**：用例改名 `the band stays put over a long scroll and the rail keeps answering`，断言 band 与横栏矩形都不动、只有列表在底下滚）；连点合并只发一次请求；频道/榜单/搜索三种状态下各自该出现哪一组胶囊。`catalog_sort_test.dart` 补上「点 最新 → 请求里 `sort=online_time`，回 推荐 不再发请求（各频道自己的页缓存）」。`widget_test.dart`、`theme_rail_test.dart`、`interaction_cache_test.dart` 里「开面板 → 选值 → 收起筛选」的三步都缩成一步点胶囊。
 
 落地情况：三处旧用例已改点 `theme-rail-*`，`test/theme_rail_test.dart` 7 条用例全部实装并通过。就地胶囊这一轮之后 `horizontal_filters_test.dart` 仍是 7 条（删两条面板用例、补两条胶囊与频道/榜单分组用例），`packages/app` 全量 238 通过 1 跳过，`packages/tv` 36 通过，`flutter analyze` 两包均无告警，本轮改到的 8 个文件 `dart format` 干净（`test/macos_picture_in_picture_test.dart`、`test/mobile_recovery_test.dart` 的格式偏差属在途那条线，本轮没有动）。`offline_playback_test.dart` 只在 `flutter analyze` 与显式真机跑里执行，不在 `flutter test test` 的 238 条里。
 

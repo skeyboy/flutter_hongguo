@@ -50,16 +50,64 @@ Future<void> _waitRows(WidgetTester tester, String where) async {
 /// One page of the swipe, by the key its own pane puts on the scroll view.
 Finder _page(String name) => find.byKey(ValueKey('catalog-results-$name'));
 
-/// Drag far enough sideways to settle on the other page. The distance comes
-/// off the page's own width: the same 320 px that crosses a phone page springs
-/// back on a desktop window, and a fixture that quietly stays put is worse than
-/// one that fails here.
+/// Drag far enough sideways to settle on the other page -- which is the last
+/// thing a drag does, not the first. Inside the page it started in, each pull
+/// moves one of that page's own first-level lists, and only a pull that found
+/// nothing left inside is handed to the shell. So the fixture keeps pulling in
+/// one direction until the shell answers, and reports how many pulls were
+/// spent below. The distance comes off the page's own width: the same 320 px
+/// that crosses a phone page springs back on a desktop window, and a fixture
+/// that quietly stays put is worse than one that fails here.
 Future<void> _swipe(WidgetTester tester, String from, String to) async {
-  final rect = tester.getRect(_page(from));
   final dir = to == 'categories' ? -1.0 : 1.0;
-  // A page swap needs more than half the width, so the finger starts near the
-  // far edge and ends inside the same page -- a path that leaves the window
-  // would be clipped by the embedder instead of moving the page.
+  final expected = to == 'categories' ? 1 : 0;
+  var spentInside = 0;
+  for (var i = 0; i < 5; i++) {
+    final rect = tester.getRect(_page(from));
+    // A page swap needs more than half the width, so the finger starts near the
+    // far edge and ends inside the same page -- a path that leaves the window
+    // would be clipped by the embedder instead of moving the page.
+    final start = Offset(
+      rect.center.dx - dir * rect.width * 0.28,
+      rect.center.dy,
+    );
+    await tester.dragFrom(start, Offset(dir * rect.width * 0.56, 0));
+    await _live(tester, 1200);
+    final dynamic state = tester.state(find.byType(LibraryPage));
+    if (state.destination != expected) {
+      spentInside++;
+      continue;
+    }
+    if (spentInside > 0) {
+      _mark('inner-first from=$from pulls=$spentInside');
+    }
+    expect(
+      state.tabs!.activeIndex,
+      expected,
+      reason: 'the route index drifted',
+    );
+    return;
+  }
+  final dynamic state = tester.state(find.byType(LibraryPage));
+  expect(
+    state.destination,
+    expected,
+    reason: 'the swipe from $from did not land on $to',
+  );
+}
+
+/// One pull expected to be answered inside the page it started in: the shell
+/// stays where it is and that page's own first level moves one step.
+Future<void> _swipeInner(
+  WidgetTester tester,
+  String list,
+  double dir,
+  String slot,
+) async {
+  final pane = list == 'discover' ? 0 : 1;
+  final dynamic before = tester.state(find.byType(LibraryPage));
+  final startIndex = before.innerTabs[pane].activeIndex as int;
+  final rect = tester.getRect(_page(list));
   final start = Offset(
     rect.center.dx - dir * rect.width * 0.28,
     rect.center.dy,
@@ -67,13 +115,17 @@ Future<void> _swipe(WidgetTester tester, String from, String to) async {
   await tester.dragFrom(start, Offset(dir * rect.width * 0.56, 0));
   await _live(tester, 1200);
   final dynamic state = tester.state(find.byType(LibraryPage));
-  final expected = to == 'categories' ? 1 : 0;
   expect(
     state.destination,
-    expected,
-    reason: 'the swipe from $from did not land on $to',
+    before.destination,
+    reason: 'the pull skipped a level and moved the shell',
   );
-  expect(state.tabs!.activeIndex, expected, reason: 'the route index drifted');
+  expect(state.slotOfPane(pane), slot, reason: 'the pull did not page inside');
+  expect(
+    state.innerTabs[pane].activeIndex,
+    startIndex + (dir < 0 ? 1 : -1),
+    reason: 'the inner route and the level it names disagree',
+  );
 }
 
 void main() {
@@ -178,6 +230,16 @@ void main() {
     await _live(tester, 1600);
     _mark('shot=discover');
     await _live(tester, 900);
+
+    // 发现 pages its own first level before the shell hears of the pull: one
+    // drag lands on 最新 with the navigation still on 发现, the one back lands
+    // on 推荐. The rank demo below then changes the same level by chip, which
+    // has to arrive at the same page the drag would have.
+    await _swipeInner(tester, 'discover', -1, 'latest');
+    _mark('shot=inner-latest');
+    await _live(tester, 900);
+    await _swipeInner(tester, 'discover', 1, 'recommend');
+
     await tester.tap(find.byKey(const ValueKey('filter-view-rank')));
     await _live(tester, 1600);
     _mark('shot=rank');
