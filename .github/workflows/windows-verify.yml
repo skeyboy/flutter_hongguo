@@ -1,0 +1,31 @@
+name: Verify Windows desktop
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-verify-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/flutter
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+      - name: Analyze application
+        working-directory: packages/app
+        run: flutter analyze
+      - name: Verify application on Windows
+        working-directory: packages/app
+        run: flutter test --no-pub --reporter expanded
+      - name: Compile Windows release
+        working-directory: packages/app
+        run: flutter build windows --release --no-pub --target-platform windows-x64 --target lib/main.dart

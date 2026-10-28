@@ -5,7 +5,7 @@ on:
       platforms:
         description: 'Platforms JSON array; build only what you need'
         type: string
-        default: '["android"]'
+        default: '["android","windows"]'
         required: true
   workflow_call:
     inputs:
@@ -128,10 +128,19 @@ jobs:
           FLUTTER_MACOS_ARM64_ONLY: 'true'
         working-directory: packages/app
         run: flutter build macos --release --target lib/main.dart
+      - name: Enable Windows desktop and check installer compiler
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          flutter config --enable-windows-desktop
+          if (!(Test-Path 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe')) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
       - name: Build Windows
         if: matrix.platform == 'windows'
         working-directory: packages/app
-        run: flutter build windows --release
+        run: flutter build windows --release --target-platform windows-x64 --target lib/main.dart
       - name: Build Linux
         if: matrix.platform == 'linux'
         working-directory: packages/app

@@ -114,6 +114,12 @@ jobs:
         run: python3 tool/ci/validate_release.py
       - name: Generate checksums and release manifest
         run: python3 tool/ci/release_meta.py checksums dist
+      - name: Verify Windows release attachments
+        if: contains(fromJSON(inputs.platforms || '["android","android-tv","macos","windows","linux"]'), 'windows')
+        run: |
+          version=$(python3 tool/ci/release_meta.py version)
+          test -s "dist/Hongguo-$version-windows-x64.zip"
+          test -s "dist/Hongguo-$version-windows-x64-setup.exe"
       - name: Publish completed assets
         env:
           GH_TOKEN: ${{ github.token }}
