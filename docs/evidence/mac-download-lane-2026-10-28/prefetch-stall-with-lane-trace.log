@@ -1,0 +1,93 @@
+00:00 +0: loading /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/macos_live_poc_test.dart
+The following plugins do not support Swift Package Manager for macos:
+  - media_kit_libs_macos_video
+  - media_kit_video
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Building macOS application...                                   
+/Volumes/PSSD/own/flutter_hongguo/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.OSHXiE/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Volumes/PSSD/own/flutter_hongguo/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.OSHXiE/Metal.xctoolchain/usr/lib/swift/macosx' not found
+✓ Built build/macos/Build/Products/Debug/Hongguo.app
+Failed to foreground app; open returned 1
+00:00 +0: current Mac: native Dart algorithms → real first episode → local player
+00:01 +0: loading /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/macos_live_poc_test.dart
+media_kit: NativeReferenceHolder: Allocated 536453640192
+00:03 +0: current Mac: native Dart algorithms → real first episode → local player
+VideoOutput.Resize
+{handle: 536476169424, id: 536465428576, rect: {width: 0.0, height: 0.0, left: 0.0, top: 0.0}}
+NativeVideoController: Texture ID: 536465428576
+VideoOutput.Resize
+{id: 536465428576, handle: 536476169424, rect: {left: 0.0, height: 1080.0, width: 1920.0, top: 0.0}}
+LANE macos 7691595339815455769_best.mp4.1793176339741464.0.part TaskStatus.running err=null
+LANE macos 7691595339815455769_best.mp4.1793176339741464.0.part TaskStatus.complete err=null
+04:11 +0: loading /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/macos_live_poc_test.dart
+Some possible finders for the widgets at Offset(110.2, 606.3):
+  find.byTooltip('下一集')
+  find.byType(IconButtonTheme)
+  find.byType(PlaybackTransport)
+  find.byKey(const Key('compact-playback-controls'))
+  find.byKey(const Key('player-chrome'))
+  find.byType(FadeTransition)
+  find.byType(AnimatedSwitcher)
+  find.byType(ExcludeFocus)
+  find.byKey(const Key('player-picture'))
+  find.byElementType(InheritedModelElement<_ModalRouteAspect>)
+  find.byElementType(InheritedModelElement<Object>)
+Some possible finders for the widgets at Offset(109.1, 608.5):
+  find.byTooltip('下一集')
+  find.byType(IconButtonTheme)
+  find.byType(PlaybackTransport)
+  find.byKey(const Key('compact-playback-controls'))
+  find.byKey(const Key('player-chrome'))
+  find.byType(FadeTransition)
+  find.byType(AnimatedSwitcher)
+  find.byType(ExcludeFocus)
+  find.byKey(const Key('player-picture'))
+  find.byElementType(InheritedModelElement<_ModalRouteAspect>)
+  find.byElementType(InheritedModelElement<Object>)
+Some possible finders for the widgets at Offset(26.1, 14.0):
+  find.byType(BackButtonIcon)
+  find.byTooltip('返回')
+  find.byKey(const Key('player-exit'))
+  find.byKey(const Key('player-chrome'))
+  find.byType(FadeTransition)
+  find.byType(AnimatedSwitcher)
+  find.byType(ExcludeFocus)
+  find.byType(CompactControls)
+  find.byKey(const Key('player-picture'))
+  find.byElementType(InheritedModelElement<_ModalRouteAspect>)
+  find.byElementType(InheritedModelElement<Object>)
+Some possible finders for the widgets at Offset(242.7, 625.4):
+  find.byKey(const Key('compact-playback-controls'))
+  find.byKey(const Key('player-chrome'))
+  find.byType(FadeTransition)
+  find.byType(AnimatedSwitcher)
+  find.byType(ExcludeFocus)
+  find.byType(CompactControls)
+  find.byKey(const Key('player-picture'))
+  find.byType(EpisodeWorkspace)
+  find.byElementType(InheritedModelElement<_ModalRouteAspect>)
+  find.byElementType(InheritedModelElement<Object>)
+04:22 +0: current Mac: native Dart algorithms → real first episode → local player - did not complete [E]
+04:22 +0: (tearDownAll) - did not complete [E]
+04:22 +0: Some tests failed.
+
+Failing tests:
+  /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/macos_live_poc_test.dart: (tearDownAll) (did not complete)
+  /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/macos_live_poc_test.dart: current Mac: native Dart algorithms → real first episode → local player (did not complete)
+No tests were found.
+unhandled error during finalization of test:
+/Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/macos_live_poc_test.dart
+PathNotFoundException: Deletion failed, path = '/var/folders/11/szm4hq2d6wz73phg6ggrk3780000gn/T/flutter_tools.kRcoUf/flutter_test_listener.sc5FQv' (OS Error: No such file or directory, errno = 2)
+#0      _Directory._deleteSync (dart:io/directory_impl.dart:216:7)
+#1      FileSystemEntity.deleteSync (dart:io/file_system_entity.dart:425:7)
+#2      ForwardingFileSystemEntity.deleteSync (package:file/src/forwarding/forwarding_file_system_entity.dart:70:16)
+#3      ErrorHandlingDirectory.deleteSync.<anonymous closure> (package:flutter_tools/src/base/error_handling_io.dart:717:22)
+#4      _runSync (package:flutter_tools/src/base/error_handling_io.dart:1118:16)
+#5      ErrorHandlingDirectory.deleteSync (package:flutter_tools/src/base/error_handling_io.dart:716:12)
+#6      FlutterPlatform._createListenerDart.<anonymous closure> (package:flutter_tools/src/test/flutter_platform.dart:786:15)
+#7      FlutterPlatform._startTest.finalize (package:flutter_tools/src/test/flutter_platform.dart:591:26)
+<asynchronous suspension>
+#8      FlutterPlatform._startTest (package:flutter_tools/src/test/flutter_platform.dart:762:7)
+<asynchronous suspension>
+
+EXIT=79

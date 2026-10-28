@@ -656,6 +656,7 @@ class MediaCache {
 
   Future<void> prune() async {
     if (!await directory.exists()) return;
+    await _reclaimOrphanPartials();
     final files = await directory
         .list()
         .where((f) => f is File && f.path.endsWith('.mp4'))
@@ -695,6 +696,27 @@ class MediaCache {
       } else {
         kept++;
         keptBytes += size;
+      }
+    }
+  }
+
+  /// A transfer cut short by process exit leaves a working file that no
+  /// cancellation path can reach, and it stays unusable ciphertext. Reclaim the
+  /// stale ones no job owns; a real transfer writes inside this margin.
+  Future<void> _reclaimOrphanPartials() async {
+    final staleBefore = DateTime.now().subtract(const Duration(hours: 1));
+    await for (final entity in directory.list()) {
+      if (entity is! File) continue;
+      final name = entity.uri.pathSegments.last;
+      if (!name.endsWith('.part') && !name.endsWith('.part.json')) continue;
+      if (_jobs.values.any((job) => name.startsWith('${job.key}.mp4.'))) {
+        continue;
+      }
+      try {
+        if ((await entity.lastModified()).isAfter(staleBefore)) continue;
+        await entity.delete();
+      } on FileSystemException {
+        /* concurrently removed */
       }
     }
   }

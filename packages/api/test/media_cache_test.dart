@@ -102,6 +102,35 @@ void main() {
     },
   );
 
+  test('prune reclaims working files left by a dead session', () async {
+    File('${temp.path}/11_best.mp4.1700000000000000.3.part')
+      ..writeAsBytesSync([0, 1, 2])
+      ..setLastModifiedSync(DateTime.now().subtract(const Duration(hours: 7)));
+    File('${temp.path}/12_best.mp4.1700000000000000.4.part')
+        .writeAsBytesSync([0, 1, 2]);
+    File('${temp.path}/13_best.mp4.1700000000000000.5.part')
+      ..writeAsBytesSync([0, 1, 2])
+      ..setLastModifiedSync(DateTime.now().subtract(const Duration(hours: 7)));
+    final job = cache.prepare('13');
+    await cache.prune();
+    expect(
+      File('${temp.path}/11_best.mp4.1700000000000000.3.part').existsSync(),
+      isFalse,
+      reason: 'a week-old orphan is dead weight',
+    );
+    expect(
+      File('${temp.path}/12_best.mp4.1700000000000000.4.part').existsSync(),
+      isTrue,
+      reason: 'a transfer still within its own timeout',
+    );
+    expect(
+      File('${temp.path}/13_best.mp4.1700000000000000.5.part').existsSync(),
+      isTrue,
+      reason: 'a live job owns this key',
+    );
+    cache.release(job);
+  });
+
   test(
     'manual downloads survive LRU and clear but remain explicitly deletable',
     () async {

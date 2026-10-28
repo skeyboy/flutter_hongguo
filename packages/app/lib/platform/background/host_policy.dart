@@ -13,6 +13,10 @@ bool allowBackgroundPlayback({required bool tv, required bool enabled}) =>
 bool allowBackgroundPreparation({required bool tv, required bool enabled}) =>
     !tv && (desktopHost || enabled);
 
+/// Handing a transfer to the operating system only pays for itself where the
+/// system suspends the app, so desktop hosts keep the in-app download lane.
+bool useSystemTransferLane({required bool enabled}) => mobileHost && enabled;
+
 String get floatingDescription => kIsWeb
     ? '浏览器适配暂不提供此功能。'
     : defaultTargetPlatform == TargetPlatform.android

@@ -1,0 +1,24 @@
+00:00 +0: loading /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/macos_live_poc_test.dart
+The following plugins do not support Swift Package Manager for macos:
+  - media_kit_libs_macos_video
+  - media_kit_video
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Building macOS application...                                   
+/Volumes/PSSD/own/flutter_hongguo/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.OSHXiE/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Volumes/PSSD/own/flutter_hongguo/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.OSHXiE/Metal.xctoolchain/usr/lib/swift/macosx' not found
+✓ Built build/macos/Build/Products/Debug/Hongguo.app
+Failed to foreground app; open returned 1
+00:00 +0: current Mac: native Dart algorithms → real first episode → local player
+00:01 +0: loading /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/macos_live_poc_test.dart
+media_kit: NativeReferenceHolder: Allocated 521240817664
+00:05 +0: current Mac: native Dart algorithms → real first episode → local player
+VideoOutput.Resize
+{handle: 521242450896, id: 521260631072, rect: {top: 0.0, height: 0.0, left: 0.0, width: 0.0}}
+NativeVideoController: Texture ID: 521260631072
+VideoOutput.Resize
+{rect: {top: 0.0, left: 0.0, width: 1920.0, height: 1080.0}, handle: 521242450896, id: 521260631072}
+MAC_LIVE_POC_RESULT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/Library/Application Support/com.example.hongguoApp/mac-prefetch-poc-result.json
+MAC_LIVE_POC_SUMMARY={"ok":true,"platform":"macos","nativeDart":true,"localServerUsed":false,"seriesId":"7641246517595999257","initialVid":"7641248554081602585","vid":"7641248476080114713","episodeIndex":2,"prefetchedEpisodes":3,"switchMs":307,"switchStages":["正在排队","已就绪"],"title":"凡人百世书","localFile":"/Users/lee/Library/Containers/com.example.hongguoApp/Data/Library/Application Support/com.example.hongguoApp/media-cache/7641248476080114713_best.mp4","bytes":12020592,"width":1920,"height":1080,"durationMs":112103,"seekTargetMs":10000,"seekPositionMs":10000,"audioTrackRecognized":true,"audioOutputWarning":null,"frameBytes":1810598}
+00:27 +1: (tearDownAll)
+00:27 +1: All tests passed!
+EXIT=0

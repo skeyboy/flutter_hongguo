@@ -7,7 +7,7 @@
 设置 → **后台与悬浮播放**，分别开启并保存：
 
 - **后台播放**：移动端使用媒体通知/锁屏控制，后台继续声音播放；桌面在最小化后继续。关闭播放页会结束该播放器，不是跨页面常驻音乐模式。
-- **后台下载**：后续缓存改由系统下载，离开播放页仍可完成已排队任务。移动端新增“仅 Wi-Fi”，默认开启；等待网络会显示等待状态。
+- **后台下载**：移动端把后续缓存交给系统下载，离开播放页仍可完成已排队任务；桌面（macOS/Windows/Linux）仍由应用内的 Dio 通道传输，开关只决定切换应用时是否继续准备缓存。移动端新增“仅 Wi-Fi”，默认开启；等待网络会显示等待状态。桌面改走应用内通道的原因见 [macOS 与移动端播放差异](analysis/2026-10-28-mac-vs-mobile-playback.md)。
 - **悬浮播放**：播放器顶部出现画中画按钮。Android 使用系统 PiP；iOS 将当前本地 MP4 交给 AVPlayer；桌面切换可还原的置顶小窗。
 
 移动端开启时显示说明；后台下载会申请通知授权。拒绝通知权限时系统可能不显示进度提醒，不代表允许绕过系统调度。
@@ -21,7 +21,7 @@
 | Android 悬浮 | MainActivity 的 PiP 通道，API 26+；按实际比例限制到系统接受范围，PiP 中隐藏普通 UI |
 | iOS 悬浮 | 本地 clear MP4 → AVPlayerLayer → AVPictureInPictureController；暂停原播放器避免双重声音；返回时 seek/播放状态同步 |
 | 桌面悬浮 | window_manager 记录原窗口、置顶、最大化/全屏状态；缩小并置顶，退出后恢复 |
-| 系统下载 | background_downloader 原生传输，网络字节进度接入共享预算/取消逻辑；工作文件不直接暴露给播放器 |
+| 系统下载 | 仅移动端使用 background_downloader（Android WorkManager / iOS URLSession），网络字节进度接入共享预算/取消逻辑；工作文件不直接暴露给播放器。桌面该包没有原生实现，落到纯 Dart isolate 队列，实测会静默停滞，因此桌面固定走应用内 Dio |
 | 下载恢复 | 普通任务文件只含密钥引用，密钥在系统安全存储；启动时对完成文件做解密/校验/原子发布；未完成旧进程任务取消后可重试 |
 
 悬浮播放默认手动进入。Android 不申请覆盖任意 App 的 SYSTEM_ALERT_WINDOW 权限。iOS PiP 需要系统/设备允许，以及 AVPlayer 支持的音视频格式；失败会显示提示并恢复原播放器。当前 iOS 系统 PiP 在单集结束后退出；是否进入后续集遵循前台状态/后台播放及自动连播设置，不承诺在 PiP 窗内无缝跨集。
@@ -60,7 +60,7 @@
 
 ## 验证
 
-验证计数、原生编译结果及平台限制见 [本轮验收记录](evidence/platform-background/README.md)。Mac 可实际验证原生下载和桌面窗口；Android/iOS 的编译成功不等于移动设备锁屏、长时间退后台和系统 PiP 真机验收。
+验证计数、原生编译结果及平台限制见 [本轮验收记录](evidence/platform-background/README.md)。Mac 可实际验证桌面窗口与在线选集缓存（0.3.9 后为应用内通道，见 [macOS 与移动端播放差异](analysis/2026-10-28-mac-vs-mobile-playback.md)）；Android/iOS 的编译成功不等于移动设备锁屏、长时间退后台和系统 PiP 真机验收。
 
 Android 16 真机已完成系统画中画验证；真实窗口布局与系统后台操作以最新验收记录为准；iPhone 模拟器 API 返回不支持 PiP，不能替代 iOS 真机验收。[iPhone 真实窗口设置截图](assets/platform-background/ios-settings.png)。
 

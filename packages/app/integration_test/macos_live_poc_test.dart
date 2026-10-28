@@ -92,6 +92,12 @@ void main() {
         }
         expect(state.prefetch.ready, prefetchCount);
         final timer = Stopwatch()..start();
+        // Fast prefetch can land while the transport chrome has auto-hidden.
+        if (find.byKey(const ValueKey('toggle-episodes')).evaluate().isEmpty) {
+          await tester.tap(find.byKey(const ValueKey('player-picture')));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 400));
+        }
         await tester.tap(find.byKey(const ValueKey('toggle-episodes')));
         await tester.pump();
         await tester.tap(find.widgetWithText(FilledButton, '下一集'));

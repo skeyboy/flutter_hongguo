@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "platform": "macos",
+  "nativeDart": true,
+  "localServerUsed": false,
+  "seriesId": "7641246517595999257",
+  "initialVid": "7641248554081602585",
+  "vid": "7641248476080114713",
+  "episodeIndex": 2,
+  "prefetchedEpisodes": 3,
+  "switchMs": 307,
+  "switchStages": [
+    "正在排队",
+    "已就绪"
+  ],
+  "title": "凡人百世书",
+  "localFile": "/Users/lee/Library/Containers/com.example.hongguoApp/Data/Library/Application Support/com.example.hongguoApp/media-cache/7641248476080114713_best.mp4",
+  "bytes": 12020592,
+  "width": 1920,
+  "height": 1080,
+  "durationMs": 112103,
+  "seekTargetMs": 10000,
+  "seekPositionMs": 10000,
+  "audioTrackRecognized": true,
+  "audioOutputWarning": null,
+  "frameBytes": 1810598
+}

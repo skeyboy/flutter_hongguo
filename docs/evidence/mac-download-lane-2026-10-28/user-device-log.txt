@@ -1,0 +1,18 @@
+2026-10-28 16:10:57.413 Hongguo[82008:11798593] VideoOutput: enableHardwareAcceleration: true
+flutter: VideoOutput.Resize
+flutter: {handle: 500934089040, id: 500848752448, rect: {left: 0.0, top: 0.0, height: 0.0, width: 0.0}}
+flutter: NativeVideoController: Texture ID: 500848752448
+2026-10-28 16:11:00.657 Hongguo[82008:11798593] TextureGL: resize: 1920.0x1080.0
+flutter: VideoOutput.Resize
+flutter: {id: 500848752448, rect: {width: 1920.0, top: 0.0, height: 1080.0, left: 0.0}, handle: 500934089040}
+2026-10-28 16:11:35.919 Hongguo[82008:11801805] VideoOutput: enableHardwareAcceleration: true
+flutter: VideoOutput.Resize
+flutter: {rect: {left: 0.0, height: 0.0, width: 0.0, top: 0.0}, handle: 500888946640, id: 500815267488}
+flutter: NativeVideoController: Texture ID: 500815267488
+2026-10-28 16:11:49.793 Hongguo[82008:11802872] VideoOutput: enableHardwareAcceleration: true
+flutter: VideoOutput.Resize
+flutter: {handle: 500934094160, rect: {height: 0.0, top: 0.0, width: 0.0, left: 0.0}, id: 500815269920}
+flutter: NativeVideoController: Texture ID: 500815269920
+2026-10-28 16:12:00.205 Hongguo[82008:11794722] error messaging the mach port for IMKCFRunLoopWakeUpReliable
+
+根据这个日志分析，在线播放时异常

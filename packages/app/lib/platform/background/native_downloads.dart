@@ -9,6 +9,7 @@ import 'package:hongguo_api/hongguo_api.dart';
 
 import '../../settings/settings_store_native.dart';
 import '../../settings/settings_store.dart';
+import 'host_policy.dart';
 
 import 'package:path_provider/path_provider.dart';
 
@@ -138,7 +139,7 @@ class NativeDownloads {
     void Function(int, int) progress,
   ) async {
     final url = track.url;
-    if (!settings().backgroundDownloads) {
+    if (!useSystemTransferLane(enabled: settings().backgroundDownloads)) {
       await dio.download(
         url.toString(),
         path,
