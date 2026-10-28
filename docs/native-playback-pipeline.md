@@ -42,7 +42,7 @@ UI 不假设取址成功等于能播放。只有播放器实际读取本地文�
 
 ## 内容接口
 
-`CatalogClient` 使用 Dio，明确签名的 query 顺序、UTF-8 body 和 MD5 stub，设备身份在 App 私有支持目录持久化。列表默认免签；搜索/详情签名。AppClient 与视频取址客户端保留不同的上游主机和版本参数。
+`CatalogClient` 使用 Dio，明确签名的 query 顺序、UTF-8 body 和 MD5 stub，设备身份在 App 私有支持目录持久化。列表与搜索/详情都签名（2026-10-21 起默认开启）。AppClient 与视频取址客户端保留不同的上游主机和版本参数。播放取址自 2026-10-28 起不再带签名：先向 log 域名注册匿名播放设备（ttEncrypt），复用其 `device_id`/`iid`，用播放器自身的 User-Agent 发免签 POST。
 
 | 能力 | 上游与处理 |
 |---|---|
@@ -50,7 +50,7 @@ UI 不假设取址成功等于能播放。只有播放器实际读取本地文�
 | 实时题材 | landpage selector_rows |
 | 搜索 | 官网 searchList SSR，正确 await HTML；无结果/失败时 App 搜索；保存上游 offset/passback/search_id 游标 |
 | 分集 | App multi_video_detail/preload；空详情/异常时正确 await 官网 vid_list 回退 |
-| 播放模型 | 原有 Dart VideoModelClient；签名 POST → fallback → URL 解码 → 选流 |
+| 播放模型 | Dart VideoModelClient；匿名设备注册 → 免签 POST → 内联 video_list（旧形状才走 fallback GET）→ URL 解码 → 选流 |
 
 ID 始终使用字符串。App 详情缓存 6 小时、最多 100 条。没有复制原项目“刷新登录态”的空操作，也没有声称能替用户取得登录态。官网或上游改版仍可能使真实搜索/取址失败，本次线上可用性未验证。
 

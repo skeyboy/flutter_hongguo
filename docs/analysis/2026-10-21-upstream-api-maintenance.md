@@ -1,6 +1,8 @@
 # 上游更新、空响应故障与协议维护
 
 > 历史设计/验收记录。2026-10-21 的重试次数、总时限、取消与缓存新策略已由[请求性能设计](../design/catalog-network-performance.md)取代；下文旧策略及测试数字不代表当前行为。
+>
+> 2026-10-28 起播放取址那一跳不再带签名，改走匿名播放设备注册，见文末同名小节。下文“签名是必要修正”只适用于列表/搜索/详情，不再适用于 `multi_video_model`。
 
 2026-10-21（Asia/Shanghai），Flutter 项目 `/Users/lee/Desktop/flutter_hongguo`。
 
@@ -122,3 +124,33 @@ Flutter 原生端的算法代码随 App 发布；参考 Node 项目的 JS 更新
 本次没有更改现有会话、用户设备 ID、系统代理和 TLS 校验，也没有覆盖其他 macOS 开发改动。子模块指针、请求修复、诊断工具与本说明一并纳入 Git 提交；本轮未执行远端推送或安装包发布。
 
 验证统计：上游 Node 自检 165/165、Core 117、API 51、App 145 项通过，协议漂移工具回归 1 项通过；静态分析及修改文件格式检查通过。
+
+## 2026-10-28：播放取址不再带签名，改为匿名设备注册
+
+观众侧的 `FormatException: Unexpected end of input (at character 1)` 复现在播放取址那一跳。同一份匿名只读探测里，取址之前的带签名请求正常返回约 45–65KB，而每次运行末尾都连着三个 HTTP 200 + 0 字节——取址 POST 的一次初发加两次有界恢复全部空包，合计 9 个（[playback-probe-20261028.json](../evidence/playback-protocol-2026-10-28/playback-probe-20261028.json)、`-b`、`-c`）。传输成功、状态码成功、body 为空，所以这不是解密或超时，而是上游换了准入条件。
+
+参考子模块 `references/hongguo-web` 快进到 [`3841835`](https://github.com/sunnysky123/hongguo-web/commit/38418358fae6d41a37d397524a2d4c17d7a4afc8)（package 1.1.5）后，新增的 `server/src/service/playback-device.js` 记录了 2026-10-27 的实测：该接口开始校验请求里的 `device_id`/`iid` 是不是平台注册过的设备身份。此前每请求随机生成一对互不关联的合成 ID，加上六个签名头，上游就返回 200 + 0 字节软拦截；换成注册得到的身份、并去掉签名后，同一接口返回 code=0 与完整片源。
+
+Dart 侧的迁移分四处：
+
+| 变更 | 位置 | 说明 |
+|---|---|---|
+| ttEncrypt 注册 | [packages/api/lib/src/playback_device.dart](../../packages/api/lib/src/playback_device.dart) | 请求体 = `746305100000` 前缀 + 32 字节会话随机数 + AES-128-CBC(`sha512(gzip) ‖ gzip`)，key/iv 取 `sha512(sha512(random) ‖ KDF_SALT)` 的前 32 字节；只保留 `device_id`/`iid`/`cdid`，仅存进程内存，不落盘、不含令牌或 Cookie |
+| 一次注册全进程复用 | 同上 `_pending`/`get()` | 并发调用共享同一个 Future；失败不缓存，下一次播放仍可再问，避免一次网络抖动把播放锁死到重启 |
+| 取址请求匿名化 | [packages/api/lib/src/video_model_client.dart:92-139](../../packages/api/lib/src/video_model_client.dart#L92) | query 用固定设备模板加注册的 `device_id`/`iid`；请求头只剩 `User-Agent`/`Accept`/`Content-Type`，UA 固定为播放器自身的 `com.phoenix.read/71532`，不再有 signer 与会话头 |
+| 内联片源列表 | 同上 [:256-267](../../packages/api/lib/src/video_model_client.dart#L256) | 新回答把 `video_list` 直接放进 `video_model`（数组），此时不再请求 `fallback_api` 第二跳；旧形状（以分辨率为键的对象）继续走第二跳 |
+
+失败语言按“能不能靠重试改变”分成两类：信封缺失（空包/截断）仍是 `IncompleteCatalogResponse`，沿用同一请求自带 deadline 内的两次有界恢复；上游明确拒绝这一集（业务码、`status_code`、空 entry）改成 `PlaybackUnavailable`，一句就停，不再重复请求。注册环节的对应文案是「播放设备注册未返回数据，请稍后重试」与「播放设备注册失败，请稍后重试」。
+
+注册协议没有可自证的入口，所以按 Node 侧做离线对拍：`tool/generate_register_vector.cjs` 把 `randomBytes` 换成固定种子的 LCG、`randomUUID` 换成计数器、`now` 固定，生成 3 组向量存进 `packages/api/test/fixtures/register_vector.json`；Dart 以同样的抽取顺序（`cdid` → `openudid`(8B) → `clientudid` → `req_id` → 会话随机(32B)）复现，逐字节比较整段 body、前缀、随机段、注册 URL 和请求头。Dart 的 `gzip.encode` 与 Node `zlib.gzipSync` 在这里字节一致（mtime 为 0）。响应解析优先取 `device_id_str`/`install_id_str`：夹具里故意让数字 `device_id` 掉精度（`7661622467441479000`），字符串字段才是准值。
+
+修后线上读数（同日、匿名只读、未下载媒体）：[playback-probe-20261028-e1.json](../evidence/playback-protocol-2026-10-28/playback-probe-20261028-e1.json) 注册 200/312 字节（免签）+ 取址 POST 200/18795 字节（免签），解析出 17 集、`definition: 1080p`、`encrypted: true`、媒体地址通过 HTTPS 校验、Spade 内容密钥校验通过，且交换记录里没有第二跳，即走的是内联列表；`-e3` 同结论（283 字节 / 18938 字节）。
+
+边界与遗留：
+
+- 题材接口仍间歇 200 + 0 字节。同日一次运行三发全空并以 `IncompleteCatalogResponse` 结束（`build/verification/playback-probe-20261028-d.json`，未入库），重跑即恢复；这是上游抖动，不计入本次取址修复。
+- 播放现在依赖 `log5-applog-lf.fqnovel.com` 的注册端点。它不响应时取址一起失败，错误语言已定为“注册未返回数据”，且失败不落缓存；域名不在现有白名单体系里，属代码固定常量。
+- 高级设置里的「视频 User-Agent」只作用于片源回退第二跳（[video_model_client.dart:276](../../packages/api/lib/src/video_model_client.dart#L276)），取址第一跳用的是代码里固定的 71532 UA；这也是本轮在该字段说明里补的一句。
+- `tool/upstream_protocol.json` 已重新钉到 `3841835`、package 1.1.5、`checkedAt 2026-10-28`，协议文件从 11 个增至 12 个（新增 `server/src/service/playback-device.js`）；`python3 tool/check_upstream_protocol.py` 回到 `baseline_matches`。
+
+本轮证据与读数记录在 [docs/evidence/playback-protocol-2026-10-28/findings.md](../evidence/playback-protocol-2026-10-28/findings.md)。验证统计：API 90 项通过（含新的 `playback_device_test.dart` 与重写的 `video_model_client_test.dart`），`tool/verify_all.sh` 退出码 0，`dart analyze` 无问题；真实 macOS App 带窗口的单集验收（`tool/verify_mac_live.sh`）取到 8,879,851 字节片源并出帧 1080×1920、seek 与音轨均正常。这些是当次匿名请求的读数，不能证明任意账号、网络或全部受限内容可访问。

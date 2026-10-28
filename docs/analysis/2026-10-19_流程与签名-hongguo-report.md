@@ -20,7 +20,7 @@ flowchart TD
   E --> S[stream / prewarm]
   S --> C{本地缓存命中?}
   C -->|是| R[本地 MP4 + Range 响应]
-  C -->|否| A[AppSource 签名 POST]
+  C -->|否| A[AppSource 取址 POST]
   A --> F[fallback_api 普通 GET]
   F --> V[选流 / URL 解码 / 校验 spade]
   V --> D[下载完整 MP4]
@@ -127,6 +127,8 @@ JS
 ## 5. 视频取址、URL 解码与内容密钥
 
 ### 5.1 双请求取址
+
+> 2026-10-28 更正：下面这条 1.1.1 流程里第 2、4 步已变。上游从 2026-10-27 起对 `/novel/player/multi_video_model/v1/` 校验设备身份并拒绝带签名的合成 ID 请求（返回 200 + 0 字节），现在先用 ttEncrypt 注册匿名播放设备、再免签 POST；新回答还会把 `video_list` 内联进 `video_model`，此时没有第二跳。见[上游 API 维护](2026-10-21-upstream-api-maintenance.md)的 2026-10-28 一节。
 
 1. `AppSource.fetch(vid, quality)` 要求 vid 为 1–30 位数字字符串。
 2. 签名 POST b 域名 `/novel/player/multi_video_model/v1/`（注意尾斜杠）。

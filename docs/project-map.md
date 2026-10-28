@@ -46,7 +46,8 @@ flutter_hongguo/
 | MP4 盒、样本索引、各轨 IV、CTR 与 CENC 信令处理 | [mp4.dart](../packages/core/lib/src/media/mp4.dart) | [mp4_test.dart](../packages/core/test/mp4_test.dart) |
 | 原生文件随机读写、worker isolate | [file_decryptor.dart](../packages/core/lib/src/media/file_decryptor.dart) | mp4_test.dart |
 | 搜索、分类、AI短剧、题材、详情与分集 | [catalog.dart](../packages/api/lib/src/catalog.dart) | [catalog_test.dart](../packages/api/test/catalog_test.dart) |
-| App 模型签名 POST、fallback、选流 | [video_model_client.dart](../packages/api/lib/src/video_model_client.dart) | [video_model_client_test.dart](../packages/api/test/video_model_client_test.dart) |
+| 匿名播放设备注册（ttEncrypt）与进程内复用 | [playback_device.dart](../packages/api/lib/src/playback_device.dart) | [playback_device_test.dart](../packages/api/test/playback_device_test.dart) |
+| App 取址：注册身份、免签 POST、内联 video_list 与 fallback、选流 | [video_model_client.dart](../packages/api/lib/src/video_model_client.dart) | [video_model_client_test.dart](../packages/api/test/video_model_client_test.dart) |
 | 流式下载、取消、并发合并、原子缓存、淘汰 | [media_cache.dart](../packages/api/lib/src/media_cache.dart) | [media_cache_test.dart](../packages/api/test/media_cache_test.dart) |
 | Flutter 入口与依赖装配 | [main.dart](../packages/app/lib/main.dart)、[bootstrap.dart](../packages/app/lib/bootstrap.dart) | [widget_test.dart](../packages/app/test/widget_test.dart) |
 | 首页、搜索、分类与题材 | [library_page.dart](../packages/app/lib/features/library_page.dart) | widget_test.dart |
@@ -81,6 +82,8 @@ flutter_hongguo/
 | Mac 显式真实单集验收 | [tool/verify_mac_live.sh](../tool/verify_mac_live.sh) |
 | 真实上游探测 | [mac_poc_probe.dart](../packages/api/bin/mac_poc_probe.dart) |
 | 从原实现重新生成开发期真值 | [generate_oracle.cjs](../tool/generate_oracle.cjs) |
+| 从上游注册实现生成离线向量 | [generate_register_vector.cjs](../tool/generate_register_vector.cjs) → [register_vector.json](../packages/api/test/fixtures/register_vector.json) |
+| 上游协议文件漂移基线 | [check_upstream_protocol.py](../tool/check_upstream_protocol.py) → [upstream_protocol.json](../tool/upstream_protocol.json) |
 | 生成离线媒体样本 | [generate_media_fixtures.cjs](../tool/generate_media_fixtures.cjs) |
 | 媒体解密独立检查 | [verify_media.dart](../tool/verify_media.dart) |
 | macOS 打包 | [package_macos_release.sh](../tool/package_macos_release.sh) |

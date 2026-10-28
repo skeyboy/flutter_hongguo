@@ -1,6 +1,6 @@
 # API 参考：本地服务与上游映射
 
-依据当前 1.1.1 源码整理，非上游官方文档；未在线验证第三方接口。默认本地 Base URL：`http://127.0.0.1:8000`。路径没有统一 `/api` 前缀。
+依据当前 1.1.1 源码整理，非上游官方文档；未在线验证第三方接口。默认本地 Base URL：`http://127.0.0.1:8000`。路径没有统一 `/api` 前缀。参考来源已快进到 1.1.5，本轮只有播放取址一跳的行为变了（匿名设备注册、免签），其余行仍按 1.1.1 描述。
 
 ## 1. 鉴权与响应约定
 
@@ -95,7 +95,8 @@ JS
 | POST a主机 `/novel/player/multi_video_detail/preload/v1` | series_id 字符串，可 CSV；dr_scene=preload；biz_param 见下；签名 | data[sid].video_data | episodes、metrics/batch |
 | GET a主机 `/reading/bookapi/bookmall/cell/change/v` | cell_id=7470092475068071998；tab_type=26；client_req_type=2；client_template=2；selected_items=comic_series_rank；sub_selected_items 选择对应榜；session_uuid、offset | data.cell_view.cell_data | rank |
 | POST a主机 `/reading/distribution/category/landpage/v` | req_scene、select_items、filter_ids、offset、limit、need_selector_panel、req_type | data.video_data 或 selector_rows | latest、browse、filters |
-| POST b主机 `/novel/player/multi_video_model/v1/` | mixed_video_id_map:{"1004":[vid]}，biz_param，独立设备 query 和六头签名 | data[vid].video_model.fallback_api | AppSource.fetch |
+| POST log 域名 `/service/2/device_register/` | ttEncrypt 信封：`746305100000` + 32 字节随机 + AES-128-CBC(`sha512(gzip)‖gzip`)，`octet-stream`，无签名头 | `device_id_str`、`install_id_str`（数字字段可能掉精度） | 播放取址的身份来源：Node `playback-device.js`、Dart `playback_device.dart` |
+| POST b主机 `/novel/player/multi_video_model/v1/` | mixed_video_id_map:{"1004":[vid]}，biz_param，独立设备 query；2026-10-27 起带注册的 `device_id`/`iid` 且不带六头签名 | data[vid].video_model：新形状内联 `video_list`，旧形状给 `fallback_api` | AppSource.fetch、Dart `VideoModelClient` |
 | GET 响应提供的 fallback_api | HTTPS/API 域白名单；仅 User-Agent，无六头签名 | video_info.data.video_list、key_seed | URL 解码与选流 |
 | GET CDN 媒体 URL | 已解码地址、CDN 白名单；Mozilla/5.0 UA | 完整 MP4 文件 | download/stream |
 | GET `https://hongguoduanju.com/search/{keyword}` | 桌面 UA、Accept-Language、Referer，免签 | SSR searchList | 设计上官网搜索优先；当前漏 await |
@@ -139,7 +140,7 @@ JS
 }
 ```
 
-这条链路不带 dr_scene。保留路径末尾 `/`、query 的实际编码和 body 字节，签名后不再改动。没有发现当前播放路径调用旧 multi_video_model/preload/v1 或官网 main_url 探测；相关注释是历史背景。
+这条链路不带 dr_scene。保留路径末尾 `/`、query 的实际编码和 body 字节；上游按 URL 与 body 的原字节应答，任何一环都不能在签名或组装后再改动。取址这一跳自 2026-10-27 起不再带六头签名，改由上一行的匿名设备注册提供身份，见[上游 API 维护](2026-10-21-upstream-api-maintenance.md)的 2026-10-28 一节。没有发现当前播放路径调用旧 multi_video_model/preload/v1 或官网 main_url 探测；相关注释是历史背景。
 
 ### 5.3 landpage body
 

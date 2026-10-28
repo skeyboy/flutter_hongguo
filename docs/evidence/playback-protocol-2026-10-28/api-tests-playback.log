@@ -1,0 +1,92 @@
+00:00 +0: loading test/catalog_retry_test.dart
+00:00 +0: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +1: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +2: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +3: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +4: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +5: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +6: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +7: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +8: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +9: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +10: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +11: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +12: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +13: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +14: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +15: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +16: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +17: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +18: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +19: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +20: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +21: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +22: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +23: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +24: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +25: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +26: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +27: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +28: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +29: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +30: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +31: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +32: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +33: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +34: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +35: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +36: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +37: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +38: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +39: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +40: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +41: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +42: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +43: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +44: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +45: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +46: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +47: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +48: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +49: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +50: test/catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +51: test/catalog_page_size_test.dart: request 50 rows and use raw response cursor without assuming 18 rows
+00:00 +52: test/catalog_page_size_test.dart: request 50 rows and use raw response cursor without assuming 18 rows
+00:00 +53: test/catalog_page_size_test.dart: request 50 rows and use raw response cursor without assuming 18 rows
+00:00 +54: test/request_control_test.dart: cancellation interrupts retry sleep
+00:00 +55: test/request_control_test.dart: cancellation interrupts retry sleep
+00:00 +56: test/request_control_test.dart: cancellation interrupts retry sleep
+00:00 +57: test/request_control_test.dart: cancellation interrupts retry sleep
+00:00 +58: test/request_control_test.dart: cancellation interrupts retry sleep
+00:00 +59: test/request_control_test.dart: cancellation interrupts retry sleep
+00:00 +60: test/request_control_test.dart: cancellation interrupts retry sleep
+00:00 +61: test/request_control_test.dart: cancellation interrupts retry sleep
+00:00 +62: test/request_control_test.dart: cancellation interrupts retry sleep
+00:00 +63: test/request_control_test.dart: cancellation interrupts retry sleep
+00:00 +64: test/request_control_test.dart: cancellation interrupts retry sleep
+00:00 +65: test/request_control_test.dart: cancellation interrupts retry sleep
+00:00 +66: test/request_control_test.dart: cancellation interrupts retry sleep
+00:00 +67: test/request_control_test.dart: cancellation interrupts retry sleep
+00:00 +68: test/request_control_test.dart: cancellation interrupts retry sleep
+00:00 +69: test/catalog_retry_test.dart: signature fallback never retries rejected authorization or changes session headers
+00:00 +70: test/catalog_retry_test.dart: signature fallback never retries rejected authorization or changes session headers
+00:00 +71: test/catalog_retry_test.dart: signature fallback never retries rejected authorization or changes session headers
+00:00 +72: test/catalog_retry_test.dart: signature fallback never retries rejected authorization or changes session headers
+00:00 +73: test/request_control_test.dart: themes expire by genre and failed responses never replace cache
+00:00 +74: test/request_control_test.dart: themes expire by genre and failed responses never replace cache
+00:00 +75: test/request_control_test.dart: themes expire by genre and failed responses never replace cache
+00:01 +76: test/request_control_test.dart: themes expire by genre and failed responses never replace cache
+00:01 +77: test/catalog_retry_test.dart: empty signed responses stop after two short recoveries
+00:01 +78: test/request_control_test.dart: cursor and exclusions distinguish shared request keys
+00:02 +79: test/catalog_retry_test.dart: theme timeouts retry once with fresh POST bodies and metadata limits
+00:02 +80: test/request_control_test.dart: detail primary and website fallback share one deadline
+00:02 +81: test/catalog_retry_test.dart: list 503 then success retains requested cursor, size and seen IDs
+00:02 +82: test/catalog_retry_test.dart: list 503 then success retains requested cursor, size and seen IDs
+00:02 +83: test/catalog_retry_test.dart: list 503 then success retains requested cursor, size and seen IDs
+00:02 +84: test/request_control_test.dart: trace separates queue signing transport and backoff without sensitive fields
+00:02 +85: test/catalog_retry_test.dart: persistent transport failure stops after one retry and a later request can recover
+00:02 +86: test/catalog_retry_test.dart: authorization and business errors are not retried; metadata timeouts are capped
+00:02 +87: test/catalog_retry_test.dart: missing selector payload is retried, valid empty choices are not
+00:03 +88: test/catalog_retry_test.dart: slow themes do not block independent list request
+00:03 +89: test/catalog_retry_test.dart: cancellation and bad certificates are never retried; 429 never truncates Retry-After to send an early request
+00:03 +90: All tests passed!
