@@ -57,3 +57,13 @@
 标签 `v0.3.8`（`026519c`）触发的 Release run `40641144401`：`preflight` 与 `build / plan` 通过，`build / verify` 失败（`00:04 +88 -2`），后面 `build / native`、`ios-signed`、`publish` 全 `skipped`，没有创建 Release、没有附件。失败的两条都是 `playback_device_test.dart` 的注册对拍，差异偏移 50（base64）正好是密文起点：前缀与会话随机段两边一致，分叉从 gzip 段开始——deflate 输出跟着二进制链接的 zlib 构建走，本机 macOS 上 Dart 与 Node 恰好逐字节相同，Linux runner 上不是。
 
 也就是说：本地 `verify_all.sh` 全绿不等于提交树在 CI 上全绿，这条对拍按构造就不该钉整段 body。修法见上一节——夹具改存压缩前的明文，断言验框架、密钥派生与明文，`x-ss-stub` 单独对齐本机 body 的 MD5。
+
+## 发布读数：0.3.9
+
+`v0.3.8` 没有回炉——标签指向的提交已经发过一次失败的构建，按决定保留为历史，版本改切 `0.3.9+21`（`9a0542c`，只动两处 pubspec 各一行）。发版前提交树在分离 worktree 跑 `tool/verify_all.sh` 到退出码 0（App 段尾 `01:29 +257 ~1: All tests passed!`，离线向量 103 条，84 个媒体样本解密后密文归零）。
+
+标签 `v0.3.9` → run `40643856179`（`06:26:23Z`—`06:38:50Z`）：`preflight`、`build / plan`、**`build / verify` success**、五个 `build / native`（android / android-tv / macos / linux / windows）success、`publish` success（28s），`ios-signed` skipped。上一次挂住的正是 `build / verify` 在 Linux 上的这两条断言，这次同一条 runner 通过，说明改成语义对拍之后 zlib 构建差异不再进入断言。
+
+发布页 `draft: false`，15 个附件：12 个安装包 + `iOS-signing-status.txt` + `SHA256SUMS.txt` + `release-manifest.json`。清单交叉核对（`gh release view --json assets` 的 `digest` 对 `/tmp/rel039` 里下载的两份文件）：manifest 记 `version 0.3.9 / build 21 / commit 9a0542c9…`、`assets` 13 项，SHA256SUMS 14 行（那 13 项 + manifest 自身），12 个安装包的 GitHub 资产 digest 与 SHA256SUMS 逐条一致，无错配、无 manifest 有而附件缺的项。发布正文 25 条要点，第 6 条是本轮「Playback URL acquisition」，措辞已随修复放宽为对拍框架、密钥派生与压缩前明文。
+
+一条时间线上的坑，记下来免得下次误读：`gh release view --json createdAt` 给的是 `06:22:49Z`，那是标签所指提交的时间，不是发布动作；发布动作看 `published_at`（`06:38:46Z`）。
