@@ -42,6 +42,18 @@ async function vectorFor(index) {
     randomUUID: () => 'uuid-' + (++uuids),
   };
   let sent = null;
+  // The deflate stream is whatever zlib this process linked against produced, so
+  // the whole body is not portable between machines. What the Dart port has to
+  // match is everything around it: the framing, the key schedule and the bytes
+  // that go into the compressor. Capture the pre-gzip payload by wrapping zlib.
+  let plain = null;
+  const zlibStub = {
+    ...zlib,
+    gzipSync: (input, options) => {
+      plain = Buffer.from(input);
+      return zlib.gzipSync(input, options);
+    },
+  };
   const HttpStub = {
     send: async (opts) => {
       sent = opts;
@@ -54,7 +66,7 @@ async function vectorFor(index) {
     require: (id) => (id === 'crypto'
       ? stubCrypto
       : id === 'zlib'
-        ? zlib
+        ? zlibStub
         : id === '../util/http'
           ? HttpStub
           : require(id)),
@@ -70,14 +82,18 @@ async function vectorFor(index) {
     now: NOW,
     url: sent.url,
     method: sent.method,
-    headers: sent.headers,
+    // x-ss-stub is the MD5 of this exact body, so it is the one header whose
+    // value follows from the compressor rather than the protocol.
+    headers: Object.fromEntries(
+      Object.entries(sent.headers).filter(([name]) => name !== 'x-ss-stub')
+    ),
+    stubbedHeader: 'x-ss-stub',
     // The register body is 6 fixed bytes, then the 32-byte session random, then
-    // AES-128-CBC(sha512(gzip) || gzip); the vector keeps the whole body plus the
-    // random so the Dart port can replay the same inputs.
+    // AES-128-CBC(sha512(gzip) || gzip); the vector keeps the clear framing and
+    // the pre-gzip payload so the Dart port can replay the same inputs.
     prefixHex: body.subarray(0, 6).toString('hex'),
     randomHex: body.subarray(6, 38).toString('hex'),
-    bodyBase64: body.toString('base64'),
-    bodyBytes: body.length,
+    plaintextBase64: plain.toString('base64'),
     identity,
   };
 }
@@ -88,7 +104,7 @@ async function vectorFor(index) {
   process.stdout.write(JSON.stringify({
     generator: 'tool/generate_register_vector.cjs',
     reference: 'server/src/service/playback-device.js',
-    note: 'Produced offline from the pinned reference implementation.',
+    note: 'Produced offline from the pinned reference implementation. The sealed body itself is not stored: the deflate stream depends on which zlib the running binary linked, so the vectors pin the clear framing and the pre-gzip payload instead.',
     response: RESPONSE,
     vectors,
   }, null, 2) + '\n');

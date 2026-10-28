@@ -142,7 +142,9 @@ Dart 侧的迁移分四处：
 
 失败语言按“能不能靠重试改变”分成两类：信封缺失（空包/截断）仍是 `IncompleteCatalogResponse`，沿用同一请求自带 deadline 内的两次有界恢复；上游明确拒绝这一集（业务码、`status_code`、空 entry）改成 `PlaybackUnavailable`，一句就停，不再重复请求。注册环节的对应文案是「播放设备注册未返回数据，请稍后重试」与「播放设备注册失败，请稍后重试」。
 
-注册协议没有可自证的入口，所以按 Node 侧做离线对拍：`tool/generate_register_vector.cjs` 把 `randomBytes` 换成固定种子的 LCG、`randomUUID` 换成计数器、`now` 固定，生成 3 组向量存进 `packages/api/test/fixtures/register_vector.json`；Dart 以同样的抽取顺序（`cdid` → `openudid`(8B) → `clientudid` → `req_id` → 会话随机(32B)）复现，逐字节比较整段 body、前缀、随机段、注册 URL 和请求头。Dart 的 `gzip.encode` 与 Node `zlib.gzipSync` 在这里字节一致（mtime 为 0）。响应解析优先取 `device_id_str`/`install_id_str`：夹具里故意让数字 `device_id` 掉精度（`7661622467441479000`），字符串字段才是准值。
+注册协议没有可自证的入口，所以按 Node 侧做离线对拍：`tool/generate_register_vector.cjs` 把 `randomBytes` 换成固定种子的 LCG、`randomUUID` 换成计数器、`now` 固定，生成 3 组向量存进 `packages/api/test/fixtures/register_vector.json`；Dart 以同样的抽取顺序（`cdid` → `openudid`(8B) → `clientudid` → `req_id` → 会话随机(32B)）复现，比较 `746305100000` 前缀、32 字节明文随机段、AES 段解出的 `sha512(gzip) ‖ gzip` 框架、gzip 之前的那段明文 JSON、注册 URL，以及除 `x-ss-stub` 之外的全部请求头（stub 单独断言等于本机 body 的 MD5）。响应解析优先取 `device_id_str`/`install_id_str`：夹具里故意让数字 `device_id` 掉精度（`7661622467441479000`），字符串字段才是准值。
+
+对拍不能钉整段 body，这条是 CI 教的：`026519c` 的第一次 Release 运行（run `40641144401`）在 Linux 的 `build / verify` 上挂住，差异偏移正好落在密文起点——前缀与会话随机段两边一致，分叉从 gzip 那段开始。同一份 Dart 代码在本机 macOS 与 Node 逐字节相同，在 Linux 上就不同了：deflate 输出跟着二进制链接的 zlib 构建走，不是协议的一部分。所以夹具改存压缩前的明文（`plaintextBase64`）而不再存整段 body，断言改成把密文解回来验框架与明文——密钥派生、IV、填充、框架、JSON 内容一项都没放松，跨平台的那一项被拿掉了。
 
 修后线上读数（同日、匿名只读、未下载媒体）：[playback-probe-20261028-e1.json](../evidence/playback-protocol-2026-10-28/playback-probe-20261028-e1.json) 注册 200/312 字节（免签）+ 取址 POST 200/18795 字节（免签），解析出 17 集、`definition: 1080p`、`encrypted: true`、媒体地址通过 HTTPS 校验、Spade 内容密钥校验通过，且交换记录里没有第二跳，即走的是内联列表；`-e3` 同结论（283 字节 / 18938 字节）。
 

@@ -46,8 +46,14 @@
 
 ## 离线对拍与回归
 
-- [api-tests-playback.log](api-tests-playback.log)：API 包 `00:03 +90: All tests passed!`。其中 `playback_device_test.dart` 用 `tool/generate_register_vector.cjs` 生成的 `packages/api/test/fixtures/register_vector.json` 逐字节比对注册信封（整段 body、`746305100000` 前缀、32 字节随机段、注册 URL、请求头），`video_model_client_test.dart` 断言取址请求带注册身份、不含 `x-argus`/`x-gorgon`/`x-khronos`/`x-ladon`/`x-ss-stub` 等签名与会话头，并且内联列表不产生第二跳。
+- [api-tests-playback.log](api-tests-playback.log)：API 包 `00:03 +90: All tests passed!`。其中 `playback_device_test.dart` 用 `tool/generate_register_vector.cjs` 生成的 `packages/api/test/fixtures/register_vector.json` 对拍注册信封（`746305100000` 前缀、32 字节明文随机段、AES 段解出的 `sha512(gzip) ‖ gzip` 框架、压缩前的明文 JSON、注册 URL，以及除 `x-ss-stub` 外的全部请求头），`video_model_client_test.dart` 断言取址请求带注册身份、不含 `x-argus`/`x-gorgon`/`x-khronos`/`x-ladon`/`x-ss-stub` 等签名与会话头，并且内联列表不产生第二跳。
 - `python3 tool/check_upstream_protocol.py` → `status: baseline_matches`，钉在 `38418358fae6d41a37d397524a2d4c17d7a4afc8`（package 1.1.5），协议文件 12 个（含上游新增 `server/src/service/playback-device.js`）。
 - `dart analyze` 无问题；`tool/verify_all.sh` 退出码 0（Core 117、API 90、Cast 52、TV 36、App 257 通过 / 跳过 1，AOT 与 dart2js 各 103 条离线向量，84 个媒体样本解密后密文样本归零）。
 
 完整结论与迁移表见 [上游 API 维护 · 2026-10-28 一节](../../analysis/2026-10-21-upstream-api-maintenance.md)。
+
+## CI 读数：本地门禁没抓到的那条
+
+标签 `v0.3.8`（`026519c`）触发的 Release run `40641144401`：`preflight` 与 `build / plan` 通过，`build / verify` 失败（`00:04 +88 -2`），后面 `build / native`、`ios-signed`、`publish` 全 `skipped`，没有创建 Release、没有附件。失败的两条都是 `playback_device_test.dart` 的注册对拍，差异偏移 50（base64）正好是密文起点：前缀与会话随机段两边一致，分叉从 gzip 段开始——deflate 输出跟着二进制链接的 zlib 构建走，本机 macOS 上 Dart 与 Node 恰好逐字节相同，Linux runner 上不是。
+
+也就是说：本地 `verify_all.sh` 全绿不等于提交树在 CI 上全绿，这条对拍按构造就不该钉整段 body。修法见上一节——夹具改存压缩前的明文，断言验框架、密钥派生与明文，`x-ss-stub` 单独对齐本机 body 的 MD5。

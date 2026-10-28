@@ -71,6 +71,34 @@ Uint8List aesCbcEncryptPkcs7(Uint8List key, Uint8List iv, Uint8List plain) {
   return cipher.process(plain);
 }
 
+/// The other half of the registration envelope: used by the oracle test to undo
+/// its own ciphertext, because a gzipped byte stream is a property of whichever
+/// zlib built this binary, while the plaintext inside it is the protocol.
+Uint8List aesCbcDecryptPkcs7(
+  Uint8List key,
+  Uint8List iv,
+  Uint8List ciphertext,
+) {
+  if (key.length != 16 || iv.length != 16 || ciphertext.isEmpty) {
+    throw ArgumentError('AES-128-CBC requires a 16-byte key and IV');
+  }
+  if (ciphertext.length % 16 != 0) {
+    throw const FormatException('AES-CBC ciphertext is not block aligned');
+  }
+  final cipher =
+      pc.PaddedBlockCipherImpl(
+        pc.PKCS7Padding(),
+        pc.CBCBlockCipher(pc.AESEngine()),
+      )..init(
+        false,
+        pc.PaddedBlockCipherParameters(
+          pc.ParametersWithIV(pc.KeyParameter(key), iv),
+          null,
+        ),
+      );
+  return cipher.process(ciphertext);
+}
+
 final _secureRandom = Random.secure();
 Uint8List secureBytes(int length) => Uint8List.fromList(
   List.generate(length, (_) => _secureRandom.nextInt(256)),

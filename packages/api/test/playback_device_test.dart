@@ -9,7 +9,8 @@ import 'package:test/test.dart';
 
 /// Node's stubbed generator from tool/generate_register_vector.cjs: one 32-bit
 /// step per byte, high byte first. Replaying it makes the Dart envelope and the
-/// reference envelope comparable byte for byte.
+/// reference envelope describe the same session, down to the bytes that went
+/// into the compressor.
 Uint8List Function(int) lcgEntropy(int seed) {
   var state = seed;
   return (int length) {
@@ -73,28 +74,60 @@ void main() {
     uuid: uuid ?? countedUuid(),
   );
 
-  test('the registration envelope is the reference implementation byte for byte', () {
+  test('the registration envelope replays the reference framing, key schedule and payload', () {
     for (final vector in vectors) {
       final uuid = countedUuid();
       final registry = replay(vector, uuid: uuid);
       // _register asks for the cdid before sealing the envelope, so the counter
       // has to be advanced the same way for clientudid and req_id to line up.
       final body = registry.buildBody(vector['now'] as int, uuid());
-      expect(
-        base64Encode(body),
-        vector['bodyBase64'],
-        reason: 'vector ${vector['index']} envelope',
-      );
       expect(hex(body.sublist(0, 6)), vector['prefixHex']);
+      final session = Uint8List.sublistView(body, 6, 38);
       expect(
-        hex(Uint8List.sublistView(body, 6, 38)),
+        hex(session),
         vector['randomHex'],
         reason: 'the session random travels in the clear, ahead of the cipher',
       );
-      expect(PlaybackDeviceRegistry.registerUrl, vector['url']);
+      // What follows is AES-128-CBC under sha512(sha512(session) || salt), over
+      // sha512(gzip) || gzip. Undoing it proves the key schedule and the
+      // framing; the deflate stream itself is a property of whichever zlib
+      // built this binary, so the comparison is made on the bytes that go into
+      // the compressor -- which is what the endpoint actually reads.
+      final derived = sha512([
+        ...sha512(session),
+        ...unhex(PlaybackDeviceRegistry.kdfSaltHex),
+      ]);
+      final sealed = aesCbcDecryptPkcs7(
+        Uint8List.sublistView(derived, 0, 16),
+        Uint8List.sublistView(derived, 16, 32),
+        Uint8List.sublistView(body, 38),
+      );
+      final compressed = Uint8List.sublistView(sealed, 64);
       expect(
-        PlaybackDeviceRegistry.requestHeaders(vector['now'] as int, body),
+        hex(Uint8List.sublistView(sealed, 0, 64)),
+        hex(sha512(compressed)),
+        reason:
+            'vector ${vector['index']} seals the envelope over its own gzip',
+      );
+      expect(
+        base64Encode(gzip.decode(compressed)),
+        vector['plaintextBase64'],
+        reason: 'vector ${vector['index']} payload',
+      );
+      expect(PlaybackDeviceRegistry.registerUrl, vector['url']);
+      final headers = PlaybackDeviceRegistry.requestHeaders(
+        vector['now'] as int,
+        body,
+      );
+      expect(
+        Map.of(headers)..remove('x-ss-stub'),
         vector['headers'],
+        reason: 'every header but the digest of the body is the reference set',
+      );
+      expect(
+        headers['x-ss-stub'],
+        hex(md5(body)).toUpperCase(),
+        reason: 'the stub is the MD5 of the bytes this process actually sent',
       );
     }
   });
@@ -127,10 +160,12 @@ void main() {
     expect(adapter.requests, hasLength(1));
     expect(adapter.requests.single.method, 'POST');
     expect(adapter.requests.single.uri.host, 'log5-applog-lf.fqnovel.com');
+    final sent = adapter.bodies.single;
+    expect(hex(sent.sublist(0, 6)), vectors.first['prefixHex']);
     expect(
-      base64Encode(adapter.bodies.single),
-      vectors.first['bodyBase64'],
-      reason: 'what left this process is the envelope the oracle sealed',
+      hex(Uint8List.sublistView(sent, 6, 38)),
+      vectors.first['randomHex'],
+      reason: 'what left this process is the envelope the oracle framed',
     );
     expect(
       adapter.requests.single.headers['Content-Type'],
