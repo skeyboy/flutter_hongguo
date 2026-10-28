@@ -4,6 +4,8 @@
 
 本报告保留第二阶段离线验证记录。最新的当前 Mac 真实单集与独立 Release 验收见 [Mac POC 报告](macos-independent-app-poc.md)。
 
+2026-10-28 更新：链路图补齐播放取址、双下载通道分派、缓存回收与异常恢复路径，并新增「为什么 macOS 曾经无法加载在线视频」一节。
+
 日期：2026-10-19。实现位置：`packages/core`、`packages/api`、`packages/app`。本文取代初步验证报告中的“尚未实现 MP4/播放器”状态；初步报告保留为第一阶段历史记录。
 
 ## 已落地的实际链路
@@ -12,19 +14,57 @@
 flowchart TD
   UI[Flutter 首页 / 搜索 / 分类] --> Catalog[Dart CatalogClient]
   Catalog --> Detail[详情 / 真实分集 vid]
-  Detail --> Job[MediaCache 准备任务]
-  Job --> Hit{完整缓存可用?}
+  Detail --> Resolve[播放取址：匿名设备注册 ttEncrypt → 免签 POST → 内联 video_list<br/>旧形状才走 fallback GET → URL 解码 → 选流 → VideoTrack]
+  Resolve --> Job[MediaCache 准备任务 vid+quality 合并 / lease 计数]
+  Job --> Stage1[阶段 queued → cacheLookup]
+  Stage1 --> Hit{完整缓存可用?<br/>MP4 可解析 + manifest 大小一致}
   Hit -->|是| Local[本地普通 MP4]
-  Hit -->|否| Sign[PureSign + App 模型 POST]
-  Sign --> Fallback[fallback GET + 选流 + URL 解码]
-  Fallback --> Download[Dio 流式下载到私有 part 文件]
-  Download --> Worker[worker isolate: Spade + MP4 各轨样本 CTR]
-  Worker --> Metadata[恢复样本类型 / CENC 盒转 free]
-  Metadata --> Publish[结构检查 + 原子发布 + manifest]
-  Publish --> Local
-  Local --> Player[media_kit 本地文件播放]
-  Player --> Next[选集 / 下一集 / 可选连播 / 下一集预热]
+  Hit -->|否| Stage2[阶段 resolving]
+  Stage2 --> Working[私有工作文件<br/>key.mp4.微秒时间戳.序号.part]
+  Working --> Stage3[阶段 downloading]
+  Stage3 --> Lane{useSystemTransferLane?<br/>mobileHost 且 backgroundDownloads}
+  Lane -->|Android / iOS| Sys[系统通道 background_downloader<br/>WorkManager / URLSession<br/>台账 json + 密钥入安全存储 + 仅 Wi-Fi]
+  Lane -->|macOS / Windows / Linux| Dio
+  Sys --> PartFile[.part 落盘]
+  Dio[Dio 应用内通道<br/>followRedirects false / UA Mozilla/5.0<br/>receiveTimeout 120s / deleteOnError] --> PartFile
+  PartFile --> Enc{track.encrypted?}
+  Enc -->|是| Stage4[阶段 decrypting] --> Worker[worker isolate：Spade 取 key + MP4 各轨样本 AES-128-CTR<br/>恢复 encv/enca codec / CENC 盒转等长 free]
+  Enc -->|否| Stage5
+  Worker --> Stage5[阶段 validating]
+  Stage5 --> Publish[结构检查 + 写 part.json manifest + 原子 rename 发布]
+  Publish --> Stage6[阶段 ready]
+  Stage6 --> Pin[消费者持有 pin / lease]
+  Pin --> Prune[prune 回收：LRU 淘汰 + 死会话遗留 .part]
+  Pin --> Local
+  Sys -.等待网络.-> Wait[阶段 waitingNetwork]
+  Wait -.-> PartFile
+  Local --> Player[media_kit 本地文件播放 / Texture]
+  Player --> Next[选集 / 下一集 / 可选连播 / PrefetchWindow 预热下一批]
+  Next --> Job
 ```
+
+### 异常与恢复路径
+
+```mermaid
+flowchart LR
+  A[任一阶段 _check 检查<br/>token.isCancelled 或 无 lease] --> B[MediaCancelled]
+  B --> C[finally 删除 .part 与 part.json<br/>已完成文件不删]
+  D[下载失败/超额度] --> E[失败上报给所有 lease<br/>作业出队，可重试]
+  Sys[系统通道进程被杀] --> F[启动时读台账<br/>已完成文件走解密校验后发布<br/>未完成任务 cancelTaskWithId 后清理]
+  G[崩溃遗留且无活跃 job 的 .part] --> H[prune 中 1 小时未再写入<br/>→ 回收]
+```
+
+### 为什么 macOS 曾经「无法加载在线视频」
+
+原因链是一条通路，不是解码器问题：
+
+1. 开关语义在不同平台落到不同实现。`backgroundDownloads` 打开时，[native_downloads.dart:142](../packages/app/lib/platform/background/native_downloads.dart#L142) 把传输交给 `background_downloader`；该包在 9.6.4 里没有 `macos/` 原生目录，`file_downloader.dart:20` 的条件导入使桌面落到 `lib/src/desktop/desktop_downloader.dart`——一个纯 Dart isolate 自建队列，没有系统下载器的停滞检测。
+2. 该实现会在同一 URL 上停在固定字节，既不抛错也不触发 `receiveTimeout`，除 `running`/`complete` 外没有任何状态回调，因此 `bg.FileDownloader().transfers.start(...)` 永不返回。
+3. 卡住的作业继续占用 `concurrentPreparations` 的两个槽，后续集的 `MediaCache.prepare` 只会被取消，`MediaStage.ready` 永不发布。
+4. UI 侧 `switchStages` 停在「正在下载」，播放器已按 vid 建好 `VideoOutput` 与 NativeVideoController 纹理，但没有可读的本地文件，`VideoOutput.Resize` 的 rect 一直是 `0×0`；只有此前已缓存成功的那一集出现过 `TextureGL: resize: 1920.0x1080.0`。
+5. 附带放大问题：`prune()` 过去只按 `.mp4` 统计与淘汰，`finally` 只在同进程内清理工作文件，进程被杀留下的 `.part` 永不回收，缓存目录堆积不可解密密文，进一步挤掉自动缓存额度。
+
+修复即断开这条链：桌面固定留在应用内 Dio 通道（第 1 步），`prune()` 回收无主且超过 1 小时未写入的 `.part`（第 5 步）。实机前后读数与日志见 [mac 下载通道证据](evidence/mac-download-lane-2026-10-28/findings.md)，完整分析见 [macOS 与移动端播放差异](analysis/2026-10-28-mac-vs-mobile-playback.md)。
 
 原生路径不运行 Node、不调用旧本地 `/stream` 服务、不使用 ffmpeg 子进程。ffmpeg 只在开发机生成离线测试样本和辅助验证结果；App 使用纯 Dart 处理容器与样本。
 
@@ -74,14 +114,15 @@ ID 始终使用字符串。App 详情缓存 6 小时、最多 100 条。没有�
 
 ## 下载、并发和缓存一致性
 
-- Dio download 流式落盘；下载总大小不会作为一个完整响应 Buffer 留在 Dart 堆中。
+- 传输通道按平台分派：桌面（macOS/Windows/Linux）固定使用 Dio 流式落盘；移动端仅在「后台下载」打开时交给系统下载器，关闭时同样走 Dio。两条通道写同一个私有 `.part`，之后的解密/校验/发布完全共用。
+- 下载总大小不会作为一个完整响应 Buffer 留在 Dart 堆中；Dio 通道有 `receiveTimeout: 120s`、`followRedirects: false` 和 `deleteOnError`，系统通道用台账 + 安全存储密钥跨进程恢复。
 - 每个 vid+quality 合并一个任务；每个消费者独立持有 lease，取消一个消费者不会破坏另一个消费者。
 - 准备流水线串行执行，避免多部视频并发解密挤占手机内存；播放器可同时读取已完成文件。
 - CancelToken 取消下载；对正在解析/解密的 isolate，取消后不会发布结果，待阶段结束清理私有工作文件。
 - 只有“可解析为普通 MP4 + 原子重命名 + 完整 manifest”才命中缓存；崩溃残留、半成品、被截断文件不会作为 ready。
 - 默认保留最近 30 个成品，访问更新修改时间；正在使用的文件 pin 保护，允许暂时超过目标上限。
 - 播放错误后重新准备可淘汰坏缓存；文件关闭后才释放 pin，兼容 Windows 的打开文件语义。
-- 清理只针对自身缓存目录的成品/manifest，不扫描用户其他文件。
+- 清理只针对自身缓存目录的成品/manifest，不扫描用户其他文件；`prune()` 同时回收没有任何活跃任务、且超过 1 小时未再写入的 `.part` / `.part.json`，避免进程被杀后遗留的不可用密文长期占额度。正在传输的工作文件落在该时间窗内，不会被误删。
 
 ## 跨平台适配
 
@@ -109,7 +150,9 @@ node tool/generate_media_fixtures.cjs /Users/lee/Downloads/hongguo-web-1.1.1-mac
 | Evidence | Finding | Path |
 |---|---|---|
 | `packages/core/test/mp4_test.dart` | 音视频逐样本与清晰原文件一致；错误整样本 key 不改写数据；坏表失败 | CENC → Dart parser/CTR → 普通 MP4 |
-| `packages/api/test/media_cache_test.dart` | 下载/解包/解密/重启命中、独立取消、失败重试、pin 保护 | Dio mock → worker → manifest/cache |
+| `packages/api/test/media_cache_test.dart` | 下载/解包/解密/重启命中、独立取消、失败重试、pin 保护、prune 回收死会话 `.part` | Dio mock → worker → manifest/cache |
+| `packages/app/test/native_download_lane_test.dart` | 通道谓词只在移动端为真；macOS 覆盖下打开「后台下载」仍由应用内 Dio 完成真实 HTTP 下载 | 平台判定 → HttpServer → 文件字节一致 |
+| `packages/app/integration_test/macos_live_poc_test.dart`（`tool/verify_mac_live.sh`） | 真实上游在线选集：预缓存 N 集就绪、出帧、seek、切集阶段不再出现「正在下载」 | mac Release 容器 → 取址 → Dio → 解密 → media_kit |
 | `packages/api/test/catalog_test.dart` | 官网 async 契约、AI 分类参数、ID 字符串、详情回退 | UI Repository → Dio/HTML |
 | `packages/app/test/widget_test.dart` | 窄屏/桌面、搜索分类、详情、重试/分页 | Flutter UI → fake repository |
 | `packages/app/integration_test/offline_playback_test.dart` | 真实原生播放器读取本地解密文件、识别视频/AAC、seek 与退出 | 目录/选集 → cache → Dart decrypt → media_kit |
