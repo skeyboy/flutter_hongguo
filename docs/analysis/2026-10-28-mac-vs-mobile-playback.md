@@ -44,6 +44,8 @@
 
 门禁：`HONGGUO_FLUTTER_BIN=.fvm/flutter_sdk/bin ./tool/verify_all.sh` EXIT=0；`packages/app` 全量 `flutter test -j 1 --reporter expanded` 46 个套件、`+259 ~1: All tests passed!`（含新增 2 项通道用例）；`packages/api` `+91`。注意默认并发下 expanded reporter 的日志会丢失部分套件归属（同一轮 259 个用例只在日志里出现 27 个文件名），所以按文件名 grep 全量日志不能作为覆盖率口径，`-j 1` 才是。
 
+发布：本轮内容以 `0.3.11+23`（标签 `v0.3.11`，提交 `07bd563`）发布，Release 运行 `40677534980` 全绿、15 个附件、`publishedAt 2026-10-28T11:19:35Z`。先打的 `v0.3.10` 从未生成 Release——它的 Windows job 因远端 CI 提交 `adc930e` 给 `flutter build windows` 加了不受支持的 `--target-platform` 而失败，与播放链路无关，修复见 `a5ce6af`；按 `v0.3.8` 的既定处理，失败标签保留为历史不回炉。逐条读数见 [发布记录](../evidence/mac-download-lane-2026-10-28/findings.md#发布记录同一日)。
+
 ## 仍然存在的风险
 
 - 移动侧系统通道没有「字节停滞看门狗」：`transfer.dart` 在 `waitingToRetry` 且判定离线时会置 `holdReason=offline/waitingForWiFi`，`base_downloader.dart:921-935` 让任务无限期挂住，`transfer.file` 可能永远不返回。本轮只让桌面避开这条链路，没有替移动端加超时。

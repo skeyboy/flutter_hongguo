@@ -39,3 +39,13 @@ ls "$C" | grep -c '\.part$'; ls -l "$C" | grep '\.part$' | awk '{s+=$5} END {pri
 
 - 验收运行改写了用户 Release 容器内的 `mac-prefetch-poc-result.json` 与 `mac-live-poc-*` 截图。
 - 新增的回收逻辑在验收过程中删除了该容器缓存里约 130 个超过 1 小时的死 `.part`（约 0.5 GB）；均为不可解密的半截密文，无对应台账记录。
+
+## 发布记录（同一日）
+
+- `v0.3.10`（标签指向 `f665b67`）发布运行 `40673579436` 整体失败：mac/android/linux/verify 全部 success，只有 `build / native (windows, windows-2022)` 失败，失败步骤 `Build Windows`，日志原文 `Could not find an option named "--target-platform".`、`##[error]Process completed with exit code 64.`。原因在远端提交 `adc930e`（15:08 推送的 CI 改动）给 `flutter build windows` 加了它不支持的选项，与本轮播放修复无关；`gh release view v0.3.10` 返回 `release not found`，即发布从未创建。
+- 修复：`a5ce6af` 从 `.github/workflows/build.yml` 与 `.github/workflows/windows-verify.yml` 的构建命令里去掉 `--target-platform windows-x64`，保留 `--target lib/main.dart`。早先 07:18 的 `windows-verify` 失败运行 `40649239972` 是同一个选项错误，其测试段在 Windows 上已跑到 `+256 ~1`。
+- 单平台先验证：`gh workflow run build.yml -r main -f platforms='["windows"]'` → 运行 `40675661765`，`completed success`（plan/verify/native windows 三段全绿）后才投入整批额度。
+- `v0.3.11`（标签指向 `07bd563`，两处 pubspec `0.3.11+23`）发布运行 `40677534980` → `completed success`，8 个 job 全绿（preflight、plan、verify、macos、android、android-tv、windows、linux）。
+- Release 核对：`publishedAt 2026-10-28T11:19:35Z`、非草稿非预发布、15 个附件（12 个安装包 + `SHA256SUMS.txt` + `release-manifest.json` + `iOS-signing-status.txt`），正文含本轮新增的 macOS 在线播放一条，平台行 `Platforms built in this run: android, android-tv, macos, windows, linux.`。
+- 发布前门禁两道：工作树 `verify_all.sh` 与分离 worktree 的提交树 `verify_all.sh` 均 `EXIT=0`，App 段同为 `00:25 +259 ~1` / `00:30 +259 ~1`，oracle 各 103 向量、离线解密 84 样本后密文归零。
+- `v0.3.10` 标签按 0.3.8 那次的既定处理保留为历史，不回炉改写；发布改由 `v0.3.11` 承担。
