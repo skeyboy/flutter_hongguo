@@ -61,40 +61,56 @@ class _LibraryPageState extends State<LibraryPage> {
   /// pages through it: 发现 pages 频道, 分类 pages 类型. A slot is a route, so
   /// the list is fixed for the life of the router -- 榜单 is only in it when the
   /// runtime's catalog can answer `rank` at all.
+  /// 一级 is the same dimension on both pages -- 类型 -- and the value is shared,
+  /// so the three pages each pane pages through sideways are the same three
+  /// pages. A slot is a route, so the list is fixed for the life of the router.
   late final slotSets = <int, List<String>>{
-    0: [
-      'recommend',
-      'latest',
-      if (widget.runtime.catalog is RankCatalogRepository) 'rank',
-    ],
-    1: _genreOrder,
+    for (final pane in panes) pane: _genreOrder,
   };
   static const _genreOrder = ['short_play', 'comic_series', 'ai_series'];
 
   /// Which first-level page of the page the shell is asking about right now.
-  String slotOfPane(int pane) => pane == 0 ? view : genre;
+  /// Both pages answer with the shared 类型, which is the whole point of the
+  /// cascade: 一级 means the same thing over there as it does here.
+  String slotOfPane(int pane) => genre;
 
-  /// One list per first-level page, because three of them can be laid out at
-  /// once during a swipe and a `ScrollController` attaches to exactly one live
-  /// scrollable -- one controller per page would throw mid-gesture.
-  final slotScroll = <String, ScrollController>{};
+  /// One list per feed record: a swipe lays several of them out at once (the
+  /// page next to this one, the theme next to this theme) and a
+  /// `ScrollController` attaches to exactly one live scrollable. Keyed by the
+  /// record's own key so that a feed evicted from [feeds] loses its controller
+  /// with it -- the cap on retained lists is the cap on retained controllers.
+  final feedScroll = <String, ScrollController>{};
 
-  /// What identifies one first-level page of a pane: the key for its controller
-  /// and for its own debounce.
-  String slotKey(int pane, String slot) => '$pane/$slot';
-
-  ScrollController scrollAt(int pane, String slot) =>
-      slotScroll.putIfAbsent(slotKey(pane, slot), () {
+  ScrollController scrollAt(_ThemeFeed feed) =>
+      feedScroll.putIfAbsent(feed.key, () {
         final controller = ScrollController();
-        // Each first-level list asks for its own next page, through the record
-        // that belongs to it.
-        controller.addListener(() => _nearEnd(feedAt(pane, slot)));
+        // Each list asks for its own next page, through the record that belongs
+        // to it, and tells its own page whether the band above it has been
+        // scrolled far enough to get out of the way.
+        controller.addListener(() {
+          _nearEnd(feed);
+          _trackCollapse(feed);
+        });
         return controller;
       });
 
-  /// The list of one first-level page, looked up through its own record. A late
+  /// The list of one feed record, looked up through the record itself. A late
   /// response and a pending debounce only ever know the record they belong to.
-  ScrollController scrollOf(_ThemeFeed feed) => scrollAt(feed.pane, feed.slot);
+  ScrollController scrollOf(_ThemeFeed feed) => scrollAt(feed);
+
+  /// One second-level pager per first-level page of each pane: a swipe lays two
+  /// first-level pages out at once, and a `PageController` attaches to exactly
+  /// one live `PageView`.
+  final levelScroll = <int, Map<String, PageController>>{
+    for (final pane in panes) pane: {},
+  };
+
+  PageController levelAt(int pane, String slot) =>
+      levelScroll[pane]!.putIfAbsent(
+        slot,
+        () => PageController(initialPage: level2IndexOf(pane, slot)),
+      );
+
   final paneSearch = <int, TextEditingController>{
     for (final p in panes) p: TextEditingController(),
   };
@@ -116,28 +132,40 @@ class _LibraryPageState extends State<LibraryPage> {
   /// 一级，跨两页共享：在分类挑了「漫剧」再甩回发现，发现仍然在漫剧上。
   String genre = 'short_play';
 
-  /// 发现的二级（频道）与它自己的子选择。分类永远不读 `view`，所以离开发现
-  /// 不再需要把它复位——它属于发现这一页。
-  String view = 'recommend', board = 'recommend';
+  /// 发现自己的模式：这一页问「看哪一路流」。它不再是一级页（一级是类型，两页
+  /// 同义），所以它只改取数的 sort 与端点，不参与横滑翻页。分类永远不读它。
+  String view = 'recommend';
 
-  /// 分类的二级：题材是类型的孩子，只有分类这一页有它。
+  /// 榜单模式下的二级：`rank(board)` 既不吃 genre 也不吃 theme，所以那一档就是
+  /// 这一页唯一的收窄维度。
+  String board = 'recommend';
+
+  /// 二级，跨两页共享：题材是类型的孩子，两页都按同一个含义用它收窄列表。
   String? theme;
   StreamSubscription<AppSettings>? sortEvents;
   late String lastSort;
   late CatalogRepository lastCatalog;
-  List<CatalogFilter> themes = [];
+
+  /// 题材按父类型分桶：一级成为可横滑的页之后，拖拽中邻页也会铺出自己的二级栏，
+  /// 而它要的是自己那个类型的题材，不是当前类型的那一份（换类型清空重转圈因此
+  /// 没有了，一次上游返空也只脏它自己那一桶）。
+  final themesByGenre = <String, _ThemeBucket>{};
   final autoScheduled = <_ThemeFeed>{};
   bool settingsChanged = false;
-  bool themesLoading = false;
-  String? themesError;
 
-  /// One debounce per first-level page: a choice pending on the page that is not
-  /// on screen -- or on the page next to it inside this one -- must not be
-  /// cancelled by whatever the visible page does with its own.
-  final slotFilterTimer = <String, Timer?>{};
-  CatalogRequestScope _themesScope = CatalogRequestScope();
-  int themesRevision = 0;
-  String? themesRequested;
+  /// The bucket of the type currently on screen -- the rail the viewer is
+  /// looking at, and what the live fixture reads back.
+  List<CatalogFilter> get themes => themesOf(genre).values;
+  bool get themesLoading => themesOf(genre).loading;
+  String? get themesError => themesOf(genre).error;
+
+  _ThemeBucket themesOf(String genre) =>
+      themesByGenre.putIfAbsent(genre, _ThemeBucket.new);
+
+  /// One debounce per list: a choice pending on the page that is not on screen
+  /// -- or on the theme next to it inside this one -- must not be cancelled by
+  /// whatever the visible list does with its own.
+  final feedFilterTimer = <String, Timer?>{};
   late final LibraryCache feedCache;
 
   /// One entry per feed the viewer has opened, keyed by [feedKeyOf]. A theme the
@@ -150,20 +178,52 @@ class _LibraryPageState extends State<LibraryPage> {
   final feeds = <String, _ThemeFeed>{};
   String _activeKey = '';
 
-  /// The request one first-level page would ask for. The key carries its own
-  /// slot, so a swipe can show what the page next to it holds while the drag is
-  /// still moving, and a response that lands late is filed where it was asked
-  /// for. 频道 is 发现's first level and 类型 分类's, and 类型 is the one dimension
-  /// both pages read -- see docs/design/discover-catalog-cascade-tabs.md.
-  String feedKeyAt(int pane, String slot) => jsonEncode({
+  /// The request one list would ask for. The key carries its own first level and
+  /// its own second level, so a swipe can show what the page next to it holds
+  /// while the drag is still moving, and a response that lands late is filed
+  /// where it was asked for. 类型 is the shared 一级 and 题材 the shared 二级 --
+  /// both pages read them the same way, see
+  /// docs/design/discover-catalog-cascade-tabs.md.
+  String feedKeyAtLevel(int pane, String slot, String level2) => jsonEncode({
     'destination': pane,
     'query': queryOf(pane),
-    'view': pane == 0 ? slot : 'recommend',
-    'genre': pane == 0 ? genre : slot,
+    'view': pane == 0 ? view : 'recommend',
+    'genre': slot,
     'sort': sortFor(pane, slot),
-    'theme': pane == 1 ? theme : null,
-    'board': pane == 0 ? board : 'recommend',
+    // 题材 narrows both pages' browse. 榜单 takes no genre and no theme, and
+    // 搜索 takes neither, so it stays out of those keys rather than silently
+    // narrowing a feed that would ignore it.
+    'theme': _themeOfLevel2(pane, level2),
+    'board': pane == 0 && modeIsRank(pane)
+        ? _boardOfLevel2(level2)
+        : 'recommend',
   });
+  String feedKeyAt(int pane, String slot) =>
+      feedKeyAtLevel(pane, slot, level2At(pane, slot));
+
+  /// The two shapes the second level's notation can have: a theme id (empty for
+  /// 全部, null while the endpoint would ignore it) and a board, which is the
+  /// second level only in 榜单 mode -- where it replaces the themes entirely.
+  String? _themeOfLevel2(int pane, String level2) {
+    if (isRanking(pane) || level2.isEmpty || level2.startsWith(_boardPrefix)) {
+      return null;
+    }
+    return level2;
+  }
+
+  static String _boardOfLevel2(String level2) => level2.startsWith(_boardPrefix)
+      ? level2.substring(_boardPrefix.length)
+      : 'recommend';
+
+  /// The one word a second-level page is filed under in every key and controller
+  /// that has to be unique inside its own first-level page.
+  static String level2Slug(String level2) => level2.isEmpty
+      ? 'all'
+      : level2.startsWith(_boardPrefix)
+      ? 'board-${level2.substring(_boardPrefix.length)}'
+      : level2;
+
+  static const _boardPrefix = 'board:';
   String feedKeyOf(int pane) => feedKeyAt(pane, slotOfPane(pane));
   String get feedKey => feedKeyOf(destination);
   _ThemeFeed get feed => feedOf(destination);
@@ -174,9 +234,19 @@ class _LibraryPageState extends State<LibraryPage> {
   /// limit -- one retained page per term typed.
   static const _feedKeep = 32;
 
-  _ThemeFeed feedAt(int pane, String slot) {
-    final key = feedKeyAt(pane, slot);
-    final kept = feeds.putIfAbsent(key, () => _ThemeFeed(key, pane, slot));
+  _ThemeFeed feedAt(int pane, String slot) =>
+      feedAtLevel(pane, slot, level2At(pane, slot));
+
+  /// The record of one second-level page of one first-level page. A swipe lays
+  /// the theme next to this one out while the drag is still moving, so the
+  /// record has to be reachable by name rather than only through whichever
+  /// choice the shell's state currently holds.
+  _ThemeFeed feedAtLevel(int pane, String slot, String level2) {
+    final key = feedKeyAtLevel(pane, slot, level2);
+    final kept = feeds.putIfAbsent(
+      key,
+      () => _ThemeFeed(key, pane, slot, level2),
+    );
     if (feeds.length > _feedKeep) _evictFeeds();
     return kept;
   }
@@ -195,37 +265,97 @@ class _LibraryPageState extends State<LibraryPage> {
       entry.revision++;
       entry.scope.cancel();
       feeds.remove(entry.key);
+      // The record's own list goes with it -- but only once nothing is laid out
+      // under that key, since a controller with a live client is a page the
+      // viewer can still see.
+      final orphan = feedScroll.remove(entry.key);
+      if (orphan != null) {
+        if (orphan.hasClients) {
+          feedScroll[entry.key] = orphan;
+        } else {
+          orphan.dispose();
+        }
+      }
+      feedFilterTimer.remove(entry.key)?.cancel();
     }
   }
 
   /// Which page a feed record belongs to, read back out of its own key. A timer
   /// or a late response only ever knows the record, never the current screen.
   int paneOf(String key) => (jsonDecode(key) as Map)['destination'] as int;
-  String slotOf(String key) {
-    final value = jsonDecode(key) as Map;
-    return (value[value['destination'] == 0 ? 'view' : 'genre'] ?? '')
-        as String;
-  }
 
   /// The request itself is asked of the record's own key, not of the shell's
-  /// current state: with three first-level pages alive at once, the record that
-  /// is fetching is not necessarily the one on screen.
+  /// current state: with several first- and second-level pages alive at once,
+  /// the record that is fetching is not necessarily the one on screen.
   Map<String, dynamic> paramsOf(String key) =>
       Map<String, dynamic>.from(jsonDecode(key) as Map);
 
   String queryOf(int pane) => paneQuery[pane]!;
 
-  /// 榜单 asks `rank(board)`, which has no genre parameter at all -- so while
-  /// that channel is the page on screen, 发现's second row shows the three boards
-  /// instead of the types, rather than a control that changes nothing.
-  bool isRankingAt(int pane, String slot) =>
-      pane == 0 && queryOf(pane).isEmpty && slot == 'rank';
-  bool isRanking(int pane) => isRankingAt(pane, slotOfPane(pane));
+  /// 榜单 is 发现's mode, and it is the one state that changes what the two
+  /// levels of that page can even mean: `rank(board)` takes neither genre nor
+  /// theme, so while it is on 发现 the type level cannot page (three identical
+  /// pages is a false control) and the second row shows the three boards.
+  bool modeIsRank(int pane) => pane == 0 && view == 'rank';
+  bool isRanking(int pane) => modeIsRank(pane) && queryOf(pane).isEmpty;
 
-  /// 最新 is a channel the viewer picks, so it has to move the rows: it asks
-  /// the catalog for the newest online date instead of the configured sort.
-  /// The other channels keep whatever sort the viewer set in 设置.
-  String sortFor(int pane, String slot) => pane == 0 && slot == 'latest'
+  /// The theme of one first-level page: the shared pick counts only on the page
+  /// it was made under. A neighbour page dragged in mid-swipe is a different
+  /// type, and a theme id from this one means nothing there.
+  String? themeAt(int pane, String slot) =>
+      isRanking(pane) || slot != genre ? null : theme;
+
+  /// Which second-level page of one first-level page is on it, in the one
+  /// notation the level-2 controllers, chips and swipe order all share.
+  String level2At(int pane, String slot) {
+    if (isRanking(pane)) return '$_boardPrefix$board';
+    return themeAt(pane, slot) ?? '';
+  }
+
+  /// Where that page sits in its own level's swipe order. A theme the rail has
+  /// not been given yet (its type's list is still on its way) reads as 全部, so
+  /// the pager never points past what the page can paint.
+  int level2IndexOf(int pane, String slot) {
+    final wanted = level2At(pane, slot);
+    final options = level2Options(pane, slot);
+    for (final (index, option) in options.indexed) {
+      if (option.id == wanted) return index;
+    }
+    return 0;
+  }
+
+  /// The id a second-level page names, read back out of its own option.
+  ({String id, String label}) level2OptionAt(int pane, String slot, int index) {
+    final options = level2Options(pane, slot);
+    return options[index.clamp(0, options.length - 1)];
+  }
+
+  /// The second level of one first-level page, in swipe order: 全部 first, then
+  /// the children of the type that page is about. 榜单 has no children of the
+  /// type, so its second level is its own three boards.
+  List<({String id, String label})> level2Options(int pane, String slot) {
+    if (isRanking(pane)) {
+      return [
+        for (final e in _boardNames.entries)
+          (id: '$_boardPrefix${e.key}', label: e.value),
+      ];
+    }
+    if (queryOf(pane).isNotEmpty) {
+      return const [(id: '', label: '全部')];
+    }
+    return [
+      // The parent name rides along, so what this row is a child of is on
+      // screen rather than remembered.
+      (id: '', label: '全部 · ${_genreNames[slot] ?? slot}'),
+      if (slot == genre)
+        for (final e in themesOf(slot).values) (id: e.id, label: e.name),
+    ];
+  }
+
+  /// 最新 is a mode the viewer picks, so it has to move the rows: it asks the
+  /// catalog for the newest online date instead of the configured sort. The
+  /// other modes keep whatever sort the viewer set in 设置.
+  String sortFor(int pane, String slot) => pane == 0 && view == 'latest'
       ? 'online_time'
       : settingsFor(widget.runtime).catalogSort;
 
@@ -240,6 +370,19 @@ class _LibraryPageState extends State<LibraryPage> {
   /// The one gesture the phone has and the desktop does not: shown until the
   /// viewer has actually moved between the two pages.
   bool swipeHintSeen = false;
+
+  /// Whether the collapsible part of a page's top -- the search field, 发现's own
+  /// mode row and the 类型 row -- is currently folded away. One per page, because
+  /// each page answers for its own list: a pane scrolled deep stays folded when
+  /// the viewer swipes back to it, instead of pushing the band over the rows
+  /// they were reading.
+  final bandCollapsed = <int, bool>{for (final p in panes) p: false};
+
+  /// Folded once the list of the page on screen has gone past the height of the
+  /// band it is scrolling under, and unfolded again only near the top -- the gap
+  /// between the two is what stops a list a little longer than a screen from
+  /// flickering the band open and shut on every pixel.
+  static const _collapseAfter = 40.0, _collapseBefore = 8.0;
 
   /// How far past the end of the page itself the finger has travelled, in the
   /// direction it is going. One level spends this once: the switch resets it, so
@@ -256,6 +399,28 @@ class _LibraryPageState extends State<LibraryPage> {
   /// one level up, which is what lets 推荐 → 最新 → 榜单 be reached from inside
   /// the chip rows, and 发现 → 分类 reached once the inner pages have run out.
   static const _edgePullExtent = 48.0;
+
+  /// The levels a swipe can hand over clamp instead of rubber-banding. Only a
+  /// clamping position reports the pull it could not apply as an
+  /// `OverscrollNotification`, and that report is what every handover below
+  /// counts: under the iOS bounce the same delta becomes out-of-range pixels,
+  /// nothing bubbles up, and the level above never hears of the drag -- so on
+  /// iPhone the edge would stop being an edge and just stretch.
+  static const ScrollPhysics _handoverPhysics = PageScrollPhysics(
+    parent: ClampingScrollPhysics(),
+  );
+  static const ScrollPhysics _rowPhysics = ClampingScrollPhysics();
+
+  /// One controller per sideways row of a band, and the same one handed to that
+  /// row's `Scrollbar`. A `Scrollbar` with no controller falls back to the
+  /// `PrimaryScrollController`, which no horizontal row ever attaches to, so the
+  /// framework asserts the moment anything moves one of these rows from outside a
+  /// drag -- and moving one from outside is exactly what revealing the chip the
+  /// level now names has to do.
+  final rowScroll = <String, ScrollController>{};
+
+  ScrollController rowAt(String key) =>
+      rowScroll.putIfAbsent(key, ScrollController.new);
 
   bool _onNestedScroll(ScrollNotification notification) {
     // The page list itself is depth 0 and already pages on a swipe.
@@ -288,10 +453,13 @@ class _LibraryPageState extends State<LibraryPage> {
     return false;
   }
 
-  /// The band of one page, asked about a drag that ran out of row width inside
-  /// it. What it cannot spend -- the page next to that edge does not exist -- it
-  /// hands to the shell, which is where the other page of the catalog waits.
-  bool _onBandScroll(int pane, ScrollNotification notification) {
+  /// The pinned second-level row of one page, asked about a drag that ran out of
+  /// row width inside it. The row is the strip of the level the viewer is
+  /// already on, so what is left of that pull belongs to the level above it --
+  /// the type. What this page cannot spend (there is no type that way, or the
+  /// mode takes no type at all) it hands to the shell with the count dropped, so
+  /// the same pull is never spent twice.
+  bool _onRowScroll(int pane, ScrollNotification notification) {
     if (notification is ScrollStartNotification ||
         notification is ScrollEndNotification) {
       bandEdgePull[pane] = 0;
@@ -310,7 +478,10 @@ class _LibraryPageState extends State<LibraryPage> {
     pull += overscroll;
     final tabs = innerTabs[pane];
     final wanted = tabs == null ? -1 : tabs.activeIndex + (pull > 0 ? 1 : -1);
-    if (tabs == null || !slotSets[pane]!.asMap().containsKey(wanted)) {
+    if (queryOf(pane).isNotEmpty ||
+        isRanking(pane) ||
+        tabs == null ||
+        !slotSets[pane]!.asMap().containsKey(wanted)) {
       // Nothing lies that way inside this page. Hand the whole drag to the
       // shell from here, so what this level counted is not counted twice.
       bandEdgePull[pane] = 0;
@@ -326,6 +497,62 @@ class _LibraryPageState extends State<LibraryPage> {
     return true;
   }
 
+  /// The same pull again, counted per page for the lists inside it rather than
+  /// for the chip rows of its band: the second level runs out first, and only a
+  /// drag that survives that question is asked of the first level.
+  final levelEdgePull = <int, double>{};
+
+  /// One page's own first level, asked about a drag whose innermost list has run
+  /// out of pages. `depth` counts the viewports a notification bubbled through
+  /// on the way here, so the listener wrapping a page's first-level pager hears
+  /// that pager at 0 and the second-level pages inside it at 1 and deeper --
+  /// which is what keeps one gesture to one level: the pull is spent on the
+  /// narrowest question still open, and only what this level cannot spend is
+  /// handed further up, where the other tab of the catalog waits.
+  bool _onLevelScroll(int pane, ScrollNotification notification) {
+    if (notification is ScrollStartNotification ||
+        notification is ScrollEndNotification) {
+      levelEdgePull[pane] = 0;
+      return false;
+    }
+    // The first-level pager already pages on a swipe of its own; nothing here is
+    // a handover from below.
+    if (notification.depth == 0) return false;
+    if (notification is! OverscrollNotification) return false;
+    final overscroll = notification.overscroll;
+    if (overscroll == 0 ||
+        notification.dragDetails == null ||
+        notification.metrics.axis != Axis.horizontal) {
+      levelEdgePull[pane] = 0;
+      return false;
+    }
+    var pull = levelEdgePull[pane] ?? 0;
+    if (overscroll.sign != pull.sign) pull = 0;
+    pull += overscroll;
+    final tabs = innerTabs[pane];
+    final wanted = tabs == null ? -1 : tabs.activeIndex + (pull > 0 ? 1 : -1);
+    // Two of the three states leave this page nothing to page through: 榜单 asks
+    // `rank(board)`, which takes no genre, and 搜索 asks `search(query)`, which
+    // takes neither genre nor theme. On both, three identical type pages would
+    // be a false control, so the pull goes straight up to the tab.
+    final canPage = queryOf(pane).isEmpty && !isRanking(pane);
+    if (!canPage ||
+        tabs == null ||
+        !slotSets[pane]!.asMap().containsKey(wanted)) {
+      levelEdgePull[pane] = 0;
+      // Not spent here, so the level above gets the whole of it.
+      return false;
+    }
+    if (pull.abs() < _edgePullExtent) {
+      levelEdgePull[pane] = pull;
+      // Counted here, so the shell cannot count the same pull a second time.
+      return true;
+    }
+    levelEdgePull[pane] = 0;
+    tabs.setActiveIndex(wanted);
+    return true;
+  }
+
   /// How wide the shell laid itself out as, read by the routed pages: one
   /// measure decides phone or desktop for the whole screen, navigation and
   /// content together.
@@ -336,6 +563,16 @@ class _LibraryPageState extends State<LibraryPage> {
   /// The word every scoped key on a page carries. These are the page names the
   /// viewer sees -- 发现 and 分类 -- not a second word for the whole catalog.
   static String paneName(int pane) => pane == 0 ? 'discover' : 'categories';
+
+  /// The key of the list the viewer is actually looking at: pane, 一级 and 二级 in
+  /// one string. A swipe lays the neighbour out beside it, so "the results of
+  /// this page" is only answerable by the two levels together -- which is what
+  /// a test or a live fixture has to drag on to move a page.
+  String resultsKey(int pane) {
+    final slot = slotOfPane(pane);
+    return 'catalog-results-${paneName(pane)}-$slot-'
+        '${level2Slug(level2At(pane, slot))}';
+  }
 
   /// The two catalog pages live behind their own router, the way the television
   /// build keeps its sidebar panes; `setActiveIndex` is the only way either page
@@ -471,20 +708,29 @@ class _LibraryPageState extends State<LibraryPage> {
     }
     suggestionsEntry?.remove();
     suggestionsEntry = null;
-    _themesScope.cancel();
+    for (final bucket in themesByGenre.values) {
+      bucket.revision++;
+      bucket.scope.cancel();
+    }
     unawaited(sortEvents?.cancel());
-    for (final timer in slotFilterTimer.values) {
+    for (final timer in feedFilterTimer.values) {
       timer?.cancel();
     }
     tabs?.removeListener(_onTabChanged);
     for (final pane in panes) {
       innerTabs[pane]?.removeListener(innerChanged[pane]!);
+      for (final controller in levelScroll[pane]!.values) {
+        controller.dispose();
+      }
     }
     for (final pane in panes) {
       paneSearch[pane]!.dispose();
       paneFocus[pane]!.dispose();
     }
-    for (final controller in slotScroll.values) {
+    for (final controller in feedScroll.values) {
+      controller.dispose();
+    }
+    for (final controller in rowScroll.values) {
       controller.dispose();
     }
     router.dispose();
@@ -510,9 +756,9 @@ class _LibraryPageState extends State<LibraryPage> {
     return catalog.browse(
       genre: params['genre'] as String,
       sort: params['sort'] as String,
-      // 题材 is 分类's second level; 发现 asks the same repository without it so
-      // a theme picked over there never silently narrows the recommendation
-      // stream the viewer is swiping back to.
+      // 题材 is the second level of both pages, so a theme picked on either one
+      // narrows the rows the same way -- `browse` really does take
+      // `category_dim_theme` (hongguo_api's `_selection`).
       theme: params['theme'] as String?,
       cursor: next,
       seen: next == null ? [] : feed.items.map((d) => d.id).toList(),
@@ -532,13 +778,11 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   /// Only the list that is actually on screen pages itself: a record belonging
-  /// to a first-level page that has been swiped away from, or to the other page
-  /// of the shell, is asked to stay where it is.
+  /// to a first-level page that has been swiped away from, to a theme that is
+  /// not the one being read, or to the other page of the shell, is asked to stay
+  /// where it is.
   void _nearEnd(_ThemeFeed feed) {
-    if (!identical(feeds[feed.key], feed) ||
-        feed.pane != destination ||
-        feed.slot != slotOfPane(feed.pane) ||
-        mineOpen ||
+    if (!isOnScreen(feed) ||
         suggestionsPane != null ||
         !settingsFor(widget.runtime).autoLoadMore) {
       return;
@@ -558,6 +802,31 @@ class _LibraryPageState extends State<LibraryPage> {
     }
   }
 
+  /// Whether the list this record owns is the one on screen -- a theme laid out
+  /// next to it during a swipe has its own offset and must not fold the band of
+  /// a page the viewer is not looking at.
+  bool isOnScreen(_ThemeFeed feed) =>
+      identical(feeds[feed.key], feed) &&
+      feed.pane == destination &&
+      feed.key == feedKeyOf(feed.pane);
+
+  /// Driven by the on-screen list, so the fold follows the scroll instead of a
+  /// tap: whatever the viewer does to the rows -- a fling, a pull-to-refresh, a
+  /// swipe back to a page left deep -- is the same question answered from the
+  /// same offset.
+  void _trackCollapse(_ThemeFeed feed) {
+    if (!isOnScreen(feed) || mineOpen) return;
+    final controller = feedScroll[feed.key];
+    if (controller == null || !controller.hasClients) return;
+    final offset = controller.offset;
+    final collapsed = bandCollapsed[feed.pane] ?? false;
+    if (!collapsed && offset > _collapseAfter) {
+      setState(() => bandCollapsed[feed.pane] = true);
+    } else if (collapsed && offset < _collapseBefore) {
+      setState(() => bandCollapsed[feed.pane] = false);
+    }
+  }
+
   /// Loads one feed from the first page. The record is captured rather than
   /// looked up again, so a late response can only ever land in the feed that
   /// asked for it.
@@ -567,7 +836,7 @@ class _LibraryPageState extends State<LibraryPage> {
     bool preserveContent = false,
     bool force = false,
   }) async {
-    slotFilterTimer[slotKey(feed.pane, feed.slot)]?.cancel();
+    feedFilterTimer[feed.key]?.cancel();
     feed.scope.cancel();
     feed.scope = CatalogRequestScope();
     final current = ++feed.revision;
@@ -586,14 +855,17 @@ class _LibraryPageState extends State<LibraryPage> {
       feed.cursor = null;
     });
     if (controller.hasClients) controller.jumpTo(0);
-    // The rail is the shared first level's child, so only the record that is
-    // actually on that type may refill it; a page left behind with an older
-    // type would cancel the one flight every 分类 is waiting on.
+    // Each type asks for its own children once. A bucket already filled, still
+    // loading, or failed with a retry chip on it is left alone -- and because
+    // the flight belongs to the type and not to the rail, a page left behind
+    // with an older type can no longer cancel the one every 分类 is waiting on.
     if (refreshThemes &&
         (params['query'] as String).isEmpty &&
-        params['view'] != 'rank' &&
-        params['genre'] == genre) {
-      unawaited(_loadThemes(genre));
+        params['view'] != 'rank') {
+      final bucket = themesOf(params['genre'] as String);
+      if (bucket.values.isEmpty && bucket.error == null && !bucket.loading) {
+        unawaited(_loadThemes(params['genre'] as String));
+      }
     }
     final cached = await feedCache.readFeed(key);
     if (!mounted || current != feed.revision) return;
@@ -654,7 +926,7 @@ class _LibraryPageState extends State<LibraryPage> {
   /// re-requested, and the rows plus the cursor that produced them stay put
   /// unless the first page itself changed.
   Future<void> _refreshKept(_ThemeFeed feed) async {
-    slotFilterTimer[slotKey(feed.pane, feed.slot)]?.cancel();
+    feedFilterTimer[feed.key]?.cancel();
     final current = ++feed.revision;
     // A refresh supersedes whatever page was on its way: that response is
     // dropped by the revision check in `_more`, so the flag has to be cleared
@@ -806,11 +1078,14 @@ class _LibraryPageState extends State<LibraryPage> {
         outgoing.loading = false;
         outgoing.loadingMore = false;
         outgoing.refreshing = false;
+        // A page left before any of its rows landed is still empty and still
+        // off screen; only the level it belongs to can ask for it again.
+        outgoing.left = !outgoing.visited;
       }
       _activeKey = key;
     }
     final incoming = feed;
-    slotFilterTimer[slotKey(incoming.pane, incoming.slot)]?.cancel();
+    feedFilterTimer[incoming.key]?.cancel();
     if (!keepAlive) {
       // A filter change keeps the previous rows on screen while the new query
       // is in flight; a theme switch never shows another theme's rows.
@@ -833,43 +1108,41 @@ class _LibraryPageState extends State<LibraryPage> {
       // Coming back from 我的 only restores the view; the rows and their cursor
       // are already the ones the viewer left.
       if (!refresh) return;
-      slotFilterTimer[slotKey(incoming.pane, incoming.slot)] = Timer(
-        _switchWait,
-        () {
-          // "Still the feed this page would ask for" is asked of the record's
-          // own first-level page: the viewer may have swiped on while this was
-          // waiting, and the page being left still gets the refresh it was
-          // entered for.
-          if (mounted && feedKeyAt(incoming.pane, incoming.slot) == key) {
-            unawaited(_refreshKept(incoming));
-          }
-        },
-      );
+      feedFilterTimer[incoming.key] = Timer(_switchWait, () {
+        // "Still the feed this page would ask for" is asked of the record's
+        // own first-level page: the viewer may have swiped on while this was
+        // waiting, and the page being left still gets the refresh it was
+        // entered for.
+        if (mounted && feedKeyAt(incoming.pane, incoming.slot) == key) {
+          unawaited(_refreshKept(incoming));
+        }
+      });
       return;
     }
-    setState(() => incoming.loading = true);
+    setState(() {
+      incoming.loading = true;
+      // Entered again, so the request it was left without is owed to it now.
+      incoming.left = false;
+    });
     if (scroll.hasClients) scroll.jumpTo(0);
-    if (incoming.pane == 1 &&
-        themes.isEmpty &&
-        themesError == null &&
-        !themesLoading) {
+    final bucket = themesOf(incoming.slot);
+    if (!isRanking(incoming.pane) &&
+        bucket.values.isEmpty &&
+        bucket.error == null &&
+        !bucket.loading) {
       // A rail that has not been given its parent's children is filled by the
-      // page that shows it: 题材 belongs to 分类, 类型 is shared. A load already
-      // in flight is left alone -- `themes` is one shared flight, so starting a
-      // second one here cancels the first and then joins its cancellation,
-      // which the viewer would read as 题材加载失败. A failed load is left alone
-      // for the same reason: the retry chip is the way back, not a silent
-      // re-request.
-      unawaited(_loadThemes(genre));
+      // page that shows it -- on either tab, since 题材 is the shared 二级. A load
+      // already in flight is left alone: starting a second one for the same type
+      // cancels the first and then joins its cancellation, which the viewer
+      // would read as 题材加载失败. A failed load is left alone for the same
+      // reason: the retry chip is the way back, not a silent re-request.
+      unawaited(_loadThemes(incoming.slot));
     }
-    slotFilterTimer[slotKey(incoming.pane, incoming.slot)] = Timer(
-      _switchWait,
-      () {
-        if (mounted && feedKeyAt(incoming.pane, incoming.slot) == key) {
-          unawaited(_reload(incoming, refreshThemes: false));
-        }
-      },
-    );
+    feedFilterTimer[incoming.key] = Timer(_switchWait, () {
+      if (mounted && feedKeyAt(incoming.pane, incoming.slot) == key) {
+        unawaited(_reload(incoming, refreshThemes: false));
+      }
+    });
   }
 
   /// Put a kept-alive feed back at the offset it was left at. A jump is clamped
@@ -1092,42 +1365,52 @@ class _LibraryPageState extends State<LibraryPage> {
     if (next == null || next == destination) return;
     swipeHintSeen = true;
     setState(() => destination = next);
+    // Both levels of this page may have moved while it was away -- 类型 and
+    // 题材 are shared values, and a handover answers the page that was on
+    // screen -- so the entered page is brought onto them before anything is
+    // asked of it. Without this the router sits on the slot the viewer left
+    // it on and lays out a first-level page the level no longer names.
+    _syncInnerIndex(next);
+    _syncLevelIndex(next, slotOfPane(next));
     _switchFeed(keepAlive: true);
     _scheduleMore(feed);
   }
 
+  /// One flight per parent type. A second call for the type already loading
+  /// would cancel the first and then join its cancellation, which the viewer
+  /// reads as 题材加载失败 -- and both pages enter through here now, so the guard
+  /// belongs to that type's own bucket. A late answer writes the bucket it was
+  /// asked for, never whichever type is on screen, so a type the viewer swiped
+  /// past keeps what it learned instead of losing it to the next one.
   Future<void> _loadThemes(String requestedGenre) async {
-    // The rail is one shared flight per parent type. A second call for the type
-    // already loading would cancel the first and then join its cancellation,
-    // which the viewer reads as 题材加载失败 -- and both pages enter through here
-    // now, so the guard belongs to the loader rather than to one caller.
-    if (themesLoading && themesRequested == requestedGenre) return;
-    themesRequested = requestedGenre;
-    _themesScope.cancel();
-    final scope = _themesScope = CatalogRequestScope();
-    final ticket = ++themesRevision;
+    final bucket = themesOf(requestedGenre);
+    if (bucket.loading && bucket.requested == requestedGenre) return;
+    bucket.requested = requestedGenre;
+    bucket.scope.cancel();
+    final scope = bucket.scope = CatalogRequestScope();
+    final ticket = ++bucket.revision;
     setState(() {
-      themesLoading = true;
-      themesError = null;
+      bucket.loading = true;
+      bucket.error = null;
     });
     try {
       final values = await scope.run(
         () => widget.runtime.catalog.themes(requestedGenre),
       );
-      if (mounted && genre == requestedGenre && ticket == themesRevision) {
+      if (mounted && ticket == bucket.revision) {
         setState(() {
-          themes = values;
-          themesLoading = false;
+          bucket.values = values;
+          bucket.loading = false;
         });
       }
     } catch (failure) {
       // The UI only ever says 题材加载失败, but the live evidence run has to
       // tell a cancelled flight from an upstream that answered nothing.
       debugPrint('catalog.themes($requestedGenre) failed: $failure');
-      if (mounted && genre == requestedGenre && ticket == themesRevision) {
+      if (mounted && ticket == bucket.revision) {
         setState(() {
-          themesLoading = false;
-          themesError = '题材加载失败';
+          bucket.loading = false;
+          bucket.error = '题材加载失败';
         });
       }
     }
@@ -1136,49 +1419,48 @@ class _LibraryPageState extends State<LibraryPage> {
   /// A choice made on one page changes that page's feed. [pane] comes from the
   /// row that painted the chip: both pages are alive, so a keyboard activation
   /// on the one that is not on screen must not be filed against whichever page
-  /// happens to be visible. 类型 is the shared dimension and moves both keys.
+  /// happens to be visible. 类型 is the shared 一级 and 题材 the shared 二级, so
+  /// either page's row moves the same two values.
   void _selectFilter(String group, String value, int pane) {
-    if (group == 'view' || (group == 'genre' && pane == 1)) {
-      // This chip is one of the page's own first-level pages, not a narrowing
-      // of the list already on it: it changes the page.
+    if (group == 'genre') {
+      // 类型 is one of this page's own first-level pages on either tab, not a
+      // narrowing of the list already on it: the chip changes the page.
       _gotoSlot(pane, value);
       return;
     }
-    final before = feedKeyOf(pane);
-    setState(() {
-      switch (group) {
-        case 'genre':
-          genre = value;
-          theme = null;
-          themes = [];
-          unawaited(_loadThemes(value));
-        case 'theme':
-          theme = value.isEmpty ? null : value;
-        case 'board':
-          board = value;
-      }
-    });
-    if (group == 'genre') {
-      // 类型 is also the name of a page over there: 分类's own first level
-      // follows the shared value the way its own chip would have moved it.
-      _syncInnerIndex(1);
+    if (group == 'view') {
+      // 频道 is 发现's mode rather than one of its pages: it changes what the same
+      // page asks for -- another sort, or the rank endpoint -- and reaches into
+      // nothing else. A board asks `rank(board)`, which takes no genre and no
+      // theme, so a mode must not write the shared levels behind the viewer's
+      // back; what it is ranking goes in the title instead.
+      final before = feedKeyOf(pane);
+      setState(() => view = value);
+      if (before == feedKeyOf(pane)) return;
+      // 榜单 replaces this page's whole second level with its three boards, so
+      // the pager has to be pointed at the one the mode now names.
+      _syncLevelIndex(pane, slotOfPane(pane));
+      _switchFeed(seed: true);
+      _rearmFeed(feed);
+      return;
     }
+    final before = feedKeyOf(pane);
+    setState(() => _writeLevel2(value));
     if (before == feedKeyOf(pane)) return;
+    // A tap along the row moves the same page a swipe would have turned to, so
+    // the pager is put on it -- otherwise the two would disagree about which
+    // second-level page is the one on screen.
+    _syncLevelIndex(pane, slotOfPane(pane));
     if (pane != destination) {
       // The visible page keeps its rows, its cursor and the shell's active
       // feed; this one only re-arms its own record.
       _rearmFeed(feedOf(pane));
       return;
     }
-    if (group == 'theme') {
-      // A theme is its own feed now: switching to one the viewer already opened
-      // restores it, switching to a new one loads it, and neither rebuilds the
-      // rows of the theme being left.
-      _switchFeed(keepAlive: true);
-      return;
-    }
-    _switchFeed(seed: true);
-    _rearmFeed(feed);
+    // A theme and a board are each their own feed: switching to one the viewer
+    // already opened restores it, switching to a new one loads it, and neither
+    // rebuilds the rows of the one being left.
+    _switchFeed(keepAlive: true);
   }
 
   /// Put a feed whose key just changed into its waiting shape: the rows cached
@@ -1210,14 +1492,11 @@ class _LibraryPageState extends State<LibraryPage> {
         }
       }),
     );
-    slotFilterTimer[slotKey(target.pane, target.slot)] = Timer(
-      const Duration(milliseconds: 250),
-      () {
-        if (mounted) {
-          _reload(target, refreshThemes: false, preserveContent: true);
-        }
-      },
-    );
+    feedFilterTimer[target.key] = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) {
+        _reload(target, refreshThemes: false, preserveContent: true);
+      }
+    });
   }
 
   void _diagnostics() {
@@ -1409,20 +1688,38 @@ class _LibraryPageState extends State<LibraryPage> {
   /// It names the first-level page it sits above, not whichever page the shell
   /// is on: mid-swipe two of them are laid out at once, and each list has to
   /// say what it itself is holding.
-  Widget _sectionTitleAt(int pane, String slot) {
+  Widget _sectionTitleAt(int pane, String slot, String level2) {
     final text = queryOf(pane);
+    if (text.isNotEmpty) {
+      return Text(
+        '“$text”',
+        style: Theme.of(context).textTheme.titleLarge
+            ?.copyWith(fontWeight: FontWeight.w600),
+      );
+    }
+    final style = Theme.of(context).textTheme.titleLarge
+        ?.copyWith(fontWeight: FontWeight.w600);
+    if (isRanking(pane)) {
+      // 榜单 ranks one genre upstream and takes no type of its own, so the board
+      // says which genre it ranks in the title rather than borrowing the shared
+      // first level to imply it does.
+      return Text(
+        '${_genreNames[_boardGenre]} · '
+        '${_boardNames[_boardOfLevel2(level2)] ?? '榜单'}',
+        style: style,
+      );
+    }
+    // What this page holds, in the order its levels are reached: which stream,
+    // which type, which theme inside it. Both pages answer in the same sentence
+    // because both ask the same two questions.
+    final lead = pane == 0 ? (view == 'latest' ? '最新上架' : '为你发现') : '符合筛选的故事';
+    final themeName = level2Options(pane, slot)
+        .where((option) => option.id == level2 && option.id.isNotEmpty)
+        .map((option) => option.label)
+        .firstOrNull;
     return Text(
-      text.isNotEmpty
-          ? '“$text”'
-          : isRankingAt(pane, slot)
-          ? '${_genreNames[_boardGenre]} · ${_boardNames[board] ?? '榜单'}'
-          : pane == 1
-          ? '符合筛选的故事'
-          : slot == 'latest'
-          ? '最新上架'
-          : '为你发现',
-      style: Theme.of(context).textTheme.titleLarge
-          ?.copyWith(fontWeight: FontWeight.w600),
+      [lead, _genreNames[slot] ?? slot, ?themeName].join(' · '),
+      style: style,
     );
   }
 
@@ -1495,24 +1792,28 @@ class _LibraryPageState extends State<LibraryPage> {
           // a chip that silently reloads the same feed is worse than none.
           if (widget.runtime.catalog is RankCatalogRepository) 'rank': '榜单',
         }),
-      if (text.isEmpty)
-        // Both pages offer 类型, so the chip keys carry the page: a shared first
-        // level means one value, never two widgets with one name.
-        isRanking(pane)
-            ? group('board', board, _boardNames)
-            : group(
-                'genre',
-                genre,
-                _genreNames,
-                keyPrefix: 'genre-${paneName(pane)}',
-              ),
+      // 类型 is the 一级 of both pages, so it sits on this row on either tab. While
+      // 榜单 is on, `rank(board)` takes no genre at all: a type row that changed
+      // nothing would be a false control, so it steps out and the boards -- the
+      // second level of that mode -- are the row pinned under this one.
+      if (text.isEmpty && !isRanking(pane))
+        group(
+          'genre',
+          genre,
+          _genreNames,
+          keyPrefix: 'genre-${paneName(pane)}',
+        ),
     ];
+    final choices = rowAt('choices-$pane');
     return SizedBox(
       height: _filterRowHeight,
       child: Scrollbar(
+        controller: choices,
         child: SingleChildScrollView(
           key: ValueKey('filter-choices-${paneName(pane)}'),
+          controller: choices,
           scrollDirection: Axis.horizontal,
+          physics: _rowPhysics,
           padding: EdgeInsets.symmetric(
             horizontal: compact ? 12 : 24,
             vertical: 4,
@@ -1538,25 +1839,28 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  /// The themes of the current genre, laid out in the band that sits above the
-  /// page rather than inside its list: one row of chips answers the second
-  /// level of every first-level page this pane pages through, so it belongs to
-  /// the page, not to one of its lists. Tapping one opens that theme's own feed
-  /// rather than filtering the rows in place, so loading and retry both keep
-  /// their fixed height and never push the grid around.
-  Widget _themeRail(int pane, bool compact) {
-    // 题材 is 分类's second level alone. It is the same child of the same type on
-    // both pages, so showing it twice is the duplication the filter panel used
-    // to carry -- and 发现 is one swipe away.
-    if (pane == 0 || queryOf(pane).isNotEmpty || isRanking(pane)) {
-      return const SizedBox.shrink();
-    }
-    final selected = theme ?? '';
+  /// The second level of the page on screen, pinned above its lists: 题材 while a
+  /// type's children are being browsed, the three boards while 发现 is ranking.
+  /// It does not fold away with the top, because it is also the strip that names
+  /// whichever page a sideways swipe landed on -- and because each chip opens a
+  /// feed of its own, its loading and retry states keep a fixed height instead of
+  /// pushing the grid around.
+  Widget _level2Row(int pane, bool compact) {
+    final slot = slotOfPane(pane);
+    final selected = level2At(pane, slot);
+    final bucket = themesOf(slot);
+    // 搜索 eats both levels, so this row can offer nothing that still means
+    // something; the way back out of the search is the chip above it.
+    if (queryOf(pane).isNotEmpty) return const SizedBox.shrink();
+    final themesPending = !isRanking(pane) && bucket.loading;
+    final themesFailed =
+        !isRanking(pane) && bucket.error != null && bucket.values.isEmpty;
+    final rail = rowAt('rail-$pane');
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: SizedBox(
         height: _filterRowHeight,
-        child: themesLoading
+        child: themesPending
             ? const Center(
                 key: ValueKey('theme-rail-loading'),
                 child: SizedBox(
@@ -1565,50 +1869,61 @@ class _LibraryPageState extends State<LibraryPage> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               )
-            : themesError != null
+            : themesFailed
             ? Align(
                 alignment: Alignment.centerLeft,
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 24),
                   child: TextButton(
                     key: const ValueKey('theme-rail-retry'),
-                    onPressed: () => unawaited(_loadThemes(genre)),
-                    child: Text('$themesError · 重试题材'),
+                    onPressed: () => unawaited(_loadThemes(slot)),
+                    child: Text('${bucket.error} · 重试题材'),
                   ),
                 ),
               )
             : Scrollbar(
+                controller: rail,
                 child: SingleChildScrollView(
                   key: const ValueKey('theme-rail'),
+                  controller: rail,
                   scrollDirection: Axis.horizontal,
+                  physics: _rowPhysics,
                   padding: EdgeInsets.symmetric(
                     horizontal: compact ? 12 : 24,
                     vertical: 4,
                   ),
                   child: Row(
                     children: [
-                      for (final (id, name) in [
-                        // The parent name rides along, so what this row is a
-                        // child of is on screen rather than remembered.
-                        ('', '全部 · ${_genreNames[genre] ?? genre}'),
-                        for (final e in themes) (e.id, e.name),
-                      ])
+                      // Whatever this row is a child of is on screen rather than
+                      // remembered: 全部 carries the type, and a board carries the
+                      // ranking it belongs to in the title above the grid.
+                      for (final option in level2Options(pane, slot))
                         Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: ChoiceChip(
-                            key: ValueKey('theme-rail-$id'),
+                            key: ValueKey(
+                              option.id.startsWith(_boardPrefix)
+                                  ? 'filter-board-${_boardOfLevel2(option.id)}'
+                                  : 'theme-rail-${option.id}',
+                            ),
                             label: Text(
-                              name,
+                              option.label,
                               style: TextStyle(
-                                fontWeight: id == selected
+                                fontWeight: option.id == selected
                                     ? FontWeight.w700
                                     : FontWeight.w400,
                               ),
                             ),
-                            selected: id == selected,
+                            selected: option.id == selected,
                             onSelected: (_) {
-                              if (id == selected) return;
-                              _selectFilter('theme', id, pane);
+                              if (option.id == selected) return;
+                              _selectFilter(
+                                option.id.startsWith(_boardPrefix)
+                                    ? 'board'
+                                    : 'theme',
+                                option.id,
+                                pane,
+                              );
                             },
                             materialTapTargetSize: MaterialTapTargetSize.padded,
                           ),
@@ -1628,22 +1943,38 @@ class _LibraryPageState extends State<LibraryPage> {
   Widget _pane(int pane, bool compact, double viewportWidth) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      _paneBand(pane, compact, viewportWidth),
-      // The list is the only thing here that scrolls, so it gets whatever the
-      // band left of the page.
-      Expanded(child: _innerPages(pane)),
+      // The top asks the questions the viewer answers once -- where to search,
+      // which mode, which type -- so it folds away while the rows of the answer
+      // are being read. The second-level row stays: it is also the strip that
+      // shows where a sideways swipe landed, and a strip that slid away would
+      // leave the swipe with nothing that names the page it arrived on.
+      _paneTop(pane, compact, viewportWidth),
+      NotificationListener<ScrollNotification>(
+        onNotification: (notification) => _onRowScroll(pane, notification),
+        child: _level2Row(pane, compact),
+      ),
+      // Every drag of a list inside this page reaches the handover below as a
+      // notification that has already been answered by the level it came from --
+      // or refused by it -- so the listener sits between the two levels.
+      Expanded(
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (notification) => _onLevelScroll(pane, notification),
+          child: _innerPages(pane),
+        ),
+      ),
     ],
   );
 
-  /// The band asks the page's own question once: the search field, the two rows
-  /// of chips and, for 分类, the 题材 rail under them. It stays put while the
-  /// list inside it scrolls because this row of chips is also the tab strip of
-  /// the pages the viewer swipes between -- a strip that slid away would leave a
-  /// swipe with nothing that shows where it landed.
-  Widget _paneBand(int pane, bool compact, double viewportWidth) {
+  /// The part of the band that the list is allowed to scroll out of the way.
+  /// Folded, it is offstage rather than gone: the search field keeps its text,
+  /// its focus node and the key the viewer's history overlay is anchored to, and
+  /// comes back at the top of the same tap-free scroll up.
+  Widget _paneTop(int pane, bool compact, double viewportWidth) {
     final padding = compact ? 16.0 : 28.0;
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) => _onBandScroll(pane, notification),
+    return Visibility(
+      key: ValueKey('pane-top-${paneName(pane)}'),
+      visible: !(bandCollapsed[pane] ?? false),
+      maintainState: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1666,27 +1997,17 @@ class _LibraryPageState extends State<LibraryPage> {
               ],
             ),
           ),
-          // The choices sit flush with the rail under them -- both rows start
-          // at the same inset, so they read as one family of narrowing.
+          // The choices sit flush with the row under them -- both start at the
+          // same inset, so they read as one family of narrowing.
           _choiceRow(pane, compact),
-          if (pane == 1)
-            SizedBox(
-              // 题材 is the one thing that never leaves: it stays one tap away
-              // from anywhere in the rows, whatever the list has got to.
-              height: queryOf(pane).isEmpty && !isRanking(pane)
-                  ? _filterRowHeight
-                  : 0,
-              child: _themeRail(pane, compact),
-            ),
           if (compact && !swipeHintSeen)
             Padding(
               padding: EdgeInsets.fromLTRB(padding, 0, padding, 8),
               child: Text(
-                // Both levels are true of one gesture, so the sentence names
-                // them in the order they are reached: a swipe first moves this
-                // page's own level, and only runs the other page over once
-                // there is nothing left of this one.
-                '左右滑动切换本页，滑到尽头再切换 发现 · 分类',
+                // Three levels are reachable from one gesture, so the sentence
+                // names them in the order they are met: this page's own second
+                // level first, then its type, then the other tab.
+                '左右滑动切换题材，滑到尽头切换类型，再滑切换 发现 · 分类',
                 key: const ValueKey('swipe-hint'),
                 style: TextStyle(
                   fontSize: 12,
@@ -1699,8 +2020,9 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  /// The page's own first level, as the tabs router of its route: 推荐/最新/榜单
-  /// for 发现, the three types for 分类.
+  /// The page's own first level, as the tabs router of its route: the three
+  /// types, on either tab -- 一级 is shared, so both pages page through the same
+  /// three pages.
   Widget _innerPages(int pane) => AutoTabsRouter.pageView(
     routes: innerRoutes[pane]!,
     animatePageTransition: true,
@@ -1710,29 +2032,62 @@ class _LibraryPageState extends State<LibraryPage> {
     },
   );
 
-  /// One first-level page of one catalog page: its own rows, its own scroll
-  /// position, its own pull-to-refresh.
+  /// One first-level page of one catalog page: the second-level pages it slides
+  /// sideways through, which are 题材 of this type or, while 发现 ranks, its three
+  /// boards. The controller is held per (page, type) because a swipe between
+  /// types lays two of these out at once and a `PageController` attaches to one
+  /// live `PageView`.
   Widget _slotPage(int pane, String slot, bool compact, double viewportWidth) {
+    final options = level2Options(pane, slot);
+    return PageView.builder(
+      key: ValueKey('level2-${paneName(pane)}-$slot'),
+      controller: levelAt(pane, slot),
+      physics: _handoverPhysics,
+      itemCount: options.length,
+      // The settle is what writes the level, not the drag: a swipe that stops
+      // halfway back is the viewer changing their mind.
+      onPageChanged: (index) => _onLevel2PageChanged(pane, slot, index),
+      itemBuilder: (context, index) =>
+          _level2Page(pane, slot, options[index].id, compact, viewportWidth),
+    );
+  }
+
+  /// One second-level page: its own rows, its own scroll position, its own
+  /// pull-to-refresh.
+  Widget _level2Page(
+    int pane,
+    String slot,
+    String level2,
+    bool compact,
+    double viewportWidth,
+  ) {
     final padding = compact ? 16.0 : 28.0;
-    final f = feedAt(pane, slot);
+    final f = feedAtLevel(pane, slot, level2);
     // Each list asks for its own next page as it gets laid out, so a swipe
     // that lays two of them out feeds both records rather than only the one
     // the shell says is on screen.
     _scheduleMore(f);
+    // And a list that has never been asked for anything -- the theme next door,
+    // spread on screen mid-drag -- asks for its first page now.
+    _enterLevel2(f);
     return RefreshIndicator(
       onRefresh: () => _reload(f, refreshThemes: false, force: true),
-      key: ValueKey('catalog-results-${paneName(pane)}'),
+      key: ValueKey(
+        'catalog-results-${paneName(pane)}-$slot-${level2Slug(level2)}',
+      ),
       child: CustomScrollView(
         controller: scrollOf(f),
-        // Slot-qualified: a first-level page that has not been visited yet must
-        // not inherit where the page next to it was scrolled to, since the
-        // scrollable it replaces is filed under the same pane.
-        key: PageStorageKey('catalog-feed-${paneName(pane)}-$slot'),
+        // Qualified by both levels: a second-level page that has not been
+        // visited yet must not inherit where the page next to it was scrolled
+        // to, since the scrollable it replaces is filed under the same pane.
+        key: PageStorageKey(
+          'catalog-feed-${paneName(pane)}-$slot-${level2Slug(level2)}',
+        ),
         slivers: [
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.fromLTRB(padding, 12, padding, 10),
-              child: _sectionTitleAt(pane, slot),
+              child: _sectionTitleAt(pane, slot, level2),
             ),
           ),
           if (f.refreshing || f.cachedAt != null || f.refreshError != null)
@@ -2117,16 +2472,23 @@ class _LibraryPageState extends State<LibraryPage> {
   /// hears a second answer for the choice already made, because the level it
   /// would report is the one just written.
   void _gotoSlot(int pane, String slot) {
-    if (slot == slotOfPane(pane)) return;
+    if (slot == genre) return;
     _applySlot(pane, slot);
-    _syncInnerIndex(pane);
+    // 一级 is shared, so both pages follow the value the way their own chip would
+    // have moved them -- whichever one the viewer lands on is already on it.
+    _syncInnerIndex(0);
+    _syncInnerIndex(1);
   }
 
-  /// What a page's own level moving costs: the shared or page-local value is
-  /// written, and the record it names is either shown -- when that page is the
-  /// one on screen -- or re-armed for the next time it is.
+  /// What a page's own level moving costs: the shared value is written, and the
+  /// record it names is either shown -- when that page is the one on screen --
+  /// or re-armed for the next time it is.
   void _applySlot(int pane, String slot) {
-    setState(() => _writeSlot(pane, slot));
+    setState(() => _writeSlot(slot));
+    // The theme belonged to the type that just went away, so this page's own
+    // second-level pager has to be put back on 全部 -- the page the level now
+    // names, not the one the viewer left behind.
+    _syncLevelIndex(pane, slot);
     if (pane != destination) {
       _rearmFeed(feedOf(pane));
       return;
@@ -2139,25 +2501,98 @@ class _LibraryPageState extends State<LibraryPage> {
     _switchFeed(keepAlive: true, refresh: false);
   }
 
-  /// What a page's own level actually is, written once the page is agreed.
-  void _writeSlot(int pane, String slot) {
-    if (pane == 0) {
-      // 频道 moves which page of 发现 is on screen and nothing else: a board
-      // asks `rank(board)`, which takes no genre and no theme, so a channel must
-      // not reach into the shared first level or 分类's rail -- it used to write
-      // 漫剧 and drop the rail, which made a channel read like a filter and stole
-      // the type the viewer picked over there.
-      view = slot;
-      return;
-    }
-    // 题材 is a child of the type, and every type has its own: leaving one
-    // drops the theme picked inside it rather than carrying an id that belongs
-    // to a different parent over to the next page.
+  /// What the shared 一级 actually is, written once the page is agreed. 题材 is a
+  /// child of the type, so leaving one drops the theme picked inside it rather
+  /// than carrying an id that belongs to a different parent over to the next
+  /// page; the children of the type being entered are asked for only when
+  /// nobody has fetched them yet -- a type already walked keeps its own rail.
+  void _writeSlot(String slot) {
     genre = slot;
     theme = null;
-    themes = [];
-    unawaited(_loadThemes(slot));
+    final bucket = themesOf(slot);
+    if (bucket.values.isEmpty && !bucket.loading && bucket.error == null) {
+      unawaited(_loadThemes(slot));
+    }
   }
+
+  /// Where a page's second level actually is, written once its own pager settles
+  /// or one of its chips is tapped. 题材 and 榜单's boards are different
+  /// dimensions wearing the same notation, so the prefix says which field to
+  /// write.
+  void _writeLevel2(String id) {
+    if (id.startsWith(_boardPrefix)) {
+      board = id.substring(_boardPrefix.length);
+      return;
+    }
+    theme = id.isEmpty ? null : id;
+  }
+
+  /// The second-level pager of the page on screen settled somewhere new. A chip
+  /// tap goes through [_selectFilter] and never reaches here; this is the swipe,
+  /// and like a swipe between first-level pages it is a look at what the new
+  /// page already holds rather than a reason to ask the upstream again.
+  void _onLevel2PageChanged(int pane, String slot, int index) {
+    if (pane != destination || slot != slotOfPane(pane)) return;
+    final options = level2Options(pane, slot);
+    if (!options.asMap().containsKey(index)) return;
+    final id = options[index].id;
+    if (id == level2At(pane, slot)) return;
+    setState(() => _writeLevel2(id));
+    _switchFeed(keepAlive: true, refresh: false);
+    _scheduleMore(feed);
+  }
+
+  /// Put a page's second-level pager on the option its own level names. A pick
+  /// from the chip row, and a type change that drops the theme with the type it
+  /// belonged to, both move the list without a swipe -- so the pager has to be
+  /// told, or it would sit on the page the viewer left.
+  void _syncLevelIndex(int pane, String slot) {
+    // Deferred to the frame that lays the new shape out: a mode change swaps the
+    // boards in for the themes, and a jump asked for before that would be
+    // clamped by the page count of the list being left.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || slot != slotOfPane(pane)) return;
+      final controller = levelScroll[pane]![slot];
+      if (controller == null || !controller.hasClients) return;
+      final wanted = level2IndexOf(pane, slot);
+      if ((controller.page ?? controller.initialScrollOffset).roundToDouble() ==
+          wanted.toDouble()) {
+        return;
+      }
+      controller.jumpToPage(wanted);
+    });
+  }
+
+  /// Ask for the rows of a second-level page as it is laid out, when nothing has
+  /// ever been asked of it: a swipe spreads the theme next door on screen while
+  /// the drag is still moving, and a page never entered has no rows to show for
+  /// it. The same debounce a tap waits out, so a long flick along the level costs
+  /// the request for the page it lands on rather than one for each it passed.
+  void _enterLevel2(_ThemeFeed target) {
+    if (_level2Asked(target) ||
+        (feedFilterTimer[target.key]?.isActive ?? false)) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _level2Asked(target)) return;
+      setState(() => target.loading = true);
+      feedFilterTimer[target.key] = Timer(_switchWait, () {
+        if (mounted &&
+            identical(feeds[target.key], target) &&
+            !target.visited) {
+          unawaited(_reload(target, refreshThemes: false));
+        }
+      });
+    });
+  }
+
+  static bool _level2Asked(_ThemeFeed target) =>
+      target.visited ||
+      target.left ||
+      target.loading ||
+      target.refreshing ||
+      target.error != null ||
+      target.items.isNotEmpty;
 
   @override
   Widget build(BuildContext context) =>
@@ -2230,11 +2665,16 @@ class _ThemeFeed {
   final String key;
   final int pane;
 
-  /// Which first-level page of that pane asked for these rows: 推荐/最新/榜单 on
-  /// 发现, 短剧/漫剧/AI 短剧 on 分类. The list and its scroll position belong to
-  /// this page, not to the pane.
+  /// Which first-level page of that pane asked for these rows: 类型, the level
+  /// both pages share. The list and its scroll position belong to this page and
+  /// to the second-level page inside it, not to the pane.
   final String slot;
-  _ThemeFeed(this.key, this.pane, this.slot);
+
+  /// Which second-level page inside that first-level page these rows are: 题材
+  /// normally, one of the three boards while 榜单 is on. Both are the level the
+  /// viewer swipes through innermost, so each of them keeps its own rows.
+  final String level2;
+  _ThemeFeed(this.key, this.pane, this.slot, this.level2);
   final items = <Drama>[];
   CatalogRequestScope scope = CatalogRequestScope();
   CatalogPage? firstPage;
@@ -2249,6 +2689,25 @@ class _ThemeFeed {
       refreshing = false,
       autoPaused = false,
       visited = false;
+
+  /// Left with its first page still in flight, so its request was cancelled and
+  /// nothing landed. It is not asked again until the viewer returns to the page
+  /// it belongs to -- otherwise the level it was just swiped away from would
+  /// spend a second request on the very call that was cancelled.
+  bool left = false;
+}
+
+/// The children of one type, and the request that fills them. One of these per
+/// 类型: a swipe lays the neighbour page out too, and it has to show its own
+/// rail instead of the current type's -- or lose it to a re-load the moment the
+/// viewer comes back.
+class _ThemeBucket {
+  List<CatalogFilter> values = const [];
+  CatalogRequestScope scope = CatalogRequestScope();
+  int revision = 0;
+  String? requested;
+  bool loading = false;
+  String? error;
 }
 
 class Brand extends StatelessWidget {

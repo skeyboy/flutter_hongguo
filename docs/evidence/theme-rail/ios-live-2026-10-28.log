@@ -1,0 +1,34 @@
+00:00 +0: loading /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/theme_rail_live_test.dart
+The following plugins do not support Swift Package Manager for ios:
+  - media_kit_libs_ios_video
+  - media_kit_video
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Running Xcode build...                                          
+Xcode build done.                                           19.9s
+00:00 +0: the three levels page inside first and each keeps its own rows
+HGRAIL t=1793144591090 ev=armed
+HGRAIL t=1793144596692 ev=enter-categories destination=1 genre=short_play theme=null themes=29
+HGRAIL t=1793144596702 ev=shot=rail
+HGRAIL t=1793144599962 ev=shot=genre-comic genre=comic_series level2=
+catalog.themes(comic_series) failed: 内容接口未返回数据，请稍后重试
+HGRAIL t=1793144604543 ev=shot=level2-first-pull from=short_play/ to=short_play/cate_165
+HGRAIL t=1793144611008 ev=shot=genre-handover from=short_play/cate_1240 to=comic_series/
+HGRAIL t=1793144614411 ev=at-head genre=short_play level2=
+HGRAIL t=1793144615929 ev=handover to=0 theme-pulls=0 genre-pulls=0 first-answer=shell
+HGRAIL t=1793144616357 ev=shot=tab-swipe-to-discover
+HGRAIL t=1793144619711 ev=shot=mode-latest view=latest
+HGRAIL t=1793144623159 ev=shot=rank level2=board:recommend genre-row=0
+HGRAIL t=1793144626528 ev=shot=rank-board from=board:recommend to=board:hot
+HGRAIL t=1793144630813 ev=shot=band-collapsed collapsed=true rail-top=62 offset=1580
+HGRAIL t=1793144633877 ev=shot=band-expanded collapsed=false offset=0
+HGRAIL t=1793144637279 ev=end-of-levels genre=ai_series chips=0
+catalog.themes(ai_series) failed: 内容接口未返回数据，请稍后重试
+HGRAIL t=1793144644309 ev=rail-pilled pane=0 genre=ai_series themes=0 loading=false error=题材加载失败
+HGRAIL t=1793144645826 ev=shot=tab-swipe-to-categories from=ai_series/
+HGRAIL t=1793144650812 ev=shot=theme-two level2=cate_262
+HGRAIL t=1793144654261 ev=shot=theme-two-scrolled offset=400
+HGRAIL t=1793144657642 ev=shot=theme-three level2=cate_297
+HGRAIL t=1793144661447 ev=shot=theme-two-restored offset=400 was=400
+HGRAIL t=1793144663957 ev=done
+01:16 +1: (tearDownAll)
+01:17 +1: All tests passed!

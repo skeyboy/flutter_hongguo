@@ -1,0 +1,28 @@
+00:00 +0: loading /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/theme_rail_live_test.dart
+The following plugins do not support Swift Package Manager for ios:
+  - media_kit_libs_ios_video
+  - media_kit_video
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Running Xcode build...                                          
+Xcode build done.                                           28.1s
+00:00 +0: the rail stays put and each theme keeps its own rows
+HGRAIL t=1793094329427 ev=armed
+HGRAIL t=1793094333497 ev=enter-categories destination=1 themes=29
+HGRAIL t=1793094333641 ev=shot=rail
+HGRAIL t=1793094336018 ev=shot=genre-comic
+HGRAIL t=1793094339815 ev=shot=discover
+HGRAIL t=1793094341983 ev=shot=inner-latest
+HGRAIL t=1793094345766 ev=shot=rank
+HGRAIL t=1793094351601 ev=inner-first from=discover pulls=2
+HGRAIL t=1793094352031 ev=shot=tab-swipe-to-categories
+HGRAIL t=1793094355415 ev=shot=inner-categories-last
+HGRAIL t=1793094360968 ev=edge-first from=categories pulls=0
+HGRAIL t=1793094360969 ev=shot=tab-swipe-back-to-discover
+HGRAIL t=1793094363101 ev=edge-first from=discover pulls=0
+HGRAIL t=1793094365933 ev=shot=theme-two
+HGRAIL t=1793094368499 ev=shot=theme-two-scrolled offset=400
+HGRAIL t=1793094370366 ev=shot=theme-three
+HGRAIL t=1793094371447 ev=shot=theme-two-restored offset=400
+HGRAIL t=1793094373963 ev=done
+00:48 +1: (tearDownAll)
+00:49 +1: All tests passed!

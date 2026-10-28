@@ -123,7 +123,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.drag(
-        find.byKey(const ValueKey('catalog-results-categories')),
+        find.byKey(const ValueKey('catalog-results-categories-short_play-all')),
         const Offset(0, -2500),
       );
       await tester.pumpAndSettle();
@@ -381,7 +381,9 @@ void main() {
       await tester.pumpAndSettle();
       final calls = runtime.catalog.browseCalls;
       await tester.drag(
-        find.byKey(const ValueKey('catalog-results-categories')),
+        find.byKey(
+          const ValueKey('catalog-results-categories-comic_series-all'),
+        ),
         const Offset(0, -1000),
       );
       await tester.pumpAndSettle();

@@ -123,7 +123,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('玄幻故事0'), findsWidgets);
     await tester.drag(
-      find.byKey(const ValueKey('catalog-results-categories')),
+      find.byKey(
+        const ValueKey('catalog-results-categories-short_play-cate_7'),
+      ),
       const Offset(0, -2000),
     );
     await tester.pumpAndSettle();
@@ -144,6 +146,10 @@ void main() {
     // first row is off screen again, so any 玄幻 row proves the list is back.
     final before = catalog.pending.length;
     await tester.tap(find.byKey(const ValueKey('theme-rail-cate_7')));
+    // The tap writes the level in this frame and the pager starts moving in the
+    // one after it, so the page the viewer came back to is laid out only from
+    // the second frame -- which is also the frame the restore jump repeats in.
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.textContaining('玄幻故事'), findsWidgets);
     expect(state.scroll.offset, offset);
@@ -202,22 +208,32 @@ void main() {
     final catalog = RailCatalog();
     await mount(tester, FakeRuntime(catalog), const Size(1280, 900));
     await openCategory(tester, catalog);
-    final results = find.byKey(const ValueKey('catalog-results-categories'));
+    // The 二级 pages are the pager's own rectangle: a theme that is loading,
+    // and one that failed, have to fill exactly the area the rows will.
+    final pager = find.byKey(const ValueKey('level2-categories-short_play'));
+    final results = find.byKey(
+      const ValueKey('catalog-results-categories-short_play-cate_7'),
+    );
     final rail = find.byKey(const ValueKey('theme-rail'));
-    final resultsRect = tester.getRect(results);
+    final pagerRect = tester.getRect(pager);
     final railRect = tester.getRect(rail);
     await tester.tap(find.byKey(const ValueKey('theme-rail-cate_7')));
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(tester.getRect(results), resultsRect);
+    expect(tester.getRect(pager), pagerRect);
+    expect(tester.getRect(results), pagerRect);
     expect(tester.getRect(rail), railRect);
     catalog.pending.last.completeError(const CatalogError('上游暂时不可用'));
     await tester.pumpAndSettle();
-    expect(tester.getRect(results), resultsRect);
+    expect(tester.getRect(pager), pagerRect);
+    expect(tester.getRect(results), pagerRect);
     expect(tester.getRect(rail), railRect);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('search and rank keep the rail out of the way', (tester) async {
+  testWidgets('search keeps the rail out; rank hands it to the boards', (
+    tester,
+  ) async {
     final catalog = RailRankCatalog();
     await mount(tester, FakeRuntime(catalog), const Size(1280, 900));
     await openCategory(tester, catalog);
@@ -232,13 +248,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('theme-rail')), findsOneWidget);
 
-    // 排行 boards have no themes, so the rail steps aside there too.
+    // 排行 boards have no themes, but the strip itself stays -- it is what
+    // names the page a sideways swipe landed on -- and its chips are boards.
     await tester.tap(find.text('发现').first);
     await answer(tester, catalog, '发现');
     await tester.tap(find.byKey(const ValueKey('filter-view-rank')));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('theme-rail')), findsNothing);
+    expect(find.byKey(const ValueKey('theme-rail')), findsOneWidget);
+    expect(find.byKey(const ValueKey('filter-board-hot')), findsOneWidget);
+    expect(find.byKey(const ValueKey('theme-rail-cate_7')), findsNothing);
   });
 
   testWidgets('the keyboard selects the focused theme chip', (tester) async {

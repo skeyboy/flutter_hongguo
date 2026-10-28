@@ -1,8 +1,9 @@
-/// Real-window fixture for the theme rail (verification only; touches no
-/// product code). Boots the shipping app against the live API, enters 分类 and
-/// walks 题材 -> 题材 -> back, printing wall-clock markers so
-/// tool/verify_theme_rail_live.sh can pull one screenshot per state out of a
-/// screen recording.
+/// Real-window fixture for the three-level catalog (verification only; touches
+/// no product code). Boots the shipping app against the live API, enters 分类 and
+/// walks the levels a finger walks -- 题材 first, then 类型, then the tab itself --
+/// printing wall-clock markers so tool/verify_theme_rail_live.sh can pull one
+/// screenshot per state out of a screen recording (or take it directly from a
+/// device). Product code is only ever read through the page's own state.
 library;
 
 import 'dart:io' show Platform;
@@ -29,115 +30,185 @@ Future<void> _live(WidgetTester tester, int ms) async {
   }
 }
 
-/// Wait until the live feed behind the visible pane actually has rows. A theme
-/// the viewer never opened is a skeleton until the upstream answers, and
-/// dragging a skeleton says nothing about the offset a return has to restore.
-Future<void> _waitRows(WidgetTester tester, String where) async {
+/// How long a marked state has to stay up. The still is taken when the marker
+/// reaches the log, which is a second or so after the state was asked for, and
+/// the next action starts a new state: a frame captured after that shows the
+/// state after the one it is named for, which is worse than no frame at all.
+Future<void> _hold(WidgetTester tester) => _live(tester, 1800);
+
+dynamic _shell(WidgetTester tester) => tester.state(find.byType(LibraryPage));
+
+/// The list the viewer is actually looking at on one page: pane, 一级 and 二级 in
+/// one key. Dragging it is how the fixture asks the innermost level first, the
+/// way a finger does.
+Finder _page(WidgetTester tester, int pane) =>
+    find.byKey(ValueKey(_shell(tester).resultsKey(pane) as String));
+
+/// The strip of 题材 (or of 榜单 boards) pinned under the choices. One key, and
+/// only one page of the two is on stage at a time, so it names the visible one.
+Finder _rail() => find.byKey(const ValueKey('theme-rail'));
+
+/// Where one page's innermost level stands: a 题材 id, `''` for 全部, or a
+/// `board:` entry while 发现 ranks.
+String _level2(WidgetTester tester, int pane) {
+  final state = _shell(tester);
+  return state.level2At(pane, state.slotOfPane(pane) as String) as String;
+}
+
+/// The rows of the second-level page a pane is showing, read out of the record
+/// map rather than asked of the shell -- asking would create a record for a page
+/// the viewer never laid out.
+dynamic _visibleFeed(WidgetTester tester, int pane) {
+  final state = _shell(tester);
+  final key = state.feedKeyAtLevel(
+    pane,
+    state.slotOfPane(pane),
+    _level2(tester, pane),
+  ) as String;
+  return (state.feeds as Map)[key];
+}
+
+Future<void> _waitRows(WidgetTester tester, int pane, String where) async {
   for (var i = 0; i < 80; i++) {
-    final dynamic state = tester.state(find.byType(LibraryPage));
-    final dynamic feed = state.feed;
-    if ((feed.items as List).isNotEmpty) return;
+    final dynamic feed = _visibleFeed(tester, pane);
+    if (feed != null && (feed.items as List).isNotEmpty) return;
     await Future<void>.delayed(const Duration(milliseconds: 100));
     await tester.pump();
   }
-  final dynamic state = tester.state(find.byType(LibraryPage));
-  final dynamic feed = state.feed;
+  final dynamic feed = _visibleFeed(tester, pane);
   _mark(
-    'rows-timeout where=$where loading=${feed.loading} error=${feed.error}',
+    'rows-timeout where=$where pane=$pane loading=${feed?.loading} '
+    'error=${feed?.error}',
   );
 }
 
-/// One page of the swipe, by the key its own pane puts on the scroll view.
-Finder _page(String name) => find.byKey(ValueKey('catalog-results-$name'));
-
-/// Drag far enough sideways to settle on the other page -- which is the last
-/// thing a drag does, not the first. Inside the page it started in, each pull
-/// moves one of that page's own first-level lists, and only a pull that found
-/// nothing left inside is handed to the shell. So the fixture keeps pulling in
-/// one direction until the shell answers, and reports how many pulls were
-/// spent below. The distance comes off the page's own width: the same 320 px
-/// that crosses a phone page springs back on a desktop window, and a fixture
-/// that quietly stays put is worse than one that fails here.
-Future<void> _swipe(WidgetTester tester, String from, String to) async {
-  final dir = to == 'categories' ? -1.0 : 1.0;
-  final expected = to == 'categories' ? 1 : 0;
-  var spentInside = 0;
-  for (var i = 0; i < 5; i++) {
-    final rect = tester.getRect(_page(from));
-    // A page swap needs more than half the width, so the finger starts near the
-    // far edge and ends inside the same page -- a path that leaves the window
-    // would be clipped by the embedder instead of moving the page.
-    final start = Offset(
-      rect.center.dx - dir * rect.width * 0.28,
-      rect.center.dy,
-    );
-    await tester.dragFrom(start, Offset(dir * rect.width * 0.56, 0));
-    await _live(tester, 1200);
-    final dynamic state = tester.state(find.byType(LibraryPage));
-    if (state.destination != expected) {
-      spentInside++;
-      continue;
-    }
-    // Both answers are evidence, and they say opposite things: pulls > 0 means
-    // the page's own level absorbed the pulls before the shell heard anything,
-    // pulls == 0 means the level was already at its end and the very first pull
-    // was handed up.
-    _mark(
-      spentInside > 0
-          ? 'inner-first from=$from pulls=$spentInside'
-          : 'edge-first from=$from pulls=0',
-    );
-    expect(
-      state.tabs!.activeIndex,
-      expected,
-      reason: 'the route index drifted',
-    );
-    return;
-  }
-  final dynamic state = tester.state(find.byType(LibraryPage));
-  expect(
-    state.destination,
-    expected,
-    reason: 'the swipe from $from did not land on $to',
-  );
+double _offsetOf(WidgetTester tester, int pane) {
+  final dynamic state = _shell(tester);
+  final dynamic feed = _visibleFeed(tester, pane);
+  if (feed == null) return (state.scroll.offset as double);
+  final dynamic controller = state.scrollOf(feed);
+  return (controller.hasClients ? controller.offset : 0.0) as double;
 }
 
-/// One pull expected to be answered inside the page it started in: the shell
-/// stays where it is and that page's own first level moves one step.
-Future<void> _swipeInner(
-  WidgetTester tester,
-  String list,
-  double dir,
-  String slot,
-) async {
-  final pane = list == 'discover' ? 0 : 1;
-  final dynamic before = tester.state(find.byType(LibraryPage));
-  final startIndex = before.innerTabs[pane].activeIndex as int;
-  final rect = tester.getRect(_page(list));
+/// One sideways pull, given the way a thumb gives it: from inside the page, over
+/// most of its width, and then time enough for the settle to finish. The
+/// distance comes off the page's own width, because the same 320 px that crosses
+/// a phone page springs back on a desktop window.
+Future<void> _pull(WidgetTester tester, int pane, double dir) async {
+  final rect = tester.getRect(_page(tester, pane));
   final start = Offset(
     rect.center.dx - dir * rect.width * 0.28,
     rect.center.dy,
   );
   await tester.dragFrom(start, Offset(dir * rect.width * 0.56, 0));
+  await _live(tester, 1500);
+}
+
+/// The three levels a pull can answer, read together so a handover can be named
+/// by which one of them moved.
+({int destination, String genre, String level2}) _where(
+  WidgetTester tester,
+  int pane,
+) {
+  final state = _shell(tester);
+  return (
+    destination: state.destination as int,
+    genre: state.slotOfPane(pane) as String,
+    level2: _level2(tester, pane),
+  );
+}
+
+/// The 题材 strip's chips, 全部 first. A live 类型 carries 20+ of them, so the
+/// fixture reaches either end by tapping the end chip rather than pulling
+/// through every page a viewer would have to swipe past.
+Finder _chips() =>
+    find.descendant(of: _rail(), matching: find.byType(ChoiceChip));
+
+/// Stands one page at one end of its own second level -- when that level has an
+/// end to reach. A live 类型 whose 题材 came back empty answers with the retry
+/// pill instead of a row, and a type with only 全部 has nothing past it: either
+/// way the page already stands at the last 二级 it has, which is the same place
+/// the tap would leave it, so the fixture says which one it is and pulls on.
+Future<void> _tapRailEnd(
+  WidgetTester tester,
+  int pane, {
+  required bool last,
+}) async {
+  // A type walked for the first time is still answering for its 题材 when the tap
+  // is asked of it, and a strip is only tappable once the row exists.
+  for (var i = 0; i < 60 && _chips().evaluate().isEmpty; i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    await tester.pump();
+  }
+  final count = _chips().evaluate().length;
+  if (count == 0) {
+    final dynamic state = _shell(tester);
+    _mark(
+      'rail-pilled pane=$pane genre=${state.slotOfPane(pane)} '
+      'themes=${(state.themes as List).length} loading=${state.themesLoading} '
+      'error=${state.themesError}',
+    );
+    return;
+  }
+  await _tapChip(tester, last ? _chips().last : _chips().first);
+}
+
+/// A chip tap a viewer can actually make. Both the strip and the chip row above
+/// it scroll sideways, so a chip the last tap left outside the window is brought
+/// back in first -- which is what a finger does, and what a tap that quietly
+/// misses the widget is not.
+Future<void> _tapChip(WidgetTester tester, Finder chip) async {
+  await tester.ensureVisible(chip);
+  await _live(tester, 300);
+  await tester.tap(chip);
   await _live(tester, 1200);
-  final dynamic state = tester.state(find.byType(LibraryPage));
-  expect(
-    state.destination,
-    before.destination,
-    reason: 'the pull skipped a level and moved the shell',
-  );
-  expect(state.slotOfPane(pane), slot, reason: 'the pull did not page inside');
-  expect(
-    state.innerTabs[pane].activeIndex,
-    startIndex + (dir < 0 ? 1 : -1),
-    reason: 'the inner route and the level it names disagree',
-  );
+}
+
+/// Pulls until the shell itself answers -- which is the whole point of the
+/// handover: every pull before that is spent on this page's own 题材 or 类型, and
+/// the markers say which level gave up. A trip with nothing left inside is the
+/// other half of the evidence: the very first pull was handed straight up.
+Future<void> _swipeTo(WidgetTester tester, int to) async {
+  var level2Pulls = 0, genrePulls = 0;
+  for (var i = 0; i < 16; i++) {
+    final dynamic state = _shell(tester);
+    if (state.destination == to) {
+      expect(state.tabs!.activeIndex, to, reason: 'the route index drifted');
+      _mark(
+        'handover to=$to theme-pulls=$level2Pulls genre-pulls=$genrePulls '
+        'first-answer=${level2Pulls + genrePulls == 0 ? 'shell' : 'inside'}',
+      );
+      return;
+    }
+    final pane = state.destination as int;
+    final dir = to > pane ? -1.0 : 1.0;
+    final before = _where(tester, pane);
+    await _pull(tester, pane, dir);
+    final after = _where(tester, pane);
+    if (after.destination != before.destination) continue;
+    if (after.genre != before.genre) {
+      genrePulls++;
+      _mark('level-genre pane=$pane from=${before.genre} to=${after.genre}');
+      continue;
+    }
+    if (after.level2 != before.level2) {
+      level2Pulls++;
+      _mark('level-theme pane=$pane from=${before.level2} to=${after.level2}');
+      continue;
+    }
+    fail(
+      'the pull answered nothing at pane=$pane: '
+      '${before.genre}/${before.level2}',
+    );
+  }
+  final dynamic state = _shell(tester);
+  expect(state.destination, to, reason: 'the swipe never arrived at page $to');
 }
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('the rail stays put and each theme keeps its own rows', (
+  testWidgets('the three levels page inside first and each keeps its own rows', (
     tester,
   ) async {
     // window_manager only exists in the desktop embedders; a simulator run
@@ -162,8 +233,7 @@ void main() {
     }
     if (cards.evaluate().isEmpty) {
       // Name the transport failure instead of leaving the next run to guess.
-      // The feed record is per page now, so the probe reads the active one.
-      final dynamic probe = tester.state(find.byType(LibraryPage));
+      final dynamic probe = _shell(tester);
       _mark(
         'boot-failed destination=${probe.destination} '
         'loading=${probe.feed.loading} error=${probe.feed.error} '
@@ -186,13 +256,15 @@ void main() {
     await _live(tester, 4000);
 
     await tester.tap(find.text('分类').first);
-    final dynamic railState = tester.state(find.byType(LibraryPage));
+    await _live(tester, 1500);
+    final dynamic railState = _shell(tester);
     _mark(
       'enter-categories destination=${railState.destination} '
+      'genre=${railState.genre} theme=${railState.theme} '
       'themes=${(railState.themes as List).length}',
     );
     final chips = find.descendant(
-      of: find.byKey(const ValueKey('theme-rail')),
+      of: _rail(),
       matching: find.byType(ChoiceChip),
     );
     for (var i = 0; i < 100 && chips.evaluate().length < 3; i++) {
@@ -212,107 +284,218 @@ void main() {
       greaterThanOrEqualTo(3),
       reason: 'the live themes never filled the rail',
     );
+    // The first frame is the one that has to show the whole shape of the page,
+    // so it waits for its rows instead of catching the skeleton.
+    await _waitRows(tester, 1, 'rail');
     _mark('shot=rail');
-    await _live(tester, 900);
+    await _hold(tester);
 
-    // The choices are on screen now: switching type is one tap on a chip in the
-    // row above the rail, and the rail keeps its rectangle while its themes
-    // reload for the new type. The type row belongs to this page, so its keys
-    // carry the page name.
+    // 类型 is the 一级 of both pages: one tap on a chip in the row above the rail
+    // moves it, and the 二级 under it empties with the type it belonged to.
     await tester.tap(
       find.byKey(const ValueKey('filter-genre-categories-comic_series')),
     );
     await _live(tester, 1400);
-    _mark('shot=genre-comic');
-    await _live(tester, 900);
+    _mark(
+      'shot=genre-comic genre=${_shell(tester).genre} '
+      'level2=${_level2(tester, 1)}',
+    );
+    await _hold(tester);
     await tester.tap(
       find.byKey(const ValueKey('filter-genre-categories-short_play')),
     );
     await _live(tester, 1200);
 
-    // 发现 carries the channel group next to the types; 榜单 takes the type
-    // group's place and the rail steps out with it.
-    await tester.tap(find.text('发现').first);
-    await _live(tester, 1600);
-    _mark('shot=discover');
-    await _live(tester, 900);
+    // The innermost level answers the first two pulls, with the shell still on
+    // 分类 and 类型 unmoved: 题材 is spent before anything above it is even asked.
+    for (var i = 0; i < 2; i++) {
+      final before = _where(tester, 1);
+      await _pull(tester, 1, -1);
+      final now = _where(tester, 1);
+      expect(
+        now.destination,
+        before.destination,
+        reason: 'pull $i skipped a level and moved the shell',
+      );
+      expect(
+        now.genre,
+        before.genre,
+        reason: 'pull $i turned 类型 while 题材 had pages',
+      );
+      expect(
+        now.level2,
+        isNot(before.level2),
+        reason: 'pull $i did not turn 题材',
+      );
+      if (i == 0) {
+        _mark(
+          'shot=level2-first-pull from=${before.genre}/${before.level2} '
+          'to=${now.genre}/${now.level2}',
+        );
+      }
+    }
+    await _hold(tester);
 
-    // 发现 pages its own first level before the shell hears of the pull: one
-    // drag lands on 最新 with the navigation still on 发现, the one back lands
-    // on 推荐. The rank demo below then changes the same level by chip, which
-    // has to arrive at the same page the drag would have.
-    await _swipeInner(tester, 'discover', -1, 'latest');
-    _mark('shot=inner-latest');
-    await _live(tester, 900);
-    await _swipeInner(tester, 'discover', 1, 'recommend');
+    // The edge of this page's own second level, reached by tapping the last chip
+    // of the strip: a live 类型 carries far more 题材 than a fixture should pull
+    // through to find the end. The next pull is 类型's answer, not the shell's.
+    await _tapRailEnd(tester, 1, last: true);
+    final beforeEnd = _where(tester, 1);
+    await _pull(tester, 1, -1);
+    final atEnd = _where(tester, 1);
+    expect(
+      atEnd.destination,
+      beforeEnd.destination,
+      reason: 'the shell answered a pull 类型 still had inside it',
+    );
+    expect(
+      atEnd.genre,
+      isNot(beforeEnd.genre),
+      reason: 'the last 题材 did not hand over to 类型',
+    );
+    _mark(
+      'shot=genre-handover from=${beforeEnd.genre}/${beforeEnd.level2} '
+      'to=${atEnd.genre}/${atEnd.level2}',
+    );
+    await _hold(tester);
+
+    // Back to the head of both of this page's levels the way a viewer does it:
+    // a 题材 is a child of the type it was picked under, so the 短剧 chip alone puts
+    // 二级 back on 全部 -- and with 短剧 the first 类型, the next pull has nothing
+    // of 分类's own left to spend and goes straight to the shell.
+    await _tapChip(
+      tester,
+      find.byKey(const ValueKey('filter-genre-categories-short_play')),
+    );
+    final head = _where(tester, 1);
+    _mark('at-head genre=${head.genre} level2=${head.level2}');
+    expect(
+      head.level2,
+      isEmpty,
+      reason: 'leaving the type did not drop the 题材 picked inside it',
+    );
+    await _swipeTo(tester, 0);
+    await _live(tester, 400);
+    _mark('shot=tab-swipe-to-discover');
+    await _hold(tester);
+
+    // 发现 answers the same two questions with the same levels; its own extra row
+    // is the mode, and 榜单 is the mode that replaces 题材 with its three boards.
+    await tester.tap(find.byKey(const ValueKey('filter-view-latest')));
+    await _live(tester, 1500);
+    _mark('shot=mode-latest view=${_shell(tester).view}');
+    await _hold(tester);
 
     await tester.tap(find.byKey(const ValueKey('filter-view-rank')));
     await _live(tester, 1600);
-    _mark('shot=rank');
-    await _live(tester, 900);
+    _mark(
+      'shot=rank level2=${_level2(tester, 0)} '
+      'genre-row=${find.byKey(const ValueKey('filter-genre-discover-short_play')).evaluate().length}',
+    );
+    await _hold(tester);
+    final beforeBoard = _where(tester, 0);
+    await _pull(tester, 0, -1);
+    final afterBoard = _where(tester, 0);
+    expect(
+      afterBoard.destination,
+      beforeBoard.destination,
+      reason: 'a board pull skipped the level that owns boards',
+    );
+    _mark('shot=rank-board from=${beforeBoard.level2} to=${afterBoard.level2}');
+    await _hold(tester);
     await tester.tap(find.byKey(const ValueKey('filter-view-recommend')));
     await _live(tester, 1200);
 
-    // The page swap itself: a horizontal drag on the grid changes the route,
-    // and the two pages keep their own state across it. The fixture drives the
-    // gesture, which is what a finger does; the stills show where it lands.
-    await _swipe(tester, 'discover', 'categories');
-    await _live(tester, 400);
-    _mark('shot=tab-swipe-to-categories');
-    await _live(tester, 900);
-
-    // 分类 answers the same question with its own level: 短剧/漫剧/AI 短剧 are
-    // pages here, so two pulls walk to the end of them without the shell
-    // hearing a word, and the rail under the chips follows the page it is on.
-    await _swipeInner(tester, 'categories', -1, 'comic_series');
-    await _swipeInner(tester, 'categories', -1, 'ai_series');
-    _mark('shot=inner-categories-last');
-    await _live(tester, 900);
-    await _swipeInner(tester, 'categories', 1, 'comic_series');
-    await _swipeInner(tester, 'categories', 1, 'short_play');
-    await _live(tester, 900);
-
-    await _swipe(tester, 'categories', 'discover');
-    _mark('shot=tab-swipe-back-to-discover');
-    await _live(tester, 900);
-    await _swipe(tester, 'discover', 'categories');
-    await _live(tester, 1600);
-
-    // The second theme of the live list: a feed the viewer has never opened.
-    await tester.tap(chips.at(1));
+    // 上下滑: the band above the list folds away and the 二级 strip stays pinned.
+    final dynamic foldState = _shell(tester);
+    await tester.drag(_page(tester, 0), const Offset(0, -1600));
     await _live(tester, 1200);
-    await _waitRows(tester, 'theme-two');
-    _mark('shot=theme-two');
-    await _live(tester, 900);
+    _mark(
+      'shot=band-collapsed collapsed=${foldState.bandCollapsed[0]} '
+      'rail-top=${tester.getRect(_rail()).top.round()} '
+      'offset=${_offsetOf(tester, 0).round()}',
+    );
+    await _hold(tester);
+    await tester.drag(_page(tester, 0), const Offset(0, 1600));
+    await _live(tester, 1200);
+    _mark(
+      'shot=band-expanded collapsed=${foldState.bandCollapsed[0]} '
+      'offset=${_offsetOf(tester, 0).round()}',
+    );
+    await _hold(tester);
+
+    // The last 类型 and its last 题材, both reached by tapping the end of the row
+    // rather than by pulling through everything in between: 发现 is the first tab,
+    // so the next pull finds nothing left inside this page and opens 分类 -- the
+    // deep end of the handover, and the first answer the shell is allowed to give
+    // from here.
+    await _tapChip(
+      tester,
+      find.byKey(const ValueKey('filter-genre-discover-ai_series')),
+    );
+    _mark(
+      'end-of-levels genre=${_shell(tester).genre} chips=${_chips().evaluate().length}',
+    );
+    await _tapRailEnd(tester, 0, last: true);
+    final beforeLast = _where(tester, 0);
+    await _pull(tester, 0, -1);
+    final afterLast = _where(tester, 0);
+    expect(
+      afterLast.destination,
+      1,
+      reason:
+          'the pull past the end of 发现 did not open 分类: '
+          '${beforeLast.genre}/${beforeLast.level2}',
+    );
+    _mark(
+      'shot=tab-swipe-to-categories from=${beforeLast.genre}/${beforeLast.level2}',
+    );
+    await _hold(tester);
+
+    // The keep-alive leg is judged on the type whose rail was already filled.
+    await _tapChip(
+      tester,
+      find.byKey(const ValueKey('filter-genre-categories-short_play')),
+    );
+
+    // Two 题材 the outward walk never stood on (that walk spent 全部 and the first
+    // two, then tapped the last), so these are feeds opened here for the first
+    // time -- and returned to a moment later.
+    final count = chips.evaluate().length;
+    expect(
+      count,
+      greaterThanOrEqualTo(6),
+      reason: 'the live rail is too short to name two unopened 题材',
+    );
+    await _tapChip(tester, chips.at(3));
+    await _waitRows(tester, 1, 'theme-two');
+    _mark('shot=theme-two level2=${_level2(tester, 1)}');
+    await _hold(tester);
 
     // Scroll inside this theme so the return can be judged against an offset.
-    await tester.drag(
-      find.byKey(const ValueKey('catalog-results-categories')),
-      const Offset(0, -420),
-    );
+    await tester.drag(_page(tester, 1), const Offset(0, -420));
     await _live(tester, 1600);
-    final dynamic state = tester.state(find.byType(LibraryPage));
-    final offset = state.scroll.offset as double;
+    final offset = _offsetOf(tester, 1);
     expect(offset, greaterThan(100), reason: 'the live list never scrolled');
     _mark('shot=theme-two-scrolled offset=${offset.round()}');
-    await _live(tester, 600);
+    await _hold(tester);
 
-    await tester.tap(chips.at(2));
-    await _live(tester, 1200);
-    await _waitRows(tester, 'theme-three');
-    _mark('shot=theme-three');
-    await _live(tester, 600);
+    await _tapChip(tester, chips.at(4));
+    await _waitRows(tester, 1, 'theme-three');
+    _mark('shot=theme-three level2=${_level2(tester, 1)}');
+    await _hold(tester);
 
-    // Back to the second theme: its rows and its offset are already painted
+    // Back to the first of them: its rows and its offset are already painted
     // while only its head refresh is in flight.
-    await tester.tap(chips.at(1));
+    await _tapChip(tester, chips.at(3));
     await _live(tester, 400);
     _mark(
-      'shot=theme-two-restored offset=${(state.scroll.offset as double).round()}',
+      'shot=theme-two-restored offset=${_offsetOf(tester, 1).round()} '
+      'was=${offset.round()}',
     );
     await _live(tester, 2500);
 
     _mark('done');
     await _live(tester, 500);
-  }, timeout: const Timeout(Duration(minutes: 5)));
+  }, timeout: const Timeout(Duration(minutes: 6)));
 }
