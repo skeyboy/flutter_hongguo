@@ -1,6 +1,6 @@
 # 发现/分类：一级页面横滑切换 + 二级联动筛选
 
-日期：2026-10-27。状态：§1–§10 是两轮前（发现↔分类外层横滑，已提交为 `7e5ea8a`）的方案与落地记录；§11 是上一轮——把每一页自己的一级也做成可横滑的页面（嵌套 `AutoTabsRouter.pageView`）并把边际逐级交接，那一轮已推送并发版为 `v0.3.6`（`5db32ab`，五端安装包已发布，过程记在 §11 第 11 条）；**§12 是本轮**——两页同构（一级在两页都是类型）、二级做成最内层可滑页、上下滑折叠顶段并让二级条吸顶，代码已落地，iPhone 实机帧已重取（读数见 §12 第 12–13 条；macOS 那一路仍录不到窗口层，实机证据只有 `ios-*` 那批）。
+日期：2026-10-27。状态：§1–§10 是两轮前（发现↔分类外层横滑，已提交为 `7e5ea8a`）的方案与落地记录；§11 是上一轮——把每一页自己的一级也做成可横滑的页面（嵌套 `AutoTabsRouter.pageView`）并把边际逐级交接，那一轮已推送并发版为 `v0.3.6`（`5db32ab`，五端安装包已发布，过程记在 §11 第 11 条）；**§12 是本轮**——两页同构（一级在两页都是类型）、二级做成最内层可滑页、上下滑折叠顶段并让二级条吸顶，代码已落地并已发版为 `v0.3.7`（`15ff0c4`，run `40610361268` 五端附件已发布，过程记在 §12 第 15 条）；iPhone 实机帧已重取（读数见 §12 第 13–14 条；macOS 那一路仍录不到窗口层，实机证据只有 `ios-*` 那批，而这批帧因链路只有十几 KB/s 还在逐张推送队列里，见第 15 条）。
 
 > 行号基线：§1–§2 是改动前（`aa3cfb7`，v0.3.5）的读数，§3–§10 是两轮前落地后的读数，§11 是上一轮（`ccbd6f9`）的读数——**它们都已过期**；当前文件的对应位置与本轮新增结构一律写在 §12。
 
@@ -203,4 +203,11 @@ macOS 窗口（1100×760）与 iPhone 模拟器（390×844）各录一遍：发�
     - 保活：`theme-two level2=cate_262` → `theme-two-scrolled offset=400` → `theme-three level2=cate_297` → `theme-two-restored offset=400 was=400`（每条题材各留一套行、一个游标、一个纵向偏移）。
     - 两处如实记下的不完美：`ios-genre-comic.png` 与 `ios-genre-handover.png` **字节相同**（同一屏，前一张没有独立信息，交接的硬证据是那两条断言）；`comic_series` 与 `ai_series` 两条腿的 `catalog.themes(...) failed: 内容接口未返回数据` 让那两处二级条拍到的是重试胶囊（上游偶发返空，本轮此前已有两跑被它挡下：一跑 `boot-failed`、一跑中途 `rail-pilled` 之后夹具改成「条是空的就如实打点而不是崩」）。
     - macOS 那一路本轮**没有重跑**：这台机器的窗口层仍录不到（§8、§11 第 10 条两次同因），所以本轮实机证据只有上面这批 `ios-*`，发布说明里也只声明 iPhone 帧。Android 手机仍挂在任务 #4（HyperOS 安装策略 + split 包 versionCode 降级两道门）。
+15. 提交、推送与发布（2026-10-28 现读）：
+    - 提交树上的门禁有两份独立读数。CI 在标签 `v0.3.7`（`15ff0c4`）上跑的就是同一套门：`preflight`、`build / plan`、`build / verify` 三个 job 全 `success`（run `40610361268`）。本地那份在分离 worktree `/tmp/honggu0-verify` 里按 `tool/verify_all.sh` 全量 `exit=0`（读数同第 13 条），而 `git diff --name-only ee4d0be 15ff0c4` 现读只有 14 个 `docs/evidence/theme-rail/*.png` 路径——门禁不读 png，所以这两棵树在门禁眼里是同一棵。该 worktree 已 `git worktree remove` 收掉。
+    - Release：run `40610361268` `completed/success`，`publishedAt=2026-10-28T00:53:27Z`，15 个附件（android 三个 abi、android-tv 三个 abi、linux `.deb` + `.tar.gz`、macOS `.dmg` + `.zip`、windows `-setup.exe` + `.zip`、`iOS-signing-status.txt`、`release-manifest.json`、`SHA256SUMS.txt`）。iOS 仍按默认未签名，所以那一路只有状态文件而没有 `.ipa`，与第 14 条「iPhone 证据来自模拟器帧」是两件事。
+    - **推送被这条链路卡住，是本轮唯一没按预期走完的一步**，读数记下来以免下一轮重新猜：上行只有十几 KB/s——同一枚 22 MB 的 release 附件下行，直连 `16320 B/s`（90s 只拿到 1.47 MB），走本机 `127.0.0.1:7897` 代理 `22347 B/s`（90s 拿到 2.01 MB）。GitHub 前端对一次 `git push` 大约 133s 返回 `HTTP 408`（`send-pack: unexpected disconnect while reading sideband packet`），于是 160 KB 的提交 13s 过、0.41 MB 的 58s 过、2.70 MB 与 5.34 MB 一律 133s 挂。`http.postBuffer=524288000` 只是把整个包先在内存里缓冲，改不了速率；`http.version=HTTP/1.1`、`lowSpeedLimit/lowSpeedTime`、`postBuffer=1` 都试过（最后一种 19s 就断，更糟）。备用传输也没有：`ssh -T git@github.com` 回 `Permission denied (publickey)`。
+    - 所以推送的形状是**一张帧一个提交**，并且每次只点名一个提交：`git push origin <sha>:refs/heads/main` 只交出那一个提交的对象，链路回暖一次就前进一张；若一次推整段 `origin/main..HEAD`，那个包是队里剩余帧的全部字节（现读 12 个文件），一定进不去。重试交给 `tool/push_pending_commits.sh`（本轮入库，`ROUNDS` / `MAX_FAILS` 可调，日志默认 `build/push_pending_commits.log`），它每轮 `git fetch` 后重取队首，跑完打 `LOOP-END head=… remote=… pending=<还剩几张>`——链路回暖后重跑一次即可接着推。
+    - 写下这条时的现读：远端已有本轮 15 张帧里的 3 张（`cbc28ce` 的 `ios-tab-swipe-to-categories.png`、`e35d530` 的 `ios-level2-first-pull.png`、`86da0c9` 的 `ios-band-expanded.png`），队里还排 12 张，按体积升序（最小 1.97 MB、最大 3.05 MB），`ios-genre-handover.png` 与 `ios-genre-comic.png` 字节相同（第 14 条那对），所以第二张只多一个树条目、不多一帧的字节。这也说明 `v0.3.7` 那个树里 `findings.md` 点到的 14 张 `ios-*` 还没全在远端：**帧全部在本机磁盘与本地提交里，远端只有已推的那几张**，队列推完之前不要在别处写成「证据帧已同步」。
+    - 一个容易误判的判据：408 之后 git 照样会打 `Everything up-to-date`，所以「推成功了」不能看这句，只有 `main -> main` 那一行、或 `git rev-list --count origin/main..HEAD` 真的变小才算过——与第 13 条那个 `dart format` 半途 `exit=1` 却留下旧日志的坑同形。
 
