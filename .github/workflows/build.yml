@@ -140,7 +140,7 @@ jobs:
       - name: Build Windows
         if: matrix.platform == 'windows'
         working-directory: packages/app
-        run: flutter build windows --release --target-platform windows-x64 --target lib/main.dart
+        run: flutter build windows --release --target lib/main.dart
       - name: Build Linux
         if: matrix.platform == 'linux'
         working-directory: packages/app

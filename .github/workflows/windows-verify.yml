@@ -28,4 +28,4 @@ jobs:
         run: flutter test --no-pub --reporter expanded
       - name: Compile Windows release
         working-directory: packages/app
-        run: flutter build windows --release --no-pub --target-platform windows-x64 --target lib/main.dart
+        run: flutter build windows --release --no-pub --target lib/main.dart
