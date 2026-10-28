@@ -1,19 +1,20 @@
 {
   "repository": "https://github.com/sunnysky123/hongguo-web",
-  "revision": "407cf5d6d6f2e06a57ffcb00e561ad0004437198",
-  "checkedAt": "2026-10-21",
-  "packageVersion": "1.1.2",
+  "revision": "38418358fae6d41a37d397524a2d4c17d7a4afc8",
+  "checkedAt": "2026-10-28",
+  "packageVersion": "1.1.5",
   "files": {
-    "server/src/core/pure-sign.js": "3186e6289c8d7f745c91bc2c18cb3e1feecb2226ad31a39455ca30fa0ebd86bf",
-    "server/src/core/spade.js": "2ffc36b7d65259721c014698092b461fe9a987545f49691f92b29b3be0fc5f30",
-    "server/src/core/mp4.js": "d13d3a199f6dd5691ccb950089dc038d227d86e5f8d5e5beff4bc6e54d549927",
+    "server/config/config.json": "71632134506cd21d4118c15d741352432224894ecc74b9bbfa10339914f29204",
     "server/src/core/device.js": "d3535d14d29224eab98267b24c038f81238eb46d7eb203e25e79fa902a47df1e",
+    "server/src/core/mp4.js": "d13d3a199f6dd5691ccb950089dc038d227d86e5f8d5e5beff4bc6e54d549927",
+    "server/src/core/pure-sign.js": "3186e6289c8d7f745c91bc2c18cb3e1feecb2226ad31a39455ca30fa0ebd86bf",
     "server/src/core/safeguards.js": "29507612397f6dc2dc406f0e09a1a7a3f5e2951e41eb177a0b75f72f67a04bfb",
-    "server/src/service/client.js": "c48ed917acc598fe03c6eaf72e9e52f10d4c1bca79a4abf31be6b4efa80533f3",
-    "server/src/service/app-source.js": "c3bd0a92bf074ff52b92c464e53cd0438aeac2d988122d34adf861212af7990f",
-    "server/src/service/web-source.js": "ff1d4c4b261163cd7481782be3d860de7e0f3afc2498626cd4562d62240c6793",
+    "server/src/core/spade.js": "2ffc36b7d65259721c014698092b461fe9a987545f49691f92b29b3be0fc5f30",
+    "server/src/service/app-source.js": "6d89bd30417131a9a1ff95565b6efe4791500d92e53eb484a49d4ec7f32abcfb",
+    "server/src/service/client.js": "2a81669f5bceb17b67a1eb1982e1343d17e94bb6ede1c2daa53f4182b5b34f61",
+    "server/src/service/playback-device.js": "2c014debf5481c2e43b55c0582558109a02736a0c48ea50005d4ed0ad4a8cf15",
+    "server/src/service/web-source.js": "bb57d85a9b3e7d992dad5ccfb938ff85ac0fe6231f1c2d41f029a24c50387513",
     "server/src/util/crypto.js": "f9cbdf10130d535f37cd98d59c18d531c2e2a21db8a2fa38d77654136eb44fa8",
-    "server/src/util/http.js": "79d5fb5852e220197b91a41b763a841b54329ac7b251f4482b53f9243aa30c64",
-    "server/config/config.json": "20b0c02588fa7bcb68c0d87b2f25ed5c3dd148c6e599153bc3e7e6ac840fb6ea"
+    "server/src/util/http.js": "79d5fb5852e220197b91a41b763a841b54329ac7b251f4482b53f9243aa30c64"
   }
 }

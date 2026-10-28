@@ -45,10 +45,7 @@ Future<void> main(List<String> args) async {
       ),
     );
   }
-  final catalog = CatalogClient(
-    dio: dio,
-    deviceId: VideoRequestBuilder.defaultDevice()['device_id']!,
-  );
+  final catalog = CatalogClient(dio: dio, deviceId: newCatalogDeviceId());
   final rest = args.where((a) => !a.startsWith('--')).toList();
   final seriesId = rest.length > 1 ? rest[1] : null;
   final page = await catalog.browse();

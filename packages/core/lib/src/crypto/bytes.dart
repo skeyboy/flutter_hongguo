@@ -51,6 +51,26 @@ Uint8List aesCbcDecrypt(Uint8List key, Uint8List iv, Uint8List ciphertext) {
   return out;
 }
 
+/// PKCS#7 CBC for the anonymous device-registration envelope, which Node's
+/// `createCipheriv('aes-128-cbc', ...)` produces and the log endpoint unwraps.
+Uint8List aesCbcEncryptPkcs7(Uint8List key, Uint8List iv, Uint8List plain) {
+  if (key.length != 16 || iv.length != 16) {
+    throw ArgumentError('AES-128-CBC requires a 16-byte key and IV');
+  }
+  final cipher =
+      pc.PaddedBlockCipherImpl(
+        pc.PKCS7Padding(),
+        pc.CBCBlockCipher(pc.AESEngine()),
+      )..init(
+        true,
+        pc.PaddedBlockCipherParameters(
+          pc.ParametersWithIV(pc.KeyParameter(key), iv),
+          null,
+        ),
+      );
+  return cipher.process(plain);
+}
+
 final _secureRandom = Random.secure();
 Uint8List secureBytes(int length) => Uint8List.fromList(
   List.generate(length, (_) => _secureRandom.nextInt(256)),

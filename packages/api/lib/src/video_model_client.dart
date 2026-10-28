@@ -4,14 +4,18 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 
+import 'network_retry.dart';
+import 'playback_device.dart';
 import 'request_control.dart';
 
-/// Raw bytes and the exact encoded URI are frozen together before signing.
-class SignedVideoRequest {
+/// The URL, its exact body bytes and the exact headers, frozen together: the
+/// upstream answers by the pair, so a query rebuilt after signing (or after the
+/// identity was chosen) is a different request.
+class VideoRequest {
   final String url;
   final Uint8List body;
   final Map<String, String> headers;
-  SignedVideoRequest(this.url, Uint8List body, Map<String, String> headers)
+  VideoRequest(this.url, Uint8List body, Map<String, String> headers)
     : body = Uint8List.fromList(body).asUnmodifiableView(),
       headers = Map.unmodifiable(headers);
 }
@@ -30,36 +34,34 @@ String encodeQueryPart(String value) => utf8.encode(value).map((b) {
 class VideoRequestBuilder {
   static const endpoint =
       'https://api5-normal-sinfonlineb.fqnovel.com/novel/player/multi_video_model/v1/';
-  static const userAgent =
-      'com.phoenix.read/71332 (Linux; U; Android 16; zh_CN; 25053RT47C; '
-      'Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 '
-      'QuicVersion:c67e9834 2025-09-08)';
-  final PureSign signer;
+
+  /// The player's own UA. Since 2026-10-27 this request is only answered when it
+  /// is anonymous -- registered device identity, no signature headers -- and the
+  /// upstream pairs that shape with this UA, which is a different build than the
+  /// one the list/detail traffic reports.
+  static const playbackUserAgent =
+      'com.phoenix.read/71532 (Linux; U; Android 9; SM-N9860; '
+      'Build/PQ3A.190705.10241111;tt-ok/3.12.13.20)';
+
   final AppSettings protocol;
-  final Map<String, String> sessionHeaders;
+  final String playbackUA;
   final int Function() clockMillis;
   final Map<String, String> Function() deviceFactory;
   VideoRequestBuilder({
     this.protocol = const AppSettings(),
-    this.sessionHeaders = const {},
-    PureSign? signer,
+    String? playbackUserAgent,
     int Function()? clockMillis,
     Map<String, String> Function()? deviceFactory,
-  }) : signer = signer ?? PureSign(),
+  }) : playbackUA = playbackUserAgent ?? VideoRequestBuilder.playbackUserAgent,
        clockMillis =
            clockMillis ?? (() => DateTime.now().millisecondsSinceEpoch),
        deviceFactory = deviceFactory ?? defaultDevice {
     protocol.validate();
   }
 
-  static String _id() {
-    var value = BigInt.zero;
-    for (final b in secureBytes(6)) {
-      value = (value << 8) | BigInt.from(b);
-    }
-    return '${BigInt.parse('1000000000000000') + value}';
-  }
-
+  /// The fixed device template the player reports. `device_id` and `iid` are
+  /// deliberately absent: they come from the anonymous registration, and a
+  /// synthesised pair per request is what upstream started refusing.
   static Map<String, String> defaultDevice() => {
     'ac': 'wifi',
     'channel': 'update_64',
@@ -86,10 +88,8 @@ class VideoRequestBuilder {
     'need_personal_recommend': '1',
     'player_so_load': '1',
     'is_android_pad_screen': '0',
-    'iid': _id(),
-    'device_id': _id(),
   };
-  SignedVideoRequest build(String vid) {
+  VideoRequest build(String vid, {required PlaybackDevice device}) {
     if (!RegExp(r'^\d{1,30}$').hasMatch(vid)) {
       throw ArgumentError.value(vid, 'vid');
     }
@@ -112,44 +112,29 @@ class VideoRequestBuilder {
         }),
       ),
     );
-    final now = clockMillis(), ts = now ~/ 1000;
-    String? url;
-    var ticket = now;
-    for (var offset = 0; offset < 32; offset++) {
-      ticket = now + offset;
-      final query = {
-        ...deviceFactory(),
-        'version_code': protocol.videoVersionCode,
-        'version_name': protocol.videoVersion,
-        'manifest_version_code': protocol.videoVersionCode,
-        'update_version_code': protocol.videoVersionCode,
-        'pv_player': protocol.videoVersionCode,
-        'ts': '$ts',
-        '_rticket': '$ticket',
-      };
-      url =
-          'https://${protocol.videoHost}/novel/player/multi_video_model/v1/?${query.entries.map((e) => '${encodeQueryPart(e.key)}=${encodeQueryPart(e.value)}').join('&')}';
-      if (signer.branchOf(url, body, ts) != 1) break;
-    }
-    // Fail explicitly rather than sending a known incompatible variant.
-    if (signer.branchOf(url!, body, ts) == 1) {
-      throw StateError('No compatible signing branch after 32 attempts');
-    }
-    return SignedVideoRequest(url, body, {
-      'User-Agent': protocol.videoUserAgent,
-      ...sessionHeaders,
+    // The registered identity is appended after the fixed template, in the order
+    // the player itself sends it: query encoding is positional, and this request
+    // is answered by the pair of URL bytes and body bytes.
+    final query = {
+      ...deviceFactory(),
+      'version_code': protocol.videoVersionCode,
+      'version_name': protocol.videoVersion,
+      'manifest_version_code': protocol.videoVersionCode,
+      'update_version_code': protocol.videoVersionCode,
+      'pv_player': protocol.videoVersionCode,
+      'device_id': device.deviceId,
+      'iid': device.iid,
+      '_rticket': '${clockMillis()}',
+    };
+    final url =
+        'https://${protocol.videoHost}/novel/player/multi_video_model/v1/'
+        '?${query.entries.map((e) => '${encodeQueryPart(e.key)}=${encodeQueryPart(e.value)}').join('&')}';
+    // No signature headers and no session: this endpoint started refusing the
+    // signed shape on 2026-10-27, and the anonymous one is what answers.
+    return VideoRequest(url, body, {
+      'User-Agent': playbackUA,
       'Accept': 'application/json; charset=utf-8,application/x-protobuf',
       'Content-Type': 'application/json; charset=UTF-8',
-      'Content-Length': '${body.length}',
-      'x-xs-from-web': '0',
-      'x-ss-req-ticket': '$ticket',
-      'x-tt-request-tag': 't=0;n=0',
-      'sdk-version': '2',
-      'passport-sdk-version': '50561',
-      'x-vc-bdturing-sdk-version': '3.7.2.cn',
-      'x-ss-stub': hex(md5(body)).toUpperCase(),
-      ...signer.sign(url, body, ts),
-      'x-tt-dt': '',
     });
   }
 }
@@ -178,13 +163,19 @@ class VideoTrack {
 class VideoModelClient {
   final Dio dio;
   final VideoRequestBuilder builder;
+  final NetworkRetry retry;
+  final PlaybackDeviceRegistry devices;
   final CatalogRequests _requests;
   VideoModelClient({
     required this.dio,
     VideoRequestBuilder? builder,
+    NetworkRetry? retry,
+    PlaybackDeviceRegistry? devices,
     Duration requestDeadline = const Duration(seconds: 12),
     void Function(MetadataTiming)? onTiming,
   }) : builder = builder ?? VideoRequestBuilder(),
+       retry = retry ?? NetworkRetry(),
+       devices = devices ?? PlaybackDeviceRegistry(dio: dio),
        _requests = CatalogRequests(
          deadline: requestDeadline,
          onTiming: onTiming,
@@ -206,61 +197,107 @@ class VideoModelClient {
 
   Future<Map<String, dynamic>> _fetchVideoInfo(String vid) async {
     final budget = RequestBudget.current;
-    final clock = Stopwatch()..start();
-    final request = builder.build(vid);
-    budget.record('sign', clock.elapsed);
-    final first = await budget.transport(
-      () => dio.fetch<String>(
-        Options(
-              method: 'POST',
-              headers: request.headers,
-              responseType: ResponseType.plain,
-              followRedirects: false,
-              sendTimeout: _timeout(5),
-              receiveTimeout: _timeout(8),
-            )
-            .compose(
-              dio.options,
-              request.url,
-              data: Stream<Uint8List>.value(request.body),
-              cancelToken: budget.token,
-            )
-            .copyWith(connectTimeout: _timeout(5)),
-      ),
+    // One process-wide registration buys the identity this endpoint insists on;
+    // it is measured inside the same deadline rather than retried on its own, so
+    // a log endpoint that is not answering cannot turn into a request storm.
+    final device = await budget.measure(
+      'register',
+      () => devices.get(cancelToken: budget.token),
     );
-    if (first.statusCode != 200) {
-      throw StateError('App HTTP ${first.statusCode}');
+    final request = builder.build(vid, device: device);
+    // Both hops answer HTTP 200 with nothing often enough that a bare decode
+    // used to reach the viewer as `FormatException: Unexpected end of input`.
+    // The status check and the decode are inside the recovery, so an empty or
+    // truncated envelope -- not only a transport failure -- gets its two bounded
+    // tries within this request's own deadline, exactly as the catalog's
+    // metadata hops do. A response that *did* carry an envelope and declined the
+    // episode is not in that category: repeating it changes nothing, so it stops
+    // as PlaybackUnavailable.
+    final model = await retry.run(
+      () => budget.transport(() async {
+        final first = await dio.fetch<String>(
+          Options(
+                method: 'POST',
+                headers: request.headers,
+                responseType: ResponseType.plain,
+                followRedirects: false,
+                sendTimeout: _timeout(5),
+                receiveTimeout: _timeout(8),
+              )
+              .compose(
+                dio.options,
+                request.url,
+                data: Stream<Uint8List>.value(request.body),
+                cancelToken: budget.token,
+              )
+              .copyWith(connectTimeout: _timeout(5)),
+        );
+        if (first.statusCode != 200) {
+          throw const PlaybackUnavailable('暂时取不到这一集的播放信息，请稍后重试');
+        }
+        final outer = _envelope(first.data);
+        _checkCodes(outer);
+        // The answer is nested three levels deep, and any of those levels can
+        // come back empty -- an envelope with no `data` is how upstream refuses
+        // an identity it does not recognise, the same missing answer as an empty
+        // body, so it is named and recovered the same way.
+        final data = _envelope(outer['data']);
+        if (data.isEmpty) {
+          throw const IncompleteCatalogResponse('播放信息未返回数据，请稍后重试');
+        }
+        final entry = _envelope(data[vid]);
+        if (entry.isEmpty) {
+          throw const PlaybackUnavailable('这一集暂时没有可播的片源，请稍后重试或换一集');
+        }
+        return _envelope(entry['video_model']);
+      }),
+      budget: budget,
+    );
+    // The newer answer carries the tracks inside video_model itself; only the
+    // shape that hands back a fallback_api still needs a second hop. Asking for
+    // one when the list is already here would drop playback on an endpoint that
+    // has nothing to add.
+    final inlined = model['video_list'];
+    final hasList =
+        (inlined is Map && inlined.isNotEmpty) ||
+        (inlined is List && inlined.isNotEmpty);
+    if (hasList) return model;
+    if (model.isEmpty) {
+      throw const PlaybackUnavailable('这一集暂时没有可播的片源，请稍后重试或换一集');
     }
-    final outer = _object(first.data);
-    _checkCodes(outer);
-    final entry = _object(_object(outer['data'])[vid]);
-    final model = _object(entry['video_model']);
-    final fallback = _fallback(model['fallback_api']);
-    final uri = MediaUrlDecoder.checked(fallback, [
+    final uri = MediaUrlDecoder.checked(_fallback(model['fallback_api']), [
       'fqnovel.com',
       'snssdk.com',
     ]);
-    final second = await budget.transport(
-      () => dio.fetch<String>(
-        Options(
-              headers: {'User-Agent': builder.protocol.videoUserAgent},
-              responseType: ResponseType.plain,
-              followRedirects: false,
-              receiveTimeout: _timeout(8),
-            )
-            .compose(dio.options, uri.toString(), cancelToken: budget.token)
-            .copyWith(connectTimeout: _timeout(5)),
-      ),
+    final data = await retry.run(
+      () => budget.transport(() async {
+        final second = await dio.fetch<String>(
+          Options(
+                headers: {'User-Agent': builder.protocol.videoUserAgent},
+                responseType: ResponseType.plain,
+                followRedirects: false,
+                receiveTimeout: _timeout(8),
+              )
+              .compose(dio.options, uri.toString(), cancelToken: budget.token)
+              .copyWith(connectTimeout: _timeout(5)),
+        );
+        if (second.statusCode != 200) {
+          throw const PlaybackUnavailable('暂时取不到这一集的播放信息，请稍后重试');
+        }
+        final result = _envelope(second.data);
+        _checkCodes(result);
+        final info = _envelope(result['video_info']);
+        _checkCodes(info);
+        // The envelope inside this body is nested two more levels, and any of
+        // them can arrive as an empty string from upstream -- the same missing
+        // answer, so it is named the same way and recovered the same way.
+        return _envelope(info['data']);
+      }),
+      budget: budget,
     );
-    if (second.statusCode != 200) {
-      throw StateError('fallback HTTP ${second.statusCode}');
+    if (data.isEmpty) {
+      throw const PlaybackUnavailable('这一集暂时没有可播的片源，请稍后重试或换一集');
     }
-    final result = _object(second.data);
-    _checkCodes(result);
-    final info = _object(result['video_info']);
-    _checkCodes(info);
-    final data = _object(info['data']);
-    if (data.isEmpty) throw StateError('No video info');
     return data;
   }
 
@@ -275,8 +312,9 @@ class VideoModelClient {
   static List<VideoQuality> availableQualities(Map<String, dynamic> info) {
     selectTrack(info); // Automatic must itself be playable.
     final options = <int, VideoQuality>{};
-    for (final entry in _object(info['video_list']).entries) {
-      final item = _object(entry.value);
+    final rows = _videoList(info);
+    for (var index = 0; index < rows.length; index++) {
+      final item = _object(rows[index]);
       final meta = _object(item['video_meta']);
       var width = 0, height = 0;
       for (final pair in [
@@ -298,7 +336,7 @@ class VideoModelClient {
       try {
         selectTrack({
           ...info,
-          'video_list': {entry.key: entry.value},
+          'video_list': {'$index': rows[index]},
         });
         options.putIfAbsent(
           pixels,
@@ -326,7 +364,6 @@ class VideoModelClient {
     Map<String, dynamic> info, {
     String quality = 'best',
   }) {
-    final list = _object(info['video_list']);
     final seedText = info['key_seed'] as String? ?? '';
     final seed = seedText.isEmpty ? null : decodeBase64(seedText);
     final auto = quality.isEmpty || quality == 'best' || quality == 'auto';
@@ -344,7 +381,7 @@ class VideoModelClient {
             int size,
           })
         >[];
-    for (final value in list.values) {
+    for (final value in _videoList(info)) {
       final item = _object(value), meta = _object(_object(value)['video_meta']);
       String first(List<dynamic> values) =>
           values
@@ -447,17 +484,70 @@ class VideoModelClient {
   }
 }
 
-Map<String, dynamic> _object(dynamic value) {
+/// One envelope the player's own answer is built from: the body of a hop or a
+/// level nested inside it. Decoded in one place because upstream answers these
+/// with HTTP 200 and nothing -- or with a body cut off mid-write -- often enough
+/// that a bare `jsonDecode` used to surface to the viewer as
+/// `FormatException: Unexpected end of input (at character 1)`. This marker is
+/// what `NetworkRetry` gives two bounded tries and what the player overlay
+/// prints, so a missing answer has to be named in the viewer's language.
+Map<String, dynamic> _envelope(dynamic value) {
   if (value is String) {
-    value = jsonDecode(value);
+    if (value.trim().isEmpty) {
+      throw const IncompleteCatalogResponse('播放信息未返回数据，请稍后重试');
+    }
+    try {
+      value = jsonDecode(value);
+    } on FormatException {
+      throw const IncompleteCatalogResponse('播放信息返回不完整，请重试');
+    }
   }
   return value is Map ? Map<String, dynamic>.from(value) : {};
 }
 
+/// A refusal that already carries an answer: the envelope arrived, declined this
+/// episode, and repeating the request would ask the same question. The message is
+/// what the player overlay prints under 暂时无法播放, so it is written in the
+/// viewer's language rather than as a Dart error name.
+class PlaybackUnavailable implements Exception {
+  final String message;
+  const PlaybackUnavailable(this.message);
+  @override
+  String toString() => message;
+}
+
+/// The rows of `video_list`, which the fallback hop returns as an object keyed by
+/// resolution and the inlined model returns as an array -- the same rows either
+/// way, so both are read as their values.
+List<dynamic> _videoList(Map<String, dynamic> info) {
+  final value = info['video_list'];
+  if (value is Map) return value.values.toList();
+  if (value is List) return value;
+  return const [];
+}
+
+/// A field the upstream may simply leave out: an empty or unreadable value here
+/// is one row without an optional envelope, not a missing answer for the whole
+/// request, so it falls back to an empty map rather than to the retry marker.
+Map<String, dynamic> _object(dynamic value) {
+  if (value is String) {
+    if (value.trim().isEmpty) return {};
+    try {
+      value = jsonDecode(value);
+    } on FormatException {
+      return {};
+    }
+  }
+  return value is Map ? Map<String, dynamic>.from(value) : {};
+}
+
+/// A business refusal inside an envelope that did arrive. Repeating the question
+/// changes nothing, so this is not the retry marker; the message replaces the raw
+/// upstream code because it is what the viewer reads under 暂时无法播放.
 void _checkCodes(Map<String, dynamic> data) {
   for (final key in ['Code', 'code']) {
     if (data[key] != null && '${data[key]}' != '0') {
-      throw StateError('Upstream $key=${data[key]}');
+      throw const PlaybackUnavailable('这一集暂时不能播放，请稍后重试或换一集');
     }
   }
 }

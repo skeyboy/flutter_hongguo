@@ -27,7 +27,7 @@ Future<void> main(List<String> args) async {
   final identity = File('${root.path}/device-id.txt');
   var id = identity.existsSync() ? identity.readAsStringSync().trim() : '';
   if (!RegExp(r'^\d{10,20}$').hasMatch(id)) {
-    id = VideoRequestBuilder.defaultDevice()['device_id']!;
+    id = newCatalogDeviceId();
     identity.writeAsStringSync(id);
   }
   final catalog = CatalogClient(dio: dio, deviceId: id);

@@ -1,0 +1,105 @@
+{
+  "generator": "tool/generate_register_vector.cjs",
+  "reference": "server/src/service/playback-device.js",
+  "note": "Produced offline from the pinned reference implementation.",
+  "response": {
+    "code": 0,
+    "device_id": 7661622467441479000,
+    "device_id_str": "7661622467441478681",
+    "install_id": 3912088544850522,
+    "install_id_str": "3912088544850522",
+    "cdid": "cdid-from-response"
+  },
+  "vectors": [
+    {
+      "index": 0,
+      "seed": 1000,
+      "now": 1700000000123,
+      "url": "https://log5-applog-lf.fqnovel.com/service/2/device_register/?tt_data=a&cronet_version=8d40f833_2026-03-03&ttnet_version=4.2.243.31-douyin&use_store_region_cookie=1",
+      "method": "POST",
+      "headers": {
+        "User-Agent": "com.phoenix.read/72232 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3)",
+        "Accept": "application/json",
+        "Content-Type": "application/octet-stream;tt-data=a",
+        "log-encode-type": "gzip",
+        "x-ss-dp": "8662",
+        "x-ss-req-ticket": "1700000000123",
+        "x-vc-bdturing-sdk-version": "4.0.3.cn",
+        "lc": "101",
+        "sdk-version": "2",
+        "passport-sdk-version": "5051452",
+        "x-neptune": "-8|50:51:59:30:40:47:49:39",
+        "x-ss-stub": "5E5697E9B8DB76857F767B28295E38EA"
+      },
+      "prefixHex": "746305100000",
+      "randomHex": "3907858c79b3559cdc83f76c9c5ea2f468134faf4e72f224aec45d5f2e2c6c15",
+      "bodyBase64": "dGMFEAAAOQeFjHmzVZzcg/dsnF6i9GgTT69OcvIkrsRdXy4sbBUdzf4J9DcOkgiSNt+xSWNv8LIscx+xJ11FyPA/SaGHJMcIsFlhiEwfY1xWl6iAr4qeYBX4ArXwS63dHjJ/vhi06GKSHe0Tx4D10McuIiWlVfeafrfMmwThU6Qs968HNBuSH7hwPnEBr5epnoRhEJa7OOsCHvV8bSk/umAX21TVFy/0h4DEtycEqAPEOin4UKK/WZkPOHBlwcOkMUdn61K1UyG02xOyMR2D7jcgXm1rpptFQxRWZvN1wXWmMWoXQHA+9YbsSHvSUap1/0Li/Br2Yt5L3ySYA9r+ghwwq+EgGIa4NcfjDZRYaO3zTyvxZ9EDtWZ38nHVPxgKrX1SBfkZBogId1DAYvvavWoAdFwCtO3FRX/WQuyjK4G0t5Xuic4qRYKQQcSZ3lG7LYhfRk17z1RATfCpYwSYdySoEL6dSH23CXMFFjE91iXwmfX75ey9caBftajA5i+rRzgAYslHrXQLK0lAZVJbiQABPJBzxALS+BJnmKpGuMWGzBGTjJFvvYqmz2aiBaTov1fNcFazfMFfJc/MCekpVFgfSdHTeF8+alIfPZqytbL9dzbYviYoAcJbgrKFJdFVFcnzkO9ZyPyQ5Vg4TjdZhHVIlxq8o5JDOrpjVJSbGtkyZq29Aw93b1mPQyB1fy+n6bMiFAETOUYXzCkQSSqos1dPQ+w62bd/38fis2c/5HWV2UN3AwUtKvLvPztRlDKln9T0VuVXi0kEyHUiT27qwJkbyEK8j51ppX+Mi+K/x6FexJf88FwMRHtDWWCGhb9fdCyAm5TdK4Mzy541AHtWSgdkiTp7hAU8pvWT1s7nmg8KL/BTmcStR71oLCkeB6HJ/2t9CoiSXO4NBZBsHsfkMo5T7vIPaM737c/YO7gaa5k9jexVB4jTKfrpi05KHaBEMWK9/bCdk+c4aSYXrZDKL74YK2K80R1Jh+613nyz9lNMcxXN/huOl4J1ToaN2nvZdWk9OVDvedMyXyjlOu5vqV/zZp3+Qe4vWT7NvbyWZhd8Oua/P1FOpVpyzvi4q1kwFW+NeoOj3U2kWatD1PEjaAzLmnPX3yYS+Mzt5VZulL1vXZWCMtFFDKs79WBq9pXFpEHwzzpDQcFslQkNyRcq2tsnhFrWHzXzN7tfFJU6+ImPxTYl9S4=",
+      "bodyBytes": 902,
+      "identity": {
+        "device_id": "7661622467441478681",
+        "iid": "3912088544850522",
+        "cdid": "uuid-1"
+      }
+    },
+    {
+      "index": 1,
+      "seed": 1001,
+      "now": 1700000000123,
+      "url": "https://log5-applog-lf.fqnovel.com/service/2/device_register/?tt_data=a&cronet_version=8d40f833_2026-03-03&ttnet_version=4.2.243.31-douyin&use_store_region_cookie=1",
+      "method": "POST",
+      "headers": {
+        "User-Agent": "com.phoenix.read/72232 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3)",
+        "Accept": "application/json",
+        "Content-Type": "application/octet-stream;tt-data=a",
+        "log-encode-type": "gzip",
+        "x-ss-dp": "8662",
+        "x-ss-req-ticket": "1700000000123",
+        "x-vc-bdturing-sdk-version": "4.0.3.cn",
+        "lc": "101",
+        "sdk-version": "2",
+        "passport-sdk-version": "5051452",
+        "x-neptune": "-8|50:51:59:30:40:47:49:39",
+        "x-ss-stub": "9F4F17662F371E2FC845C23A013B19B0"
+      },
+      "prefixHex": "746305100000",
+      "randomHex": "bb16f93c73a78f130386444f4dee4d078784e8741d10884ca560c34c0afe523a",
+      "bodyBase64": "dGMFEAAAuxb5PHOnjxMDhkRPTe5NB4eE6HQdEIhMpWDDTAr+UjpMz5vcXEsrCV6YcUQVAWRbPLCBKPpRXVfRz/Apo5S9/aElzi93itSq+OMwZHCxJnT2BOL0rUhT8lcfFSmBQUdte3hljpO6poGwCSKCKeINXkXlrQsPuqLnXV0tsidkKyulFwDBEzPxpPN0h9npxWRUmJ09rf7IbC9d/Qtw2I72Q/DkbC3a3V49IBWzbwSOuwpsSrXvyfO49eaSZFIrVFs3u5g0Ebja2iNlTZ9hl4e+ru/hobr40TMJXWhObnMmFI4iWsu1W7PCj2KaCJHT7t3q5TeI5J1SE8NdRLmuwyUf9BbtJgewD/8IAN4T+DqFiJJG05e6gn2YNN+y0rkHTM/f5lQO6aRLW3MGyMopaDOlpJeI5dmTJszFwOsOU4hQS9vi6tkAlLgx4865JmgYrzMIhgdwB9S5S7Zn9WcDWJZfMaEP4/OSN6VVv7KaktRH17cAeIxGXH76ImJ3zxFjLBy4uDP5M8eSMEA1opFhO9a+U+IwXkCCZ+VIWnsQExY0Cg1k3lG9Spqp12S04uTa3fK+TjO+XhmKW5e18DwqK2fM+rMvEXvk/PNtSqmFEszuB8xx/aiHZMjWUBZkSvcze8oboIv0GkJ3R/D1F+mERW2F9JUVJsXe/VhXPSFzq+TzTAvJpnFNCRZLSWE7isrshJ0L2Jcr6zuKytR3nxmmwRMK2GrI13J1zvn6oISf34tm+dcXeG2BYo8vnhkzoZS8bus09be2HMXCEEmRCq/dgMdasKHjQC/9pyVd0y2Meoye7FZsx6tLsRQW0ZChgn5QQXUcepg7ljmtihQ5vVk9AE1RFsIjnkLtMUdqagKAcrGaLM4fmihklZpXOCGfmNAsxZyc3rfsB7fX6Dzz46xCniSNesXLDki87x25cdyE+0nO/ET0R1Svg/1OjOY+16lZvyuJ3nwU+TDAQ6YYtUHcy7lR0xf1oUewJAopeNsGZwffN+uIfu9daF887IkgF2Y88dSkXUitY7CrEeXNtSq3V9cO5Tk2dCjMYHy7ROGGZfr2eMCCqe8mGpynG2xl/1E7wR2mFS2IsZ1LMulwCZCTmWK43MOes6ATmy35I7PVx6dgnDttgHrtLsCV/XLwnbQZ2ChWZXgoSdHilPLzJPQst8jiVRhq8CxPI29Znjl75QYFTxY=",
+      "bodyBytes": 902,
+      "identity": {
+        "device_id": "7661622467441478681",
+        "iid": "3912088544850522",
+        "cdid": "uuid-1"
+      }
+    },
+    {
+      "index": 2,
+      "seed": 1002,
+      "now": 1700000000123,
+      "url": "https://log5-applog-lf.fqnovel.com/service/2/device_register/?tt_data=a&cronet_version=8d40f833_2026-03-03&ttnet_version=4.2.243.31-douyin&use_store_region_cookie=1",
+      "method": "POST",
+      "headers": {
+        "User-Agent": "com.phoenix.read/72232 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3)",
+        "Accept": "application/json",
+        "Content-Type": "application/octet-stream;tt-data=a",
+        "log-encode-type": "gzip",
+        "x-ss-dp": "8662",
+        "x-ss-req-ticket": "1700000000123",
+        "x-vc-bdturing-sdk-version": "4.0.3.cn",
+        "lc": "101",
+        "sdk-version": "2",
+        "passport-sdk-version": "5051452",
+        "x-neptune": "-8|50:51:59:30:40:47:49:39",
+        "x-ss-stub": "52F2B6F537C544595884A5225098FEEE"
+      },
+      "prefixHex": "746305100000",
+      "randomHex": "3d256eeb6d9bca8a2b8a9032fe7ff919a5f58238edae1f749cfb2838e5d13860",
+      "bodyBase64": "dGMFEAAAPSVu622byooripAy/n/5GaX1gjjtrh90nPsoOOXROGBqK9DZY8U28TOezT9HwGyKzlrbkhy/257r2C9lJIWuBrc8fDciI0LtY2bV8TvPEi2FTI6UGrgriSYw30syhGPM0xXt+YYsv5xSSLQbWewqRWfmSbll8icCtz+Ce/0E58BSP7vKIOOz9i4xISOcxncD7Ie1F1wY/lJcyjPyitPqqV5cLXYeLK0HRWN5LO3l6lXsBEo4gOy2GTkMk8nyvne8JmKUx2WhbJTb7tGL5BE4zcDNHQE14LnjgK4AkSibhm3/5m7DJxquch9m9AmUxujE/JRYOdXSi2iXdSLjo/38FLIHsg/ZeJKvlYF6GYkyqxZ8XCy4M4e91PZdlu15vN33rCou9s4TTa2whyVQVsszYZV/DDcHWni0gdNFdcGCvfAp49vw+2866HrEManUiXAH+clLjAQpCna91rzuG4ffrOA0Osvf5++IpLu/JKC/ZKTDfHqMT8/WM2iZpwlSmvV6xyI2TmappJjz3iS1DVkemZ0pTEz88Ze4/ZtWc2zUa4emdK1rd3OrvmKKMjz683dTBecUMWozHSuVj3ngJSm9ih3o2wTVJcy0rnxxSqcT0NasREA0MjJwkTogCliYkVpiPLH/VwKSM9NrcX0LzQgeILzL/5ofDnbZMg/hBboCtfDfYvgtkSIRHQ1oK+me31DIfHl4Ueo1MZIIvvrSvbllyJ0ilPkS8kZUoYOgSgiUJ5QppqMgDPp4RDuCBt0EWKJL32FyKNdpiADFko7gp670X5kTP5/Qjh5d77QiNJls5/8aM+vO6C3d76YDEFg2DcMDwwc8tCf+LFcMiivB61iRn2eOO4DhUPd9L9ssBhpJFE/cWC4+jnT7v2+s5nQeEc4YUgnzD5iK5jxv3bsZDsPIG0NlsieK3oY1+b3AuGjoFGurQCrCrfQ+AqlZrc5C6mpZzLQh8KRH5PlDUyrX7o2zXC0tP9AFhmUZI43sG+F8rAr+qORBJtUEQ7lf+b/nZm5n4NBkLgXGrR9H7JPP9yCoZz/Cugv6rsvza3BwgjxjjntmM+kdwIKeNLSjrf7nXxhI/EnqTYg/+V4oIqEfBC6jd37P2wsgw7ZxHgdlgSYu0+KBOPXzC20azC8WVG8mmTY94ew6Vmxw97mxF5Ayo1O6Ov27KKQYsEl7jTKvoTNNJyo=",
+      "bodyBytes": 902,
+      "identity": {
+        "device_id": "7661622467441478681",
+        "iid": "3912088544850522",
+        "cdid": "uuid-1"
+      }
+    }
+  ]
+}

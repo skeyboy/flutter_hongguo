@@ -29,7 +29,7 @@ Future<AppRuntime> createRuntime() async {
       ? (await identity.readAsString()).trim()
       : '';
   if (!RegExp(r'^\d{10,20}$').hasMatch(id)) {
-    id = VideoRequestBuilder.defaultDevice()['device_id']!;
+    id = newCatalogDeviceId();
     await identity.writeAsString(id, flush: true);
   }
   final store = SettingsStore(
@@ -73,6 +73,10 @@ class NativeRuntime
   late final LibraryCache libraryCache;
   final _settingsEvents = StreamController<AppSettings>.broadcast();
   final Dio _dio = Dio();
+
+  /// One anonymous playback registration per app run, shared by every client
+  /// rebuild; the player endpoint only answers for an identity it handed out.
+  late final PlaybackDeviceRegistry _playbackDevices;
   final _metadataTimings = <MetadataTiming>[];
   final _mediaTimings = <MediaPreparationTiming>[];
   final _playerTimings = <PlayerStartupTiming>[];
@@ -110,6 +114,7 @@ class NativeRuntime
       backend: FilePreferencesBackend(File('${root.path}/search-history.json')),
     );
     _artwork = ArtworkCache(Directory('${root.path}/artwork-cache'));
+    _playbackDevices = PlaybackDeviceRegistry(dio: _dio);
     _rebuildClients();
     _downloads = NativeDownloads(
       () => tvBuild ? settings.copyWith(backgroundDownloads: false) : settings,
@@ -213,10 +218,8 @@ class NativeRuntime
     _model = VideoModelClient(
       dio: _dio,
       onTiming: (value) => _retain(_metadataTimings, value),
-      builder: VideoRequestBuilder(
-        protocol: settings,
-        sessionHeaders: credentials.headers,
-      ),
+      devices: _playbackDevices,
+      builder: VideoRequestBuilder(protocol: settings),
     );
     _clientsReady = true;
   }
@@ -276,7 +279,7 @@ class NativeRuntime
 
   @override
   Future<void> rotateDeviceIdentity() async {
-    final nextId = VideoRequestBuilder.defaultDevice()['device_id']!;
+    final nextId = newCatalogDeviceId();
     await store.save(settings, identity: nextId);
     await libraryCache.clearFeeds().catchError((Object _) {
       store.warning = '目录快照清理未写入磁盘，其他设置已保存。';

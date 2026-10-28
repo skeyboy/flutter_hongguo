@@ -58,6 +58,18 @@ List<String> _tagNames(List<Map<String, dynamic>> sources) {
   return const [];
 }
 
+/// A fresh anonymous device identity, for first launch and for the settings
+/// rotation. The catalog reports this number on list and detail requests; the
+/// player never sees it -- it asks the platform to register its own identity
+/// instead (see PlaybackDeviceRegistry), and the two are deliberately unrelated.
+String newCatalogDeviceId() {
+  var value = BigInt.zero;
+  for (final byte in secureBytes(6)) {
+    value = (value << 8) | BigInt.from(byte);
+  }
+  return '${BigInt.parse('1000000000000000') + value}';
+}
+
 String _requestUuid() {
   final bytes = secureBytes(16);
   bytes[6] = (bytes[6] & 15) | 64;

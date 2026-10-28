@@ -827,7 +827,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                   suffix: ' 秒',
                                 ),
                                 Text(
-                                  '版本号、版本代码与 User-Agent 需要匹配。内容加载采用独立短超时，总等待不超过 12 秒；上方超时设置不会延长内容加载。改完后保存，后续请求使用新参数。',
+                                  '版本号、版本代码与 User-Agent 需要匹配。取址第一跳固定使用播放器自身的 User-Agent，这一项只作用于片源回退的第二跳。内容加载采用独立短超时，总等待不超过 12 秒；上方超时设置不会延长内容加载。改完后保存，后续请求使用新参数。',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: Theme.of(context)

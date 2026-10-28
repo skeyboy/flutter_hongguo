@@ -95,9 +95,14 @@ Future<void> main() async {
     }
   }
   final builder = VideoRequestBuilder();
+  const probeDevice = PlaybackDevice(
+    deviceId: '7661622467441478681',
+    iid: '3912088544850522',
+    cdid: 'probe',
+  );
   final sw = Stopwatch()..start();
   for (var i = 0; i < 100; i++) {
-    builder.build('1234567890123456789');
+    builder.build('1234567890123456789', device: probeDevice);
   }
   final report = {
     'at': DateTime.now().toUtc().toIso8601String(),
@@ -119,7 +124,7 @@ Future<void> main() async {
     ],
     'anonymous': true,
     'mediaDownloaded': false,
-    'signBuild100Ms': sw.elapsedMilliseconds,
+    'requestBuild100Ms': sw.elapsedMilliseconds,
     'outcomes': outcomes,
   };
   stdout.writeln(const JsonEncoder.withIndent('  ').convert(report));
