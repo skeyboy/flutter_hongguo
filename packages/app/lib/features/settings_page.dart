@@ -7,6 +7,9 @@ import 'package:hongguo_core/hongguo_core.dart';
 import '../platform/runtime.dart';
 import '../platform/background/host_policy.dart';
 import '../playback/capability_preferences.dart';
+import '../update/app_release.dart';
+import '../update/install_strategy.dart';
+import '../update/update_host.dart';
 import 'local_cache_page.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -44,6 +47,7 @@ class _SettingsPageState extends State<SettingsPage> {
       '后台与悬浮播放',
       '播放与提前缓存',
       '缓存管理',
+      if (updateSupported) '更新',
       '签名与设备',
       '会话凭据',
       '高级接口与签名参数',
@@ -223,6 +227,27 @@ class _SettingsPageState extends State<SettingsPage> {
     }, '主题已应用并保存');
   }
 
+  Future<void> _updateChecks(bool value) async {
+    final runtime = configurable;
+    if (runtime == null) return;
+    final previous = draft.updateChecksEnabled;
+    setState(() => draft = draft.copyWith(updateChecksEnabled: value));
+    await _action(() async {
+      try {
+        // Saving the switch must not carry the rest of the unsaved form.
+        await runtime.saveSettings(
+          runtime.settings.copyWith(updateChecksEnabled: value),
+        );
+        widget.onSaved?.call();
+      } catch (_) {
+        if (mounted) {
+          setState(() => draft = draft.copyWith(updateChecksEnabled: previous));
+        }
+        rethrow;
+      }
+    }, value ? '自动检查更新已开启' : '自动检查更新已关闭');
+  }
+
   void _protocolDefaults() {
     const value = AppSettings();
     setState(() {
@@ -238,6 +263,122 @@ class _SettingsPageState extends State<SettingsPage> {
       videoCode.text = value.videoVersionCode;
       userAgent.text = value.videoUserAgent;
     });
+  }
+
+  /// The update rows talk to the app-wide controller, not to the form draft:
+  /// a check belongs to the session and has to stay readable after 保存, and its
+  /// own two settings persist the moment the user changes them.
+  Widget _updateSection() {
+    final runtime = configurable;
+    final controller = sharedUpdateController(widget.runtime);
+    return _section('更新', [
+      Text(
+        '当前版本 v${AppRelease.version}（构建 ${AppRelease.build}），新版本来自 GitHub Releases。',
+      ),
+      const SizedBox(height: 6),
+      Text(
+        updateHandoffDescription,
+        style: TextStyle(
+          fontSize: 12,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+      SwitchListTile.adaptive(
+        key: const Key('自动检查更新'),
+        contentPadding: EdgeInsets.zero,
+        title: const Text('启动或回到前台时自动检查'),
+        subtitle: const Text('一天最多询问一次；没有新版本时不打扰。'),
+        value: draft.updateChecksEnabled,
+        onChanged: busy ? null : _updateChecks,
+      ),
+      ListenableBuilder(
+        listenable: controller,
+        builder: (context, _) {
+          final release = controller.offer;
+          final ignored = runtime?.settings.ignoredUpdateVersion ?? '';
+          final lastCheck = runtime?.settings.lastUpdateCheckAt ?? 0;
+          final error = controller.error;
+          final progress = controller.progress;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                _timestamp(lastCheck),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (error != null)
+                Text(
+                  error,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                )
+              else if (controller.message != null)
+                Text(controller.message!),
+              if (controller.downloading)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(value: progress),
+                    Text(
+                      progress == null
+                          ? '正在下载…'
+                          : '正在下载 ${(progress * 100).toStringAsFixed(0)}%',
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    key: const Key('检查更新'),
+                    onPressed: controller.busy ? null : controller.checkNow,
+                    icon: const Icon(Icons.system_update_alt_rounded),
+                    label: Text(controller.checking ? '正在检查…' : '检查更新'),
+                  ),
+                  if (release != null && controller.canInstall)
+                    FilledButton.icon(
+                      key: const Key('立即下载并安装'),
+                      onPressed: controller.busy ? null : controller.install,
+                      icon: const Icon(Icons.download_rounded),
+                      label: Text(
+                        controller.downloading
+                            ? '正在下载…'
+                            : '立即更新 ${release.tag}',
+                      ),
+                    ),
+                  if (ignored.isNotEmpty)
+                    TextButton(
+                      key: const Key('重新提醒被忽略的更新'),
+                      onPressed: controller.busy
+                          ? null
+                          : controller.remindAgain,
+                      child: Text('重新提醒 $ignored'),
+                    ),
+                ],
+              ),
+              // A platform that cannot install what it downloaded still has to
+              // say where the file lives.
+              if (release != null &&
+                  !controller.canInstall &&
+                  release.htmlUrl.isNotEmpty)
+                SelectableText(release.htmlUrl),
+            ],
+          );
+        },
+      ),
+    ]);
+  }
+
+  static String _timestamp(int millisecondsSinceEpoch) {
+    if (millisecondsSinceEpoch == 0) return '还没有检查过更新。';
+    final at = DateTime.fromMillisecondsSinceEpoch(millisecondsSinceEpoch);
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '上次检查 ${at.year}-${two(at.month)}-${two(at.day)} ${two(at.hour)}:${two(at.minute)}';
   }
 
   Widget _section(String title, List<Widget> children) => Card(
@@ -695,6 +836,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         label: Text('清理未在使用的缓存'),
                       ),
                     ]),
+                    if (updateSupported) _updateSection(),
                     _section('签名与设备', [
                       Text('签名由本地 Dart 核心生成。视频内容密钥按每集自动解析，无需手动填写。'),
                       const SizedBox(height: 10),

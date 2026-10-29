@@ -16,6 +16,7 @@ import 'bootstrap.dart';
 import 'cast/cast_service.dart';
 import 'features/library_page.dart';
 import 'features/settings_page.dart';
+import 'update/update_host.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -95,7 +96,10 @@ class HongguoApp extends ConsumerWidget {
               .when(
                 data: (runtime) => tvBuild
                     ? TvLibraryPage(runtime: runtime)
-                    : LibraryPage(runtime: runtime),
+                    : UpdatePromptHost(
+                        controller: sharedUpdateController(runtime),
+                        child: LibraryPage(runtime: runtime),
+                      ),
                 loading: () => const Scaffold(
                   body: Center(child: CircularProgressIndicator()),
                 ),

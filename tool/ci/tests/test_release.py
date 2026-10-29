@@ -37,6 +37,13 @@ class ReleaseContractTest(unittest.TestCase):
         for path in (self.root / 'pubspec.yaml', self.root / 'packages/app/pubspec.yaml'):
             path.write_text('version: 0.2.3+5\n')
         (self.root / '.fvmrc').write_text('{"flutter":"3.47.4"}')
+        # Release metadata also reads the version constant the running app
+        # shows its users, so the fixture has to carry one that agrees.
+        dart_dir = self.root / 'packages/app/lib/update'
+        dart_dir.mkdir(parents=True)
+        (dart_dir / 'app_release.dart').write_text(
+            "static const version = '0.2.3';\nstatic const build = 5;\n"
+        )
         self.environment = patch.dict(os.environ, GITHUB_REF='refs/heads/test', GITHUB_SHA='test-commit', RELEASE_PLATFORMS='["android","macos","windows","linux"]')
         self.environment.start()
         self.addCleanup(self.environment.stop)
@@ -52,6 +59,15 @@ class ReleaseContractTest(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 release_meta.version()
         (self.root / 'packages/app/pubspec.yaml').write_text('version: 0.2.2+4\n')
+        with self.assertRaises(SystemExit):
+            release_meta.version()
+
+    def test_dart_version_constant_must_not_lag_the_pubspec(self):
+        constant = self.root / 'packages/app/lib/update/app_release.dart'
+        constant.write_text("static const version = '0.2.2';\nstatic const build = 4;\n")
+        with self.assertRaises(SystemExit):
+            release_meta.version()
+        constant.write_text("static const version = '0.2.3';\nstatic const build = 4;\n")
         with self.assertRaises(SystemExit):
             release_meta.version()
 

@@ -10,6 +10,16 @@ class AppSettings {
       episodeSwipeHintShown;
   final int tvPageSize;
   final String catalogSort;
+
+  /// Release checks: the switch, the tag the user dismissed with 忽略本次更新,
+  /// and when a check last ran (epoch milliseconds, 0 for "never").
+  final bool updateChecksEnabled;
+  final String ignoredUpdateVersion;
+  final int lastUpdateCheckAt;
+
+  /// The feed's `ETag`, so a user who is already current costs the anonymous
+  /// quota nothing but a 304.
+  final String updateFeedEtag;
   final int prefetchEpisodes,
       maxCacheFiles,
       maxCacheMb,
@@ -58,6 +68,10 @@ class AppSettings {
     this.videoVersion = '7.1.3.32',
     this.videoVersionCode = '71332',
     this.videoUserAgent = defaultVideoUserAgent,
+    this.updateChecksEnabled = true,
+    this.ignoredUpdateVersion = '',
+    this.lastUpdateCheckAt = 0,
+    this.updateFeedEtag = '',
   });
 
   Map<String, dynamic> protocolJson() => {
@@ -92,6 +106,10 @@ class AppSettings {
     'maxCacheMb': maxCacheMb,
     'concurrentPreparations': concurrentPreparations,
     'downloadConcurrent': downloadConcurrent,
+    'updateChecksEnabled': updateChecksEnabled,
+    'ignoredUpdateVersion': ignoredUpdateVersion,
+    'lastUpdateCheckAt': lastUpdateCheckAt,
+    'updateFeedEtag': updateFeedEtag,
   };
   factory AppSettings.fromJson(Map<String, dynamic> json) {
     const defaults = AppSettings();
@@ -141,6 +159,10 @@ class AppSettings {
       videoVersion: read('videoVersion', defaults.videoVersion),
       videoVersionCode: read('videoVersionCode', defaults.videoVersionCode),
       videoUserAgent: read('videoUserAgent', defaults.videoUserAgent),
+      updateChecksEnabled: read('updateChecksEnabled', true),
+      ignoredUpdateVersion: read('ignoredUpdateVersion', ''),
+      lastUpdateCheckAt: read('lastUpdateCheckAt', 0),
+      updateFeedEtag: read('updateFeedEtag', ''),
     );
   }
   AppSettings copyWith({
@@ -172,6 +194,10 @@ class AppSettings {
     String? videoVersion,
     String? videoVersionCode,
     String? videoUserAgent,
+    bool? updateChecksEnabled,
+    String? ignoredUpdateVersion,
+    int? lastUpdateCheckAt,
+    String? updateFeedEtag,
   }) => AppSettings.fromJson({
     ...toJson(),
     'catalogSort': catalogSort ?? this.catalogSort,
@@ -206,6 +232,10 @@ class AppSettings {
     'videoVersion': videoVersion ?? this.videoVersion,
     'videoVersionCode': videoVersionCode ?? this.videoVersionCode,
     'videoUserAgent': videoUserAgent ?? this.videoUserAgent,
+    'updateChecksEnabled': updateChecksEnabled ?? this.updateChecksEnabled,
+    'ignoredUpdateVersion': ignoredUpdateVersion ?? this.ignoredUpdateVersion,
+    'lastUpdateCheckAt': lastUpdateCheckAt ?? this.lastUpdateCheckAt,
+    'updateFeedEtag': updateFeedEtag ?? this.updateFeedEtag,
   });
   void validate() {
     if (!['online_time', 'hot_score', 'hot_collect'].contains(catalogSort)) {
@@ -265,6 +295,17 @@ class AppSettings {
       if (!RegExp(r'^\d{1,10}$').hasMatch(code)) {
         throw const FormatException('版本代码需为数字');
       }
+    }
+    if (ignoredUpdateVersion.length > 40 ||
+        RegExp(r'[\r\n]').hasMatch(ignoredUpdateVersion)) {
+      throw const FormatException('已忽略的版本号无效');
+    }
+    if (lastUpdateCheckAt < 0) {
+      throw const FormatException('上次检查更新的时间无效');
+    }
+    if (updateFeedEtag.length > 120 ||
+        RegExp(r'[\r\n]').hasMatch(updateFeedEtag)) {
+      throw const FormatException('更新接口的缓存标识无效');
     }
     if (videoUserAgent.trim().isEmpty ||
         RegExp(r'[\r\n]').hasMatch(videoUserAgent)) {

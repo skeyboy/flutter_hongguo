@@ -1,0 +1,13 @@
+name: hongguo_update
+description: Pure Dart GitHub release feed, asset planning and verified download.
+version: 0.1.0
+resolution: workspace
+publish_to: none
+environment:
+  sdk: '>=3.13.0 <4.0.0'
+dependencies:
+  dio: any
+  crypto: any
+dev_dependencies:
+  test: any
+  lints: any

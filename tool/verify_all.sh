@@ -13,6 +13,7 @@ mkdir -p build/verification
 "$SDK_BIN/dart" analyze --fatal-infos | tee build/verification/analyze.log
 (cd packages/core && "$SDK_BIN/dart" test --reporter expanded) | tee build/verification/core-tests.log
 (cd packages/api && "$SDK_BIN/dart" test --reporter expanded) | tee build/verification/api-tests.log
+(cd packages/update && "$SDK_BIN/dart" test --reporter expanded) | tee build/verification/update-tests.log
 (cd packages/cast && "$SDK_BIN/dart" test --reporter expanded) | tee build/verification/cast-tests.log
 # Dart's XML reader tolerates undeclared namespace prefixes; a strict parser does not.
 "$SDK_BIN/dart" run tool/verify_cast_didl.dart \

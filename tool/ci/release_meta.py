@@ -19,6 +19,17 @@ def version():
         values.append(match.groups())
     if values[0] != values[1]:
         raise SystemExit('Root/app versions differ')
+    # The running app reads its own version from one Dart constant; a release
+    # whose constant lags the pubspec would tell users they are current while
+    # the tag says otherwise.
+    app_release = (ROOT / 'packages/app/lib/update/app_release.dart').read_text()
+    for pattern, expected in (
+        (r"static const version = '([^']+)';", values[0][0]),
+        (r'static const build = (\d+);', values[0][1]),
+    ):
+        match = re.search(pattern, app_release)
+        if match is None or match.group(1) != expected:
+            raise SystemExit(f'app_release.dart must say {expected}')
     if json.loads((ROOT / '.fvmrc').read_text())['flutter'] != '3.47.4':
         raise SystemExit('Update the CI Flutter version when changing .fvmrc')
     tag = os.environ.get('GITHUB_REF', '')

@@ -34,6 +34,8 @@ dependencies:
     path: ../api
   hongguo_cast:
     path: ../cast
+  hongguo_update:
+    path: ../update
 dev_dependencies:
   file: any
   flutter_cache_manager: any

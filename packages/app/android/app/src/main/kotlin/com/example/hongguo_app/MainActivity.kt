@@ -1,5 +1,6 @@
 package com.example.hongguo_app
 
+import android.app.PendingIntent
 import android.app.PictureInPictureParams
 import android.content.Intent
 import android.content.res.Configuration
@@ -106,7 +107,56 @@ class MainActivity : AudioServiceActivity() {
                 else -> result.notImplemented()
             }
         }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "hongguo/update")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "stageDir" -> {
+                        val dir = java.io.File(filesDir, "updates")
+                        if (!dir.isDirectory) dir.mkdirs()
+                        result.success(dir.absolutePath)
+                    }
+                    "abi" -> result.success(Build.SUPPORTED_ABIS.toList())
+                    "install" -> result.success(installFrom(call.argument<String>("path")))
+                    else -> result.notImplemented()
+                }
+            }
     }
+
+    /// Installs through a [android.content.pm.PackageInstaller] session, which
+    /// streams the bytes from a path only this app can read -- so no FileProvider
+    /// and no file:// URI, the shape that Android 24+ refuses outright.
+    private fun installFrom(path: String?): String {
+        val file = path?.let { java.io.File(it) }
+        if (file == null || !file.isFile) return "更新文件已经不在了，请重新检查更新。"
+        val installer = packageManager.packageInstaller
+        var sessionId = -1
+        return try {
+            val params = android.content.pm.PackageInstaller.SessionParams(
+                android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL
+            )
+            sessionId = installer.createSession(params)
+            installer.openSession(sessionId).use { session ->
+                java.io.FileInputStream(file).use { input ->
+                    session.openWrite(file.name, 0, file.length()).use { output ->
+                        input.copyTo(output)
+                        session.fsync(output)
+                    }
+                }
+                val status = Intent(this, javaClass)
+                    .setAction("hongguo.update.result")
+                    .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                else PendingIntent.FLAG_UPDATE_CURRENT
+                session.commit(PendingIntent.getActivity(this, sessionId, status, flags).intentSender)
+            }
+            "已交给系统安装器，请在弹窗中确认安装。"
+        } catch (error: Exception) {
+            if (sessionId >= 0) runCatching { installer.abandonSession(sessionId) }
+            "系统没有接受这次安装，请检查「安装未知应用」权限后重试。"
+        }
+    }
+
     override fun onPictureInPictureModeChanged(active: Boolean, config: Configuration) {
         super.onPictureInPictureModeChanged(active, config)
         playbackChannel?.invokeMethod("pip", active)
