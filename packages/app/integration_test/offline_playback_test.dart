@@ -24,6 +24,7 @@ import 'package:hongguo_app/bootstrap.dart';
 import 'package:hongguo_app/catalog/library_cache.dart';
 import 'package:hongguo_app/catalog/local_library.dart';
 import 'package:hongguo_app/playback/local_playlist.dart';
+import 'package:hongguo_app/playback/compact_controls.dart';
 import 'package:hongguo_app/playback/capability_preferences.dart';
 import 'package:flutter/gestures.dart';
 import 'package:hongguo_app/features/local_cache_page.dart';
@@ -49,10 +50,9 @@ Future<void> _resizeDesktop(WidgetTester tester, Size? size) async {
 
 Future<void> _wakePlayerControls(WidgetTester tester) async {
   if (find.byKey(const ValueKey('player-exit')).evaluate().isEmpty) {
-    final rect = tester.getRect(
-      find.byKey(const ValueKey('compact-player-picture')),
-    );
-    await tester.tapAt(rect.center);
+    // A click on the picture means play/pause on a desktop host, so the fixture
+    // reveals the bars through the chrome's own clock rather than by tapping.
+    (tester.state(find.byType(CompactControls)) as CompactControlsState).show();
     await tester.pumpAndSettle();
   }
 }
@@ -614,7 +614,9 @@ void main() {
         await player.setRate(.25);
         await player.play();
         await tester.pump(const Duration(milliseconds: 200));
-        await tester.tap(find.byTooltip('隐藏播放操作'));
+        // There is no chevron to press any more: while the clip plays, the bars
+        // retire on their own once the hide delay runs out.
+        await tester.pump(const Duration(seconds: 4));
         await tester.pumpAndSettle();
         expect(
           tester.getRect(find.byKey(const ValueKey('compact-player-picture'))),

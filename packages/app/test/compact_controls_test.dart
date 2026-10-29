@@ -64,7 +64,9 @@ void main() {
       final picture = find.byKey(const ValueKey('compact-player-picture'));
       final rect = tester.getRect(picture);
       expect(rect.height, 700);
-      await tester.tap(find.byTooltip('隐藏播放操作'));
+      // The bars used to have a collapse chevron; a tap outside them is what
+      // closes them now, and hide() is the same state change without the wait.
+      key.currentState!.hide();
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('compact-playback-controls')),
