@@ -1,6 +1,6 @@
 # 自动更新（GitHub Releases 检查 + 按平台分派的更新方式）
 
-状态：本轮（2026-10-29）设计与执行，代码随本轮提交进 `main`；**未切版本号、未打标签、未发 Release**（用户本轮只要求提交推送，见 §9）。基线现读（`HEAD=df90538`，即本轮动手前）：`pubspec.yaml` 与 `packages/app/pubspec.yaml` 均为 `0.3.13+25`、`packages/app/lib/features/settings_page.dart` 863 行、`packages/core/lib/src/config/app_settings.dart` 295 行、`packages/app/lib/platform/runtime_native.dart` 453 行、`tool/verify_all.sh` 35 行、`packages/update` 本轮新建。本轮改后同一批文件：1005 / 336 / 453 / 36 行，两处 pubspec 42 / 52 行。
+状态：本轮（2026-10-29）设计与执行，代码已进 `main`，并按用户后续指令「执行推送发布新版本」随 **0.3.14+26** 发版（§9 末节）。基线现读（`HEAD=df90538`，即本轮动手前）：`pubspec.yaml` 与 `packages/app/pubspec.yaml` 均为 `0.3.13+25`、`packages/app/lib/features/settings_page.dart` 863 行、`packages/core/lib/src/config/app_settings.dart` 295 行、`packages/app/lib/platform/runtime_native.dart` 453 行、`tool/verify_all.sh` 35 行、`packages/update` 本轮新建。本轮改后同一批文件：1005 / 336 / 453 / 36 行，两处 pubspec 42 / 52 行。
 
 ## 1. 诉求与本轮决策
 
@@ -11,7 +11,7 @@
 本轮决策（不追问，按最小惊讶取默认）：
 
 - **更新内核独立成模块**：新纯 Dart 包 `packages/update`（`hongguo_update`），只用 `dio` + `crypto`，`dart test` 直接跑；Flutter 侧编排、UI 与安装动作留在 `packages/app/lib/update/`。这样版本比较、feed 解析、选件与校验都能离线回放真实响应，不牵进 widget 测试。
-- **当前版本以提交进仓库的 Dart 常量为唯一源**：`packages/app/lib/update/app_release.dart` 写 `0.3.13` / `25`，由 `tool/ci/release_meta.py:version()` 与两处 pubspec 一起校验（同一函数 `:13-38` 现在除了「两处 pubspec 必须一致」还比对这两个常量，见 §9）。不引入 `package_info_plus`——五个平台的原生包元数据里，Linux/Windows 并不保证带 pubspec 版本号，把「我是什么版本」押在上面会让本地调试与真实发版读到不同答案。
+- **当前版本以提交进仓库的 Dart 常量为唯一源**：`packages/app/lib/update/app_release.dart` 写 `0.3.14` / `26`，由 `tool/ci/release_meta.py:version()` 与两处 pubspec 一起校验（同一函数 `:13-38` 现在除了「两处 pubspec 必须一致」还比对这两个常量，见 §9）。不引入 `package_info_plus`——五个平台的原生包元数据里，Linux/Windows 并不保证带 pubspec 版本号，把「我是什么版本」押在上面会让本地调试与真实发版读到不同答案。
 - **macOS 保持 `com.apple.security.app-sandbox = true`**（`packages/app/macos/Runner/Release.entitlements`），因此**不做静默自替换**：下载 → 校验 → 交给系统打开 `.dmg`，装新版仍是用户把 app 拖进「应用程序」。关掉沙箱才能自动替换，那是分发姿态变更，见 §7。
 - **Android 用 `PackageInstaller` 会话安装已校验的 APK**，新增 `hongguo/update` 通道与 `REQUEST_INSTALL_PACKAGES`；不用 `FileProvider`（那要 androidx.core 出现在编译类路径上，今天只有传递依赖）、也不用 `file://` URI（targetSdk 24+ 会抛 `FileUriExposedException`）。系统安装确认框由用户点，属于「未知来源」路径。
 - **TV 版本轮不进更新链路**：`tvBuild` 既不做静默检查也不显示设置行——遥控器焦点下的弹窗与安装确认是另一套交互，没有取证设备。
@@ -89,7 +89,7 @@
 
 门禁（`.fvm` 钉的 SDK，`HONGGUO_FLUTTER_BIN` 给绝对路径）现读：`dart format` 233 files 0 changed、`dart analyze --fatal-infos` No issues found、core 117 / api 91 / update 33 / cast 52 / tv 36 / app 296（外加一条早有的 skip）全绿，`tool/ci/tests/test_release.py` 10/10（含新增的「Dart 版本常量不许落后 pubspec」那条）。
 
-实机 macOS：取证前按 `tool/verify_auto_update_live.sh` 的要求把 `AppRelease.version` 临时降到 `0.3.12`，跑完还原 `0.3.13+25`。第五轮 marker 全序（`build/verification/auto-update/run5.log`）：`armed` → `dialog-prompt` +3.0s（**启动检查自己弹的，没按任何按钮**）→ `dialog-scrolled` +5.6s → `install-ready` → 心跳 `bar=1 texts=[正在下载 2%, 正在下载…]` → `downloading` +8.6s → `settings-handoff` +13.2s → `settings-check` +16.9s → `done` +18.9s，`flutter test` 退出 0。22,547,501 字节的 dmg 落进沙箱 `updates/`、sha256 对得上、被 `open` 挂载；`settings-check` 这一步是「装了但没重启」的同一会话里第二次手动检查，它仍然回答「发现新版本 v0.3.13」，即 §4 那条 ETag 规则真的在生效。
+实机 macOS：取证前按 `tool/verify_auto_update_live.sh` 的要求把 `AppRelease.version` 临时降到 `0.3.12`，跑完还原当时工作树的 `0.3.13+25`（发版时再一起升到 `0.3.14+26`）。第五轮 marker 全序（`build/verification/auto-update/run5.log`）：`armed` → `dialog-prompt` +3.0s（**启动检查自己弹的，没按任何按钮**）→ `dialog-scrolled` +5.6s → `install-ready` → 心跳 `bar=1 texts=[正在下载 2%, 正在下载…]` → `downloading` +8.6s → `settings-handoff` +13.2s → `settings-check` +16.9s → `done` +18.9s，`flutter test` 退出 0。22,547,501 字节的 dmg 落进沙箱 `updates/`、sha256 对得上、被 `open` 挂载；`settings-check` 这一步是「装了但没重启」的同一会话里第二次手动检查，它仍然回答「发现新版本 v0.3.13」，即 §4 那条 ETag 规则真的在生效。
 
 实机跑出来的五个缺陷，每一个都是合成测试给不出的：
 
@@ -103,4 +103,4 @@
 
 **本轮没有画面证据**：这台 shell 的 `screencapture -x` 只写得出桌面壁纸——两张 1920×1080 原帧里没有任何窗口或菜单栏（同一时刻 `osascript` 报告 GUI 会话确实在跑，所以是采集侧的权限/会话限制，不是 app 的问题），驱动脚本按 `HGWIN` 裁出来的只是空背景；那两张废帧已删、未入库，`docs/evidence/auto-update/` 本轮为空。macOS 侧的结论因此只到「运行期 marker + 断言」这一级，像素级 UI 结论留给下一次能取到窗口画面的轮次。
 
-发版状态：本轮**只提交并推送 main**（用户指令），未切版本号、未打标签、未发 Release；Windows/Linux 的静默安装与 deb 交接、Android 的 `PackageInstaller` 真机安装、iOS 弹窗、TV 排除仍只有单测。
+发版状态：用户先要求「执行完成后进行git提交推送到远端」，两个提交已快进进 `main`（`8107c8f`）；随后要求「执行推送发布新版本」，于是切 **0.3.14+26**——根 `pubspec.yaml:4`、`packages/app/pubspec.yaml:5`、`packages/app/lib/update/app_release.dart:8-9` 三个面一起动，`tool/ci/validate_release.py` 的滚动发布说明加了自动更新一条（写清只有 macOS 实机链路与本轮无帧）。Release 运行读数见下节补记。Windows/Linux 的静默安装与 deb 交接、Android 的 `PackageInstaller` 真机安装、iOS 弹窗、TV 排除仍只有单测。
