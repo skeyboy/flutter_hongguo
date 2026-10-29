@@ -103,4 +103,12 @@
 
 **本轮没有画面证据**：这台 shell 的 `screencapture -x` 只写得出桌面壁纸——两张 1920×1080 原帧里没有任何窗口或菜单栏（同一时刻 `osascript` 报告 GUI 会话确实在跑，所以是采集侧的权限/会话限制，不是 app 的问题），驱动脚本按 `HGWIN` 裁出来的只是空背景；那两张废帧已删、未入库，`docs/evidence/auto-update/` 本轮为空。macOS 侧的结论因此只到「运行期 marker + 断言」这一级，像素级 UI 结论留给下一次能取到窗口画面的轮次。
 
-发版状态：用户先要求「执行完成后进行git提交推送到远端」，两个提交已快进进 `main`（`8107c8f`）；随后要求「执行推送发布新版本」，于是切 **0.3.14+26**——根 `pubspec.yaml:4`、`packages/app/pubspec.yaml:5`、`packages/app/lib/update/app_release.dart:8-9` 三个面一起动，`tool/ci/validate_release.py` 的滚动发布说明加了自动更新一条（写清只有 macOS 实机链路与本轮无帧）。Release 运行读数见下节补记。Windows/Linux 的静默安装与 deb 交接、Android 的 `PackageInstaller` 真机安装、iOS 弹窗、TV 排除仍只有单测。
+发版状态：用户先要求「执行完成后进行git提交推送到远端」，两个提交已快进进 `main`（`8107c8f`）；随后要求「执行推送发布新版本」，于是切 **0.3.14+26**——根 `pubspec.yaml:4`、`packages/app/pubspec.yaml:5`、`packages/app/lib/update/app_release.dart:8-9` 三个面一起动，`tool/ci/validate_release.py` 的滚动发布说明加了自动更新一条（写清只有 macOS 实机链路与本轮无帧）。Windows/Linux 的静默安装与 deb 交接、Android 的 `PackageInstaller` 真机安装、iOS 弹窗、TV 排除仍只有单测。
+
+### 9.1 发版补记（同一日，标签 `v0.3.14`）
+
+- 切版本提交 `a62423a`（5 文件），先推 `main`（`8107c8f..a62423a`，push 包 3.2 KB 单帧），再打**轻量**标签 `v0.3.14` 指向同一提交并推标签。
+- 该提交的树在分离 worktree 里过全量门禁：`Formatted 233 files (0 changed)`、`No issues found!`、core 117 / api 91 / update 33 / cast 52 / tv 36 / app 296~1 全绿、`VERIFY_EXIT=0`；`tool/verify_all.sh` 不含的 `tool/ci/tests` 另跑 **10/10 OK**。
+- 发布运行 `40883459556`（event=push，`gh run view` 的 jobs 现读）：`preflight / build-plan / build-verify / native(macos) / native(android-tv) / native(windows) / native(android) / native(linux) / publish` 九条 **success**，`ios-signed` **skipped**；`gh release view v0.3.14` 给 `prerelease=false`、`publishedAt=2026-10-29T13:48:48Z`、正文 14,290 字符、**15 个附件**且每个都带 `sha256:` digest（`macos-arm64.dmg` 22,586,894 字节）。
+- **这是更新链路第一次面对一个真实可装的发布**，所以用随本轮入库的 `packages/update/tool/live_feed_check.dart`（跑线上 feed，不属于任何门禁）读了一遍 shipped kernel 的判断：`viewer on v0.3.13 -> available`、同一个人忽略该 tag 后 `-> ignored`、`v0.3.14 -> upToDate`；选件按平台各自命中 `Hongguo-0.3.14-{macos-arm64.dmg, windows-x64-setup.exe, linux-x64.deb, android-arm64-v8a.apk}`，`ios -> NONE`，全部 `host=github.com`，`SHA256SUMS.txt` 与 `release-manifest.json` 都在。
+- **标签树的既定不对称**：这份补记与那个 live 检查工具排在 `a62423a` 之后，所以 `v0.3.14` 这棵树里没有它们——和历轮「帧排在标签之后」是同一笔代价，要看读数取 `main`。
