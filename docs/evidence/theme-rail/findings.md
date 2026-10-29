@@ -1,6 +1,6 @@
 # 两页同构的三级链路 — iPhone 实机帧索引
 
-被测：`flutter_hongguo` 工作树（HEAD `bc6ab09` + 本轮 §13 的未提交改动），debug 移动端包，运行在 iOS 模拟器 `yxy-iPhone17Pro`（UDID `8CAD9D3D-DA70-4811-81A2-0E18EFEA6A8E`）。
+被测：`flutter_hongguo` 工作树（本轮三个提交 `c517143` 修复 / `e884d77` 文档 / `521aa33` 切版本，后者即标签 `v0.3.12`），debug 移动端包，运行在 iOS 模拟器 `yxy-iPhone17Pro`（UDID `8CAD9D3D-DA70-4811-81A2-0E18EFEA6A8E`）。**注意取证跑的是当时的工作树，早于这三个提交**；`v0.3.12` 那个标签树里本目录的 15 张重录帧仍是上一轮的字节（帧提交排在切版本之后），要看本轮帧取 `f9e01f5` 或更新的 main，理由与读数见 `docs/design/discover-catalog-cascade-tabs.md` §13 第 12 条最后一条。
 驱动：`HONGGUO_RAIL_DEVICE=yxy-iPhone17Pro tool/verify_theme_rail_live.sh` → `packages/app/integration_test/theme_rail_live_test.dart`，用 `dragFrom` 打真实拖拽手势（不是合成点击），每到一个状态打印一行 `HGRAIL ... ev=shot=<名字>`，取帧器读到哪行就用 `xcrun simctl io <UDID> screenshot` 抓哪一张（模拟器是无沙箱外卷权限的进程，先暂存 `${TMPDIR}` 再拷进本目录）。
 
 **2026-10-29 这一天跑了三遍，本目录的帧不是同一遍的**（所以下面「帧」列的 marker 一律指 passed 那份日志，除 `ios-rail.png`）：
