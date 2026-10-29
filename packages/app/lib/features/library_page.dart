@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 
+import '../platform/background/host_policy.dart';
 import '../platform/runtime.dart';
 import '../widgets/drama_cover.dart';
 
@@ -2370,7 +2371,12 @@ class _LibraryPageState extends State<LibraryPage> {
       final compact = this.compact;
       final pages = AutoTabsRouter.pageView(
         routes: tabRoutes,
-        animatePageTransition: true,
+        // A click on the sidebar has already decided where the viewer wants to
+        // go, so the 300ms slide only delays the answer; the touch hosts keep
+        // it, because the same pager settles a drag a finger ends mid-page.
+        // `false` is the package's jump path -- the `Duration.zero` it is
+        // documented as equivalent to asserts inside `DrivenScrollActivity`.
+        animatePageTransition: !desktopHost,
         builder: (context, child, _) {
           _attachTabs(AutoTabsRouter.of(context));
           return CallbackShortcuts(

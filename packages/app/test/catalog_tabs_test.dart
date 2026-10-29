@@ -193,6 +193,18 @@ Future<void> runToEnd(WidgetTester tester, int pane) async {
 /// child, so the id is the same on whichever 类型 the test stands.
 final Finder railTheme = find.byKey(const ValueKey('theme-rail-cate_7'));
 
+/// How far the shell itself has slid between 发现 and 分类: 0.0 with the first
+/// page in front, 1.0 with the second, and anything between while a switch is
+/// still in the air. The outermost `Scrollable` of the screen is the shell's
+/// pager -- the sidebar holds no scroll view of its own, and every row and
+/// inner page is inside it.
+double shellPage(WidgetTester tester) {
+  final position = tester
+      .state<ScrollableState>(find.byType(Scrollable).first)
+      .position;
+  return position.pixels / position.viewportDimension;
+}
+
 void main() {
   testWidgets('a swipe turns the two levels inside 发现 first', (tester) async {
     final runtime = FakeRuntime();
@@ -956,5 +968,49 @@ void main() {
     expect(far.hitTestable(), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a desktop sidebar click lands with nothing left to slide', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    await mount(tester, FakeRuntime(), const Size(1280, 900));
+    expect(shellPage(tester), 0);
+    await tester.tap(find.byKey(const ValueKey('catalog-tab-1')));
+    // The click is the whole request, so the pager is already on 分类 before the
+    // first frame of it is drawn -- no in-between on any pump after that.
+    expect(shellPage(tester), 1);
+    await tester.pump();
+    expect(shellPage(tester), 1);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(shellPage(tester), 1);
+    await tester.pumpAndSettle();
+    expectPage(tester, 1);
+    expect(shellPage(tester), closeTo(1, 0.001));
+    expect(tester.takeException(), isNull);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('the same click on a touch host is still on its way', (
+    tester,
+  ) async {
+    // The other edge, on the identical widget tree: here the same pager settles
+    // the switch over frames, because a finger can leave it between two pages.
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    await mount(tester, FakeRuntime(), const Size(1280, 900));
+    expect(shellPage(tester), 0);
+    await tester.tap(find.byKey(const ValueKey('catalog-tab-1')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    final justAfter = shellPage(tester);
+    expect(justAfter, greaterThan(0));
+    expect(justAfter, lessThan(1));
+    await tester.pumpAndSettle();
+    expectPage(tester, 1);
+    expect(shellPage(tester), closeTo(1, 0.001));
+    expect(tester.takeException(), isNull);
+    debugDefaultTargetPlatformOverride = null;
   });
 }
