@@ -23,6 +23,8 @@ import '../playback/episode_workspace.dart';
 import '../playback/episode_swipe.dart';
 import '../playback/compact_controls.dart';
 import '../playback/playback_transport.dart';
+import '../playback/player_center_overlay.dart';
+import '../playback/transport_player.dart';
 import '../playback/capability_preferences.dart';
 import '../cast/cast_device_sheet.dart';
 import '../cast/cast_remote_page.dart';
@@ -173,6 +175,20 @@ class _PlayerPageState extends State<PlayerPage>
   bool preparing = true, autoNext = true, playing = false;
   final episodeWorkspace = GlobalKey<EpisodeWorkspaceState>();
   final compactControls = GlobalKey<CompactControlsState>();
+  final centerOverlay = GlobalKey<PlayerCenterOverlayState>();
+
+  /// The control bar talks to this, never to [player] directly, so the bar can
+  /// be mounted in a widget test with a fake behind the same interface.
+  late final TransportPlayer transport;
+
+  /// Recomputed every frame from the host, the orientation and the width; the
+  /// episode panel reads it to know whether the bar already carries 清晰度.
+  ControlSurface surface = ControlSurface.mobilePortrait;
+  bool streamBuffering = false;
+  double boostFrom = 1.0;
+
+  /// The level M comes back to; 0 would not be a level worth returning to.
+  double muteFrom = 100;
   Timer? edgeNoticeTimer;
   bool episodeHintDismissed = false;
   late int position;
@@ -261,6 +277,15 @@ class _PlayerPageState extends State<PlayerPage>
     await _play(position, resumePlaying: resume);
   }
 
+  /// The same move the episode panel's dropdown used to make, now from the
+  /// control bar: keep the clock and re-fetch the source at another level.
+  void _changeSourceQuality(String value) {
+    if (value == quality) return;
+    final resume = playing;
+    quality = value;
+    _play(position, resumePlaying: resume);
+  }
+
   Future<void> _seekTv(Duration target) async {
     if (preparing || tvDuration == Duration.zero) return;
     try {
@@ -314,6 +339,7 @@ class _PlayerPageState extends State<PlayerPage>
     );
     WidgetsBinding.instance.addObserver(this);
     player = Player();
+    transport = MediaKitTransport(player);
     if (tvBuild) tvPlayback.addListener(_tvChanged);
     if (!tvBuild) {
       controller = VideoController(
@@ -353,6 +379,14 @@ class _PlayerPageState extends State<PlayerPage>
       player.stream.position.listen((value) {
         if (value > Duration.zero) _resumeSnapshotOffset = Duration.zero;
         if (player.state.playing) _saveHistory();
+      }),
+    );
+    subscriptions.add(
+      player.stream.buffering.listen((value) {
+        // A mid-clip stall is the backend's, not this page's preparing flag.
+        if (mounted && value != streamBuffering) {
+          _redraw(() => streamBuffering = value);
+        }
       }),
     );
     HardwareKeyboard.instance.addHandler(_macEscape);
@@ -1072,6 +1106,44 @@ class _PlayerPageState extends State<PlayerPage>
     player.seek(clamped);
   }
 
+  /// A ±10s move from anywhere: the bar's buttons, a double tap on the picture,
+  /// or J/L. The picture answers with the half that moved.
+  void _nudge(int seconds) {
+    _seek(seconds);
+    centerOverlay.currentState?.flashSeek(seconds);
+    compactControls.currentState?.show();
+  }
+
+  /// Hold to accelerate. Released, the clip goes back to whatever the speed
+  /// menu says it should be — the boost is never a saved preference.
+  void _speedBoost(bool on) {
+    if (on) {
+      if (player.state.rate >= 1.99) return;
+      boostFrom = player.state.rate;
+      player.setRate(2.0);
+    } else if (player.state.rate >= 1.99) {
+      player.setRate(boostFrom);
+    }
+    _fleetingNotice(on ? '2 倍速快进中，松手恢复' : '已恢复正常速度');
+  }
+
+  void _nudgeVolume(int step) {
+    final next = (player.state.volume + step).clamp(0.0, 100.0);
+    player.setVolume(next);
+    compactControls.currentState?.show();
+  }
+
+  void _toggleMute() {
+    final at = player.state.volume;
+    if (at > 0) {
+      muteFrom = at;
+      player.setVolume(0);
+    } else {
+      player.setVolume(muteFrom <= 0 ? 100 : muteFrom);
+    }
+    compactControls.currentState?.show();
+  }
+
   bool get castActive => castService?.active ?? false;
 
   bool _swipeBlocked() =>
@@ -1221,6 +1293,15 @@ class _PlayerPageState extends State<PlayerPage>
       ],
     ),
   );
+
+  /// The wide surfaces put 清晰度 in the control bar; the tall ones have no room
+  /// for it there, so the episode panel keeps its dropdown. One entry per state,
+  /// never two.
+  bool get _qualityInBar =>
+      !widget.cachedOnly &&
+      (surface == ControlSurface.desktopWide ||
+          surface == ControlSurface.mobileLandscape);
+
   Widget _episodes() => CustomScrollView(
     key: const PageStorageKey('episode-options'),
     slivers: [
@@ -1280,49 +1361,46 @@ class _PlayerPageState extends State<PlayerPage>
                 spacing: 8,
                 runSpacing: 4,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('清晰度'),
-                      const SizedBox(width: 12),
-                      DropdownButton<String>(
-                        value: quality,
-                        underline: const SizedBox(),
-                        items: widget.cachedOnly
-                            ? [
-                                DropdownMenuItem(
-                                  value: quality,
-                                  child: Text(
-                                    quality == 'best' || quality == 'auto'
-                                        ? '自动'
-                                        : quality,
+                  if (!_qualityInBar)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('清晰度'),
+                        const SizedBox(width: 12),
+                        DropdownButton<String>(
+                          value: quality,
+                          underline: const SizedBox(),
+                          items: widget.cachedOnly
+                              ? [
+                                  DropdownMenuItem(
+                                    value: quality,
+                                    child: Text(
+                                      quality == 'best' || quality == 'auto'
+                                          ? '自动'
+                                          : quality,
+                                    ),
                                   ),
-                                ),
-                              ]
-                            : const [
-                                DropdownMenuItem(
-                                  value: 'best',
-                                  child: Text('自动'),
-                                ),
-                                DropdownMenuItem(
-                                  value: '720p',
-                                  child: Text('720p'),
-                                ),
-                                DropdownMenuItem(
-                                  value: '1080p',
-                                  child: Text('1080p'),
-                                ),
-                              ],
-                        onChanged: widget.cachedOnly
-                            ? null
-                            : (value) {
-                                final resume = playing;
-                                quality = value!;
-                                _play(position, resumePlaying: resume);
-                              },
-                      ),
-                    ],
-                  ),
+                                ]
+                              : const [
+                                  DropdownMenuItem(
+                                    value: 'best',
+                                    child: Text('自动'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: '720p',
+                                    child: Text('720p'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: '1080p',
+                                    child: Text('1080p'),
+                                  ),
+                                ],
+                          onChanged: widget.cachedOnly
+                              ? null
+                              : (value) => _changeSourceQuality(value!),
+                        ),
+                      ],
+                    ),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1708,6 +1786,14 @@ class _PlayerPageState extends State<PlayerPage>
 
       final episodeVisible =
           !compact && (episodeWorkspace.currentState?.visible ?? false);
+      final landscape = size.width >= size.height;
+      surface = platformPlayback.mobile
+          ? (landscape
+                ? ControlSurface.mobileLandscape
+                : ControlSurface.mobilePortrait)
+          : (!compact && size.width >= 720
+                ? ControlSurface.desktopWide
+                : ControlSurface.desktopNarrow);
       final chrome = CompactControls(
         key: compactControls,
         video: _touchVideo(),
@@ -1720,13 +1806,29 @@ class _PlayerPageState extends State<PlayerPage>
             (!macHost && episodeVisible) ||
             menuOpen ||
             recommendationOpen,
+        touch: platformPlayback.mobile,
+        center: PlayerCenterOverlay(
+          key: centerOverlay,
+          playing: playing,
+          busy: preparing || error != null,
+          buffering: streamBuffering,
+          touch: platformPlayback.mobile,
+          onPlay: () {
+            compactControls.currentState?.show();
+            player.playOrPause();
+          },
+        ),
+        onTogglePlay: () => player.playOrPause(),
+        onSeekBy: _nudge,
+        onSpeedBoost: platformPlayback.mobile ? _speedBoost : null,
         controls: PlaybackTransport(
-          player: player,
+          player: transport,
           title: macHost ? widget.detail.drama.title : null,
           playing: playing,
           fullscreen: fullscreen,
           busy: preparing || error != null,
-          desktop: !platformPlayback.mobile,
+          surface: surface,
+          buffering: streamBuffering,
           episode: widget.detail.episodes[position].index,
           canPrevious: position > 0,
           canNext: position + 1 < widget.detail.episodes.length,
@@ -1739,6 +1841,16 @@ class _PlayerPageState extends State<PlayerPage>
               : null,
           cast: castService == null || sourceVid == null ? null : _cast,
           floatingActive: floating,
+          castActive: castActive,
+          castDevice: castService?.target?.friendlyName,
+          quality: quality,
+          qualities: widget.cachedOnly
+              ? const []
+              : const ['best', '720p', '1080p'],
+          onQuality: _changeSourceQuality,
+          onProgressActivity: (value) =>
+              compactControls.currentState?.holdOnProgress(value),
+          onSeekBy: _nudge,
           onMenuChanged: (value) {
             if (mounted) _redraw(() => menuOpen = value);
           },
@@ -1770,6 +1882,10 @@ class _PlayerPageState extends State<PlayerPage>
             compactControls.currentState?.show();
             player.playOrPause();
           },
+          const SingleActivator(LogicalKeyboardKey.keyK): () {
+            compactControls.currentState?.show();
+            player.playOrPause();
+          },
           const SingleActivator(LogicalKeyboardKey.arrowLeft): () {
             compactControls.currentState?.show();
             _seek(-5);
@@ -1778,6 +1894,13 @@ class _PlayerPageState extends State<PlayerPage>
             compactControls.currentState?.show();
             _seek(5);
           },
+          const SingleActivator(LogicalKeyboardKey.keyJ): () => _nudge(-10),
+          const SingleActivator(LogicalKeyboardKey.keyL): () => _nudge(10),
+          const SingleActivator(LogicalKeyboardKey.keyM): _toggleMute,
+          const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
+              _nudgeVolume(5),
+          const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+              _nudgeVolume(-5),
           const SingleActivator(LogicalKeyboardKey.pageDown): () => _step(1),
           const SingleActivator(LogicalKeyboardKey.pageUp): () => _step(-1),
           const SingleActivator(LogicalKeyboardKey.keyI): episodes,

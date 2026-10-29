@@ -8,18 +8,40 @@ import 'package:flutter/services.dart';
 class CompactControls extends StatefulWidget {
   final Widget video, controls;
   final Widget? header;
+
+  /// The picture's own feedback layer (centre play, seek ripple, buffer ring).
+  /// It is drawn whether or not the bars are up, because a double tap that
+  /// landed mid-clip has to answer even when there is no button to press.
+  final Widget? center;
   final bool playing, busy;
+
+  /// Touch hosts keep the old contract — the first tap after the bars have faded
+  /// only brings them back. A mouse has hover for that, so a click is free to be
+  /// play/pause instead.
+  final bool touch;
   final Duration hideAfter;
   final ValueChanged<bool>? onVisibilityChanged;
+  final VoidCallback? onTogglePlay;
+
+  /// A double tap on the left or right third; the page seeks and flashes.
+  final ValueChanged<int>? onSeekBy;
+
+  /// Hold-to-accelerate, touch hosts only.
+  final ValueChanged<bool>? onSpeedBoost;
   const CompactControls({
     super.key,
     required this.video,
     required this.controls,
     required this.playing,
     required this.busy,
+    this.touch = true,
     this.header,
+    this.center,
     this.hideAfter = const Duration(seconds: 3),
     this.onVisibilityChanged,
+    this.onTogglePlay,
+    this.onSeekBy,
+    this.onSpeedBoost,
   });
   @override
   State<CompactControls> createState() => CompactControlsState();
@@ -28,8 +50,15 @@ class CompactControls extends StatefulWidget {
 class CompactControlsState extends State<CompactControls> {
   bool visible = true, keyboardFocus = false, wokeOnDown = false;
   bool keyboardReveal = false;
+
+  /// A pointer parked on the progress bar: the bars must not fade while the
+  /// viewer is lining up a landing point.
+  bool progressHold = false;
   Timer? timer;
   final pointers = <int>{};
+
+  /// Where the first tap of a double tap landed, as a fraction of the width.
+  double? _doubleFraction;
   @override
   void initState() {
     super.initState();
@@ -53,8 +82,20 @@ class CompactControlsState extends State<CompactControls> {
       widget.playing &&
       !widget.busy &&
       pointers.isEmpty &&
+      !progressHold &&
       !keyboardFocus &&
       !MediaQuery.accessibleNavigationOf(context);
+
+  void holdOnProgress(bool value) {
+    if (progressHold == value) return;
+    progressHold = value;
+    if (value) {
+      show();
+    } else {
+      _schedule();
+    }
+  }
+
   void _schedule() {
     timer?.cancel();
     if (mayHide) {
@@ -88,6 +129,38 @@ class CompactControlsState extends State<CompactControls> {
     timer?.cancel();
     setState(() => visible = false);
     widget.onVisibilityChanged?.call(false);
+  }
+
+  /// A tap on the picture. Under a mouse this is the play key, because hover
+  /// already handles waking; under a finger it stays the wake-and-toggle the
+  /// touch contract promises.
+  void _tap() {
+    final woke = wokeOnDown;
+    wokeOnDown = false;
+    if (!widget.touch) {
+      widget.onTogglePlay?.call();
+      return;
+    }
+    if (woke) {
+      // The pointer-down already showed the bars; this tap's job was only that.
+    } else if (visible) {
+      hide();
+    } else {
+      show();
+    }
+  }
+
+  void _doubleTap() {
+    wokeOnDown = false;
+    final at = _doubleFraction;
+    _doubleFraction = null;
+    if (at != null && at < .35) {
+      widget.onSeekBy?.call(-10);
+    } else if (at != null && at > .65) {
+      widget.onSeekBy?.call(10);
+    } else {
+      widget.onTogglePlay?.call();
+    }
   }
 
   @override
@@ -172,94 +245,85 @@ class CompactControlsState extends State<CompactControls> {
           _schedule();
         },
         onPointerSignal: (_) => show(),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () {
-            if (wokeOnDown) {
-              wokeOnDown = false;
-            } else if (visible) {
-              hide();
-            } else {
-              show();
-            }
-          },
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Positioned.fill(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(
+              // The gestures belong to the picture, not to everything above it:
+              // a double-tap recognizer that is also an ancestor of the buttons
+              // holds the arena and the button never answers.
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _tap,
+                onDoubleTapDown: (event) {
+                  final width = context.size?.width ?? 0;
+                  _doubleFraction = width <= 0
+                      ? null
+                      : event.localPosition.dx / width;
+                },
+                onDoubleTap: _doubleTap,
+                onLongPressStart: widget.touch
+                    ? (_) => widget.onSpeedBoost?.call(true)
+                    : null,
+                onLongPressEnd: widget.touch
+                    ? (_) => widget.onSpeedBoost?.call(false)
+                    : null,
+                onLongPressCancel: widget.touch
+                    ? () => widget.onSpeedBoost?.call(false)
+                    : null,
                 child: SizedBox.expand(
                   key: const ValueKey('compact-player-picture'),
                   child: widget.video,
                 ),
               ),
-              IgnorePointer(
-                ignoring: !visible,
-                child: ExcludeFocus(
+            ),
+            if (widget.center != null) widget.center!,
+            IgnorePointer(
+              ignoring: !visible,
+              child: ExcludeFocus(
+                excluding: !visible,
+                child: ExcludeSemantics(
                   excluding: !visible,
-                  child: ExcludeSemantics(
-                    excluding: !visible,
-                    child: AnimatedSwitcher(
-                      duration:
-                          keyboardReveal ||
-                              MediaQuery.disableAnimationsOf(context)
-                          ? Duration.zero
-                          : const Duration(milliseconds: 140),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeOutCubic,
-                      child: !visible
-                          ? const SizedBox.shrink()
-                          : Stack(
-                              key: const ValueKey('player-chrome'),
-                              fit: StackFit.expand,
-                              children: [
-                                if (widget.header != null)
-                                  Positioned(
-                                    top: 0,
-                                    left: 0,
-                                    right: 0,
-                                    child: widget.header!,
-                                  ),
+                  child: AnimatedSwitcher(
+                    duration:
+                        keyboardReveal ||
+                            MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 140),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeOutCubic,
+                    child: !visible
+                        ? const SizedBox.shrink()
+                        : Stack(
+                            key: const ValueKey('player-chrome'),
+                            fit: StackFit.expand,
+                            children: [
+                              if (widget.header != null)
                                 Positioned(
+                                  top: 0,
                                   left: 0,
                                   right: 0,
-                                  bottom: 0,
-                                  child: Material(
-                                    key: const ValueKey(
-                                      'compact-playback-controls',
-                                    ),
-                                    color: Colors.black.withValues(alpha: .72),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Align(
-                                          alignment: Alignment.centerRight,
-                                          child: SizedBox(
-                                            height: 30,
-                                            child: IconButton(
-                                              tooltip: '隐藏播放操作',
-                                              padding: EdgeInsets.zero,
-                                              onPressed: hide,
-                                              icon: const Icon(
-                                                Icons.expand_more,
-                                                size: 20,
-                                              ),
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                        widget.controls,
-                                      ],
-                                    ),
-                                  ),
+                                  child: widget.header!,
                                 ),
-                              ],
-                            ),
-                    ),
+                              Positioned(
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                child: Material(
+                                  key: const ValueKey(
+                                    'compact-playback-controls',
+                                  ),
+                                  color: Colors.black.withValues(alpha: .72),
+                                  child: widget.controls,
+                                ),
+                              ),
+                            ],
+                          ),
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     ),
