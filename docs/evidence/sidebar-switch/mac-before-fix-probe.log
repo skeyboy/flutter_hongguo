@@ -1,0 +1,129 @@
+00:00 +0: loading /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/sidebar_switch_live_test.dart
+The following plugins do not support Swift Package Manager for macos:
+  - media_kit_libs_macos_video
+  - media_kit_video
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Building macOS application...                                   
+/Volumes/PSSD/own/flutter_hongguo/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.OSHXiE/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Volumes/PSSD/own/flutter_hongguo/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.OSHXiE/Metal.xctoolchain/usr/lib/swift/macosx' not found
+✓ Built build/macos/Build/Products/Debug/Hongguo.app
+Failed to foreground app; open returned 1
+00:00 +0: the sidebar jumps and the type row still slides
+HGWIN x=560 y=232 w=1280 h=800 display=1920x1080
+HGSIDE t=1793242876075 ev=armed
+catalog.themes(short_play) failed: 内容接口未返回数据，请稍后重试
+HGSIDE t=1793242880084 ev=jump-in
+HGSIDE t=1793242880187 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242880205 ev=page page=0.62 pixels=672 viewport=1079
+HGSIDE t=1793242880222 ev=page page=0.70 pixels=761 viewport=1079
+HGSIDE t=1793242880238 ev=page page=0.77 pixels=835 viewport=1079
+HGSIDE t=1793242880254 ev=page page=0.83 pixels=894 viewport=1079
+HGSIDE t=1793242880270 ev=page page=0.87 pixels=943 viewport=1079
+HGSIDE t=1793242880287 ev=page page=0.91 pixels=982 viewport=1079
+HGSIDE t=1793242880303 ev=page page=0.94 pixels=1013 viewport=1079
+HGSIDE t=1793242880320 ev=page page=0.96 pixels=1036 viewport=1079
+HGSIDE t=1793242880336 ev=page page=0.98 pixels=1054 viewport=1079
+HGSIDE t=1793242880352 ev=page page=0.99 pixels=1067 viewport=1079
+HGSIDE t=1793242880428 ev=page page=1.00 pixels=1075 viewport=1079
+HGSIDE t=1793242880470 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242880492 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242880514 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242880530 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242880544 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242880561 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242880578 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242880594 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242880611 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242880627 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242880644 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242880660 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242880677 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242881294 ev=slide
+HGSIDE t=1793242882459 ev=slide-back
+HGSIDE t=1793242883670 ev=jump-out
+HGSIDE t=1793242883717 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242883737 ev=page page=0.72 pixels=775 viewport=1079
+HGSIDE t=1793242883754 ev=page page=0.59 pixels=637 viewport=1079
+HGSIDE t=1793242883772 ev=page page=0.48 pixels=514 viewport=1079
+HGSIDE t=1793242883800 ev=page page=0.38 pixels=407 viewport=1079
+HGSIDE t=1793242883821 ev=page page=0.23 pixels=244 viewport=1079
+HGSIDE t=1793242883839 ev=page page=0.20 pixels=214 viewport=1079
+HGSIDE t=1793242883855 ev=page page=0.13 pixels=136 viewport=1079
+HGSIDE t=1793242883901 ev=page page=0.09 pixels=97 viewport=1079
+HGSIDE t=1793242883955 ev=page page=0.02 pixels=25 viewport=1079
+HGSIDE t=1793242883970 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242883989 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242884002 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242884019 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242884036 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242884053 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242884069 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242884085 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242884102 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242884119 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242884135 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242884152 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242884169 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242884186 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242884205 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242884835 ev=jump-in
+HGSIDE t=1793242884879 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242884896 ev=page page=0.22 pixels=239 viewport=1079
+HGSIDE t=1793242884913 ev=page page=0.34 pixels=371 viewport=1079
+HGSIDE t=1793242884938 ev=page page=0.47 pixels=505 viewport=1079
+HGSIDE t=1793242884954 ev=page page=0.62 pixels=672 viewport=1079
+HGSIDE t=1793242884970 ev=page page=0.70 pixels=761 viewport=1079
+HGSIDE t=1793242884987 ev=page page=0.77 pixels=835 viewport=1079
+HGSIDE t=1793242885004 ev=page page=0.83 pixels=894 viewport=1079
+HGSIDE t=1793242885020 ev=page page=0.87 pixels=943 viewport=1079
+HGSIDE t=1793242885038 ev=page page=0.91 pixels=982 viewport=1079
+HGSIDE t=1793242885054 ev=page page=0.94 pixels=1013 viewport=1079
+HGSIDE t=1793242885126 ev=page page=0.95 pixels=1025 viewport=1079
+HGSIDE t=1793242885151 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242885171 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242885185 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242885202 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242885219 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242885235 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242885252 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242885269 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242885285 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242885302 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242885319 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242885335 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242885352 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242885369 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242885986 ev=slide
+HGSIDE t=1793242887178 ev=slide-back
+HGSIDE t=1793242888368 ev=jump-out
+HGSIDE t=1793242888410 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242888429 ev=page page=0.78 pixels=840 viewport=1079
+HGSIDE t=1793242888453 ev=page page=0.66 pixels=708 viewport=1079
+HGSIDE t=1793242888469 ev=page page=0.48 pixels=514 viewport=1079
+HGSIDE t=1793242888486 ev=page page=0.38 pixels=407 viewport=1079
+HGSIDE t=1793242888502 ev=page page=0.30 pixels=318 viewport=1079
+HGSIDE t=1793242888519 ev=page page=0.23 pixels=244 viewport=1079
+HGSIDE t=1793242888536 ev=page page=0.17 pixels=185 viewport=1079
+HGSIDE t=1793242888553 ev=page page=0.13 pixels=136 viewport=1079
+HGSIDE t=1793242888571 ev=page page=0.09 pixels=97 viewport=1079
+HGSIDE t=1793242888593 ev=page page=0.06 pixels=66 viewport=1079
+HGSIDE t=1793242888634 ev=page page=0.03 pixels=33 viewport=1079
+HGSIDE t=1793242888653 ev=page page=0.00 pixels=4 viewport=1079
+HGSIDE t=1793242888670 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242888689 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242888701 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242888718 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242888735 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242888751 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242888768 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242888784 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242888802 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242888818 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242888835 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242888851 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242888868 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242888885 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242888902 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242889526 ev=done
+00:15 +1: (tearDownAll)
+00:15 +1: All tests passed!

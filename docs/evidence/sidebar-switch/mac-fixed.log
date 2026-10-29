@@ -1,0 +1,105 @@
+00:00 +0: loading /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/sidebar_switch_live_test.dart
+The following plugins do not support Swift Package Manager for macos:
+  - media_kit_libs_macos_video
+  - media_kit_video
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Building macOS application...                                   
+/Volumes/PSSD/own/flutter_hongguo/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.OSHXiE/Metal.xctoolchain/usr/lib/swift/macosx' not found
+/Volumes/PSSD/own/flutter_hongguo/packages/app/macos/Runner.xcodeproj: Runner: ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.1.266.1.OSHXiE/Metal.xctoolchain/usr/lib/swift/macosx' not found
+✓ Built build/macos/Build/Products/Debug/Hongguo.app
+Failed to foreground app; open returned 1
+00:00 +0: the sidebar jumps and the type row still slides
+HGWIN x=560 y=232 w=1280 h=800 display=1920x1080
+HGSIDE t=1793242678277 ev=armed
+HGSIDE t=1793242692257 ev=jump-in
+HGSIDE t=1793242692477 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242693702 ev=slide
+HGSIDE t=1793242694927 ev=slide-back
+HGSIDE t=1793242696175 ev=jump-out
+HGSIDE t=1793242696251 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696269 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696286 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696306 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696322 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696346 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696363 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696379 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696395 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696480 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696497 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696512 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696527 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696567 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696586 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696601 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696618 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696634 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696651 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696668 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696684 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696701 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696718 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242696735 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242697367 ev=jump-in
+HGSIDE t=1793242697438 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697452 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697469 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697490 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697510 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697527 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697543 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697559 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697576 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697592 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697654 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697669 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697686 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697702 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697719 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697734 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697751 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697767 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697784 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697801 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697818 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697834 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697851 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697868 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697885 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697902 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697918 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242697936 ev=page page=1.00 pixels=1079 viewport=1079
+HGSIDE t=1793242698569 ev=slide
+HGSIDE t=1793242699794 ev=slide-back
+HGSIDE t=1793242701063 ev=jump-out
+HGSIDE t=1793242701139 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701153 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701170 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701193 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701211 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701227 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701244 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701260 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701276 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701292 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701348 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701360 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701376 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701393 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701409 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701426 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701443 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701459 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701476 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701492 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701509 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701526 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701549 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701568 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701584 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701601 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701618 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242701634 ev=page page=0.00 pixels=0 viewport=1079
+HGSIDE t=1793242702253 ev=done
+00:26 +1: (tearDownAll)
+00:26 +1: All tests passed!
