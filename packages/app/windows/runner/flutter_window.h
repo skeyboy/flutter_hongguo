@@ -23,6 +23,10 @@ class FlutterWindow : public Win32Window {
                          LPARAM const lparam) noexcept override;
 
  private:
+  bool AddTrayIcon();
+  void RestoreWindow();
+  bool tray_available_ = false;
+  UINT taskbar_created_ = 0;
   // The project to run.
   flutter::DartProject project_;
 
