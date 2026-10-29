@@ -58,6 +58,7 @@ flutter_hongguo/
 | 下载队列并发与容量台账 | [download_manager.dart](../packages/app/lib/downloads/download_manager.dart) | [download_manager_test.dart](../packages/app/test/download_manager_test.dart) |
 | 本地播放器、seek、切集、预热与生命周期 | [player_page.dart](../packages/app/lib/features/player_page.dart) | [离线原生集成测试](../packages/app/integration_test/offline_playback_test.dart) |
 | 播放页竖滑切集与首次提示 | [episode_swipe.dart](../packages/app/lib/playback/episode_swipe.dart) | [episode_swipe_test.dart](../packages/app/test/episode_swipe_test.dart) |
+| 播放控制条四态簇、自绘进度条、中心层与接缝 | [playback_transport.dart](../packages/app/lib/playback/playback_transport.dart)、[transport_player.dart](../packages/app/lib/playback/transport_player.dart)、[player_progress_bar.dart](../packages/app/lib/playback/player_progress_bar.dart)、[player_center_overlay.dart](../packages/app/lib/playback/player_center_overlay.dart)、[compact_controls.dart](../packages/app/lib/playback/compact_controls.dart) | [player_controls_test.dart](../packages/app/test/player_controls_test.dart)、[compact_controls_test.dart](../packages/app/test/compact_controls_test.dart) |
 | 原生运行链路与私有目录 | [runtime_native.dart](../packages/app/lib/platform/runtime_native.dart) | [Mac 真实单集测试](../packages/app/integration_test/macos_live_poc_test.dart) |
 
 ## 新增：设置、预缓存与响应式 UI

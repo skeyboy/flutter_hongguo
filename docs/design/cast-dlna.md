@@ -51,9 +51,9 @@ packages/cast/                     纯 Dart，零 Flutter
 
 - 接缝按现有惯例：投屏没有新加 `CastRuntime` mixin，能力直接用现成的 `runtime is LocalMediaRuntime` 探测再叠加平台门槛，即 `packages/app/lib/cast/cast_controller.dart` 的 `castSupported()`（移动端宿主 + 非 TV 版 + 运行时能给解密本地文件）；web runtime 不实现 `LocalMediaRuntime`，入口自然隐藏。
 - 投屏源只取**已就绪**缓存文件，走 `MediaCache.prepareCached` 的只读租约与 pin 机制，保证电视拉流期间文件不被淘汰。
-- 投屏开始时本地让位：复用 `_pausePlayback()`（`packages/app/lib/features/player_page.dart:513`，TV flavor 会自动分流到 `tvPlayback.pause()`）。
-- 电视侧进度反向驱动 UI：`platformPlayback.onExternalProgress` 已有先例（`packages/app/lib/features/player_page.dart:357`），进度来自 SOAP `GetPositionInfo` 轮询，不做假插值。
-- 入口按钮沿用可空回调惯法：`PlaybackTransport` 的 `floating` 就是 `if (widget.floating != null && ...) IconButton(key: ValueKey('enter-pip'), ...)`（`packages/app/lib/playback/playback_transport.dart:230`），投屏加的 `cast` 回调与 `ValueKey('cast-device')` 同构实现（同一文件 `:18`、`:223`）；`packages/app/lib/features/player_page.dart:1672` 那里按平台门槛传 null。
+- 投屏开始时本地让位：复用播放页的 `_pausePlayback()`（TV flavor 会自动分流到 `tvPlayback.pause()`）。
+- 电视侧进度反向驱动 UI：`platformPlayback.onExternalProgress` 已有先例，进度来自 SOAP `GetPositionInfo` 轮询，不做假插值。
+- 入口按钮沿用可空回调惯法：`PlaybackTransport` 的 `floating` 就是「回调非空才渲染 `IconButton(key: ValueKey('enter-pip'))`」，投屏加的 `cast` 回调与 `ValueKey('cast-device')` 同构实现；播放页 `controls: PlaybackTransport(...)` 那里按平台门槛传 `cast: castService == null || sourceVid == null ? null : _cast`。
 
 时序：点投屏 → 检查该内容是否已缓存为明文 → 启动 LAN HTTP 源 → SSDP 搜索（≤8s）→ 设备列表 → `SetAVTransportURI` + `Play` → 本地 `_pausePlayback` → 轮询 `GetPositionInfo`/`GetTransportInfo` → 遥控（暂停/继续/seek/音量走 SOAP）→ 退出投屏时 `Stop` 并按电视位置在本地续播 → 释放 HTTP 源与租约 pin。
 

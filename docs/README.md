@@ -43,6 +43,7 @@
 - [实施前 UI 设计](design/pc-mobile-ui.md)
 - [搜索聚焦下拉设计](design/search-focus-suggestions.md)：最近搜索与推荐位的交互、存储、标记语义与后端配合清单。
 - [播放页竖滑切集设计](design/player-episode-swipe.md)：市面手势惯例、触屏限定与互斥、边界反馈、首次提示文案矩阵。
+- [播放控制条重构设计](design/player-controls-redesign.md)：PC 与移动四态按钮簇、自绘进度条、中心层、点按/双击/长按语义、快捷键补齐，以及落地后与规格的出入（§8）。
 - [预缓存、设置与响应式 UI 实现及验证](pc-mobile-settings-prefetch.md)
 
 ## 建议阅读顺序
