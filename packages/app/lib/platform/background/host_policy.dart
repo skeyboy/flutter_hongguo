@@ -25,7 +25,7 @@ String get floatingDescription => kIsWeb
     ? '将当前本地视频交给系统画中画，返回时同步播放进度。需设备与系统支持。'
     : macHost
     ? '播放页可直接开启系统画中画，退出时同步进度并恢复原播放器。'
-    : '将当前播放窗口切为可拖动的置顶小窗，退出后恢复原窗口。';
+    : '将当前播放窗口按片源比例缩小，置顶到屏幕角落，退出后恢复原窗口。';
 String get backgroundDownloadDescription => mobileHost
     ? '交给系统下载并显示进度通知。iOS 解密与校验可能延后到返回 App；强制结束 App 不保证继续。'
     : '最小化或切换应用时继续准备缓存；退出 App 后不继续。';

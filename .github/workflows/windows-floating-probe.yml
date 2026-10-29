@@ -1,0 +1,37 @@
+name: Probe Windows floating window
+# The desktop floating path is Windows/Linux-only code, and no pipeline ever
+# executed it: windows-verify runs `flutter test`, and release jobs only build.
+# Manual dispatch until the runner is proven to host a real window session.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-floating-probe-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  floating:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/flutter
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+      - name: Run the desktop floating integration test
+        working-directory: packages/app
+        shell: bash
+        run: |
+          flutter test integration_test -d windows --no-pub --reporter expanded \
+            --name "desktop picture in picture restores playback and occlusion does not pause" \
+            2>&1 | tee windows-floating-probe.log
+          exit "${PIPESTATUS[0]}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: windows-floating-probe
+          path: packages/app/windows-floating-probe.log
+          if-no-files-found: warn
+          retention-days: 14

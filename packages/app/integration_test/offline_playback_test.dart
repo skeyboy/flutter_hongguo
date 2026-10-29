@@ -1262,6 +1262,10 @@ void main() {
           expect(await windowManager.isAlwaysOnTop(), isTrue);
           final mini = await windowManager.getBounds();
           expect(mini.width, lessThanOrEqualTo(525));
+          final pictureRatio = player.state.width! / player.state.height!;
+          expect(mini.width / mini.height, closeTo(pictureRatio, .05));
+          expect(mini.right, greaterThanOrEqualTo(original.right));
+          expect(mini.bottom, greaterThanOrEqualTo(original.bottom));
           await tester.tap(find.byTooltip('退出悬浮播放'));
         }
         for (var i = 0; i < 100 && state.platformPlayback.floating.value; i++) {

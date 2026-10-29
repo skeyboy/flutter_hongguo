@@ -8,7 +8,7 @@
 
 - **后台播放**：移动端使用媒体通知/锁屏控制，后台继续声音播放；桌面在最小化后继续。关闭播放页会结束该播放器，不是跨页面常驻音乐模式。
 - **后台下载**：移动端把后续缓存交给系统下载，离开播放页仍可完成已排队任务；桌面（macOS/Windows/Linux）仍由应用内的 Dio 通道传输，开关只决定切换应用时是否继续准备缓存。移动端新增“仅 Wi-Fi”，默认开启；等待网络会显示等待状态。桌面改走应用内通道的原因见 [macOS 与移动端播放差异](analysis/2026-10-28-mac-vs-mobile-playback.md)。
-- **悬浮播放**：播放器顶部出现画中画按钮。Android 使用系统 PiP；iOS 将当前本地 MP4 交给 AVPlayer；桌面切换可还原的置顶小窗。
+- **悬浮播放**：播放器顶部出现悬浮播放按钮（macOS 上标签为画中画）。Android 使用系统 PiP；iOS 将当前本地 MP4 交给 AVPlayer；macOS 把本地 MP4 交给系统画中画并在退出时同步进度；Windows/Linux 只是切换可还原的置顶小窗，不是系统画中画。
 
 移动端开启时显示说明；后台下载会申请通知授权。拒绝通知权限时系统可能不显示进度提醒，不代表允许绕过系统调度。
 
@@ -20,7 +20,8 @@
 | iOS 后台声音 | UIBackgroundModes=audio、AudioSession 与 audio_service 锁屏/控制中心；音频中断/耳机拔出暂停 |
 | Android 悬浮 | MainActivity 的 PiP 通道，API 26+；按实际比例限制到系统接受范围，PiP 中隐藏普通 UI |
 | iOS 悬浮 | 本地 clear MP4 → AVPlayerLayer → AVPictureInPictureController；暂停原播放器避免双重声音；返回时 seek/播放状态同步 |
-| 桌面悬浮 | window_manager 记录原窗口、置顶、最大化/全屏状态；缩小并置顶，退出后恢复 |
+| macOS 悬浮 | 本地 MP4 交给 AVPlayerLayer/AVPictureInPictureController，交接时暂停 media_kit，退出同步进度并恢复原播放器 |
+| Windows/Linux 悬浮 | window_manager 记录原窗口、置顶、最大化/全屏状态；按片源比例缩小并贴到工作区右下角，退出后恢复 |
 | 系统下载 | 仅移动端使用 background_downloader（Android WorkManager / iOS URLSession），网络字节进度接入共享预算/取消逻辑；工作文件不直接暴露给播放器。桌面该包没有原生实现，落到纯 Dart isolate 队列，实测会静默停滞，因此桌面固定走应用内 Dio |
 | 下载恢复 | 普通任务文件只含密钥引用，密钥在系统安全存储；启动时对完成文件做解密/校验/原子发布；未完成旧进程任务取消后可重试 |
 

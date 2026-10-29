@@ -2,11 +2,11 @@
 
 三个独立开关：后台播放、后台下载、悬浮播放；默认关闭，保存后生效。移动端新增开启说明，告知媒体控制、通知、流量和系统调度；后台下载默认仅 Wi-Fi，桌面不套用 Wi-Fi 限制。
 
-| 能力 | Android | iOS | macOS / Windows / Linux |
-|---|---|---|---|
-| 后台播放 | audio_service 媒体前台服务、媒体通知和耳机控制 | audio 后台模式、AudioSession、锁屏/控制中心 | 进程存活时最小化继续；无移动端前台服务 |
-| 后台下载 | 系统 WorkManager 下载和进度通知 | 系统 URLSession 下载，Dart 解密可能需回前台 | 固定应用内 Dio 下载（`background_downloader` 在桌面没有原生实现）；进程退出后不保证继续 |
-| 悬浮播放 | API 26+ 系统 PiP，不使用任意应用悬浮窗权限 | 本地 MP4 交给 AVPlayerLayer/PiP，返回同步进度 | 当前窗口缩小并置顶，保存/还原原窗口尺寸、位置、置顶和全屏状态 |
+| 能力 | Android | iOS | macOS | Windows / Linux |
+|---|---|---|---|---|
+| 后台播放 | audio_service 媒体前台服务、媒体通知和耳机控制 | audio 后台模式、AudioSession、锁屏/控制中心 | 进程存活时最小化继续；无移动端前台服务 | 与 macOS 相同 |
+| 后台下载 | 系统 WorkManager 下载和进度通知 | 系统 URLSession 下载，Dart 解密可能需回前台 | 固定应用内 Dio 下载（`background_downloader` 在桌面没有原生实现）；进程退出后不保证继续 | 与 macOS 相同 |
+| 悬浮播放 | API 26+ 系统 PiP，不使用任意应用悬浮窗权限 | 本地 MP4 交给 AVPlayerLayer/PiP，返回同步进度 | 本地 MP4 交给 AVPlayerLayer/PiP，返回同步进度，连播替换 AVPlayerItem | 当前窗口按片源比例缩小并贴到工作区右下角置顶，保存/还原原窗口尺寸、位置、置顶和全屏状态；不是系统画中画 |
 
 ## 交互
 

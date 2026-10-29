@@ -1,0 +1,60 @@
+  package:flutter_tools/src/test/flutter_platform.dart 679:51        FlutterPlatform._startTest.<fn>
+  ===== asynchronous gap ===========================
+  package:flutter_tools/src/base/async_guard.dart 108:24             asyncGuard.<fn>
+  
+00:00 +0 -21: loading C:/Users/lee/Documents/Codes/flutter_hongguo/packages/app/integration_test/v032_download_concurrency_test.dart
+Building Windows application...                                 
+C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\windows\flutter\ephemeral\.plugin_symlinks\flutter_secure_storage_windows\windows\flutter_secure_storage_windows_plugin.cpp(6,10): error C1083: 无法打开包括文件: “atlstr.h”: No such file or directory [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\flutter_secure_storage_windows\flutter_secure_storage_windows_plugin.vcxproj]
+angle_surface_manager.obj : error LNK2019: 无法解析的外部符号 __imp_eglChooseConfig，函数 "private: bool __cdecl ANGLESurfaceManager::CreateAndBindEGLSurface(void)" (?CreateAndBindEGLSurface@ANGLESurfaceManager@@AEAA_NXZ) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+angle_surface_manager.obj : error LNK2019: 无法解析的外部符号 __imp_eglCreateContext，函数 "private: bool __cdecl ANGLESurfaceManager::CreateAndBindEGLSurface(void)" (?CreateAndBindEGLSurface@ANGLESurfaceManager@@AEAA_NXZ) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+angle_surface_manager.obj : error LNK2019: 无法解析的外部符号 __imp_eglDestroyContext，函数 "private: void __cdecl ANGLESurfaceManager::CleanUp(bool)" (?CleanUp@ANGLESurfaceManager@@AEAAX_N@Z) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+angle_surface_manager.obj : error LNK2019: 无法解析的外部符号 __imp_eglDestroySurface，函数 "private: void __cdecl ANGLESurfaceManager::CleanUp(bool)" (?CleanUp@ANGLESurfaceManager@@AEAAX_N@Z) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+angle_surface_manager.obj : error LNK2019: 无法解析的外部符号 __imp_eglGetProcAddress，函数 "private: bool __cdecl ANGLESurfaceManager::CreateEGLDisplay(void)" (?CreateEGLDisplay@ANGLESurfaceManager@@AEAA_NXZ) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+video_output.obj : error LNK2001: 无法解析的外部符号 __imp_eglGetProcAddress [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+angle_surface_manager.obj : error LNK2019: 无法解析的外部符号 __imp_eglInitialize，函数 "private: bool __cdecl ANGLESurfaceManager::CreateEGLDisplay(void)" (?CreateEGLDisplay@ANGLESurfaceManager@@AEAA_NXZ) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+angle_surface_manager.obj : error LNK2019: 无法解析的外部符号 __imp_eglMakeCurrent，函数 "public: void __cdecl ANGLESurfaceManager::MakeCurrent(bool)" (?MakeCurrent@ANGLESurfaceManager@@QEAAX_N@Z) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+angle_surface_manager.obj : error LNK2019: 无法解析的外部符号 __imp_eglTerminate，函数 "private: void __cdecl ANGLESurfaceManager::CleanUp(bool)" (?CleanUp@ANGLESurfaceManager@@AEAAX_N@Z) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+angle_surface_manager.obj : error LNK2019: 无法解析的外部符号 __imp_eglBindTexImage，函数 "private: bool __cdecl ANGLESurfaceManager::CreateAndBindEGLSurface(void)" (?CreateAndBindEGLSurface@ANGLESurfaceManager@@AEAA_NXZ) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+angle_surface_manager.obj : error LNK2019: 无法解析的外部符号 __imp_eglReleaseTexImage，函数 "private: void __cdecl ANGLESurfaceManager::CleanUp(bool)" (?CleanUp@ANGLESurfaceManager@@AEAAX_N@Z) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+angle_surface_manager.obj : error LNK2019: 无法解析的外部符号 __imp_eglCreatePbufferFromClientBuffer，函数 "private: bool __cdecl ANGLESurfaceManager::CreateAndBindEGLSurface(void)" (?CreateAndBindEGLSurface@ANGLESurfaceManager@@AEAA_NXZ) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+angle_surface_manager.obj : error LNK2019: 无法解析的外部符号 __imp_glBindTexture，函数 "private: bool __cdecl ANGLESurfaceManager::CreateAndBindEGLSurface(void)" (?CreateAndBindEGLSurface@ANGLESurfaceManager@@AEAA_NXZ) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+angle_surface_manager.obj : error LNK2019: 无法解析的外部符号 __imp_glFinish，函数 "private: void __cdecl ANGLESurfaceManager::SwapBuffers(void)" (?SwapBuffers@ANGLESurfaceManager@@AEAAXXZ) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+angle_surface_manager.obj : error LNK2019: 无法解析的外部符号 __imp_glGenTextures，函数 "private: bool __cdecl ANGLESurfaceManager::CreateAndBindEGLSurface(void)" (?CreateAndBindEGLSurface@ANGLESurfaceManager@@AEAA_NXZ) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+angle_surface_manager.obj : error LNK2019: 无法解析的外部符号 __imp_glTexParameteri，函数 "private: bool __cdecl ANGLESurfaceManager::CreateAndBindEGLSurface(void)" (?CreateAndBindEGLSurface@ANGLESurfaceManager@@AEAA_NXZ) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+video_output.obj : error LNK2019: 无法解析的外部符号 mpv_free_node_contents，函数 "private: __int64 __cdecl VideoOutput::GetVideoWidth(void)" (?GetVideoWidth@VideoOutput@@AEAA_JXZ) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+video_output.obj : error LNK2019: 无法解析的外部符号 mpv_set_option_string，函数 "public: __cdecl <lambda_2afbcf527bd0ab7412702e64459cd6e7>::operator()(void)const " (??R<lambda_2afbcf527bd0ab7412702e64459cd6e7>@@QEBA@XZ) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+video_output.obj : error LNK2019: 无法解析的外部符号 mpv_get_property，函数 "private: __int64 __cdecl VideoOutput::GetVideoWidth(void)" (?GetVideoWidth@VideoOutput@@AEAA_JXZ) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+video_output.obj : error LNK2019: 无法解析的外部符号 mpv_render_context_create，函数 "public: __cdecl <lambda_2afbcf527bd0ab7412702e64459cd6e7>::operator()(void)const " (??R<lambda_2afbcf527bd0ab7412702e64459cd6e7>@@QEBA@XZ) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+video_output.obj : error LNK2019: 无法解析的外部符号 mpv_render_context_set_update_callback，函数 "public: __cdecl <lambda_2afbcf527bd0ab7412702e64459cd6e7>::operator()(void)const " (??R<lambda_2afbcf527bd0ab7412702e64459cd6e7>@@QEBA@XZ) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+video_output.obj : error LNK2019: 无法解析的外部符号 mpv_render_context_render，函数 "private: void __cdecl VideoOutput::Render(void)" (?Render@VideoOutput@@AEAAXXZ) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+video_output.obj : error LNK2019: 无法解析的外部符号 mpv_render_context_free，函数 "public: __cdecl <lambda_844ca80b40bf71a767a492cd099b0dbf>::operator()(void)const " (??R<lambda_844ca80b40bf71a767a492cd099b0dbf>@@QEBA@XZ) 中引用了该符号 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+..\..\libmpv\libmpv.dll.a : warning LNK4272: 库计算机类型“x64”与目标计算机类型“ARM64”冲突 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+..\..\ANGLE\lib\libEGL.dll.lib : warning LNK4272: 库计算机类型“x64”与目标计算机类型“ARM64”冲突 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+..\..\ANGLE\lib\libGLESv2.dll.lib : warning LNK4272: 库计算机类型“x64”与目标计算机类型“ARM64”冲突 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\Debug\media_kit_video_plugin.dll : fatal error LNK1120: 22 个无法解析的外部命令 [C:\Users\lee\Documents\Codes\flutter_hongguo\packages\app\build\windows\arm64\plugins\media_kit_video\media_kit_video_plugin.vcxproj]
+Building Windows application...                                   137.5s
+00:00 +0 -22: loading C:/Users/lee/Documents/Codes/flutter_hongguo/packages/app/integration_test/v032_download_concurrency_test.dart [E]
+  Failed to load "C:/Users/lee/Documents/Codes/flutter_hongguo/packages/app/integration_test/v032_download_concurrency_test.dart": Build process failed.
+  package:flutter_tools/src/base/common.dart 34:3                    throwToolExit
+  package:flutter_tools/src/windows/build_windows.dart 262:5         _runBuild
+  ===== asynchronous gap ===========================
+  package:flutter_tools/src/windows/build_windows.dart 118:5         buildWindows
+  ===== asynchronous gap ===========================
+  package:flutter_tools/src/windows/windows_device.dart 60:5         WindowsDevice.buildForDevice
+  ===== asynchronous gap ===========================
+  package:flutter_tools/src/desktop_device.dart 108:7                DesktopDevice.startApp
+  ===== asynchronous gap ===========================
+  package:flutter_tools/src/test/integration_test_device.dart 59:39  IntegrationTestTestDevice.start
+  ===== asynchronous gap ===========================
+  package:flutter_tools/src/test/flutter_platform.dart 679:51        FlutterPlatform._startTest.<fn>
+  ===== asynchronous gap ===========================
+  package:flutter_tools/src/base/async_guard.dart 108:24             asyncGuard.<fn>
+  
+00:00 +0 -22: Some tests failed.
+
+Failing tests:
+  C:/Users/lee/Documents/Codes/flutter_hongguo/packages/app/integration_test/cached_artwork_test.dart: loading C:/Users/lee/Documents/Codes/flutter_hongguo/packages/app/integration_test/cached_artwork_test.dart
+  C:/Users/lee/Documents/Codes/flutter_hongguo/packages/app/integration_test/desktop_episode_swipe_hint_test.dart: loading C:/Users/lee/Documents/Codes/flutter_hongguo/packages/app/integration_test/desktop_episode_swipe_hint_test.dart
+  C:/Users/lee/Documents/Codes/flutter_hongguo/packages/app/integration_test/download_concurrency_live_test.dart: loading C:/Users/lee/Documents/Codes/flutter_hongguo/packages/app/integration_test/download_concurrency_live_test.dart
+  C:/Users/lee/Documents/Codes/flutter_hongguo/packages/app/integration_test/ios_episode_swipe_test.dart: loading C:/Users/lee/Documents/Codes/flutter_hongguo/packages/app/integration_test/ios_episode_swipe_test.dart
+  ... and 18 more

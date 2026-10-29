@@ -130,6 +130,9 @@ class _MediaHandler extends BaseAudioHandler {
 
 Future<_MediaHandler>? _handler;
 
+const _floatingLongEdge = 520.0;
+const _floatingShortEdge = 200.0;
+
 class PlaybackPlatform with WindowListener {
   static const _channel = MethodChannel('hongguo/platform-playback');
   static PlaybackPlatform? _callbackOwner;
@@ -345,9 +348,17 @@ class PlaybackPlatform with WindowListener {
         if (_fullscreen) await windowManager.setFullScreen(false);
         if (_maximized) await windowManager.unmaximize();
         final ratio = (player.state.width ?? 9) / (player.state.height ?? 16);
-        await windowManager.setSize(
-          ratio < 1 ? const Size(300, 500) : const Size(520, 340),
-        );
+        final picture = ratio >= 1
+            ? Size(_floatingLongEdge, _floatingLongEdge / ratio)
+            : Size(_floatingLongEdge * ratio, _floatingLongEdge);
+        final bounded = picture.shortestSide < _floatingShortEdge
+            ? Size(
+                picture.width * _floatingShortEdge / picture.shortestSide,
+                picture.height * _floatingShortEdge / picture.shortestSide,
+              )
+            : picture;
+        await windowManager.setSize(bounded);
+        await windowManager.setAlignment(Alignment.bottomRight);
         await windowManager.setAlwaysOnTop(true);
         if (!await windowManager.isAlwaysOnTop()) {
           throw StateError('当前桌面环境不支持窗口置顶');
