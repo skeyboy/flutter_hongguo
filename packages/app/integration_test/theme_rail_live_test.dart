@@ -48,6 +48,35 @@ Finder _page(WidgetTester tester, int pane) =>
 /// only one page of the two is on stage at a time, so it names the visible one.
 Finder _rail() => find.byKey(const ValueKey('theme-rail'));
 
+/// Whether the strip is showing the 二级 it stands on. Only worth reading after a
+/// pull: a tap goes through `ensureVisible` first, and that moves the row for the
+/// product rather than proving the product moves it. The settle is the point --
+/// the product reveals on the frame after the one that changed level, so a
+/// reading taken in the same breath as the marker measures the moment before.
+Future<String> _railRevealed(WidgetTester tester, int pane) async {
+  await _live(tester, 400);
+  final level2 = _level2(tester, pane);
+  final chip = find.byKey(
+    ValueKey(
+      level2.startsWith('board:')
+          ? 'filter-board-${level2.substring(6)}'
+          : 'theme-rail-$level2',
+    ),
+  );
+  if (chip.evaluate().isEmpty) return ' chip=none';
+  final c = tester.getRect(chip);
+  final r = tester.getRect(_rail());
+  final pixels = tester
+      .state<ScrollableState>(
+        find.descendant(of: _rail(), matching: find.byType(Scrollable)),
+      )
+      .position
+      .pixels;
+  return ' chip-in-strip=${c.left >= r.left - 0.5 && c.right <= r.right + 0.5}'
+      ' chip=${c.left.round()}..${c.right.round()}'
+      ' strip=${r.left.round()}..${r.right.round()} px=${pixels.round()}';
+}
+
 /// Where one page's innermost level stands: a 题材 id, `''` for 全部, or a
 /// `board:` entry while 发现 ranks.
 String _level2(WidgetTester tester, int pane) {
@@ -328,10 +357,13 @@ void main() {
         reason: 'pull $i did not turn 题材',
       );
       if (i == 0) {
+        final revealed = await _railRevealed(tester, 1);
         _mark(
           'shot=level2-first-pull from=${before.genre}/${before.level2} '
-          'to=${now.genre}/${now.level2}',
+          'to=${now.genre}/${now.level2}$revealed',
         );
+        // The still is for this state, and the next pull starts a new one.
+        await _hold(tester);
       }
     }
     await _hold(tester);
@@ -353,9 +385,10 @@ void main() {
       isNot(beforeEnd.genre),
       reason: 'the last 题材 did not hand over to 类型',
     );
+    final handoverRevealed = await _railRevealed(tester, 1);
     _mark(
       'shot=genre-handover from=${beforeEnd.genre}/${beforeEnd.level2} '
-      'to=${atEnd.genre}/${atEnd.level2}',
+      'to=${atEnd.genre}/${atEnd.level2}$handoverRevealed',
     );
     await _hold(tester);
 
@@ -406,14 +439,34 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('filter-view-recommend')));
     await _live(tester, 1200);
 
-    // 上下滑: the band above the list folds away and the 二级 strip stays pinned.
+    // 上下滑: the search box folds away under the list and both filter rows stay
+    // with the viewer. What they were asked for on the way down is still
+    // answerable at the top of the screen -- a fold that took 类型 with it could
+    // only be undone by scrolling all the way back.
     final dynamic foldState = _shell(tester);
+    final choicesRow = find.byKey(const ValueKey('filter-choices-discover'));
     await tester.drag(_page(tester, 0), const Offset(0, -1600));
     await _live(tester, 1200);
     _mark(
       'shot=band-collapsed collapsed=${foldState.bandCollapsed[0]} '
       'rail-top=${tester.getRect(_rail()).top.round()} '
+      'choices-top=${tester.getRect(choicesRow).top.round()} '
       'offset=${_offsetOf(tester, 0).round()}',
+    );
+    await _hold(tester);
+    final beforeType = foldState.genre as String;
+    final comicChip = find.byKey(
+      const ValueKey('filter-genre-discover-comic_series'),
+    );
+    await _tapChip(tester, comicChip);
+    // The row answers from under the folded band, and keeps the chip it just
+    // selected inside itself rather than past its own edge.
+    final inRow =
+        tester.getRect(comicChip).right <= tester.getRect(choicesRow).right;
+    _mark(
+      'shot=filters-answered-folded genre=${foldState.genre} was=$beforeType '
+      'collapsed=${foldState.bandCollapsed[0]} '
+      'offset=${_offsetOf(tester, 0).round()} chip-in-row=$inRow',
     );
     await _hold(tester);
     await tester.drag(_page(tester, 0), const Offset(0, 1600));
@@ -469,7 +522,8 @@ void main() {
     );
     await _tapChip(tester, chips.at(3));
     await _waitRows(tester, 1, 'theme-two');
-    _mark('shot=theme-two level2=${_level2(tester, 1)}');
+    final themeTwoRevealed = await _railRevealed(tester, 1);
+    _mark('shot=theme-two level2=${_level2(tester, 1)}$themeTwoRevealed');
     await _hold(tester);
 
     // Scroll inside this theme so the return can be judged against an offset.

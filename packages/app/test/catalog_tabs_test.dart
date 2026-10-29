@@ -407,6 +407,152 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('the row of a level turned by a swipe shows what it turned to', (
+    tester,
+  ) async {
+    await mount(tester, FakeRuntime(WideThemesCatalog()), const Size(320, 844));
+    final rail = find.byKey(const ValueKey('theme-rail'));
+    final choices = find.byKey(const ValueKey('filter-choices-discover'));
+    final ai = find.byKey(const ValueKey('filter-genre-discover-ai_series'));
+    // The row is wider than this page and is at its own start, so the last type
+    // -- the one the strip is two pulls away from turning to -- is past its
+    // edge, and nothing has been tapped to bring it in.
+    expect(
+      tester
+          .state<ScrollableState>(
+            find.descendant(of: choices, matching: find.byType(Scrollable)),
+          )
+          .position
+          .maxScrollExtent,
+      greaterThan(0),
+    );
+    expect(ai.hitTestable(), findsNothing);
+    for (var i = 0; i < 8 && shell(tester).genre != 'ai_series'; i++) {
+      await tester.drag(rail, const Offset(-260, 0));
+      await tester.pumpAndSettle();
+    }
+    expectInner(tester, 0, 'ai_series');
+    expectPage(tester, 0);
+    // One row moved, and only that row: the chip its own level now names is
+    // back inside it, and neither the page under it nor the shell was revealed
+    // on the way -- which is why this is not Scrollable.ensureVisible, which
+    // walks every ancestor viewport and would answer one swipe with two levels.
+    expect(ai.hitTestable(), findsOneWidget);
+    expect(
+      tester.getRect(ai).right,
+      lessThanOrEqualTo(tester.getRect(choices).right),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a rail refilled by another type shows the level it starts at', (
+    tester,
+  ) async {
+    await mount(tester, FakeRuntime(WideThemesCatalog()), const Size(320, 844));
+    final rail = find.byKey(const ValueKey('theme-rail'));
+    final railScroll = tester.state<ScrollableState>(
+      find.descendant(of: rail, matching: find.byType(Scrollable)),
+    );
+    await tester.drag(rail, const Offset(-120, 0));
+    await tester.pumpAndSettle();
+    expect(railScroll.position.pixels, greaterThan(0));
+    final all = find.byKey(const ValueKey('theme-rail-'));
+    expect(all.hitTestable(), findsNothing);
+    // Picking the type is a tap on the row above, not a drag on this one, so
+    // nothing would otherwise bring the new type's own first chip back: the
+    // chips that row was offset by belong to the type that was just left.
+    final comic = find.byKey(
+      const ValueKey('filter-genre-discover-comic_series'),
+    );
+    await tester.ensureVisible(comic);
+    await tester.pumpAndSettle();
+    await tester.tap(comic);
+    await tester.pumpAndSettle();
+    expect(shell(tester).genre, 'comic_series');
+    expect(all.hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a strip parked by the type it left shows the one back', (
+    tester,
+  ) async {
+    await mount(tester, FakeRuntime(WideThemesCatalog()), const Size(320, 844));
+    final rail = find.byKey(const ValueKey('theme-rail'));
+    final all = find.byKey(const ValueKey('theme-rail-'));
+    final comic = find.byKey(
+      const ValueKey('filter-genre-discover-comic_series'),
+    );
+    final short = find.byKey(
+      const ValueKey('filter-genre-discover-short_play'),
+    );
+    // A round trip through the other type, so this strip has already been asked
+    // to show this very first chip once -- and did.
+    await tester.ensureVisible(comic);
+    await tester.pumpAndSettle();
+    await tester.tap(comic);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(short);
+    await tester.pumpAndSettle();
+    await tester.tap(short);
+    await tester.pumpAndSettle();
+    // Park the row on the chips of the type it is standing on, the way reading
+    // a strip does.
+    await tester.drag(rail, const Offset(-140, 0));
+    await tester.pumpAndSettle();
+    expect(shell(tester).genre, 'short_play');
+    expect(
+      tester
+          .state<ScrollableState>(
+            find.descendant(of: rail, matching: find.byType(Scrollable)),
+          )
+          .position
+          .pixels,
+      greaterThan(0),
+    );
+    expect(all.hitTestable(), findsNothing);
+    // Back to the type whose first chip this row was already showing. The row is
+    // parked by chips it no longer holds, so showing where it stands is a
+    // question asked again, not one this row has already answered.
+    await tester.ensureVisible(comic);
+    await tester.pumpAndSettle();
+    await tester.tap(comic);
+    await tester.pumpAndSettle();
+    expect(shell(tester).genre, 'comic_series');
+    expect(all.hitTestable(), findsOneWidget);
+    expect(
+      tester.getRect(all).left,
+      greaterThanOrEqualTo(tester.getRect(rail).left - 0.5),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a rail chip tapped from the edge of the strip is shown whole', (
+    tester,
+  ) async {
+    await mount(tester, FakeRuntime(WideThemesCatalog()), const Size(320, 844));
+    final rail = find.byKey(const ValueKey('theme-rail'));
+    final third = find.byKey(const ValueKey('theme-rail-cate_9'));
+    // Park the strip on the chips a thumb has been dragged along, then bring
+    // this one back only as far as a reveal from outside puts it -- the state
+    // the live fixture reaches before its tap, and the one the row is asked to
+    // finish showing.
+    await tester.drag(rail, const Offset(-120, 0));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(third);
+    await tester.pumpAndSettle();
+    final parkedLeft = tester.getRect(third).left;
+    final stripLeft = tester.getRect(rail).left;
+    await tester.tap(third);
+    await tester.pumpAndSettle();
+    expect(shell(tester).theme, 'cate_9');
+    expect(
+      tester.getRect(third).left,
+      greaterThanOrEqualTo(stripLeft - 0.5),
+      reason: 'tapped from $parkedLeft against a strip starting at $stripLeft',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('the shared second level carries across the handover', (
     tester,
   ) async {

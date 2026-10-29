@@ -5,6 +5,7 @@ import 'dart:convert';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_core/hongguo_core.dart';
@@ -371,11 +372,12 @@ class _LibraryPageState extends State<LibraryPage> {
   /// viewer has actually moved between the two pages.
   bool swipeHintSeen = false;
 
-  /// Whether the collapsible part of a page's top -- the search field, 发现's own
-  /// mode row and the 类型 row -- is currently folded away. One per page, because
-  /// each page answers for its own list: a pane scrolled deep stays folded when
-  /// the viewer swipes back to it, instead of pushing the band over the rows
-  /// they were reading.
+  /// Whether the collapsible part of a page's top -- the search field, the
+  /// offline-check button and the swipe hint -- is currently folded away. Both
+  /// filter rows stay under it, so a scroll never takes a way out of the current
+  /// mode or type with it. One per page, because each page answers for its own
+  /// list: a pane scrolled deep stays folded when the viewer swipes back to it,
+  /// instead of pushing the band over the rows they were reading.
   final bandCollapsed = <int, bool>{for (final p in panes) p: false};
 
   /// Folded once the list of the page on screen has gone past the height of the
@@ -421,6 +423,82 @@ class _LibraryPageState extends State<LibraryPage> {
 
   ScrollController rowAt(String key) =>
       rowScroll.putIfAbsent(key, ScrollController.new);
+
+  /// One handle per sideways row's own content, so the row can be asked where
+  /// its chips ended up after the frame that laid them out.
+  final rowContent = <String, GlobalKey>{};
+
+  GlobalKey rowContentAt(String key) =>
+      rowContent.putIfAbsent(key, GlobalKey.new);
+
+  /// What each pinned row last stood for -- the content it holds and, of that
+  /// content, the chip its level names -- and whether showing it is still owed.
+  /// A chip can be the answer without ever having been dragged into view: a
+  /// swipe that turned the type, a mode that swapped the boards in, a row parked
+  /// at the far end of the type that was just left.
+  ///
+  /// Recorded per row rather than per content, because a strip that comes back
+  /// to a type it showed a minute ago is a different question from the same
+  /// frame of that strip: in between, the row was parked by the chips of another
+  /// type. And an ask stays owed while the row cannot be measured -- a strip
+  /// still waiting for its 题材 is a spinner with no chip to aim at -- so the
+  /// frame that fills it is asked again.
+  final bandShown = <String, String>{};
+  final bandOwed = <String>{};
+
+  /// Records what a row has to show and asks the frame after this one to move
+  /// only that row. `Scrollable.ensureVisible` is not usable here: it walks
+  /// every ancestor viewport, and these rows live inside the first-level pages,
+  /// so one reveal could turn a level or the shell the drag never asked to.
+  void _trackBandTarget(String rowKey, int index, [String content = '']) {
+    if (index < 0) return;
+    final pair = '$content|$index';
+    if (bandShown[rowKey] == pair && !bandOwed.contains(rowKey)) return;
+    bandShown[rowKey] = pair;
+    bandOwed.add(rowKey);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _revealBandTarget(rowKey, pair, index),
+    );
+  }
+
+  /// The smallest movement of this row's own offset that puts the chip back
+  /// inside the row. Nothing moves when it already is: the row the viewer is
+  /// reading is not re-arranged under their finger because a level settled.
+  void _revealBandTarget(String rowKey, String pair, int index) {
+    if (!mounted || bandShown[rowKey] != pair) return;
+    if (!rowScroll.containsKey(rowKey)) return;
+    final content = rowContentAt(rowKey).currentContext?.findRenderObject();
+    final controller = rowScroll[rowKey]!;
+    if (content is! RenderBox || !controller.hasClients) return;
+    final laidOut = <RenderBox>[];
+    content.visitChildren((child) {
+      if (child is RenderBox) laidOut.add(child);
+    });
+    if (laidOut.length <= index) return;
+    final chip = laidOut[index];
+    final viewport = RenderAbstractViewport.maybeOf(chip);
+    if (viewport == null) return;
+    final position = controller.position;
+    if (position.isScrollingNotifier.value) return;
+    // Leading edge of the row for a chip left behind, trailing edge for one not
+    // yet reached -- whichever way it needs moving is the way that costs least.
+    final revealStart = viewport.getOffsetToReveal(chip, 0.0).offset;
+    final revealEnd = viewport.getOffsetToReveal(chip, 1.0).offset;
+    final wanted = revealEnd > position.pixels
+        ? revealEnd
+        : revealStart < position.pixels
+        ? revealStart
+        : null;
+    bandOwed.remove(rowKey);
+    if (wanted == null) return;
+    unawaited(
+      position.animateTo(
+        wanted.clamp(position.minScrollExtent, position.maxScrollExtent),
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      ),
+    );
+  }
 
   bool _onNestedScroll(ScrollNotification notification) {
     // The page list itself is depth 0 and already pages on a swipe.
@@ -1735,53 +1813,62 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   /// The two levels of one page, in the same chip language as the theme rail:
-  /// every option of a group is on screen at once, one tap applies it, and the
-  /// current value is the highlighted chip.
+  /// every option of a group is applied by one tap, the current value is the
+  /// highlighted chip, and the row itself keeps the highlighted chip inside its
+  /// own width -- a type arrived at by a swipe is as readable as one tapped.
+  /// This row does not fold away with the search box: it is the only way to
+  /// change the mode or the type without scrolling all the way back up.
   ///
   /// 发现 leads with 频道 (推荐 / 最新 / 榜单) and its second row is 类型 -- or the
   /// three boards when 榜单 is selected, because `rank` has no genre parameter at
   /// all and a type row that changes nothing would be a false control. 分类 leads
   /// with 类型 and puts 题材, its real child, in the pinned rail under this row.
   Widget _choiceRow(int pane, bool compact) {
-    List<Widget> group(
+    List<({Widget chip, bool chosen})> group(
       String name,
       String selected,
       Map<String, String> values, {
       String? keyPrefix,
     }) => [
       for (final e in values.entries)
-        Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: ChoiceChip(
-            key: ValueKey('filter-${keyPrefix ?? name}-${e.key}'),
-            label: Text(
-              e.value,
-              style: TextStyle(
-                fontWeight: selected == e.key
-                    ? FontWeight.w700
-                    : FontWeight.w400,
+        (
+          chip: Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              key: ValueKey('filter-${keyPrefix ?? name}-${e.key}'),
+              label: Text(
+                e.value,
+                style: TextStyle(
+                  fontWeight: selected == e.key
+                      ? FontWeight.w700
+                      : FontWeight.w400,
+                ),
               ),
+              selected: selected == e.key,
+              onSelected: (_) {
+                if (selected != e.key) _selectFilter(name, e.key, pane);
+              },
+              materialTapTargetSize: MaterialTapTargetSize.padded,
             ),
-            selected: selected == e.key,
-            onSelected: (_) {
-              if (selected != e.key) _selectFilter(name, e.key, pane);
-            },
-            materialTapTargetSize: MaterialTapTargetSize.padded,
           ),
+          chosen: selected == e.key,
         ),
     ];
     final text = queryOf(pane);
-    final groups = <List<Widget>>[
+    final groups = <List<({Widget chip, bool chosen})>>[
       if (text.isNotEmpty)
         [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ActionChip(
-              key: ValueKey('clear-search-${paneName(pane)}'),
-              avatar: const Icon(Icons.close, size: 18),
-              label: const Text('清除搜索'),
-              onPressed: () => _clearSearch(pane),
+          (
+            chip: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ActionChip(
+                key: ValueKey('clear-search-${paneName(pane)}'),
+                avatar: const Icon(Icons.close, size: 18),
+                label: const Text('清除搜索'),
+                onPressed: () => _clearSearch(pane),
+              ),
             ),
+            chosen: false,
           ),
         ]
       else if (pane == 0)
@@ -1804,7 +1891,31 @@ class _LibraryPageState extends State<LibraryPage> {
           keyPrefix: 'genre-${paneName(pane)}',
         ),
     ];
-    final choices = rowAt('choices-$pane');
+    // The row is laid out with a seam between the two dimensions it holds, so
+    // the chip the level names is not simply the one the group lists first.
+    final children = <Widget>[];
+    var target = -1;
+    for (final (index, chips) in groups.indexed) {
+      if (index > 0) {
+        // 频道 answers "which stream", 类型/榜单 answers "which kind of
+        // story"; the seam keeps the two from reading as one choice.
+        children.add(
+          Container(
+            width: 1,
+            height: 24,
+            margin: const EdgeInsets.only(right: 12),
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        );
+      }
+      for (final item in chips) {
+        if (item.chosen) target = children.length;
+        children.add(item.chip);
+      }
+    }
+    final rowKey = 'choices-$pane';
+    _trackBandTarget(rowKey, target);
+    final choices = rowAt(rowKey);
     return SizedBox(
       height: _filterRowHeight,
       child: Scrollbar(
@@ -1818,22 +1929,7 @@ class _LibraryPageState extends State<LibraryPage> {
             horizontal: compact ? 12 : 24,
             vertical: 4,
           ),
-          child: Row(
-            children: [
-              for (final (index, chips) in groups.indexed) ...[
-                if (index > 0)
-                  // 频道 answers "which stream", 类型/榜单 answers "which kind of
-                  // story"; the seam keeps the two from reading as one choice.
-                  Container(
-                    width: 1,
-                    height: 24,
-                    margin: const EdgeInsets.only(right: 12),
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
-                ...chips,
-              ],
-            ],
-          ),
+          child: Row(key: rowContentAt(rowKey), children: children),
         ),
       ),
     );
@@ -1856,6 +1952,15 @@ class _LibraryPageState extends State<LibraryPage> {
     final themesFailed =
         !isRanking(pane) && bucket.error != null && bucket.values.isEmpty;
     final rail = rowAt('rail-$pane');
+    // The row is marked with the content it holds rather than only its index:
+    // entering another type refills it with the children of that type, and index
+    // 0 of the new content is a different question from index 0 of the chips the
+    // row is still offset by.
+    _trackBandTarget(
+      'rail-$pane',
+      level2IndexOf(pane, slot),
+      isRanking(pane) ? 'rank' : slot,
+    );
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: SizedBox(
@@ -1893,6 +1998,7 @@ class _LibraryPageState extends State<LibraryPage> {
                     vertical: 4,
                   ),
                   child: Row(
+                    key: rowContentAt('rail-$pane'),
                     children: [
                       // Whatever this row is a child of is on screen rather than
                       // remembered: 全部 carries the type, and a board carries the
@@ -1943,12 +2049,17 @@ class _LibraryPageState extends State<LibraryPage> {
   Widget _pane(int pane, bool compact, double viewportWidth) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      // The top asks the questions the viewer answers once -- where to search,
-      // which mode, which type -- so it folds away while the rows of the answer
-      // are being read. The second-level row stays: it is also the strip that
-      // shows where a sideways swipe landed, and a strip that slid away would
-      // leave the swipe with nothing that names the page it arrived on.
+      // Only what the viewer answers once folds: where to search, and the
+      // sentence about the swipe. Both filter rows stay pinned, because the
+      // rows are how the band is read while the rows it selects are being
+      // scrolled -- a type that went away with the header could only be
+      // changed again by scrolling all the way back to the top.
       _paneTop(pane, compact, viewportWidth),
+      // The first level: which stream, which type. It is outside the handover
+      // listener below on purpose -- a pull that runs out of this row's width
+      // is not a request to turn the level it belongs to, and the type is
+      // already turned by the strip under it and by the pages themselves.
+      _choiceRow(pane, compact),
       NotificationListener<ScrollNotification>(
         onNotification: (notification) => _onRowScroll(pane, notification),
         child: _level2Row(pane, compact),
@@ -1965,10 +2076,11 @@ class _LibraryPageState extends State<LibraryPage> {
     ],
   );
 
-  /// The part of the band that the list is allowed to scroll out of the way.
-  /// Folded, it is offstage rather than gone: the search field keeps its text,
-  /// its focus node and the key the viewer's history overlay is anchored to, and
-  /// comes back at the top of the same tap-free scroll up.
+  /// The part of the band that the list is allowed to scroll out of the way:
+  /// the search box and the swipe hint. Folded, it is offstage rather than
+  /// gone: the search field keeps its text, its focus node and the key the
+  /// viewer's history overlay is anchored to, and comes back at the top of the
+  /// same tap-free scroll up.
   Widget _paneTop(int pane, bool compact, double viewportWidth) {
     final padding = compact ? 16.0 : 28.0;
     return Visibility(
@@ -1997,9 +2109,6 @@ class _LibraryPageState extends State<LibraryPage> {
               ],
             ),
           ),
-          // The choices sit flush with the row under them -- both start at the
-          // same inset, so they read as one family of narrowing.
-          _choiceRow(pane, compact),
           if (compact && !swipeHintSeen)
             Padding(
               padding: EdgeInsets.fromLTRB(padding, 0, padding, 8),

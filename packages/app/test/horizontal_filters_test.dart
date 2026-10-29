@@ -124,20 +124,27 @@ void main() {
       await tester.pumpAndSettle();
       final dynamic state = tester.state(find.byType(LibraryPage));
       expect(state.scroll.offset as double, greaterThan(100));
-      // The questions the viewer already answered went with the header; the
-      // strip that names where a sideways swipe landed did not -- it moved up
-      // to the top of the page rather than staying where it scrolled out of.
+      // The questions the viewer already answered went with the header. Both
+      // filter rows stayed: the strip that names where a sideways swipe landed,
+      // and the row that says which mode and which type the list is in -- a fold
+      // that took the type with it could only be undone by scrolling all the way
+      // back to the top, which is not what a fold is for.
       expect(tester.widget<Visibility>(top).visible, isFalse);
+      final choices = find.byKey(const ValueKey('filter-choices-categories'));
+      expect(choices.hitTestable(), findsOneWidget);
       expect(
-        find.byKey(const ValueKey('filter-choices-categories')),
-        findsNothing,
+        tester.getRect(choices).bottom,
+        lessThanOrEqualTo(tester.getRect(viewport).top),
       );
       expect(rail.hitTestable(), findsOneWidget);
       expect(
         tester.getRect(rail).bottom,
         lessThanOrEqualTo(tester.getRect(viewport).top),
       );
-      // And the level still answers from the folded state.
+      // And either level still answers from the folded state.
+      await chooseGenre(tester, 'comic_series');
+      expect(state.genre, 'comic_series');
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('theme-rail-cate_7')));
       await tester.pump(const Duration(milliseconds: 300));
       expect(state.theme, 'cate_7');
