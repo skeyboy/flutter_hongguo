@@ -1,0 +1,33 @@
+00:00 +0: loading /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/theme_rail_live_test.dart
+The following plugins do not support Swift Package Manager for ios:
+  - media_kit_libs_ios_video
+  - media_kit_video
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Running Xcode build...                                          
+Xcode build done.                                           19.0s
+00:00 +0: the three levels page inside first and each keeps its own rows
+HGRAIL t=1793231656881 ev=armed
+HGRAIL t=1793231662473 ev=enter-categories destination=1 genre=short_play theme=null themes=29
+HGRAIL t=1793231671902 ev=rows-timeout where=rail pane=1 loading=false error=内容接口未返回数据，请稍后重试
+HGRAIL t=1793231671902 ev=shot=rail
+HGRAIL t=1793231675170 ev=shot=genre-comic genre=comic_series level2=
+HGRAIL t=1793231680159 ev=shot=level2-first-pull from=short_play/ to=short_play/cate_165 chip-in-strip=true chip=124..207 strip=0..402 px=0
+HGRAIL t=1793231688871 ev=shot=genre-handover from=short_play/cate_1240 to=comic_series/ chip-in-strip=true chip=0..124 strip=0..402 px=12
+HGRAIL t=1793231692252 ev=at-head genre=short_play level2=
+HGRAIL t=1793231693770 ev=handover to=0 theme-pulls=0 genre-pulls=0 first-answer=shell
+HGRAIL t=1793231694197 ev=shot=tab-swipe-to-discover
+HGRAIL t=1793231697547 ev=shot=mode-latest view=latest
+HGRAIL t=1793231700981 ev=shot=rank level2=board:recommend genre-row=0
+HGRAIL t=1793231704333 ev=shot=rank-board from=board:recommend to=board:hot
+HGRAIL t=1793231708615 ev=shot=band-collapsed collapsed=true rail-top=114 choices-top=62 offset=1580
+HGRAIL t=1793231712019 ev=shot=filters-answered-folded genre=comic_series was=short_play collapsed=true offset=0 chip-in-row=true
+HGRAIL t=1793231715085 ev=shot=band-expanded collapsed=false offset=0
+HGRAIL t=1793231718485 ev=end-of-levels genre=ai_series chips=9
+HGRAIL t=1793231721618 ev=shot=tab-swipe-to-categories from=ai_series/cate_1182
+HGRAIL t=1793231727574 ev=shot=theme-two level2=cate_262 chip-in-strip=false chip=-20..63 strip=0..402 px=285
+HGRAIL t=1793231731019 ev=shot=theme-two-scrolled offset=400
+HGRAIL t=1793231734419 ev=shot=theme-three level2=cate_297
+HGRAIL t=1793231738203 ev=shot=theme-two-restored offset=400 was=400
+HGRAIL t=1793231740715 ev=done
+01:26 +1: (tearDownAll)
+01:26 +1: All tests passed!

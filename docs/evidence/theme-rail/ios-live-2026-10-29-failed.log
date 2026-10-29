@@ -1,0 +1,58 @@
+00:00 +0: loading /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/theme_rail_live_test.dart
+The following plugins do not support Swift Package Manager for ios:
+  - media_kit_libs_ios_video
+  - media_kit_video
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Running Xcode build...                                          
+Xcode build done.                                           19.0s
+00:00 +0: the three levels page inside first and each keeps its own rows
+HGRAIL t=1793229879426 ev=armed
+HGRAIL t=1793229885051 ev=enter-categories destination=1 genre=short_play theme=null themes=29
+HGRAIL t=1793229885067 ev=shot=rail
+HGRAIL t=1793229888346 ev=shot=genre-comic genre=comic_series level2=
+HGRAIL t=1793229892945 ev=shot=level2-first-pull from=short_play/ to=short_play/cate_165
+HGRAIL t=1793229899346 ev=shot=genre-handover from=short_play/cate_1240 to=comic_series/
+HGRAIL t=1793229902748 ev=at-head genre=short_play level2=
+HGRAIL t=1793229904282 ev=handover to=0 theme-pulls=0 genre-pulls=0 first-answer=shell
+HGRAIL t=1793229904693 ev=shot=tab-swipe-to-discover
+HGRAIL t=1793229908016 ev=shot=mode-latest view=latest
+HGRAIL t=1793229911478 ev=shot=rank level2=board:recommend genre-row=0
+HGRAIL t=1793229914842 ev=shot=rank-board from=board:recommend to=board:hot
+HGRAIL t=1793229919104 ev=shot=band-collapsed collapsed=true rail-top=114 choices-top=62 offset=1580
+HGRAIL t=1793229922493 ev=shot=filters-answered-folded genre=comic_series was=short_play collapsed=true offset=0 chip-in-row=true
+HGRAIL t=1793229925515 ev=shot=band-expanded collapsed=false offset=0
+HGRAIL t=1793229928910 ev=end-of-levels genre=ai_series chips=9
+HGRAIL t=1793229931943 ev=shot=tab-swipe-to-categories from=ai_series/cate_1182
+HGRAIL t=1793229946214 ev=rows-timeout where=theme-two pane=1 loading=false error=内容接口未返回数据，请稍后重试
+HGRAIL t=1793229946215 ev=shot=theme-two level2=cate_262
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: a value greater than <100>
+  Actual: <0.0>
+   Which: is not a value greater than <100>
+the live list never scrolled
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/theme_rail_live_test.dart:499:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/theme_rail_live_test.dart line 499
+The test description was:
+  the three levels page inside first and each keeps its own rows
+════════════════════════════════════════════════════════════════════════════════════════════════════
+01:14 +0 -1: the three levels page inside first and each keeps its own rows [E]
+  Test failed. See exception logs above.
+  The test description was: the three levels page inside first and each keeps its own rows
+  
+01:14 +0 -1: (tearDownAll)
+01:14 +0 -1: Some tests failed.
+
+Failing tests:
+  /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/theme_rail_live_test.dart: the three levels page inside first and each keeps its own rows
