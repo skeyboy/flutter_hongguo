@@ -56,7 +56,14 @@ OverlayEntry showAnchoredPanel({
               ),
               child: anchoredSurface(
                 context: context,
-                child: Builder(builder: (context) => panel(context, close)),
+                // The panel is handed what is left under the chip, and a type
+                // that publishes five dimensions is taller than that. So the
+                // surface scrolls instead of overflowing: the drawer is drawn
+                // `overflow:auto` in the prototype for exactly this reason, and
+                // a clipped 「完成」 is a drawer that cannot be closed.
+                child: SingleChildScrollView(
+                  child: Builder(builder: (context) => panel(context, close)),
+                ),
               ),
             ),
           ),
