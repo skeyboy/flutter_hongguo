@@ -3,7 +3,7 @@
   发现页筛选分层 + 榜单独立模块 · 预览原型 v2
   v1 的词表是编的；v2 的每一个筛选名、每一条榜单赛道、每一个热度数字都来自
   docs/evidence/ranking-fields/ 的四次实机取样（packages/api/tool/rank_sample.dart）。
-  设计说明与交互规格见 ../discover-filters-and-ranking.md（§4 分层、§6 平台分派、§7 交互规格、§8 实测词表）。
+  设计说明与交互规格见 ../discover-filters-and-ranking.md（§4 分层、§6 平台分派（含 §6.2 TV）、§6.1 交互规格、§7 原型、§8 实测词表）。
   无网络依赖，双击即开。
 -->
 <html lang="zh-CN">
@@ -187,6 +187,101 @@
   .legend code{background:#e7e9ef;padding:1px 5px;border-radius:5px}
   .kbd{max-width:1280px;margin:8px auto 26px;padding:0 16px;font-size:12px;color:#6b7180;line-height:2}
   .kbd kbd{background:#fff;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;font:11px ui-monospace,Menlo,monospace}
+  /* ---------- TV（遥控族） ----------
+     配色取自 buildAppTheme(dark)：seed #d54738 → primary #f08475、surface #18181e、背景 #101014。
+     尺寸取自已实施的 TV 代码：sidebar 170、外边距 28/28/12、栏目标题 21、sidebar 品牌 24、
+     TvChoiceRail 字号 20 内边距 12/6 间隔 8、TvGrid maxExtent 190 / aspect .68 / 间隔 14、
+     标题 20 两行、焦点描边 3 圆角 12 内衬 5、动画 100ms。 */
+  .tv{display:none}
+  .tv.on{display:block}
+  .tvbox{max-width:1280px;margin:0 auto}
+  .tvsurface{position:relative;aspect-ratio:16/9;min-height:440px;background:#101014;color:#f2f3f7;
+             border-radius:18px;overflow:hidden;box-shadow:0 18px 46px rgba(0,0,0,.45)}
+  .tvshell{position:absolute;inset:0;display:flex;gap:24px;padding:28px 28px 12px}
+  .tvsb{flex:0 0 170px;display:flex;flex-direction:column;min-height:0}
+  .tvsb .brand{font-size:24px;font-weight:700;padding:0 12px 12px;flex:0 0 auto}
+  .tvsb .hint{margin:14px 12px 0;font-size:15px;line-height:1.7;color:#8b90a3;flex:0 0 auto}
+  .tvmain{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+  /* 一条 rail = 标签 + 可滑焦点行 + 尾部固定控件；rail 里全部选项常驻构建，不做「更多 ▾」 */
+  .tvrail{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+  .tvrail .lbl{font-size:15px;color:#8b90a3;flex:0 0 auto;width:78px}
+  .tvclip{overflow:hidden;min-width:0;min-height:0}
+  .tvrow{display:flex;gap:8px;transition:transform .12s ease-out;position:relative}
+  .tvcol{display:flex;flex-direction:column;gap:4px;transition:transform .12s ease-out;position:relative}
+  .tvnode{flex:0 0 auto;border:3px solid transparent;border-radius:12px;padding:5px;background:none;
+          color:inherit;text-align:left;transition:border-color .1s,transform .1s,background-color .1s}
+  .tvnode .in{display:block;padding:6px 12px;font-size:20px;white-space:nowrap;border-radius:8px}
+  .tvnode.sel .in{background:#2f211f}
+  .tvnode.act .in{color:#f08475;font-weight:700}
+  .tvnode.focus{border-color:#f08475;transform:scale(1.03)}
+  .tvnode.ok .in::after{content:" ⏎";font-size:14px;color:#8b90a3}
+  .tvband{min-height:28px;flex:0 0 auto;font-size:16px;line-height:1.35;color:#8b90a3;display:flex;
+          align-items:center;gap:10px;flex-wrap:wrap}
+  .tvband .deb{color:#ff9d4d;font-weight:600}
+  .tvband .bad{color:#ff8fa3}
+  .tvbody{flex:1;min-height:0;display:flex;flex-direction:column;position:relative;margin-top:6px}
+  .tvgrid{display:grid;gap:14px;transition:transform .1s ease-out;position:relative}
+  .tvc{border:3px solid transparent;border-radius:12px;padding:5px;background:none;color:inherit;
+       text-align:left;display:flex;flex-direction:column;height:100%;transition:border-color .1s}
+  .tvc .cv{flex:1;min-height:0;border-radius:8px;position:relative;overflow:hidden}
+  .tvc .tt{font-size:20px;line-height:1.3;margin-top:8px;max-height:52px;overflow:hidden}
+  .tvc .hv{position:absolute;left:8px;bottom:8px;font-size:16px;font-weight:700;color:#ff9d4d;
+           background:rgba(8,8,12,.55);padding:1px 8px;border-radius:8px}
+  .tvc .bg{position:absolute;left:8px;top:8px;font-size:15px;color:#fff;background:rgba(8,8,12,.5);
+           padding:1px 7px;border-radius:7px}
+  .tvc.focus{border-color:#f08475}
+  .tvrlist{display:flex;flex-direction:column;gap:10px;transition:transform .1s ease-out;position:relative}
+  .tvr{display:flex;gap:14px;align-items:center;border:3px solid transparent;border-radius:12px;
+       padding:8px 10px;background:none;color:inherit;text-align:left}
+  .tvr .n{flex:0 0 44px;text-align:center;font-size:30px;font-weight:800;font-style:italic;color:#8b90a3}
+  .tvr.p1 .n,.tvr.p2 .n,.tvr.p3 .n{color:#fff;border-radius:10px;font-style:normal;font-size:22px}
+  .tvr.p1 .n{background:radial-gradient(circle at 30% 30%,#c08a12,#8a5f07)}
+  .tvr.p2 .n{background:radial-gradient(circle at 30% 30%,#9aa3b2,#6a7382)}
+  .tvr.p3 .n{background:radial-gradient(circle at 30% 30%,#c07a4c,#8b4f28)}
+  .tvr .mn{width:56px;height:74px;border-radius:8px;flex:0 0 auto}
+  .tvr .info{flex:1;min-width:0}
+  .tvr .info b{display:block;font-size:22px;font-weight:600;line-height:1.3}
+  .tvr .info i{display:block;font-size:17px;color:#b8bcc8;font-style:normal;margin-top:3px}
+  .tvr .side{flex:0 0 auto;text-align:right;font-size:17px;color:#8b90a3;line-height:1.5}
+  .tvr .side .h{color:#ff9d4d;font-weight:700;font-size:20px}
+  .tvr .todo{display:inline-block;border:1px dashed #5b6070;color:#8b90a3;border-radius:7px;
+             font-size:14px;padding:0 6px}
+  .tvr.focus{border-color:#f08475;background:#181a20}
+  .tvph{align-self:flex-start;margin-top:6px;background:#181e1c;border-radius:10px;padding:8px 12px;
+        font-size:18px;color:#b8bcc8;display:flex;gap:10px;align-items:center}
+  .tvph.focus{outline:3px solid #f08475}
+  .tvspin{width:22px;height:22px;border-radius:50%;border:3px solid #3a3d46;border-top-color:#f08475;
+          animation:tvsp .9s linear infinite;display:inline-block}
+  @keyframes tvsp{to{transform:rotate(360deg)}}
+  /* 面板与详情浮层：背景整片不可聚焦（ExcludeFocus），焦点只能落在浮层里 */
+  .tvpanel{position:absolute;inset:0;z-index:40;background:rgba(9,10,14,.82);display:none;
+           padding:24px 28px;flex-direction:column;gap:14px}
+  .tvpanel.on{display:flex}
+  .tvpanel .cols{display:flex;gap:20px;flex:1;min-height:0}
+  .tvpanel h4{margin:0;font-size:22px;display:flex;align-items:center;gap:10px}
+  .tvpanel h4 .k{font-size:15px;color:#8b90a3;font-weight:400}
+  .tvpanel .dimcol{flex:0 0 280px;display:flex;flex-direction:column;min-height:0}
+  .tvpanel .optswrap{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;min-height:0}
+  .tvpanel .note{font-size:15px;color:#8b90a3;line-height:1.8;flex:0 0 auto}
+  .tvdim{width:100%;text-align:left;border:3px solid transparent;border-radius:12px;padding:5px;background:none;color:inherit}
+  .tvdim .in{display:block;padding:9px 12px;font-size:19px;border-radius:8px}
+  .tvdim.sel .in{background:#2f211f}
+  .tvdim.focus{border-color:#f08475;background:#181a20}
+  .tvdtl{display:flex;gap:22px;flex:1;min-height:0}
+  .tvdtl .cv{flex:0 0 190px;border-radius:12px;position:relative;overflow:hidden}
+  .tvdtl .m{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+  .tvdtl h3{margin:0;font-size:32px;line-height:1.25}
+  .tvdtl .intro{font-size:21px;color:#b8bcc8;line-height:1.6;margin:0}
+  .tvep{border:3px solid transparent;border-radius:12px;padding:5px;background:none;color:inherit;
+        font-size:19px;text-align:center}
+  .tvep .in{padding:10px 0}
+  .tvep.now .in{background:#2f211f;color:#f08475;font-weight:700}
+  .tvep.focus{border-color:#f08475}
+  .tvkeys{max-width:1280px;margin:10px auto 0;padding:0 16px;font:12px/1.9 ui-monospace,SFMono-Regular,Menlo,monospace;
+          color:#6b7180;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .tvkeys kbd{background:#fff;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;
+              padding:1px 7px;font:11px ui-monospace,Menlo,monospace;color:#15171c}
+  .tvkeys .z{background:#15171c;color:#7ee0a0;border-radius:6px;padding:2px 8px}
 </style>
 </head>
 <body>
@@ -196,6 +291,7 @@
   <div class="seg" role="group" aria-label="视图">
     <button id="v-desk" aria-pressed="true">桌面（鼠标族）</button>
     <button id="v-mob" aria-pressed="false">移动（触控族）</button>
+    <button id="v-tv" aria-pressed="false">TV（遥控族）</button>
   </div>
   <div class="seg" role="group" aria-label="数据状态">
     <button data-mode="ok" aria-pressed="true">有词表</button>
@@ -203,7 +299,7 @@
     <button data-mode="empty" aria-pressed="false">词表缺行</button>
     <button data-mode="error" aria-pressed="false">请求失败</button>
   </div>
-  <span class="hint">交互规格：<b>docs/design/discover-filters-and-ranking.md §7</b>；真词表来源：<b>docs/evidence/ranking-fields/</b></span>
+  <span class="hint">交互规格：<b>docs/design/discover-filters-and-ranking.md §6.1（触控/桌面逐层）、§6.2（TV 逐层）、§7（原型）</b>；真词表来源：<b>docs/evidence/ranking-fields/</b>；TV 契约来源：<b>docs/design/android-tv-adaptation.md、tv-topic-pagination.md、tv-cross-row-focus-navigation.md、horizontal-filter-panel.md</b></span>
 </div>
 
 <div class="readout" id="readout" aria-live="polite"></div>
@@ -255,6 +351,26 @@
     <p><b>折叠：</b>向下滚只收起搜索框/离线提示那段，<b>类型行与主题行常驻</b>（v0.3.12 实测语义）。</p>
     <p><b>触控族：</b>排序与「更多筛选」都收成第二行<b>尾部</b>的控件，点开底部弹层；行内溢出走横向滑动。<b>桌面族相反：</b>溢出走「更多 ▾」下拉面板，排序在右上角——鼠标不指望横向拖拽。</p>
     <p><b>词表缺行演示：</b>上游按类型发布筛选项，同一次运行里三个类型常常只回来一到两个（§8 的四次取样），所以第二行必须能整行消失而不是显示空壳。</p>
+  </div>
+</div>
+
+<!-- ===================== TV（遥控族） ===================== -->
+<div class="tv" id="tv">
+  <div class="tvbox">
+    <div class="tvsurface" id="tv-surface">
+      <div class="tvshell">
+        <nav class="tvsb">
+          <div class="brand">红果 TV</div>
+          <div class="tvclip" data-clip="side" style="flex:1"><div class="tvcol" id="tv-side"></div></div>
+          <div class="hint">上下切换栏目<br>向右进入内容区<br>返回键先回栏目</div>
+        </nav>
+        <div class="tvmain" id="tv-main"></div>
+      </div>
+      <div class="tvpanel" id="tv-panel"></div>
+      <div class="tvpanel" id="tv-detail"></div>
+    </div>
+    <div class="tvkeys" id="tv-keys"></div>
+    <div class="legend" id="tv-notes" style="margin:10px auto 26px"></div>
   </div>
 </div>
 </div>
@@ -326,6 +442,7 @@ function themeRow(){
   return (API.dims[S.genre]||{})['category_dim_theme'] || null;
 }
 function refreshReadout(){
+  if(S.view==='tv'){ refreshReadoutTv(); return; }
   const rows = [];
   const keep = KEEP_ON.includes(S.dest) ? '，两个 pane 都保活' : '';
   rows.push(`<span class="k">目的地</span> <em>${S.dest}</em> <span class="k">（L0 换页${keep}）</span>`);
@@ -746,6 +863,7 @@ function bind(){
 }
 
 function renderLegend(){
+  if(S.view==='tv'){ tvLegend(); return; }
   let l;
   if(S.dest==='榜单'){
     l = '<b>榜单是目的地，不是发现页的一个参数</b>：它的请求不吃类型与主题（selected_items / sub_selected_items 自成一套），'
@@ -761,6 +879,7 @@ function renderLegend(){
   document.getElementById('legend').innerHTML = l;
 }
 function renderKbd(){
+  if(S.view==='tv'){ renderKbdTv(); return; }
   document.getElementById('kbd').innerHTML = S.view==='desk'
     ? '<b>键盘族（桌面）：</b><kbd>Tab</kbd> 顺序 = 目的地 → 类型 → 主题 → 更多筛选 → 排序 → 卡面；'
       + '<kbd>Esc</kbd> 关弹层/hover 预览；<kbd>←</kbd><kbd>→</kbd> 在 chip 行内移动焦点（行是原生顺序，不做漫游）；'
@@ -769,21 +888,787 @@ function renderKbd(){
       + '第二行右侧固定「≡」和「排序 ▾」两枚，点开底部弹层；长按卡面 = 收藏（本轮不动）。';
 }
 
+/* ================= TV（遥控族） =================
+   这一视图不是把触控族的行换个颜色，模型全部取自仓内已实施的 TV 代码与设计稿：
+   · sidebar = L0 目的地，焦点即切换、首尾不循环（tv_library_page.dart 的 onFocusChange → _change）
+   · 类型行 = 确认键才切换（它会重置 L2，路过即切换的代价太大，见 §6.2）
+   · 主题行 = 焦点即筛选 + 220ms 防抖（tv-topic-pagination.md「焦点切换后自动加载」）
+   · 网格 = TvGrid 跨行规则、尾部待续页、无「加载更多」按钮（tv-cross-row-focus-navigation.md §4、§8）
+   · 面板/浮层 = 背景 ExcludeFocus，返回逐层退出并把焦点还给触发控件
+   本视图用真键盘五向驱动：方向键 = 遥控器方向，Enter/空格 = 确认，Backspace/Esc = Back。 */
+
+const TV_SIDE = ['发现','榜单','本地缓存','我的'];
+const TV_SELKEY = {'category_dim_role':'role','category_dim_epoch':'epoch','category_dim_art_style':'art',
+                   'creation_status':'status','gender':'gender','online_time':'time'};
+/* rail 的上/下邻区：显式声明，不交给几何寻焦（TV 文档明令「不能再次按几何位置跳转」） */
+const TV_RAIL_UP   = { genre:'side', theme:'genre', track:'side', board:'track', dopt:null, sort:'sort' };
+const TV_RAIL_DOWN = { genre:'theme', theme:'grid', track:'board', board:'rlist' };
+
+const TV = { zone:'side', i:{}, rem:{}, tx:{}, last:null, keys:[], sig:'', deb:null, debanding:false,
+             pending:null, pendingZone:null, prefetch:null, pages:1, panel:null, dim:'', detail:null,
+             cols:5, cellH:272, note:'', prefCol:null };
+
+function tvI(z){ return TV.i[z]||0; }
+function tvSet(z,i){ TV.i[z]=Math.max(0, Math.min(i, Math.max(0, tvNodes(z).length-1))); }
+function tvDest(){ return S.dest==='榜单'?'榜单'
+  : (S.dest==='我的'||S.dest==='本地缓存'?S.dest:'发现'); }
+function tvPickedN(){ return Object.values(S.sel).filter(Boolean).length; }
+function tvThemes(){ if(S.mode==='empty') return []; const t=themeRow(); return t?t.items:[]; }
+function tvNote(t){ TV.note=t; }
+function tvKeyLog(label){ TV.keys.push(label); if(TV.keys.length>9) TV.keys.shift(); }
+
+/* 分页：TV 每页 30/50（设置 → 内容列表），本原型用「一页 12 条、最多 3 页」演示同一语义 */
+function tvFeedItems(){
+  const base=(API.feed[S.genre]||[]), out=[];
+  for(let p=0;p<TV.pages;p++) base.forEach((c,k)=>out.push({id:'p'+p+'-'+k+'-'+c[0], card:c, page:p+1}));
+  /* TvFeedPage 的两种失败态：首屏失败只剩居中占位 + 可聚焦的重试；续页失败保留已有卡片，末尾追加一枚重试卡。 */
+  if(S.mode==='error'){
+    if(!out.length || TV.pages===1) return [{id:'__retry', card:null, fatal:true, page:TV.pages}];
+    out.push({id:'__retry', card:null, page:TV.pages});
+  }
+  return out;
+}
+function tvHasMore(){ return S.mode!=='error' && TV.pages<3; }
+function tvRankKey(){ return Object.keys(API.rankBoards).find(k=>API.rankMeta[k][0]===S.board); }
+function tvRankRows(){
+  const k=tvRankKey(); if(!k) return [];
+  const cards=API.rankBoards[k], out=[];
+  for(let p=0;p<TV.pages;p++) cards.forEach((c,i)=>out.push({id:'r'+p+'-'+i+'-'+c[0], card:c, pos:i+1, page:p+1}));
+  return out;
+}
+function tvDimList(){
+  const dims=API.dims[S.genre]||{};
+  return DIM_ORDER.filter(t=>t!=='category_dim_theme'&&dims[t])
+    .map(t=>({key:t,label:dims[t].label,items:dims[t].items,selKey:TV_SELKEY[t]}));
+}
+function tvNodes(z){
+  if(z==='side') return TV_SIDE.map(d=>({id:d,label:d}));
+  if(z==='genre') return Object.keys(GENRE_ID).map(g=>({id:g,label:GENRE_NAMES[g],ok:true}));
+  if(z==='theme'){
+    const arr=[{id:'',label:'全部'}].concat(tvThemes().map(([n,id])=>({id,label:n})));
+    if(S.mode==='empty') arr.push({id:'__retry',label:'主题词表这次没回 · 重试'});
+    arr.push({id:'__filter',label:'≡ 更多筛选'+(tvPickedN()?` · ${tvPickedN()}`:'')});
+    arr.push({id:'__sort',label:`排序 · ${sortName(S.sort)}`});
+    arr.push({id:'__search',label:'搜索'});
+    return arr;
+  }
+  if(z==='grid') return S.mode==='loading' ? [] : tvFeedItems();
+  if(z==='track') return API.rankTracks.map(t=>({id:t[1],label:t[0]+(t[2].length?`（${t[2].length}）`:''),ok:true}));
+  if(z==='board'){ const tr=API.rankTracks.find(t=>t[1]===S.track); return (tr?tr[2]:[]).map(([n,id])=>({id,label:n})); }
+  if(z==='rlist') return tvRankRows();
+  if(z==='dims') return tvDimList().map(d=>({id:d.key,label:d.label}));
+  if(z==='dopt'){
+    const d=tvDimList().find(x=>x.key===TV.dim)||tvDimList()[0];
+    if(!d) return [];
+    const arr=[{id:'',label:'不限'}].concat(d.items.map(([n,id])=>({id,label:n})));
+    arr.push({id:'__close',label:'完成（返回键同义）'});
+    return arr;
+  }
+  if(z==='sort') return ((API.dims[S.genre]||{}).sort||{items:[]}).items.map(([n,id])=>({id,label:n}));
+  if(z==='sbtn') return [{id:'__ime',label:'输入框 · 系统输入法'},{id:'__go',label:'搜索'},{id:'__cancel',label:'取消'}];
+  if(z==='top') return [{id:'__back',label:'‹ 返回目录'},{id:'__play',label:'▶ 开始观看'},{id:'__dl',label:'下载剧集'},
+                        {id:'__fav',label:'收藏'},{id:'__theme',label:'找同题材 ›'},{id:'__rank',label:'看它所在的榜 ›'}];
+  if(z==='eps') return Array.from({length:8},(_,i)=>({id:'e'+i,label:String(i+1)}));
+  return [];
+}
+function tvPaneZones(){ const d=tvDest();
+  /* 我的/本地缓存 这两页 TV 上沿用现有业务页，本轮范围外：右侧根本没有内容区，
+     不把 pane 的默认三区塞回去，否则「向右」会走进一个 DOM 里不存在的 rail。 */
+  if(d==='我的'||d==='本地缓存') return [];
+  return d==='榜单' ? ['track','board','rlist'] : ['genre','theme','grid']; }
+function tvSideIdx(){ const i=TV_SIDE.indexOf(tvDest()); return i<0?0:i; }
+
+/* ---------------- 焦点移动 ---------------- */
+function goDestTv(d){
+  S.dest=d; S.pop=null; S.sheet=null; S.drill=null; hidePeek();
+  if(d==='榜单' && !API.rankTracks.some(t=>t[1]===S.track)) S.track=API.rankTracks[0][1];
+  TV.pages=1; TV.panel=null; TV.detail=null; TV.pending=null; TV.pendingZone=null; TV.sig='';
+  clearTimeout(TV.deb); clearTimeout(TV.prefetch); TV.debanding=false; TV.prefetch=null;
+  /* 焦点即切换只换页面，不抢焦点：遥控器上焦点仍停在 sidebar 那一枚（现状契约）。 */
+  TV.zone='side'; TV.i.side=Math.max(0, TV_SIDE.indexOf(d)); TV.last=null;
+  tvRender(true);
+}
+function tvMoveZone(z,i,quiet){
+  if(TV.pending!==null && (z!==TV.pendingZone || i!==TV.pending)){
+    TV.pending=null; TV.pendingZone=null;
+    if(!quiet) tvNote('用户已改方向/离开容器 → 取消待续页移动，只合并数据，不抢回焦点');
+  }
+  TV.zone=z; TV.i[z]=i;
+  if(TV_PANE_ZONES.includes(z)) TV.last=z;
+  if(!quiet) tvAfterMove();
+}
+function tvDefaultIdx(z){
+  const find=(id)=>{ const i=tvNodes(z).findIndex(n=>n.id===id); return i<0?0:i; };
+  if(z==='side') return tvSideIdx();
+  if(z==='genre') return find(S.genre);
+  if(z==='theme') return find(S.sel.theme);
+  if(z==='track') return find(S.track);
+  if(z==='board') return find(S.board);
+  if(z==='sort') return find(S.sort);
+  if(z==='dims') return find(TV.dim);
+  if(z==='dopt'){ const d=tvDimList().find(x=>x.key===TV.dim)||tvDimList()[0];
+    if(!d) return 0; return find(S.sel[d.selKey]||''); }
+  return 0;
+}
+/* 换区必须同时写 zone 和该区的焦点下标：只改 zone 会让 tvPaint 落回 0 号，
+   下一次按键就作用在根本没被选中的控件上（跨行、进面板、回详情全是这个坑）。
+   落点规则：带「选中」语义的行回到当前选中那枚，不带选中语义的列表回到上次停留的卡片 ——
+   下钻/重试会在背后改选中值，按 rem 恢复焦点等于顺手再做一次焦点即筛选，把刚改的层又改回去。 */
+const TV_SEL_ZONES = ['genre','theme','track','board','sort','dims','dopt'];
+const TV_PANE_ZONES = ['genre','theme','grid','track','board','rlist'];
+/* 焦点落空时的归位：Flutter 会把焦点交给还在屏上的下一个可聚焦件，
+   原型照此把 zone 归到本栏第一行有内容的区，而不是让它指向一个画不出描边的下标。 */
+function tvRehome(reason){
+  for(const z of tvPaneZones()){ if(tvNodes(z).length){
+      TV.zone=z; TV.i[z]=tvDefaultIdx(z); TV.last=z;
+      tvNote((reason||'这个区在当前态没有可聚焦条目')+'：焦点不抢，落到还在屏上的 '+z+' 行'); return z; } }
+  TV.zone='side'; TV.i.side=tvSideIdx();
+  tvNote((reason||'这个区在当前态没有可聚焦条目')+'：焦点留在 sidebar');
+  return 'side';
+}
+function tvEnter(z,i,after){
+  const nodes=tvNodes(z);
+  if(!nodes.length){
+    tvRehome(tvPaneZones().length? `「${z}」在这一态没有可聚焦条目` : `「${tvDest()}」这一屏在 TV 上没有内容区`);
+    tvPaint(); return false;
+  }
+  const want = i==null
+    ? (TV_SEL_ZONES.includes(z) ? tvDefaultIdx(z) : (TV.rem[z]!=null ? TV.rem[z] : 0))
+    : i;
+  TV.zone=z; TV.i[z]=Math.max(0, Math.min(want, nodes.length-1));
+  if(TV_PANE_ZONES.includes(z)) TV.last=z;
+  if(after) tvAfterMove(); else tvPaint();
+  return true;
+}
+function tvAfterMove(){
+  const z=TV.zone, n=tvNodes(z)[tvI(z)];
+  if(!n){ tvPaint(); return; }
+  if(z==='side'){
+    if(n.id!==tvDest()){ TV.pages=1; TV.panel=null; TV.detail=null;
+      tvNote(`焦点即切换：路过即换到「${n.id}」（TV sidebar 现状语义，首尾不循环）`); goDestTv(n.id,false); }
+    else tvNote('sidebar：上下=换栏目（焦点即切换），向右=进入内容区，返回键先回到这里');
+  }
+  if(z==='theme' && !String(n.id).startsWith('__')){
+    if(S.sel.theme!==n.id) tvScheduleTheme(n.id); else tvPaint();
+    return;
+  }
+  if(z==='board'){ if(S.board!==n.id){ S.board=n.id; TV.pages=1;
+      tvNote('焦点即筛选：换榜块只改 sub_selected_items，不换赛道、不重置别的层'); tvRender(true); return; } }
+  if(z==='genre') tvNote('类型行按焦点不切换：它会换页并重置 L2/L2′，所以只有确认键才生效');
+  if(z==='track') tvNote('赛道行按焦点不切换：换赛道会把榜块重置为该赛道第一块，所以只有确认键才生效');
+  if(z==='grid') { if(tvHasMore() && tvNodes('grid').length-tvI('grid')<=TV.cols*2) tvScheduleMore();
+    else if(TV.pending===null) tvNote('网格内移动：只换焦点，不请求、不播放'); }
+  if(z==='rlist' && TV.pending===null) tvNote('位次列表：一行一个焦点目标，上下逐位移动不请求');
+  tvPaint();
+}
+function tvScheduleTheme(id){
+  TV.debanding=true;
+  tvNote('焦点即筛选 · 220ms 防抖合并中：连续按键只加载最终停留的那一项');
+  clearTimeout(TV.deb);
+  TV.deb=setTimeout(()=>{
+    TV.debanding=false;
+    if(S.sel.theme!==id){ S.sel.theme=id; TV.pages=1; S.drill=null;
+      tvNote(`防抖到期 → select_items.category_dim_theme = ${id?JSON.stringify([id]):'[]'}（只换这一页内的可滑页）`); }
+    tvRender(true);
+  },220);
+  tvPaint();
+}
+function tvScheduleMore(){
+  /* 尾部预取和「末项按右」是两件事：前者只合并数据、绝不登记移动意图，后者才占住焦点。 */
+  if(TV.pending!==null) return;
+  if(TV.prefetch){ tvNote('网格内移动：只换焦点，尾部预取仍在途（同一页不会重复请求）'); return; }
+  if(!tvHasMore()) return;
+  const page=TV.pages;
+  TV.prefetch=setTimeout(()=>{
+    TV.prefetch=null;
+    if(S.view!=='tv' || !tvHasMore() || TV.pages!==page) return;
+    TV.pages++;
+    tvRender(true);
+    tvNote(`预取的第 ${TV.pages}/3 页已合并进列表：焦点仍留在原卡片，没有被抢走（TvFeedPage 的 onNearEnd）`);
+    refreshReadout();
+  },700);
+  tvNote('焦点进入尾部两行（或滚动接近底部）→ 自动预取续页；界面上没有「加载更多」按钮');
+}
+function tvAskMove(why){
+  const items=tvNodes(TV.zone), anchor=tvI(TV.zone);
+  if(!tvHasMore()){ tvNote('已经到底：焦点留在原条目，不循环、不反复请求'); tvPaint(); return; }
+  clearTimeout(TV.prefetch); TV.prefetch=null;
+  TV.pending=anchor; TV.pendingZone=TV.zone;
+  tvNote(`已加载末尾按${why}：触发/复用在途续页，焦点暂留并登记一个待继续移动意图`);
+  tvPaint();
+  setTimeout(()=>{
+    if(TV.pending!==anchor || TV.pendingZone!==TV.zone){
+      TV.pending=null; tvNote('续页回来时用户已离开 → 只合并数据，不抢回焦点'); tvRender(true); return; }
+    TV.pending=null; TV.pages++;
+    const before=items.length;
+    tvRender(true);
+    const after=tvNodes(TV.zone).length;
+    if(after>before){ tvMoveZone(TV.zone,anchor+1); tvNote('续页成功且仍有新增 → 焦点从原末项前进一次到第一个新增条目'); }
+    else { tvSet(TV.zone,before-1); tvNote('没有新增/已经到底 → 焦点留在原条目'); tvPaint(); }
+  },700);
+}
+function tvToSide(){ TV.rem[TV.zone]=tvI(TV.zone); tvEnter('side',tvSideIdx());
+  tvNote('第 0 项按左：返回当前选中的 sidebar 项（不是固定入口，也不换栏目）'); }
+function tvEnterRight(){
+  const zones=tvPaneZones();
+  if(!zones.length){ tvEnter('side',tvSideIdx()); tvNote('向右没有内容区：这两页不在本轮设计范围，不硬造一个空 rail'); return; }
+  const back = TV.last && zones.includes(TV.last) && tvNodes(TV.last).length;
+  const z = back ? TV.last : zones[0];
+  tvEnter(z,null,true);
+  if(!TV.debanding) tvNote(back
+    ? `向右：恢复内容区最近停留的那一行（zone=${z} #${tvI(z)}，落在它当前选中的控件上）`
+    : `向右：第一次进内容区落在第一行（${z}）的当前选中项 #${tvI(z)} —— 不是 0 号，避免从首个题材重新开始`);
+}
+function tvMove(dx,dy){
+  const z=TV.zone, nodes=tvNodes(z), cur=tvI(z);
+  if(!nodes.length){ tvEnter(z,null); return; }
+  if(z==='side'){
+    if(dx===1){ tvEnterRight(); return; }
+    if(dx===-1){ tvNote('sidebar 已是最左：向左交给系统，不绕回'); tvPaint(); return; }
+    const n=cur+dy;
+    if(n<0||n>=nodes.length){ tvNote('首尾不循环：到边停止'); tvPaint(); return; }
+    tvMoveZone('side',n); return;
+  }
+  if(z==='grid'){ tvGridMove(dx,dy); return; }
+  if(z==='rlist'){ tvListMove(dx,dy); return; }
+  if(z==='eps'){ tvEpMove(dx,dy); return; }
+  if(z==='dims'){
+    if(dy!==0){ const n=cur+dy; if(n>=0&&n<nodes.length) tvMoveZone('dims',n); else tvNote('维度列到边停止'); return; }
+    if(dx===1){ tvEnter('dopt', TV.i.dopt||0); return; }
+    tvNote('面板是最左：向左不出浮层（背景已 ExcludeFocus）'); tvPaint(); return;
+  }
+  if(z==='dopt'||z==='top'||z==='sbtn'){
+    if(dx!==0){ const n=cur+dx;
+      if(n<0){ if(z==='dopt'||z==='sbtn'){ tvEnter('dims',null); tvNote('首项向左：回维度列/标题，不退出面板'); } else tvPaint(); return; }
+      if(n>=nodes.length){ tvNote('行尾到边停止：TV 不做「更多 ▾」，全部选项常驻构建、靠 keep-visible 滚动'); tvPaint(); return; }
+      tvMoveZone(z,n); return; }
+    if(dy===1){ if(z==='top'){ TV.rem.top=cur; tvEnter('eps', TV.i.eps||0); return; }
+      if(z==='dopt'){ tvNote('选项行只有一行：向下没有下一区，返回键关面板'); tvPaint(); return; } }
+    if(dy===-1){ tvNote('已是面板第一区：向上不出浮层'); tvPaint(); return; }
+    tvPaint(); return;
+  }
+  if(z==='sort'){
+    if(dy!==0){ const n=cur+dy; if(n>=0&&n<nodes.length) tvMoveZone('sort',n); else tvNote('三档就是上游全部：到边停止'); return; }
+    if(dx===1){ tvNote('排序面板向右不出面板'); tvPaint(); return; }
+    tvPaint(); return;
+  }
+  /* 焦点行（genre/theme/track/board）：左右走 rail，上下按显式邻区 */
+  if(dx!==0){
+    const n=cur+dx;
+    if(n<0){
+      if(z==='theme'||z==='genre'||z==='track'||z==='board'){ tvToSide(); return; }
+      tvPaint(); return;
+    }
+    if(n>=nodes.length){ tvNote('行尾到边停止：全部选项常驻构建，靠 keep-visible 滚动而不是折叠'); tvPaint(); return; }
+    tvMoveZone(z,n); return;
+  }
+  if(dy===-1){
+    const up=TV_RAIL_UP[z];
+    if(up==='side'){ TV.rem[z]=cur; tvEnter('side',tvSideIdx()); tvNote('第一行按上：回当前选中的 sidebar 项'); return; }
+    if(up && tvNodes(up).length){ TV.rem[z]=cur; tvEnter(up,null,true);
+      tvNote(`向上：${z} → ${up} #${tvI(up)}（显式邻区，不按几何位置猜）`); return; }
+    tvNote('上面没有别的区了'); tvPaint(); return;
+  }
+  if(dy===1){
+    const down=TV_RAIL_DOWN[z];
+    if(down==='grid'||down==='rlist'){
+      if(!tvNodes(down).length){ tvNote('这一页还没有内容：向下不停留在原行，也不跳到别的栏目'); tvPaint(); return; }
+      TV.rem[z]=cur; tvEnter(down,null,true);
+      tvNote(`向下：落到${down==='grid'?'资源网格':'位次列表'}最近的卡片（${TV.rem[down]!=null?'恢复上次那一张':'首条'}），确认键才播放`);
+      return;
+    }
+    if(down && tvNodes(down).length){ TV.rem[z]=cur; tvEnter(down,null,true); tvNote(`向下：${z} → ${down} #${tvI(down)}`); return; }
+    tvPaint(); return;
+  }
+}
+function tvGridMove(dx,dy){
+  const items=tvNodes('grid'), cur=tvI('grid'), cols=TV.cols;
+  if(dx===-1){
+    if(cur===0){ tvToSide(); return; }
+    const wasRowEnd=cur%cols===0;
+    tvMoveZone('grid',cur-1);
+    if(wasRowEnd) tvNote('跨行：行首向左 = 上一行末（阅读顺序，不蛇形、不退回 sidebar）');
+    return;
+  }
+  if(dx===1){
+    if(cur<items.length-1){ const crossed=cur%cols===cols-1;
+      tvMoveZone('grid',cur+1);
+      if(crossed) tvNote('跨行：行末向右 = 下一行首；跨行只移动焦点，不确认播放');
+      return; }
+    tvAskMove('右'); return;
+  }
+  const next=cur+dy*cols;
+  if(dy===-1 && next<0){
+    TV.rem.grid=cur; tvEnter('theme',null,true);
+    if(!TV.debanding) tvNote('第一行按上：恢复进入网格前的那枚题材/搜索控件（焦点落在同一枚 → 不触发误筛选）');
+    return;
+  }
+  if(dy===1 && next>=items.length){
+    if(items.length-1===cur){ tvAskMove('下'); return; }
+    TV.prefCol=cur%cols; tvMoveZone('grid',items.length-1);
+    tvNote(`末行不满：落到该行最后一个实际条目，并记住目标列 ${cur%cols}（回来时按列还原，不用落点的列覆盖）`);
+    return;
+  }
+  if(dy===-1 && TV.prefCol!=null){
+    const rowStart=Math.floor(next/cols)*cols;
+    const target=Math.min(rowStart+TV.prefCol, Math.min(rowStart+cols-1, items.length-1));
+    tvMoveZone('grid',target); tvNote(`上下按目标列记忆：回到第 ${target%cols} 列`); return;
+  }
+  tvMoveZone('grid',next);
+}
+function tvListMove(dx,dy){
+  const items=tvNodes('rlist'), cur=tvI('rlist');
+  if(dx===-1&&cur===0){ tvToSide(); return; }
+  if(dx===-1){ tvMoveZone('rlist',cur-1); return; }
+  if(dy===-1&&cur===0){ TV.rem.rlist=cur; tvEnter('board',null,true);
+    tvNote('榜行第一行按上：回榜单行（不越层回赛道，避免误换赛道）'); return; }
+  if(dy!==0){
+    const n=cur+dy;
+    if(n>=items.length){ if(items.length===cur+1){ tvAskMove('下'); return; } tvPaint(); return; }
+    if(n<0) return;
+    TV.rem.rlist=n; tvMoveZone('rlist',n); return;
+  }
+  tvMoveZone('rlist',Math.min(cur+1,items.length-1));
+}
+function tvEpMove(dx,dy){
+  const items=tvNodes('eps'), cur=tvI('eps'), cols=4;
+  if(dx===-1){ if(cur%cols===0 && cur===0){ tvEnter('top',null); tvNote('首集向左：回主操作区，不退出详情'); return; }
+    tvMoveZone('eps',Math.max(0,cur-1));
+    if((cur-1)%cols===cols-1) tvNote('跨行：行首向左 = 上一行末'); return; }
+  if(dx===1){ if(cur<items.length-1){ tvMoveZone('eps',cur+1);
+      if(cur%cols===cols-1) tvNote('跨行：行末向右 = 下一行首；只移动焦点，不自动切集'); }
+    else tvNote('末集按右：停留，不绕回首集、不自动播放'); tvPaint(); return; }
+  const n=cur+dy*cols;
+  if(dy===-1&&n<0){ TV.rem.eps=cur; tvEnter('top',null); tvNote('剧集第一行按上：回主操作区最近焦点'); return; }
+  if(dy===1&&n>=items.length){ tvEnter('top',0); tvNote('末行按下：进入「‹ 返回目录」（面板底部就是关闭控件）'); return; }
+  if(n>=0&&n<items.length){ tvMoveZone('eps',n); return; }
+  tvPaint();
+}
+
+/* ---------------- 确认键 ---------------- */
+function tvActivate(){
+  const z=TV.zone, n=tvNodes(z)[tvI(z)];
+  if(!n){ return; }
+  if(z==='side'){ tvNote(`确认键：激活「${n.id}」（焦点即切换已经切过，等价于再确认一次）`); return; }
+  if(z==='genre'){
+    if(n.id===S.genre){ tvNote('已是当前类型：确认键不重复请求'); return; }
+    S.genre=n.id; S.sel={theme:'',role:'',epoch:'',art:'',status:'',gender:'',time:''};
+    S.drill='换类型把 L2 全部归零（现状语义）：TV 上同样生效，所以类型行不采用焦点即切换';
+    TV.pages=1; TV.panel=null; TV.i.theme=0; TV.rem={};
+    tvNote('确认键：换类型页 —— L1 是换页且会重置 L2/L2′，因此要求显式确认');
+    tvRender(true); return;
+  }
+  if(z==='theme'){
+    if(n.id==='__filter'){ TV.panel='filter'; TV.dim=(tvDimList()[0]||{}).key||'';
+      TV.rem.theme=tvI('theme'); tvEnter('dims',0);
+      tvNote('更多筛选浮层打开：背景 ExcludeFocus，遥控器走不进被盖住的区域'); tvRender(true); return; }
+    if(n.id==='__sort'){ TV.panel='sort'; TV.rem.theme=tvI('theme');
+      tvEnter('sort', Math.max(0, tvNodes('sort').findIndex(x=>x.id===S.sort)));
+      tvNote('排序浮层打开：焦点落在当前档'); tvRender(true); return; }
+    if(n.id==='__search'){ TV.panel='search'; TV.rem.theme=tvI('theme'); tvEnter('sbtn',1);
+      tvNote('搜索浮层打开：文字编辑阶段左右键交给系统输入法，App 不拦截'); tvRender(true); return; }
+    if(n.id==='__retry'){ S.mode='ok'; tvNote('重试成功：恢复上一次的选中与滚动位置'); tvRender(true); return; }
+    clearTimeout(TV.deb); TV.debanding=false; S.sel.theme=n.id; TV.pages=1;
+    tvNote('确认键等价于「停在这里」：立即提交该题材，不等 220ms');
+    tvRender(true); return;
+  }
+  if(z==='grid'){
+    if(n.id==='__retry'){ const fatal=!!n.fatal; S.mode='ok';
+      tvNote(fatal?'首屏失败重试成功：恢复上一次的选中与滚动位置（失败态不清选中状态）':'续页失败重试成功：已有内容不清空');
+      tvRender(true); return; }
+    TV.rem.grid=tvI('grid'); TV.detail=n; tvEnter('top',1);
+    tvNote('确认键进详情：TV 没有 hover 预览，二级动作（找同题材/看它所在的榜）落在详情页主操作区');
+    tvRender(true); return;
+  }
+  if(z==='track'){
+    if(n.id===S.track){ tvNote('已是当前赛道'); return; }
+    S.track=n.id; const tr=API.rankTracks.find(t=>t[1]===n.id);
+    S.board=tr&&tr[2].length?tr[2][0][1]:''; TV.pages=1;
+    tvNote('确认键：换赛道会把榜块重置为该赛道第一块（有副作用 → 不焦点即切换）');
+    tvRender(true); return;
+  }
+  if(z==='board'){ tvNote('榜块已随焦点生效（无副作用）：确认键不重复请求'); return; }
+  if(z==='rlist'){
+    if(!n.card){ tvNote('这条赛道这一次没返回子榜：不画空 tab，也不把演员榜当剧'); return; }
+    TV.rem.rlist=tvI('rlist'); TV.detail={id:n.id, card:n.card, from:'rlist'}; tvEnter('top',1);
+    tvNote('确认键进详情；位次由 cell_data 下标给，行内不做二级按钮（TV 一行只有一个焦点目标）');
+    tvRender(true); return;
+  }
+  if(z==='dims'){ tvEnter('dopt',tvI('dopt')||0); tvNote('向右进入该维选项行'); return; }
+  if(z==='dopt'){
+    if(n.id==='__close'){ tvClosePanel(); tvNote('完成：选择不回滚，收起后不再发起额外请求'); return; }
+    const d=tvDimList().find(x=>x.key===TV.dim)||tvDimList()[0];
+    const cur=S.sel[d.selKey];
+    S.sel[d.selKey] = (n.id===''||cur===n.id) ? '' : n.id;
+    tvNote('多维浮层里选完不收起（多选式抽屉的常态）；只改 select_items，不换页');
+    TV.i.dopt=tvNodes('dopt').findIndex(x=>x.id===n.id);
+    tvRender(true); return;
+  }
+  if(z==='sort'){
+    S.sort=n.id; tvClosePanel();
+    tvNote('排序：只改 select_items.sort 与列表内容，页面与滚动位置都不换；TV 这一档同时写回设置里的全局排序');
+    tvRender(true); return;
+  }
+  if(z==='sbtn'){
+    if(n.id==='__cancel'){ tvClosePanel(); tvNote('取消：搜索词不变，焦点还给搜索那枚控件'); return; }
+    TV.panel=null; TV.detail=null;
+    const word=''; S.dest='发现';
+    tvNote('搜索：确认键提交后走搜索接口（TV 搜索不吃类型/题材）；系统输入法先收键盘，Back 才退页面');
+    tvRender(true); return;
+  }
+  if(z==='top'){
+    if(n.id==='__back'){ tvCloseDetail('返回目录：恢复原卡片焦点与网格 offset'); return; }
+    if(n.id==='__play'){ tvNote('开始观看：进入 TV 播放路由（控制栏只在明确返回画面时隐藏）'); return; }
+    if(n.id==='__dl'){ tvNote('下载剧集：TV 首期禁用后台下载，准备期间焦点留在控件'); return; }
+    if(n.id==='__fav'){ tvNote('收藏：确认一次，长按方向键不重复提交'); return; }
+    if(n.id==='__theme'){ tvDrillTheme(); return; }
+    if(n.id==='__rank'){ tvDrillRank(); return; }
+    return;
+  }
+  if(z==='eps'){ tvNote(`确认键：播放第 ${n.label} 集并收起面板 —— 跨行移动本身从不切集`); return; }
+}
+function tvClosePanel(){
+  const back = TV.panel==='filter' ? '__filter' : (TV.panel==='sort' ? '__sort' : '__search');
+  const i = tvNodes('theme').findIndex(n=>n.id===back);
+  TV.panel=null; tvEnter('theme', i<0?tvI('theme'):i);
+  tvNote('Back：只关这一层，焦点还给触发它的那枚控件（不是还给页面顶部）');
+  tvRender(true);
+}
+function tvCloseDetail(why){
+  const from=TV.detail&&TV.detail.from, z=(from==='rlist'?'rlist':'grid');
+  TV.detail=null; TV.rem.top=tvI('top');
+  tvEnter(z,null);
+  tvNote(why+'（详情是独立路由，其边界不调用目录的 sidebar 回调）');
+  tvRender(true);
+}
+function tvDrillTheme(){
+  const card=TV.detail.card;
+  const label=(card[2]||'').split('·')[0].trim();
+  const theme=(API.dims[S.genre]||{}).category_dim_theme||{items:[]};
+  const hit=theme.items.find(([n])=>label===n||label.startsWith(n));
+  TV.detail=null; S.dest='发现'; TV.panel=null;
+  S.sel.theme=hit?hit[1]:'';
+  if(hit){ const i=tvNodes('theme').findIndex(n=>n.id===hit[1]); tvEnter('theme',i);
+    tvNote(`下钻命中：L2 主题写上「${hit[0]}」=${hit[1]}，L3 排序与滚动位置都不动；焦点落在该题材上，让人看见改的是哪一层`); }
+  else { TV.rem.theme=null; tvEnter('theme',0);
+    tvNote(`下钻未命中：「${label}」不在 ${GENRE_NAMES[S.genre]} 的 ${theme.items.length} 个主题里 → 主题留「全部」，不硬凑一个相近的词`); }
+  tvRender(true);
+}
+function tvDrillRank(){
+  const card=TV.detail.card;
+  S.dest='榜单'; TV.detail=null; TV.panel=null; TV.pages=1;
+  const k=Object.keys(API.rankBoards)[1];
+  S.track=API.rankMeta[k][2][0]; S.board=API.rankMeta[k][2][1];
+  tvEnter('rlist',0);
+  tvNote(`卡面 → 榜单下钻：目的地切换（侧栏高亮跟着走），赛道=${S.track}、榜单=${S.board}，位次=cell_data 下标；L1/L2 的选中值不参与这条请求`);
+  tvRender(true);
+}
+function tvBack(){
+  if(TV.detail){ tvCloseDetail('Back：先关最上层的详情浮层'); return; }
+  if(TV.panel){ tvClosePanel(); return; }
+  if(TV.pending!==null){ TV.pending=null; TV.pendingZone=null;
+    tvNote('Back：取消在途的待续页移动（页面不动，数据回来后只合并）'); tvRender(true); return; }
+  if(TV.zone==='side'){ tvNote('焦点已在 sidebar：再按返回交系统首页（Back 每次只消费一层，不无限拦截）'); return; }
+  TV.rem[TV.zone]=tvI(TV.zone); TV.zone='side'; TV.i.side=tvSideIdx();
+  tvNote('目录根页的快捷返回：返回键先回当前 sidebar，列表位置与滚动 offset 都保留；再按一次才退出');
+  tvPaint();
+}
+
+/* ---------------- 渲染 ---------------- */
+function tvSig(){
+  return [tvDest(),S.genre,S.mode,S.sort,TV.pages,TV.panel,TV.dim,TV.detail&&TV.detail.id,
+          S.track,S.board,tvPickedN(),tvThemes().length].join('|');
+}
+function tvChipHtml(z,i,n,selId){
+  const cls=['tvnode', n.id===selId?'sel':'', (n.id==='__filter'||n.id==='__sort'||n.id==='__search'||n.id==='__retry')?'tail':'', n.ok?'ok':''].join(' ');
+  return `<button class="${cls}" data-z="${z}" data-i="${i}" data-tvid="${n.id}"><span class="in">${n.label}</span></button>`;
+}
+function tvRailHtml(label,zone,selId){
+  const nodes=tvNodes(zone);
+  return `<div class="tvrail"><span class="lbl">${label}</span>
+    <div class="tvclip" data-clip="${zone}" style="flex:1"><div class="tvrow" data-row="${zone}">${
+      nodes.map((n,i)=>tvChipHtml(zone,i,n,selId)).join('')}</div></div></div>`;
+}
+function tvBandHtml(){
+  const right = `<span style="margin-left:auto;font-size:15px">每页 30 条（设置 → 内容列表）· 无「加载更多」按钮</span>`;
+  if(TV.debanding) return `<div class="tvband"><span class="deb">220ms 防抖合并中…</span>${right}</div>`;
+  if(TV.pending!==null) return `<div class="tvband"><span class="deb">等待续页：焦点暂留在末项</span>${right}</div>`;
+  if(S.mode==='empty') return `<div class="tvband"><span class="bad">本次词表未给 ${GENRE_NAMES[S.genre]} 的 selector_rows → 主题行只剩「全部」，类型行照样可点</span>${right}</div>`;
+  if(String(activeThemeLabel()).length) return `<div class="tvband">主题：${activeThemeLabel()} · 保活页，切回来不重拉${right}</div>`;
+  return `<div class="tvband">${right}</div>`;
+}
+function activeThemeLabel(){
+  const t=tvThemes().find(([n,id])=>id===S.sel.theme); return t?t[0]:'';
+}
+function tvCardHtml(it,i){
+  const [t,eps,sub,score,heat,heat2,badge,color]=it.card;
+  return `<button class="tvc" data-z="grid" data-i="${i}" data-tvid="${it.id}" style="height:${TV.cellH}px">
+    <span class="cv" style="${grad(color)}">
+      ${badge?`<span class="bg">${badge}</span>`:''}
+      ${heat?`<span class="hv">${heat}</span>`:''}
+      <span class="bg" style="left:auto;right:8px">全 ${eps} 集</span></span>
+    <span class="tt">${t}</span></button>`;
+}
+function tvRetryHtml(i){
+  return `<button class="tvc" data-z="grid" data-i="${i}" data-tvid="__retry" style="height:${TV.cellH}px">
+    <span class="cv" style="background:#1a1d24;display:grid;place-items:center;font-size:19px;color:#ff8fa3">加载失败<br>按确认重试</span>
+    <span class="tt">保留上一次成功内容，不清空</span></button>`;
+}
+function tvRankRowHtml(r,i){
+  const [t,eps,sub,score,heat,heat2,badge,color]=r.card;
+  const multi = r.page>1;
+  return `<button class="tvr ${(!multi&&i<3)?'p'+(i+1):''}" data-z="rlist" data-i="${i}" data-tvid="${r.id}">
+    <span class="n">${multi?('P'+r.page):(i+1)}</span>
+    <span class="mn" style="${grad(color)}"></span>
+    <span class="info"><b>${t}</b><i>${sub||''}${score?` · ${score} 分`:''}${badge?` · ${badge}`:''}</i></span>
+    <span class="side"><span class="h">${heat||''}</span><br>${heat2||''}<br><span class="todo">↗ 趋势 未证实</span></span></button>`;
+}
+function tvRender(force){
+  if(S.view!=='tv') return;
+  const sig=tvSig();
+  if(!force && sig===TV.sig){ tvPaint(); return; }
+  TV.sig=sig;
+  const dest=tvDest(), main=document.getElementById('tv-main');
+  document.getElementById('tv-side').innerHTML = tvNodes('side').map((n,i)=>
+    `<button class="tvnode${n.id===dest?' sel':''}${n.id!==dest&&n.id==='发现'?'':''}" data-z="side" data-i="${i}" data-tvid="${n.id}">
+       <span class="in">${n.label}</span></button>`).join('');
+  if(dest==='我的'||dest==='本地缓存'){
+    main.innerHTML = `<div class="tvband">TV 上这两页沿用现有业务页 + 外层方向导航，本轮设计范围外</div>
+      <div class="tvph" data-z="side" data-i="${tvSideIdx()}" data-tvid="__noop" style="align-self:flex-start">
+        <span class="tvspin" style="border-top-color:#8b90a3"></span> 占位：向右没有内容区可进，返回键交系统</div>`;
+  } else if(dest==='发现'){
+    main.innerHTML = tvRailHtml('类型 L1','genre',S.genre)
+      + tvRailHtml('主题 L2','theme',S.sel.theme)
+      + tvBandHtml()
+      + `<div class="tvclip tvbody" data-clip="grid"><div class="tvgrid" id="tv-grid"></div></div>`;
+    const clip=main.querySelector('[data-clip="grid"]'), grid=document.getElementById('tv-grid');
+    const items=tvFeedItems();
+    if(S.mode==='loading'){
+      grid.style.gridTemplateColumns='1fr';
+      grid.innerHTML=`<div style="display:grid;place-items:center;height:100%;gap:20px">
+        <span class="tvspin" style="width:44px;height:44px"></span>
+        <span style="font-size:26px">正在加载</span>
+        <span style="font-size:18px;color:#8b90a3">TV 用居中占位而不是骨架：保活页秒回旧内容，只有空列表才占屏</span></div>`;
+      TV.cols=1; TV.cellH=Math.max(200, clip.clientHeight-120);
+    } else if(!items.length || items[0].fatal){
+      /* 首屏失败/空列表：TV 用居中占位，不画空网格；失败态只有这一枚可聚焦的重试（现状 _placeholder） */
+      const fatal = !!items[0] && items[0].fatal;
+      grid.style.gridTemplateColumns='1fr';
+      TV.cols=1; TV.cellH=Math.max(200, clip.clientHeight-120);
+      grid.innerHTML=`<div style="display:grid;place-items:center;height:100%;gap:18px">
+        <span style="font-size:44px;color:#8b90a3">${fatal?'⌾':'▤'}</span>
+        <span style="font-size:26px">${fatal?'加载失败':'暂无内容'}</span>
+        <span style="font-size:18px;color:#8b90a3">${fatal?'暂时无法获取影视内容：首屏失败不给整屏空网格，只留一枚可聚焦的重试':'这一组筛选这一次没回内容'}</span>
+        ${fatal?'<button class="tvnode ok" data-z="grid" data-i="0" data-tvid="__retry"><span class="in" style="font-size:22px">↻ 重试 · 确认键</span></button>':''}</div>`;
+    } else {
+      tvLayout(clip,items.length);
+      grid.innerHTML=items.map((it,i)=>it.card?tvCardHtml(it,i):tvRetryHtml(i)).join('');
+    }
+  } else {
+    main.innerHTML = tvRailHtml('赛道 L0′','track',S.track)
+      + tvRailHtml('榜单 L1′','board',S.board)
+      + `<div class="tvband">位次=cell_data 下标 · 热度=rec_text_item · 赛道与榜块条数一律现读</div>
+         <div class="tvclip tvbody" data-clip="rlist"><div class="tvrlist" id="tv-rlist"></div></div>`;
+    const list=tvRankRows(), box=document.getElementById('tv-rlist');
+    if(!list.length){
+      box.innerHTML=`<div class="tvph" style="align-self:flex-start">这条赛道/榜单上游已发布，但这一次没返回子榜或 app 未接 →
+        不画空 tab、不把演员榜当剧；改赛道请用确认键</div>`;
+    } else box.innerHTML=list.map((r,i)=>tvRankRowHtml(r,i)).join('');
+  }
+  tvPanelHtml(); tvDetailHtml();
+  tvApplyTransforms();
+  tvPaint();
+}
+function tvLayout(clip,count){
+  const w=clip.clientWidth||900;
+  TV.cols=Math.max(1, Math.ceil((w+14)/(190+14)));
+  const cw=(w-(TV.cols-1)*14)/TV.cols;
+  TV.cellH=cw/0.68;
+  const grid=document.getElementById('tv-grid');
+  grid.style.gridTemplateColumns=`repeat(${TV.cols},1fr)`;
+  grid.style.gridAutoRows=`${TV.cellH}px`;
+}
+function tvPanelHtml(){
+  const p=document.getElementById('tv-panel');
+  if(!TV.panel){ p.className='tvpanel'; p.innerHTML=''; return; }
+  if(TV.panel==='filter'){
+    const dims=tvDimList(), d=dims.find(x=>x.key===TV.dim)||dims[0]||{label:'',items:[]};
+    const missing=DIM_ORDER.filter(t=>t!=='category_dim_theme'&&!(API.dims[S.genre]||{})[t]);
+    p.className='tvpanel on';
+    p.innerHTML=`<h4>更多筛选 · ${GENRE_NAMES[S.genre]}<span class="k">左列选维度，向右进入该维选项行；选完不关面板</span></h4>
+      <div class="cols"><div class="dimcol"><div class="tvclip" data-clip="dims" style="flex:1"><div class="tvcol" data-row="dims">${
+        dims.map((x,i)=>`<button class="tvdim${x.key===TV.dim?' sel':''}" data-z="dims" data-i="${i}" data-tvid="${x.key}">
+          <span class="in">${x.label}${S.sel[x.selKey]?` · ${S.sel[x.selKey]}`:''}</span></button>`).join('')
+      }</div></div></div>
+      <div class="optswrap"><div class="tvclip" data-clip="dopt"><div class="tvrow" data-row="dopt">${
+        tvNodes('dopt').map((n,i)=>tvChipHtml('dopt',i,n,S.sel[(d.selKey)]||'')).join('')}</div></div>
+        <div class="note">本次词表没给：${missing.length?missing.map(t=>(DIM_BODY_KEY[t]||t)).join('、'):'无'} —— 缺什么就不画什么，不给空壳小节。<br>
+        设定行实测最多 42 项：TV 折叠成「更多 ▾」是错的（遥控器没有下拉），全部构建 + keep-visible 滚动才是现状契约。</div></div></div>`;
+  } else if(TV.panel==='sort'){
+    p.className='tvpanel on';
+    p.innerHTML=`<h4>排序<span class="k">只改 select_items.sort，不换页、不改滚动位置</span></h4>
+      <div class="cols"><div class="dimcol" style="flex:0 0 380px"><div class="tvclip" data-clip="sort"><div class="tvcol" data-row="sort">${
+        tvNodes('sort').map((n,i)=>`<button class="tvdim${n.id===S.sort?' sel':''}" data-z="sort" data-i="${i}" data-tvid="${n.id}">
+          <span class="in">${n.label}<span style="font-size:15px;color:#8b90a3"> · sort=['${n.id}']</span></span></button>`).join('')
+      }</div></div><div class="optswrap"><div class="note">上游 <code>全部推荐</code> 行实测就这三档，没有第四档。<br>
+        TV 这一枚写回的是设置 → 内容列表 → 全局排序（现状），所以页面上永远只有一个档位来源，不会和设置页打架。<br>
+        长按方向键在这三行里只是移动焦点；确认一次即提交，重复/抬起事件不再提交。</div></div></div>`;
+  } else {
+    p.className='tvpanel on';
+    p.innerHTML=`<h4>搜索<span class="k">系统输入法 · 文字编辑阶段 App 不拦截左右键</span></h4>
+      <div class="cols"><div class="optswrap"><div class="tvclip" data-clip="sbtn"><div class="tvrow" data-row="sbtn">${
+        tvNodes('sbtn').map((n,i)=>tvChipHtml('sbtn',i,n,'')).join('')}</div></div>
+        <div class="note">确认「搜索」后提交；Back 先由输入法收起键盘、再恢复搜索控件焦点，不会同时退出页面。<br>
+        搜索接口不吃类型/题材，所以搜索态下两行筛选都不参与请求（读出的口径见 §6.1）。</div></div></div>`;
+  }
+}
+function tvDetailHtml(){
+  const d=document.getElementById('tv-detail');
+  if(!TV.detail){ d.className='tvpanel'; d.innerHTML=''; return; }
+  const [t,eps,sub,score,heat,heat2,badge,color]=TV.detail.card;
+  d.className='tvpanel on';
+  d.innerHTML=`<div class="tvdtl"><div class="cv" style="${grad(color)}"></div>
+    <div class="m"><h3>${t}</h3>
+      <p class="intro">${sub||''} · 全 ${eps} 集${score?` · ${score} 分`:''}${badge?` · ${badge}`:''} —— 竖屏短剧在横屏电视居中等比显示，黑色侧边，不裁剪不拉伸</p>
+      <div class="tvclip" data-clip="top"><div class="tvrow" data-row="top">${
+        tvNodes('top').map((n,i)=>tvChipHtml('top',i,n,'')).join('')}</div></div>
+      <div class="tvclip" data-clip="eps"><div class="tvrow" data-row="eps" style="flex-wrap:wrap">${
+        tvNodes('eps').map((n,i)=>`<button class="tvep${i===0?' now':''}" data-z="eps" data-i="${i}" data-tvid="${n.id}" style="width:calc(25% - 6px)">
+          <span class="in">${n.label}</span></button>`).join('')}</div></div>
+      <div class="note">主操作区按下 → 最近聚焦的剧集；剧集第一行按上 → 回主操作区；末行按下 → 「‹ 返回目录」。<br>
+        「最近浏览的剧集」与「当前播放集」分开保存：浏览到第 20 集再回操作区，进入应恢复第 20 集，不被正在播的第 3 集覆盖。</div></div></div>`;
+}
+function tvPaint(){
+  document.querySelectorAll('.tv [data-z]').forEach(el=>el.classList.remove('focus'));
+  let z=TV.zone;
+  if(!tvNodes(z).length){ z=tvRehome(S.mode==='loading'?'列表正在加载':'这一态没有可聚焦条目'); }
+  const i=Math.min(tvI(z), Math.max(0, tvNodes(z).length-1)); TV.i[z]=i;
+  const el=document.querySelector(`.tv [data-z="${z}"][data-i="${i}"]`);
+  if(el) el.classList.add('focus');
+  const zoneForScroll = (z==='dopt'||z==='top'||z==='sbtn'||z==='track'||z==='board'||z==='genre'||z==='theme') ? z
+                      : (z==='dims'||z==='sort') ? z : (z==='grid'||z==='rlist'||z==='eps'||z==='side') ? z : null;
+  if(zoneForScroll) tvKeepVisible(zoneForScroll, z==='eps');
+  if(z==='grid') tvSetStatus(); 
+  tvReadoutKeys();
+}
+function tvKeepVisible(zone, isRow){
+  const clip=document.querySelector(`.tv [data-clip="${zone}"]`); if(!clip) return;
+  const f=clip.querySelector('.focus'); if(!f) return;
+  const horiz = isRow || zone==='theme'||zone==='genre'||zone==='track'||zone==='board'||zone==='dopt'||zone==='top'||zone==='sbtn';
+  const row=clip.querySelector('[data-row]')||clip.firstElementChild; if(!row) return;
+  const cr=clip.getBoundingClientRect(), rr=row.getBoundingClientRect();
+  /* 位移记在 TV.tx 而不是 DOM 上：重渲染会换掉节点，保活页的滚动位置不该跟着归零。 */
+  if(horiz){
+    let tx=TV.tx[zone]||0; const vw=clip.clientWidth;
+    const l=f.getBoundingClientRect().left-cr.left+tx, r=f.getBoundingClientRect().right-cr.left+tx;
+    const max=Math.max(0, row.scrollWidth-vw, rr.width-vw);
+    if(l<tx) tx=l; else if(r>tx+vw) tx=r-vw;
+    tx=Math.max(0,Math.min(tx,max)); TV.tx[zone]=tx; row.style.transform=`translateX(${-tx}px)`;
+  } else {
+    let ty=TV.tx[zone]||0; const vh=clip.clientHeight;
+    const t=f.getBoundingClientRect().top-cr.top+ty, b=f.getBoundingClientRect().bottom-cr.top+ty;
+    const max=Math.max(0, row.scrollHeight-vh);
+    if(t<ty) ty=t; else if(b>ty+vh) ty=b-vh;
+    ty=Math.max(0,Math.min(ty,max)); TV.tx[zone]=ty; row.style.transform=`translateY(${-ty}px)`;
+  }
+}
+/* 重渲染换掉的是节点，不是位置：保活页切回来不回到行首（现状「切回来不重拉、offset 保留」）。 */
+function tvApplyTransforms(){
+  document.querySelectorAll('.tv [data-clip]').forEach(clip=>{
+    const zone=clip.dataset.clip, t=TV.tx[zone]; if(!t) return;
+    const row=clip.querySelector('[data-row]')||clip.firstElementChild; if(!row) return;
+    const vert = zone==='grid'||zone==='rlist'||zone==='dims'||zone==='sort';
+    row.style.transform = vert ? `translateY(${-t}px)` : `translateX(${-t}px)`;
+  });
+}
+function tvSetStatus(){}
+function tvReadoutKeys(){
+  const keys=TV.keys.map(k=>`<kbd>${k}</kbd>`).join('') || '<span>按方向键 / Enter / Backspace 直接驱动这一屏</span>';
+  const n=tvNodes(TV.zone)[tvI(TV.zone)];
+  const lbl = n ? (n.label || (n.card ? n.card[0] : (n.id||''))) : '';
+  document.getElementById('tv-keys').innerHTML =
+    `<b>按键：</b>${keys}<span class="z">zone=${TV.zone}</span>
+     <span class="z">焦点=${n?(`${TV.zone}#${tvI(TV.zone)} ${String(lbl).slice(0,18)}`):'（空）'}</span>
+     <span class="z">列数=${TV.cols} · 页=${TV.pages}/3</span>
+     <span class="z">${TV.note||'—'}</span>`;
+}
+
+/* ---------------- TV 读出窗 / 说明 ---------------- */
+function refreshReadoutTv(){
+  const rows=[];
+  rows.push(`<span class="k">输入族</span> <em>D-pad 五向 + 确认 + Back</em> <span class="k">（无 hover、无横向拖拽、无长按菜单；Menu/数字/字母键不作依赖）</span>`);
+  rows.push(`<span class="k">L0 目的地</span> <span class="v">${TV_SIDE.join(' · ')}</span> <span class="k">（sidebar 焦点即切换，首尾不循环；TV 不放 发现/分类 双页：同一纵向列表里两个内容形态相同的入口，会让「路过即切换」付出双倍代价）</span>`);
+  if(tvDest()==='发现'){
+    rows.push(`<span class="k">L1 类型</span> <span class="v">genre = ['${S.genre}'] · req_scene = ${S.genre==='short_play'?'default':S.genre}</span> <span class="k">→ 换页 + L2 归零 · <em>确认键才生效</em>（焦点经过不改页面，理由同「榜单不能塞在类型行旁边」）</span>`);
+    if(themeRow()) rows.push(`<span class="k">L2 主题</span> <span class="v">category_dim_theme = ${S.sel.theme?JSON.stringify([S.sel.theme]):'[]'}</span> <span class="k">→ <em>焦点即筛选</em> · 220ms 防抖合并连续按键 · 全部 ${themeRow().items.length} 项常驻构建（TV 折叠成「更多 ▾」是错的：遥控器没有下拉，只有 keep-visible 滚动）</span>`);
+    else rows.push(`<span class="k">L2 主题</span> <span class="warn">本次词表未给 → 只剩「全部」一枚 + 可按的「重试」；类型行不受影响（它由前端白名单定死，不依赖 selector_rows）</span>`);
+    rows.push(`<span class="k">L2′ 更多筛选</span> <span class="v">${selSummary()}</span> <span class="k">→ 浮层：左维度列 + 右选项行；背景 ExcludeFocus；选完不关面板；Back 只关一层并把焦点还给触发控件</span>`);
+    rows.push(`<span class="k">L3 排序</span> <span class="v">sort = ['${S.sort}']</span> <span class="k">→ 只改请求 · TV 这枚写回设置里的全局排序（现状），页面上只有一个档位来源</span>`);
+    rows.push(`<span class="k">分页</span> <span class="v">browsePageSize = 30（设置 → 内容列表 · 可选 50）</span> <span class="k">→ 尾部两行焦点即预取；末项按右登记<em>一个</em>待移动意图，新增到达后前进一次；界面无「加载更多」按钮</span>`);
+    rows.push(`<span class="k">POST</span> <span class="v">/reading/distribution/category/landpage/v {limit:30, offset, need_selector_panel:false, req_scene, select_items}</span>`);
+  } else if(tvDest()==='榜单'){
+    const tr=API.rankTracks.find(t=>t[1]===S.track);
+    rows.push(`<span class="k">L0′ 赛道</span> <span class="v">selected_items = '${S.track}'</span> <span class="k">（${tr?tr[0]:''}，本赛道 ${(tr&&tr[2].length)||0} 块 · <em>确认键才生效</em>：换赛道会把榜块重置）</span>`);
+    rows.push(`<span class="k">L1′ 榜单</span> <span class="v">sub_selected_items = '${S.board}'</span> <span class="k">→ 焦点即筛选（只换 feed，无副作用）· 条数一律现读，不写死</span>`);
+    rows.push(`<span class="k">榜行</span> <span class="v">位次=cell_data 下标 · 热度=rec_text_item · 收藏=secondary_info_list[i].content</span> <span class="k">；<em>一行只有一个焦点目标</em>：二级动作（找同题材）落在详情页主操作区，不做行内小链接</span>`);
+    rows.push(`<span class="k">趋势</span> <span class="warn">字段位 rec_arrow_type 四次样本全为 0 → 语义未证实，画虚线占位不画假箭头</span>`);
+    rows.push(`<span class="k">周期</span> <span class="warn">上游没有这一维（inner_rows=0）→ TV 也不给「日/周/月」</span>`);
+    rows.push(`<span class="k">GET</span> <span class="v">/reading/bookapi/bookmall/cell/change/v?cell_id=…&tab_type=26&offset=…</span>`);
+  }
+  rows.push(`<span class="k">焦点诊断</span> <span class="v">zone=${TV.zone} · idx=${tvI(TV.zone)} · id=${(tvNodes(TV.zone)[tvI(TV.zone)]||{}).id||'-'}</span> <span class="k">· 列数=${TV.cols} · 第 ${TV.pages}/3 页 · ${TV.note||'等待输入'}</span>`);
+  rows.push(`<span class="k">视觉</span> <span class="v">焦点=3px #f08475 描边 + 1.03 缩放</span> <span class="k">· 已选中=primaryContainer 底色（<em>描边/底色两种信号分开</em>，不能只靠颜色区分焦点与选中）· 低端盒子可只留描边、不依赖阴影</span>`);
+  say(rows);
+}
+function tvLegend(){
+  const l = '<b>TV 与触控族是两套输入模型，不共用滑动件</b>（§6 末的 TV 条款 → §6.2 逐层定稿）：这条视图按已实施的 TV 契约来画。'+
+    '<br>① <b>sidebar = L0 目的地</b>：类型从 sidebar 升到内容区第一行，因为 <code>rank</code> 不吃 genre，把 榜单 挨着 短剧 摆在侧栏就是在暗示「这是短剧的榜」；'+
+    '而 sidebar 是 TV 上唯一「换页」的控件族，所以目的地留在这里、类型挪走。<br>'+
+    '② <b>焦点即筛选只用于「无副作用」的层</b>：主题（只换本页内的可滑页）与榜块（只换 feed）用焦点即筛选；'+
+    '类型（换页 + 重置 L2）和赛道（重置榜块）要求确认键 —— 这条是对现有「题材横栏焦点即筛选」例外的推广，依据是 TV 文档自己的判据「一个改了什么都不变的行是假控件」。<br>'+
+    '③ <b>没有 hover，也没有横滑</b>：桌面 hover 1.5s 预览在 TV 上换成「详情浮层的主操作区」，'+
+    '「找同题材 ›」「看它所在的榜 ›」在那里成为两个可聚焦按钮；触控族的行内小链接在 TV 一条都不留（一行两个焦点目标会让跨行规则失真）。<br>'+
+    '④ <b>溢出永远不折叠</b>：42 项的设定行、29 项的主题行全部常驻构建，靠 keep-visible 把焦点项留在视口内；「更多 ▾」下拉是鼠标族的东西。<br>'+
+    '⑤ <b>返回逐层消费</b>：详情/面板 → 取消待续页移动 → 回到当前 sidebar（保留列表位置与 offset）→ 交系统首页。'+
+    '榜单入口卡在 TV 上不做：sidebar 里 榜单 就在一按之下，触控族补的那层深度在这里不存在。'+
+    '<br><br><b>契约出处（现读）</b>：sidebar 170 / 外边距 28·28·12 / 栏目字号 21 / 品牌 24 见 '+
+    '<code>packages/app/lib/features/tv/tv_library_page.dart:241,246,255,302,315</code>；「焦点即切换」是 <code>:295-296</code> 的 '+
+    '<code>onFocusChange: (focused) { if (focused) _change(i); }</code>，「向右恢复右侧最近焦点、返回键先回 sidebar」是同文件 <code>:184-212</code>；焦点即筛选 + 220ms 防抖、每页 30/50、无「加载更多」按钮、'+
+    '题材行全部构建与 keep-visible 见 <code>docs/design/tv-topic-pagination.md</code> 与 <code>tv_feed_page.dart:100,310-316</code>；'+
+    '跨行阅读顺序、第 0 项向左回 sidebar、末行不满补位与目标列记忆、待续页移动见 <code>docs/design/tv-cross-row-focus-navigation.md §2–§4</code> 与 '+
+    '<code>packages/tv/lib/src/grid.dart:190-224</code>；焦点描边 3 / 圆角 12 / 内衬 5 / 100ms 与「焦点=描边、选中=底色」见 '+
+    '<code>packages/tv/lib/src/focusable.dart:113-131</code>；大屏字号与 1.03 缩放是 <code>docs/design/android-tv-adaptation.md §4.3</code> 的建议起点，'+
+    '当前实现只有描边没有缩放 —— 原型按建议画了缩放，实施时若低端盒子掉帧就只留描边。';
+  document.getElementById('tv-notes').innerHTML=l;
+  document.getElementById('legend').innerHTML='';
+}
+function renderKbdTv(){
+  document.getElementById('kbd').innerHTML = '<b>遥控族（TV）：</b><kbd>↑</kbd><kbd>↓</kbd> sidebar 换栏目 / 维度列换维 / 排序面板换档；'+
+    '<kbd>←</kbd> 第 0 项 = 回当前 sidebar，其余 = 上一行末；<kbd>→</kbd> 行末 = 下一行首，末项 = 待续页移动；'+
+    '<kbd>Enter</kbd> 确认（唯一提交动作，长按 repeat 不重复提交）；<kbd>Backspace</kbd>/<kbd>Esc</kbd> = Back，一次只消一层。'+
+    '<b>注意</b>：桌面族的 <kbd>F</kbd>/<kbd>O</kbd> 单键与 <kbd>Tab</kbd> 顺序在 TV 上不存在，切到这一视图后它们让位给五向键。';
+}
+
 function renderAll(){
   document.getElementById('desk').classList.toggle('on', S.view==='desk');
   document.getElementById('mob').classList.toggle('on', S.view==='mob');
-  if(S.view==='desk') renderDesk(); else renderMob();
+  document.getElementById('tv').classList.toggle('on', S.view==='tv');
+  if(S.view==='tv'){ tvRender(true); }
+  else if(S.view==='desk') renderDesk(); else renderMob();
   refreshReadout(); renderLegend(); renderKbd();
 }
 
-document.getElementById('v-desk').onclick=()=>{S.view='desk';
-  document.getElementById('v-desk').setAttribute('aria-pressed','true');
-  document.getElementById('v-mob').setAttribute('aria-pressed','false');
-  S.sheet=null; renderAll();};
-document.getElementById('v-mob').onclick=()=>{S.view='mob';
-  document.getElementById('v-mob').setAttribute('aria-pressed','true');
-  document.getElementById('v-desk').setAttribute('aria-pressed','false');
-  S.pop=null; hidePeek(); renderAll();};
+function setView(v){
+  S.view=v;
+  [['desk','v-desk'],['mob','v-mob'],['tv','v-tv']].forEach(([id,btn])=>
+    document.getElementById(btn).setAttribute('aria-pressed', String(v===id)));
+  if(v==='tv'){ S.pop=null; S.sheet=null; hidePeek(); TV.sig=''; TV.zone='side'; TV.i.side=tvSideIdx(); }
+  if(v==='mob') S.pop=null;
+  if(v==='desk') S.sheet=null;
+  renderAll();
+}
+document.getElementById('v-desk').onclick=()=>setView('desk');
+document.getElementById('v-mob').onclick=()=>setView('mob');
+document.getElementById('v-tv').onclick=()=>setView('tv');
 document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{
   S.mode=b.dataset.mode;
   document.querySelectorAll('[data-mode]').forEach(x=>x.setAttribute('aria-pressed', String(x===b)));
@@ -799,8 +1684,19 @@ document.getElementById('m-scroll').addEventListener('scroll',(e)=>{
   document.getElementById('screen').classList.toggle('folded', e.target.scrollTop>18);
 });
 
-/* 全局 Esc 关弹层（键盘族） */
+/* 全局 Esc 关弹层（键盘族）；TV 视图把五向键交给遥控器模型 */
+const TV_KEYMAP = {ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]};
 document.addEventListener('keydown',(e)=>{
+  if(S.view==='tv'){
+    if(TV_KEYMAP[e.key]){ e.preventDefault(); tvKeyLog(e.key); tvMove(...TV_KEYMAP[e.key]); refreshReadout(); return; }
+    if(e.key==='Enter'||e.key===' '||e.key==='Select'){ e.preventDefault(); tvKeyLog('确认'); tvActivate(); refreshReadout(); return; }
+    if(e.key==='Backspace'||e.key==='Escape'||e.key==='GoBack'){ e.preventDefault(); tvKeyLog('Back'); tvBack(); refreshReadout(); return; }
+    if(e.key==='Menu'){ e.preventDefault(); tvKeyLog('菜单键');
+      if(TV.zone!=='side'){ TV.rem[TV.zone]=tvI(TV.zone); TV.zone='side'; TV.i.side=tvSideIdx(); tvPaint();
+        tvNote('菜单键 = 返回 sidebar 的可选别名（TV 文档：可作为同一动作的别名，但不能是唯一入口）'); refreshReadout(); }
+      return; }
+    return;
+  }
   if(e.key==='Escape'){ S.pop=null; S.sheet=null; hidePeek(); deskPop(); mobSheet(); refreshReadout(); }
   if(e.key.toLowerCase()==='f' && !/input|textarea/i.test(document.activeElement.tagName)){
     S.pop=S.pop==='filter'?null:'filter'; deskPop(); refreshReadout();
@@ -808,6 +1704,16 @@ document.addEventListener('keydown',(e)=>{
   if(e.key.toLowerCase()==='o' && !/input|textarea/i.test(document.activeElement.tagName)){
     S.pop=S.pop==='sort'?null:'sort'; deskPop(); refreshReadout();
   }
+});
+
+/* TV 视图也允许用鼠标点：一次点按 = 把焦点放到那枚控件上并按确认（预览用，不改变 TV 语义） */
+document.getElementById('tv-surface').addEventListener('click',(e)=>{
+  const el = e.target.closest ? e.target.closest('[data-z]') : null;
+  if(!el) return;
+  const z=el.dataset.z, i=+el.dataset.i;
+  TV.rem[TV.zone]=tvI(TV.zone);
+  TV.zone=z; TV.i[z]=i; tvKeyLog('点按 '+z+'#'+i);
+  tvAfterMove(); tvActivate(); refreshReadout();
 });
 
 renderAll();
