@@ -527,7 +527,7 @@ void main() {
           'the 最新 path left the list on $latestSort '
           '(error=${latestFeed?.error} refresh=${latestFeed?.refreshError})',
     );
-    _mark('shot=mode-latest sort=$latestSort view=${_shell(tester).view}');
+    _mark('shot=mode-latest sort=$latestSort');
     await _hold(tester);
 
     await tester.tap(find.byKey(const ValueKey('catalog-tab-2')));
