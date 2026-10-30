@@ -49,7 +49,7 @@ class _Adapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
-class _Catalog implements CatalogRepository, RankCatalogRepository {
+class _Catalog implements CatalogRepository {
   final int count;
   _Catalog([this.count = 1]);
   static const drama = Drama(id: '123', title: '离线播放验证', episodeCount: 1);
@@ -60,11 +60,6 @@ class _Catalog implements CatalogRepository, RankCatalogRepository {
     String? theme,
     String? cursor,
     List<String> seen = const [],
-  }) async => const CatalogPage([drama]);
-  @override
-  Future<CatalogPage> rank({
-    String board = 'recommend',
-    String? cursor,
   }) async => const CatalogPage([drama]);
   @override
   Future<CatalogPage> search(String query, {String? cursor}) async =>
@@ -322,7 +317,7 @@ Future<void> _openPlayer(WidgetTester tester) async {
   await _waitPicture(tester);
 }
 
-class _BoardsCatalog implements CatalogRepository, RankCatalogRepository {
+class _BoardsCatalog implements CatalogRepository {
   static const newest = [
     Drama(id: 'n1', title: '新剧一', episodeCount: 2),
     Drama(id: 'n2', title: '新剧二', episodeCount: 4),
@@ -349,11 +344,6 @@ class _BoardsCatalog implements CatalogRepository, RankCatalogRepository {
     'hot_score' => hot,
     _ => feed,
   });
-  @override
-  Future<CatalogPage> rank({
-    String board = 'recommend',
-    String? cursor,
-  }) async => const CatalogPage(feed);
   @override
   Future<CatalogPage> search(String query, {String? cursor}) async {
     lastQuery = query;

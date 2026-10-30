@@ -11,10 +11,17 @@ import 'fakes.dart';
 
 class RankCatalog extends FakeCatalog implements RankCatalogRepository {
   @override
-  Future<CatalogPage> rank({
-    String board = 'recommend',
+  Future<RankPage> rankBoard({
+    String track = rankSeedTrack,
+    String? board,
     String? cursor,
-  }) async => const CatalogPage([]);
+  }) async => RankPage(
+    tracks: const [
+      RankTrack('comic_series_rank', '漫剧', [
+        RankBoard('comic_series_hot_rank', '热播榜', selected: true),
+      ], selected: true),
+    ],
+  );
 }
 
 class LongCatalog extends FakeCatalog {
@@ -179,80 +186,90 @@ void main() {
     },
   );
 
-  testWidgets(
-    '频道 belongs to 发现, 榜单 takes the type place, search leaves neither',
-    (tester) async {
-      final runtime = FakeRuntime(RankCatalog());
-      await mount(tester, runtime, const Size(1280, 900));
-      expect(
-        find.byKey(const ValueKey('filter-view-recommend')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('filter-genre-discover-short_play')),
-        findsOneWidget,
-      );
-      await tester.tap(find.byKey(const ValueKey('filter-view-rank')));
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pumpAndSettle();
-      // A board has no type of its own and no themes of its own: the type row
-      // steps out, and the strip pinned under it is filled with the boards --
-      // the second level of that mode, and the swipe still lands on them.
-      expect(
-        find.byKey(const ValueKey('filter-genre-discover-short_play')),
-        findsNothing,
-      );
-      expect(find.byKey(const ValueKey('filter-board-hot')), findsOneWidget);
-      expect(find.byKey(const ValueKey('theme-rail-cate_7')), findsNothing);
-      expect(find.byKey(const ValueKey('filter-sort-hot_score')), findsNothing);
-      // `rank(board)` takes no genre, so the title states the genre the board
-      // actually ranks (upstream all three are 漫剧 boards) next to the board's
-      // own name -- and nothing is written into the shared first level.
-      expect(find.text('漫剧榜单'), findsNothing);
-      expect(find.text('漫剧 · 推荐榜'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('filter-board-hot')));
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pumpAndSettle();
-      expect(find.text('漫剧 · 热播榜'), findsOneWidget);
-      // 分类 never inherits 榜单: it shows its own types again.
-      await tester.tap(find.text('分类').first);
-      await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('filter-view-rank')), findsNothing);
-      expect(
-        find.byKey(const ValueKey('filter-genre-categories-comic_series')),
-        findsOneWidget,
-      );
-      // And the type still lit is the one the viewer was on -- 榜单 read as a
-      // channel, not as a filter, so it never moved the shared first level.
-      expect(
-        tester
-            .widget<ChoiceChip>(
-              find.byKey(const ValueKey('filter-genre-categories-short_play')),
-            )
-            .selected,
-        isTrue,
-      );
-      // And the rail 分类 owns is still there, holding the children of that same
-      // shared first level -- 榜单 never cancelled or emptied it on the way by.
-      expect(find.byKey(const ValueKey('theme-rail')), findsOneWidget);
-      expect(find.byKey(const ValueKey('theme-rail-cate_7')), findsOneWidget);
-      // A search answers neither question, so the row keeps only the way out.
-      await tester.enterText(
-        find.byKey(const ValueKey('search-field-categories')),
-        '故事',
-      );
-      await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('clear-search-categories')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('filter-genre-categories-comic_series')),
-        findsNothing,
-      );
-      expect(find.byKey(const ValueKey('theme-rail')), findsNothing);
-      expect(tester.takeException(), isNull);
-    },
-  );
+  testWidgets('频道 belongs to 发现, 榜单 is a destination, search leaves neither', (
+    tester,
+  ) async {
+    final runtime = FakeRuntime(RankCatalog());
+    await mount(tester, runtime, const Size(1280, 900));
+    expect(find.byKey(const ValueKey('filter-view-recommend')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('filter-genre-discover-short_play')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('filter-view-latest')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('filter-genre-discover-short_play')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('theme-rail-cate_7')), findsOneWidget);
+    expect(find.byKey(const ValueKey('filter-sort-hot_score')), findsNothing);
+    // 榜单 is no longer a mode 发现 can be put into. `rank(board)` takes neither
+    // 类型 nor 题材, so the old mode had to cancel the row this page is built on
+    // -- and a destination asks its own question without unseating anyone.
+    expect(find.byKey(const ValueKey('filter-view-rank')), findsNothing);
+    await tester.tap(find.text('榜单').first);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('rank-page')), findsOneWidget);
+    // Upstream publishes both rows in the same answer as the cards, so the
+    // destination draws the 赛道 and the 榜 it named -- not a fixed trio of
+    // board labels.
+    expect(find.byKey(const ValueKey('rank-tracks')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('rank-board-comic_series_hot_rank')),
+      findsOneWidget,
+    );
+    // The catalog page is laid out but not painted, so its two rows are out of
+    // the tree while the ranking list is on screen -- and back the moment the
+    // viewer leaves it, with nothing re-requested.
+    expect(find.byKey(const ValueKey('theme-rail')), findsNothing);
+    await tester.tap(find.text('发现').first);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('rank-page')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('filter-genre-discover-short_play')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('theme-rail')), findsOneWidget);
+    // 分类 never inherits anything from the rail either: it shows its own types.
+    await tester.tap(find.text('分类').first);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('filter-view-rank')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('filter-genre-categories-comic_series')),
+      findsOneWidget,
+    );
+    // And the type still lit is the one the viewer was on -- the shared first
+    // level moved only when the viewer moved it.
+    expect(
+      tester
+          .widget<ChoiceChip>(
+            find.byKey(const ValueKey('filter-genre-categories-short_play')),
+          )
+          .selected,
+      isTrue,
+    );
+    // And the rail 分类 owns is still there, holding the children of that same
+    // shared first level.
+    expect(find.byKey(const ValueKey('theme-rail')), findsOneWidget);
+    expect(find.byKey(const ValueKey('theme-rail-cate_7')), findsOneWidget);
+    // A search answers neither question, so the row keeps only the way out.
+    await tester.enterText(
+      find.byKey(const ValueKey('search-field-categories')),
+      '故事',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('clear-search-categories')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('filter-genre-categories-comic_series')),
+      findsNothing,
+    );
+    expect(find.byKey(const ValueKey('theme-rail')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }

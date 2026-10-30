@@ -83,7 +83,7 @@ class _Adapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
-class _Catalog implements CatalogRepository, RankCatalogRepository {
+class _Catalog implements CatalogRepository {
   final int count;
   _Catalog([this.count = 1]);
   static const drama = Drama(id: '123', title: '离线播放验证', episodeCount: 1);
@@ -94,11 +94,6 @@ class _Catalog implements CatalogRepository, RankCatalogRepository {
     String? theme,
     String? cursor,
     List<String> seen = const [],
-  }) async => const CatalogPage([drama]);
-  @override
-  Future<CatalogPage> rank({
-    String board = 'recommend',
-    String? cursor,
   }) async => const CatalogPage([drama]);
   @override
   Future<CatalogPage> search(String query, {String? cursor}) async =>

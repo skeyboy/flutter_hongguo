@@ -41,11 +41,20 @@ class RailCatalog extends FakeCatalog {
 /// The 排行 board answers immediately; only the browse feeds are held open.
 class RailRankCatalog extends RailCatalog implements RankCatalogRepository {
   @override
-  Future<CatalogPage> rank({
-    String board = 'recommend',
+  Future<RankPage> rankBoard({
+    String track = rankSeedTrack,
+    String? board,
     String? cursor,
-  }) async => rows('榜');
+  }) async => rankRows('榜');
 }
+
+RankPage rankRows(String tag) => RankPage(
+  entries: [
+    for (final (index, drama) in rows(tag).items.indexed)
+      RankEntry(drama: drama, position: index + 1),
+  ],
+  nextCursor: '$tag-next',
+);
 
 CatalogPage rows(String tag) => CatalogPage(
   List.generate(90, (i) => Drama(id: '$tag-$i', title: '$tag故事$i')),
@@ -231,7 +240,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('search keeps the rail out; rank hands it to the boards', (
+  testWidgets('search keeps the rail out; 榜单 is a page of its own', (
     tester,
   ) async {
     final catalog = RailRankCatalog();
@@ -248,16 +257,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('theme-rail')), findsOneWidget);
 
-    // 排行 boards have no themes, but the strip itself stays -- it is what
-    // names the page a sideways swipe landed on -- and its chips are boards.
+    // 榜单 no longer borrows this strip. `rankBoard` takes neither 类型 nor 题材,
+    // so the mode had to empty the rail and fill it with boards; the destination
+    // asks its own question and leaves 发现's rail holding the children of the
+    // type it was on -- both rows still there, exactly as they were left.
     await tester.tap(find.text('发现').first);
     await answer(tester, catalog, '发现');
-    await tester.tap(find.byKey(const ValueKey('filter-view-rank')));
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('theme-rail')), findsOneWidget);
-    expect(find.byKey(const ValueKey('filter-board-hot')), findsOneWidget);
-    expect(find.byKey(const ValueKey('theme-rail-cate_7')), findsNothing);
+    expect(find.byKey(const ValueKey('filter-view-rank')), findsNothing);
+    await tester.tap(find.text('榜单').first);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('rank-page')), findsOneWidget);
+    expect(find.text('榜故事0'), findsWidgets);
+    expect(find.byKey(const ValueKey('theme-rail')), findsNothing);
+    await tester.tap(find.text('发现').first);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('rank-page')), findsNothing);
+    expect(find.byKey(const ValueKey('theme-rail')), findsOneWidget);
+    expect(find.byKey(const ValueKey('theme-rail-cate_7')), findsOneWidget);
   });
 
   testWidgets('the keyboard selects the focused theme chip', (tester) async {
