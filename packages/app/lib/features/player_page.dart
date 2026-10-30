@@ -21,6 +21,7 @@ import '../playback/tv_video_view.dart';
 import '../playback/local_playlist.dart';
 import '../playback/episode_workspace.dart';
 import '../playback/episode_swipe.dart';
+import '../playback/episode_reveal.dart';
 import '../playback/compact_controls.dart';
 import '../playback/playback_transport.dart';
 import '../playback/player_center_overlay.dart';
@@ -176,6 +177,12 @@ class _PlayerPageState extends State<PlayerPage>
   final episodeWorkspace = GlobalKey<EpisodeWorkspaceState>();
   final compactControls = GlobalKey<CompactControlsState>();
   final centerOverlay = GlobalKey<PlayerCenterOverlayState>();
+
+  /// The two handles into the 选集 list. One pair serves both shapes of the
+  /// panel -- the drawer on the wide surface, the sheet on the tall one --
+  /// because only one of them is ever in the tree.
+  final episodesScroll = ScrollController();
+  final episodeGrid = GlobalKey();
 
   /// The control bar talks to this, never to [player] directly, so the bar can
   /// be mounted in a widget test with a fake behind the same interface.
@@ -999,6 +1006,7 @@ class _PlayerPageState extends State<PlayerPage>
     castService?.removeListener(_onCastChanged);
     prefetch.dispose();
     panelRevision.dispose();
+    episodesScroll.dispose();
     for (final subscription in subscriptions) {
       subscription.cancel();
     }
@@ -1056,7 +1064,7 @@ class _PlayerPageState extends State<PlayerPage>
                     ),
                   ],
                 ),
-                Expanded(child: _episodes()),
+                Expanded(child: _episodePanel()),
               ],
             ),
           ),
@@ -1302,8 +1310,21 @@ class _PlayerPageState extends State<PlayerPage>
       (surface == ControlSurface.desktopWide ||
           surface == ControlSurface.mobileLandscape);
 
+  /// The 选集 list, aimed at the episode playing. Both shapes of the panel hand
+  /// this in rather than [_episodes] itself: the list opens at wherever it was
+  /// last left, and a viewer deep in a long drama did not open it to look at
+  /// 第 1 集.
+  Widget _episodePanel() => EpisodeReveal(
+    index: position,
+    count: widget.detail.episodes.length,
+    scroll: episodesScroll,
+    grid: episodeGrid,
+    child: _episodes(),
+  );
+
   Widget _episodes() => CustomScrollView(
     key: const PageStorageKey('episode-options'),
+    controller: episodesScroll,
     slivers: [
       SliverToBoxAdapter(
         child: Column(
@@ -1445,6 +1466,7 @@ class _PlayerPageState extends State<PlayerPage>
       SliverPadding(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
         sliver: SliverGrid(
+          key: episodeGrid,
           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
             maxCrossAxisExtent: 80,
             mainAxisSpacing: 10,
@@ -1862,7 +1884,7 @@ class _PlayerPageState extends State<PlayerPage>
           : EpisodeWorkspace(
               key: episodeWorkspace,
               video: chrome,
-              episodes: _episodes(),
+              episodes: _episodePanel(),
               onSettings: _settings,
               playing: playing,
               hideWhileHovering: macHost,
