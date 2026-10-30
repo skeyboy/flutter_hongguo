@@ -1,0 +1,174 @@
+00:00 +0: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/auto_update_live_test.dart
+Building Windows application...                                 
+CMake Warning (dev) at flutter/ephemeral/.plugin_symlinks/media_kit_libs_windows_video/windows/CMakeLists.txt:90 (add_custom_command):
+  Exactly one of PRE_BUILD, PRE_LINK, or POST_BUILD must be given.  Assuming
+  POST_BUILD to preserve backward compatibility.
+
+  Policy CMP0175 is not set: add_custom_command() rejects invalid arguments.
+  Run "cmake --help-policy CMP0175" for policy details.  Use the cmake_policy
+  command to set the policy and suppress this warning.
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at flutter/ephemeral/.plugin_symlinks/media_kit_libs_windows_video/windows/CMakeLists.txt:126 (add_custom_command):
+  Exactly one of PRE_BUILD, PRE_LINK, or POST_BUILD must be given.  Assuming
+  POST_BUILD to preserve backward compatibility.
+
+  Policy CMP0175 is not set: add_custom_command() rejects invalid arguments.
+  Run "cmake --help-policy CMP0175" for policy details.  Use the cmake_policy
+  command to set the policy and suppress this warning.
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+Building Windows application...                                    96.4s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+00:00 +0: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/cached_artwork_test.dart
+Building Windows application...                                    24.4s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -1: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/cached_artwork_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/cached_artwork_test.dart": Unable to start the app on the device.
+00:00 +0 -1: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/desktop_episode_swipe_hint_test.dart
+Building Windows application...                                    28.0s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -2: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/desktop_episode_swipe_hint_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/desktop_episode_swipe_hint_test.dart": Unable to start the app on the device.
+00:00 +0 -2: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/download_concurrency_live_test.dart
+Building Windows application...                                    20.4s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -3: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/download_concurrency_live_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/download_concurrency_live_test.dart": Unable to start the app on the device.
+00:00 +0 -3: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/ios_episode_swipe_test.dart
+Building Windows application...                                    29.9s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -4: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/ios_episode_swipe_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/ios_episode_swipe_test.dart": Unable to start the app on the device.
+00:00 +0 -4: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/macos_live_poc_test.dart
+Building Windows application...                                    27.4s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -5: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/macos_live_poc_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/macos_live_poc_test.dart": Unable to start the app on the device.
+00:00 +0 -5: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/mobile_episode_swipe_test.dart
+Building Windows application...                                    28.3s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -6: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/mobile_episode_swipe_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/mobile_episode_swipe_test.dart": Unable to start the app on the device.
+00:00 +0 -6: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/offline_playback_test.dart
+Building Windows application...                                    27.9s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -7: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/offline_playback_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/offline_playback_test.dart": Unable to start the app on the device.
+00:00 +0 -7: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/player_controls_live_test.dart
+Building Windows application...                                    27.2s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -8: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/player_controls_live_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/player_controls_live_test.dart": Unable to start the app on the device.
+00:00 +0 -8: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/route_transition_live_test.dart
+Building Windows application...                                    27.2s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -9: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/route_transition_live_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/route_transition_live_test.dart": Unable to start the app on the device.
+00:00 +0 -9: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/sidebar_switch_live_test.dart
+Building Windows application...                                    27.9s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -10: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/sidebar_switch_live_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/sidebar_switch_live_test.dart": Unable to start the app on the device.
+00:00 +0 -10: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/theme_rail_live_test.dart
+Building Windows application...                                    29.1s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -11: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/theme_rail_live_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/theme_rail_live_test.dart": Unable to start the app on the device.
+00:00 +0 -11: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_catalog_interaction_test.dart
+Building Windows application...                                    28.5s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -12: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_catalog_interaction_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_catalog_interaction_test.dart": Unable to start the app on the device.
+00:00 +0 -12: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_controls_idle_test.dart
+Building Windows application...                                    28.2s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -13: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_controls_idle_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_controls_idle_test.dart": Unable to start the app on the device.
+00:00 +0 -13: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_global_back_test.dart
+Building Windows application...                                    19.3s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -14: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_global_back_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_global_back_test.dart": Unable to start the app on the device.
+00:00 +0 -14: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_green_diagnostic_test.dart
+Building Windows application...                                    18.9s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -15: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_green_diagnostic_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_green_diagnostic_test.dart": Unable to start the app on the device.
+00:00 +0 -15: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_hevc_platform_test.dart
+Building Windows application...                                    27.5s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -16: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_hevc_platform_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_hevc_platform_test.dart": Unable to start the app on the device.
+00:00 +0 -16: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_menu_interaction_test.dart
+Building Windows application...                                    27.9s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -17: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_menu_interaction_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_menu_interaction_test.dart": Unable to start the app on the device.
+00:00 +0 -17: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_network_recovery_test.dart
+Building Windows application...                                    28.7s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -18: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_network_recovery_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_network_recovery_test.dart": Unable to start the app on the device.
+00:00 +0 -18: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_placeholder_retry_test.dart
+Building Windows application...                                    28.0s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -19: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_placeholder_retry_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_placeholder_retry_test.dart": Unable to start the app on the device.
+00:00 +0 -19: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_remote_test.dart
+Building Windows application...                                    27.9s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -20: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_remote_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_remote_test.dart": Unable to start the app on the device.
+00:00 +0 -20: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_resume_playback_test.dart
+Building Windows application...                                    28.0s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -21: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_resume_playback_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_resume_playback_test.dart": Unable to start the app on the device.
+00:00 +0 -21: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_sidebar_interaction_test.dart
+Building Windows application...                                    27.9s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -22: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_sidebar_interaction_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/tv_sidebar_interaction_test.dart": Unable to start the app on the device.
+00:00 +0 -22: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/v032_detail_shots_test.dart
+Building Windows application...                                    27.0s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -23: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/v032_detail_shots_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/v032_detail_shots_test.dart": Unable to start the app on the device.
+00:00 +0 -23: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/v032_download_concurrency_test.dart
+Building Windows application...                                    28.7s
+√ Built build\windows\x64\runner\Debug\hongguo_app.exe
+Error waiting for a debug connection: The log reader stopped unexpectedly, or never started.
+00:00 +0 -24: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/v032_download_concurrency_test.dart [E]
+  Failed to load "D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/v032_download_concurrency_test.dart": Unable to start the app on the device.
+00:00 +0 -24: Some tests failed.
+
+Failing tests:
+  D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/cached_artwork_test.dart: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/cached_artwork_test.dart
+  D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/desktop_episode_swipe_hint_test.dart: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/desktop_episode_swipe_hint_test.dart
+  D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/download_concurrency_live_test.dart: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/download_concurrency_live_test.dart
+  D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/ios_episode_swipe_test.dart: loading D:/a/flutter_hongguo/flutter_hongguo/packages/app/integration_test/ios_episode_swipe_test.dart
+  ... and 20 more
