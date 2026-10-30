@@ -281,6 +281,17 @@
   .frame.narrow .wrap{gap:14px;padding:16px 16px 6px}
   .frame.narrow .sect{padding-left:16px;padding-right:16px}
   .frame.narrow .epgrid{grid-template-columns:repeat(5,1fr)}
+  /* 播放页态：点某一集后播放器吃满、详情收成一行标题；URL 带 ?ep=N，刷新/深链都能回到这一集 */
+  .nowbar{display:flex;align-items:center;gap:10px;padding:11px 0 2px;font-size:13px;color:var(--ink2)}
+  .nowbar[hidden]{display:none}
+  .nowbar b{font-size:15px;color:var(--ink)}
+  .nowbar .sp{flex:1}
+  #desk.playing .hero{padding:11px 24px}
+  #desk.playing .hero .poster,#desk.playing .hero .chips,#desk.playing .hero .cta{display:none}
+  #desk.playing .hero .inner{display:block}
+  #desk.playing .hero h1{font-size:17px;margin:0}
+  #desk.playing .wrap{padding-top:12px}
+  body.touch .nowbar{font-size:14px}
   .foot{max-width:1280px;margin:16px auto 0;font-size:12px;color:var(--ink3);line-height:1.85}
   .foot b{color:var(--ink2)}
 </style>
@@ -365,6 +376,13 @@
               <button data-demo>⛶ 全屏</button>
             </div>
           </div>
+        </div>
+        <div class="nowbar" id="desk-nowbar" hidden>
+          <button class="btn gh" id="desk-backdetail">‹ 回到详情</button>
+          <b id="desk-now-t"></b>
+          <span id="desk-now-sub" style="color:var(--ink3)"></span>
+          <span class="sp"></span>
+          <span class="todo">自动连播下一集 = 本地队列，不是推荐</span>
         </div>
         <div class="kpihint">快捷键 <kbd>Space</kbd> 播放/暂停 · <kbd>←</kbd><kbd>→</kbd> 5 秒 ·
           <kbd>N</kbd>/<kbd>P</kbd> 上下集 · <kbd>M</kbd> 静音 · <kbd>F</kbd> 全屏 ·
@@ -547,12 +565,14 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const Q=new URLSearchParams(location.search);
 const SEEDS=[['short_play',2],['short_play',10],['short_play',0],['short_play',11]];
 const state={dom:'desk',w:1280,touch:false,seed:0,g:'short_play',i:2,mode:'imm',side:'ep',
-             playing:true,fav:false,os:'mac'};
+             playing:true,fav:false,os:'mac',ep:null};
 if(Q.get('g')&&FEED[Q.get('g')]&&Number.isInteger(+Q.get('i'))){
   state.g=Q.get('g'); state.i=+Q.get('i');
   const k=SEEDS.findIndex(s=>s[0]===state.g&&s[1]===state.i);
   if(k>=0) state.seed=k;
 }
+const total=()=>cur().eps||40;
+const seenEp=()=>Math.max(1,Math.round(total()*0.12));
 const cur=()=>{const c=(FEED[state.g]||[])[state.i]||FEED.short_play[2];
   return {title:c[0],eps:c[1]??(TAGS[c[0]]&&TAGS[c[0]].eps),score:c[3],badge:c[6],color:c[7],
           ev:TAGS[c[0]]||null};};
@@ -636,13 +656,12 @@ function renderDesk(){
   $('#hero-title').textContent=d.title;
   $('#hero-sub').innerHTML=`<span ${eps?'':'class="todo"'}>${eps?`共 ${eps} 集`:'集数未在本轮样本留存'}</span>
      · ${d.score?`<span>${d.score} 分</span>`:''}
-     · <span data-demo>上次看到第 ${Math.max(1,Math.round((eps||40)*0.12))} 集</span>
+     · <span data-demo>上次看到第 ${seenEp()} 集</span>
      · 卡片自带标签 ${d.ev?d.ev.tags.length+' 个（实机）':'未在本轮样本留存'}`;
   const tags=d.ev?d.ev.tags:['（本轮样本未留存该剧标签）'];
   $('#hero-chips').innerHTML=tags.slice(0,6).map((t,i)=>
     `<button class="chip" data-tag="${t}" aria-pressed="${i===0&&PANEL.has(t)}">${t}
       <span class="n">${PANEL.has(t)?'面板有':'面板无'}</span></button>`).join('');
-  $('#desk-play-label').textContent='继续观看';
   $('#desk-intro-t').textContent=(DEMO_DESC[d.title]||'')+'　'.repeat(1)+(DEMO_DESC[d.title]||'');
   $('#desk-vid').style.setProperty('--c',d.color);
   relatedHTML($('#desk-related'),true);
@@ -651,17 +670,18 @@ function renderDesk(){
     .slice(0,10).map(c=>cardHTML(c[0],c[3]?c[3]+' 分':'',{eps:c[1],badge:c[6],color:c[7]})).join('');
 }
 function epButtons(from,to){
-  const cur0=cur(), seen=Math.max(1,Math.round((cur0.eps||40)*0.12));
+  const active=state.ep||seenEp();
   let out='';
-  for(let i=from;i<=to;i++) out+=`<button class="${i===seen?'now':''} ${i<seen?'done':''}" data-ep="${i}" data-demo>${i}</button>`;
+  for(let i=from;i<=to;i++) out+=`<button class="${i===active?'now':''} ${i<active?'done':''}" data-ep="${i}" data-demo>${i}</button>`;
   return out;
 }
 function renderSide(){
   const d=cur(), body=$('#desk-side'), eps=d.eps||40, seg=eps>30?30:eps;
   if(state.side==='ep'){
     const groups=[]; for(let i=1;i<=eps;i+=seg) groups.push(`${i}-${Math.min(i+seg-1,eps)}`);
-    body.innerHTML=`<div class="epseg">${groups.map((g,i)=>`<button data-g="${i}" aria-pressed="${i===0}">${g}</button>`).join('')}</div>
-      <div class="epgrid">${epButtons(1,Math.min(seg,eps))}</div>
+    const st=Math.floor(((state.ep||seenEp())-1)/seg)*seg+1;
+    body.innerHTML=`<div class="epseg">${groups.map((g,i)=>`<button data-g="${i}" aria-pressed="${st>=i*seg+1&&st<=i*seg+seg}">${g}</button>`).join('')}</div>
+      <div class="epgrid">${epButtons(st,Math.min(st+seg-1,eps))}</div>
       <button class="switchrow" aria-pressed="true">自动连播下一集<i></i></button>
       <button class="switchrow" aria-pressed="false">仅看未看<i></i></button>
       <div class="mnote" style="padding:10px 2px 0">电脑端把选集放进右侧栏：画面和集数同屏，不用先呼出抽屉。
@@ -693,16 +713,14 @@ function renderPhone(){
   $('#m-title').textContent=d.title;
   $('#m-imm-title').textContent=d.title;
   $('#m-imm-desc').textContent=DEMO_DESC[d.title]||'';
-  $('#m-imm-jump-t').textContent=eps?`共 ${eps} 集 · 选集`:'选集';
   $$('#device .vid').forEach(v=>v.style.setProperty('--c',d.color));
   $('#mp-cover').outerHTML=`<span class="cover" id="mp-cover" style="--c:${d.color}" data-demo>
      ${d.badge?`<span class="badge">${d.badge}</span>`:''}${eps?`<span class="eps">全 ${eps} 集</span>`:''}</span>`;
   $('#mp-title').textContent=d.title;
   $('#mp-sub').innerHTML=`<span ${eps?'':'class="todo"'}>${eps?`共 ${eps} 集`:'集数未留存'}</span>
-     · <span data-demo>看到第 ${Math.max(1,Math.round((eps||40)*0.12))} 集</span>`;
+     · <span data-demo>看到第 ${seenEp()} 集</span>`;
   $('#mp-chips').innerHTML=(d.ev?d.ev.tags:['（标签未留存）']).slice(0,4)
      .map(t=>`<button class="chip" data-tag="${t}">${t}</button>`).join('');
-  $('#mp-play-t').textContent='继续观看';
   $('#mp-intro-t').textContent=(DEMO_DESC[d.title]||'')+'　'+(DEMO_DESC[d.title]||'');
   relatedHTML($('#mp-related'),false);
 }
@@ -713,8 +731,49 @@ function applyMode(){
   $('#m-imm').classList.toggle('flat',!page);
   $$('#mbar button').forEach(x=>x.setAttribute('aria-selected',x.dataset.v===(page?'page':'imm')));
 }
+/* ===== 播放页态：点某一集就进播放器；?ep=N 让它可深链、刷新后仍回到这一集 ===== */
+function paintPlayer(){
+  if(state.ep) state.ep=Math.min(state.ep,total());
+  const ep=state.ep, d=cur();
+  $('#desk').classList.toggle('playing',!!ep);
+  $('#desk-nowbar').hidden=!ep;
+  $('#desk-vid').style.aspectRatio=ep?'16/9':'4/3';
+  $('#desk-bigplay').hidden=!!ep;
+  $('#desk-now-t').textContent=ep?`第 ${ep} 集 · 正在播放`:'';
+  $('#desk-now-sub').textContent=ep?`${d.title} · 全 ${total()} 集`:'';
+  $('#desk-play-label').textContent=ep?`播放中 · 第 ${ep} 集`:'继续观看';
+  $('#mp-play-t').textContent=ep?`播放中 · 第 ${ep} 集`:'继续观看';
+  $('#m-imm-title').textContent=ep?`${d.title} · 第 ${ep} 集`:d.title;
+  $('#m-imm-jump-t').textContent=(d.eps?`共 ${d.eps} 集 · 选集`:'选集')+(ep?` · 第 ${ep} 集`:'');
+}
+function syncEpInURL(){
+  const q=new URLSearchParams(location.search);
+  q.set('g',state.g); q.set('i',state.i);
+  if(state.ep) q.set('ep',state.ep); else q.delete('ep');
+  history.replaceState(null,'',`${location.pathname}?${q}`);
+}
+function playEpisode(ep,src){
+  state.ep=Math.max(1,Math.min(total(),ep|0));
+  state.playing=true;
+  syncEpInURL(); paintPlayer(); renderSide();
+  closeSheet();
+  if(state.dom==='phone'){ state.mode='imm'; applyMode(); }
+  else $('#desk-vid').scrollIntoView({behavior:'smooth',block:'center'});
+  const d=cur();
+  say(`<span class="row"><span class="k">点第 ${state.ep} 集</span> <em>${src} → 进播放页</em>
+     <span class="v">POST /novel/player/multi_video_model/v1/ {vid, episode_id:${state.ep}}</span>
+     <span class="warn">换集不换页：详情 DOM 保活、播放器吃满，不重新请求推荐；URL 记 <code>ep=${state.ep}</code>，分享出去直接落到这一集</span></span>
+     <span class="row"><span class="k">剧</span> <span class="v">${d.title} · 全 ${total()} 集</span>
+     <span class="warn">集数来自实机 feed；时间轴与进度条是演示值</span></span>`);
+}
+function exitPlayer(){
+  state.ep=null; syncEpInURL(); paintPlayer(); renderSide();
+  say(`<span class="row"><span class="k">回到详情</span> <em>播放器收回 4:3 预览位</em>
+     <span class="warn">同一页的两种态，不是一次新导航：返回键仍然先回列表页原位</span></span>`);
+}
 function openSheet(kind){
   const d=cur(), eps=d.eps||40, seg=Math.min(20,eps);
+  const st=Math.floor(((state.ep||seenEp())-1)/seg)*seg+1;
   $('#sheet-t').textContent=kind==='dl'?'缓存本剧':'选集';
   $('#sheet-seg').hidden=kind!=='ep';
   $('#sheet-body').innerHTML=(kind==='dl'
@@ -722,8 +781,8 @@ function openSheet(kind){
        <button class="chip">前 10 集</button><button class="chip">未看集</button></div>
       <div class="mnote" style="padding:0 2px 8px">并发 1–3 档；无额度文案。</div>`
     :'')+`<div class="epseg">${[...Array(Math.ceil(eps/seg))].map((_,i)=>
-       `<button data-g="${i}" aria-pressed="${i===0}">${i*seg+1}-${Math.min((i+1)*seg,eps)}</button>`).join('')}</div>
-      <div class="epgrid">${epButtons(1,seg)}</div>`;
+       `<button data-g="${i}" aria-pressed="${st>=i*seg+1&&st<=i*seg+seg}">${i*seg+1}-${Math.min((i+1)*seg,eps)}</button>`).join('')}</div>
+      <div class="epgrid">${epButtons(st,Math.min(st+seg-1,eps))}</div>`;
   $('#sheet').classList.add('on'); $('#mask').classList.add('on');
 }
 function closeSheet(){$('#sheet').classList.remove('on');$('#mask').classList.remove('on');}
@@ -769,7 +828,7 @@ $('#seg-os').onclick=e=>{
 $('#seg-seed').onclick=e=>{
   const b=e.target.closest('button'); if(!b) return;
   pressIn($('#seg-seed'),b); state.seed=+b.dataset.k;
-  [state.g,state.i]=SEEDS[state.seed]; renderAll();
+  [state.g,state.i]=SEEDS[state.seed]; renderAll(); syncEpInURL();
   const d=cur(), bs=blocks();
   say(`<span class="row"><span class="k">进入详情</span> <em>${d.title}</em>
      <span class="v">POST /novel/player/multi_video_detail/preload/v1 {vid}</span></span>
@@ -809,6 +868,8 @@ function fav(on){state.fav=on;
 $('#m-ep').onclick=()=>openSheet('ep'); $('#mp-ep').onclick=()=>openSheet('ep');
 $('#m-dl').onclick=()=>openSheet('dl'); $('#m-imm-jump').onclick=()=>openSheet('ep');
 $('#mask').onclick=closeSheet; $('#sheet').onclick=e=>{
+  const epBtn=e.target.closest('[data-ep]');
+  if(epBtn){ playEpisode(+epBtn.dataset.ep,'底部选集抽屉'); return; }
   const b=e.target.closest('.epseg button'); if(!b) return;
   b.parentNode.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));
   const eps=cur().eps||40, seg=Math.min(20,eps), st=(+b.dataset.g)*seg+1;
@@ -825,13 +886,18 @@ $('#desk-side').addEventListener('click',e=>{
   const sw=e.target.closest('.switchrow');
   if(sw){sw.setAttribute('aria-pressed',sw.getAttribute('aria-pressed')!=='true');return;}
   const ep=e.target.closest('[data-ep]');
-  if(ep) say(`<span class="row"><span class="k">播放第</span> <em>${ep.dataset.ep}</em> 集
-     <span class="v">POST /novel/player/multi_video_model/v1/ {vid}</span>
-     <span class="warn">换集不换页，也不重新请求推荐</span></span>`);
+  if(ep) playEpisode(+ep.dataset.ep,'右侧选集栏');
 });
-$('#desk-vid').onclick=()=>{state.playing=!state.playing;
+function shiftEpisode(delta,src){ playEpisode(Math.min(total(),Math.max(1,(state.ep||seenEp())+delta)),src); }
+$('#desk-vid').onclick=e=>{
+  const nav=e.target.closest('[data-epnav]');
+  if(nav){ shiftEpisode(nav.dataset.epnav==='next'?1:-1,
+    nav.dataset.epnav==='next'?'控制条「下一集」':'控制条「上一集」'); return; }
+  state.playing=!state.playing;
   $('#desk-bigplay').hidden=!state.playing; $('#desk-bigplay span').textContent=state.playing?'❚❚':'▶';
   $('#desk-pp').textContent=state.playing?'❚❚ 暂停':'▶ 播放';};
+['#desk-play','#mp-play'].forEach(s=>$(s).onclick=()=>playEpisode(seenEp(),'「继续观看」按钮'));
+$('#desk-backdetail').onclick=exitPlayer;
 document.addEventListener('click',e=>{
   const chip=e.target.closest('[data-tag]');
   if(chip){const t=chip.dataset.tag;
@@ -864,13 +930,25 @@ $('#desk-back').onclick=$('#m-back').onclick=()=>{
 };
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){closeSheet();$('#pop').classList.remove('on');}
+  if(state.dom==='desk'&&!state.touch&&!/^(INPUT|TEXTAREA)$/.test(e.target.tagName)){
+    if(/^[np]$/i.test(e.key)){ e.preventDefault(); shiftEpisode(e.key.toLowerCase()==='n'?1:-1,'快捷键 '+e.key.toUpperCase()); return; }
+  }
   if([' ','ArrowLeft','ArrowRight'].includes(e.key)&&state.dom==='desk'&&!state.touch){
     e.preventDefault();
     say(`<span class="row"><span class="k">键盘</span> <em>${e.key===' '?'Space':e.key}</em>
      <span class="warn">电脑客户端在详情页直接生效（焦点不在输入框时）；触控族不显示任何键盘文案</span></span>`);}
 });
-function renderAll(){renderDesk();renderPhone();applyMode();}
+function renderAll(){renderDesk();renderPhone();applyMode();paintPlayer();}
+const bootEp=Number(Q.get('ep'));
+if(Number.isInteger(bootEp)&&bootEp>0) state.ep=Math.min(bootEp,total());
 renderAll();
+if(state.ep&&state.ep!==bootEp) syncEpInURL();
+say(state.ep
+  ? `<span class="row"><span class="k">带 <code>?ep=${state.ep}</code> 深链进来</span> <em>直接落在播放页</em>
+     <span class="v">detail {vid} → 播放 {vid, episode_id:${state.ep}}</span>
+     <span class="warn">省掉一次「进详情、再点一集」；从列表点进来则 ep 缺省 = 详情态，由「继续观看」按钮决定接播第几集</span></span>`
+  : `<span class="row"><span class="k">从列表卡片点进来</span> <em>详情承接态（未播）</em>
+     <span class="warn">右侧选集栏 / 手机底部抽屉里点任意一集 = 进播放页播放；「回到详情」收回。两种态同一页，URL 用 <code>ep</code> 记。</span></span>`);
 </script>
 </body>
 </html>
