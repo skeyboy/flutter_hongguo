@@ -245,33 +245,26 @@ Future<void> _tapRailMenuLast(WidgetTester tester) async {
   await _live(tester, 1200);
 }
 
-/// 「最近更新」is one chip on the phone and one line of 排序 · … on the desktop:
-/// the promise is the sort the request carries, not the widget that set it.
+/// 「最近更新」is one line of 排序 · … on either family: the touch family opens it
+/// as a bottom sheet instead of a dropdown, but the 档 the request carries -- and
+/// the key that names it -- are the same, so the promise is what is asked for.
 Future<void> _sortLatest(WidgetTester tester) async {
-  if (desktopHost) {
-    await _pickSort(tester, 'online_time');
-    return;
-  }
-  await tester.tap(find.byKey(const ValueKey('filter-view-latest')));
-  await _live(tester, 1200);
+  await _pickSort(tester, 'online_time');
 }
 
-/// 推荐 corresponds to no 档 upstream at all -- on the phone its chip means "put
-/// the choice back", and on the desktop the row stops offering the word, because
-/// a chip with no answer behind it is the thing §6.1.2③ refuses. So the way back
-/// is named by the 档 this page carried before the fixture touched it.
+/// 「推荐」 was never a 档: on the phone its chip used to mean "put the choice back",
+/// and upstream publishes exactly three. So the way back is named by the 档 this
+/// page carried before the fixture touched it, and both families ask for it the
+/// same way -- a chip with no answer behind it is the thing §6.1.2③ refuses.
 Future<void> _sortBackToDefault(WidgetTester tester, String backTo) async {
-  if (desktopHost) {
-    await _pickSort(tester, backTo);
-    return;
-  }
-  await tester.tap(find.byKey(const ValueKey('filter-view-recommend')));
-  await _live(tester, 1200);
+  await _pickSort(tester, backTo);
 }
 
-/// Opens the mouse family's L3 and picks one 档 out of it. Its lines exist only
-/// while the anchor is open, and a tap that raced the opening would throw about
-/// a finder instead of naming the 档 the row failed to offer.
+/// Opens L3 and picks one 档 out of it. The mouse family's is an anchor whose
+/// lines only exist while it is open; the touch family's is a route whose lines
+/// only exist after the sheet has settled -- both are waited for here, because a
+/// tap that raced the opening would throw about a finder instead of naming the
+/// 档 the row failed to offer.
 Future<void> _pickSort(WidgetTester tester, String sort) async {
   await tester.tap(find.byKey(const ValueKey('sort-menu')));
   final item = find.byKey(ValueKey('sort-$sort'));

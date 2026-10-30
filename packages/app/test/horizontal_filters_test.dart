@@ -7,6 +7,10 @@ import 'package:hongguo_app/main.dart';
 import 'package:hongguo_app/features/library_page.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 
+// 排序 is reached from the second row's tail on either family; `sort-menu` and
+// `sort-$档` are the keys both shapes answer to, so the promise 「an action on
+// 发现 does not unseat its own rows」 is asked of L3 now that the 最新 chip is gone.
+import 'desktop_fakes.dart' show sortTo;
 import 'fakes.dart';
 
 class RankCatalog extends FakeCatalog implements RankCatalogRepository {
@@ -191,19 +195,28 @@ void main() {
   ) async {
     final runtime = FakeRuntime(RankCatalog());
     await mount(tester, runtime, const Size(1280, 900));
-    expect(find.byKey(const ValueKey('filter-view-recommend')), findsOneWidget);
+    // 频道 is the type row of 发现, and it answers on this page on its own --
+    // the 推荐/最新 pair that used to sit beside it is gone from both families
+    // (「推荐」 names no sort upstream publishes, and 最新 is now the L3 最新上架
+    // 档), so what remains of the first row is just the row this page is built on.
+    expect(find.byKey(const ValueKey('filter-view-recommend')), findsNothing);
+    expect(find.byKey(const ValueKey('filter-view-latest')), findsNothing);
     expect(
       find.byKey(const ValueKey('filter-genre-discover-short_play')),
       findsOneWidget,
     );
-    await tester.tap(find.byKey(const ValueKey('filter-view-latest')));
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.pumpAndSettle();
+    // Choosing 最新上架 now goes through L3 -- the row's tail 排序, opened here as
+    // the touch family's bottom sheet -- and the point the old chip was checking
+    // still has to hold: an L3 decision narrows this page's request without
+    // unseating the 频道 row or the 主题 rail under it.
+    await sortTo(tester, 'online_time');
     expect(
       find.byKey(const ValueKey('filter-genre-discover-short_play')),
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('theme-rail-cate_7')), findsOneWidget);
+    // The 档 lives behind `sort-menu`, not as a per-page chip welded into the
+    // row: with the sheet closed again there is no inline sort control to find.
     expect(find.byKey(const ValueKey('filter-sort-hot_score')), findsNothing);
     // 榜单 is no longer a mode 发现 can be put into. `rank(board)` takes neither
     // 类型 nor 题材, so the old mode had to cancel the row this page is built on

@@ -82,6 +82,11 @@ abstract class LibraryPageStateBase extends State<LibraryPage> {
   /// 下面），所以换目的地、`Esc`、再开一次都走同一个 `_closeFilterPanel`。
   OverlayEntry? filterPanelEntry;
 
+  /// 触控族的同一层是一条路由（底部弹层），不是浮层，所以页面握着的不是 entry
+  /// 而是它的 `setState`：抽屉里的每一次选中都改了页面，而页面重画不会重画路由。
+  /// 值为 null 就是「没开着」——判开合的地方两族一起问。
+  StateSetter? filterSheetSetState;
+
   /// 桌面的 L3。页面握着它的句柄只为 `O` 一枚键：开合由控件自己管。
   final GlobalKey<SortMenuState> sortMenuKey = GlobalKey<SortMenuState>();
 
@@ -106,14 +111,10 @@ abstract class LibraryPageStateBase extends State<LibraryPage> {
   /// 一级，跨两页共享：在分类挑了「漫剧」再甩回发现，发现仍然在漫剧上。
   String genre = 'short_play';
 
-  /// 发现自己的模式：这一页问「看哪一路流」。它不再是一级页（一级是类型，两页
-  /// 同义），所以它只改取数的 sort，不参与横滑翻页。分类永远不读它。榜单不再属于
-  /// 这里——它是一格目的地，见 `ranking/ranking_page.dart`。
-  ///
-  /// 触控族本轮仍是这两枚 chip。「推荐」不对应任何一个 sort 值（上游只有最新上架/
-  /// 最高热度/最高收藏三档），所以桌面不再把它做成一档：那一族用右上角的 L3 下拉，
-  /// 见 [paneSort]。
-  String view = 'recommend';
+  /// 「看哪一路流」现在是 L3 那一枚的事（`catalogSortKeys` 的三档），不再是发现
+  /// 自己的一对 频道 chip。旧的 推荐/最新 两枚已经退场：「推荐」不对应任何一个上游
+  /// sort，而触控族这一轮把排序也收到了行尾。所以这里不再存 `view`；取数读 [paneSort]
+  /// 与设置里的全局 sort。见 `widgets/sort_menu.dart` 的 `SortSheet`。
 
   /// 二级，跨两页共享：题材是类型的孩子，两页都按同一个含义用它收窄列表。
   String? theme;

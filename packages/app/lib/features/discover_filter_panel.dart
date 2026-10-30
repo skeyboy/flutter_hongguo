@@ -12,6 +12,15 @@ import 'package:hongguo_api/hongguo_api.dart';
 class DiscoverFilterPanel extends StatelessWidget {
   final String genre;
 
+  /// What this type is called, in the page's own words: the drawer is the one
+  /// place that has to say which type's vocabulary it is showing, because the
+  /// dimensions inside it differ per type.
+  final String genreLabel;
+
+  /// 触控族's sheet names its way out in the header (收起) while the mouse
+  /// family's anchored drawer has 完成 and `Esc`. Null hides it.
+  final String? dismissLabel;
+
   /// What `filterRows` returned for this type, in the order upstream sent it.
   final List<CatalogDim> rows;
 
@@ -27,11 +36,13 @@ class DiscoverFilterPanel extends StatelessWidget {
   const DiscoverFilterPanel({
     super.key,
     required this.genre,
+    required this.genreLabel,
     required this.rows,
     required this.selected,
     required this.onPick,
     required this.onRetry,
     required this.onDone,
+    this.dismissLabel,
     this.loading = false,
     this.error,
   });
@@ -69,9 +80,24 @@ class DiscoverFilterPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            '更多筛选',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '更多筛选 · $genreLabel',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (dismissLabel != null)
+                TextButton(
+                  key: const ValueKey('filter-panel-dismiss'),
+                  onPressed: onDone,
+                  child: Text(dismissLabel!),
+                ),
+            ],
           ),
           if (loading && sections.isEmpty)
             const Padding(
@@ -169,13 +195,12 @@ class DiscoverFilterPanel extends StatelessWidget {
             ),
           Padding(
             padding: const EdgeInsets.only(top: 14),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton(
-                key: const ValueKey('filter-panel-done'),
-                onPressed: onDone,
-                child: Text('完成（已选 $_count）'),
-              ),
+            // Full width on either family: the drawer's one deliberate act is
+            // 「看完了」, and it should not depend on where the thumb was left.
+            child: FilledButton(
+              key: const ValueKey('filter-panel-done'),
+              onPressed: onDone,
+              child: Text('完成（已选 $_count）'),
             ),
           ),
         ],

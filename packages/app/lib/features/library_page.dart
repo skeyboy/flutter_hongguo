@@ -28,6 +28,7 @@ import '../search/search_history.dart';
 import '../search/search_suggestions.dart';
 import '../ranking/ranking_controller.dart';
 import '../ranking/ranking_page.dart';
+import '../ranking/rank_entry_card.dart';
 import 'detail_page.dart';
 import 'discover_filter_panel.dart';
 import 'library/library_page_state.dart';
@@ -143,7 +144,9 @@ class _LibraryPageState extends LibraryPageStateBase {
   String feedKeyAtLevel(int pane, String slot, String level2) => jsonEncode({
     'destination': pane,
     'query': queryOf(pane),
-    'view': pane == 0 ? view : 'recommend',
+    // 推荐/最新 两枚 chip 让位给 L3 之后，这一维恒为默认值。键的形状保持原样：
+    // 磁盘上已有一版保活快照是按这个形状存的，动它等于把观众已经翻过的页丢掉。
+    'view': 'recommend',
     'genre': slot,
     'sort': sortFor(pane, slot),
     // 题材 narrows both pages' browse; 搜索 takes neither, so it stays out of
@@ -304,9 +307,7 @@ class _LibraryPageState extends LibraryPageStateBase {
   String sortFor(int pane, String slot) {
     final picked = paneSort[pane];
     if (picked != null) return picked;
-    return pane == 0 && view == 'latest'
-        ? 'online_time'
-        : settingsFor(widget.runtime).catalogSort;
+    return settingsFor(widget.runtime).catalogSort;
   }
 
   /// Made once from the runtime's catalog and never replaced, so the boards the
@@ -315,8 +316,45 @@ class _LibraryPageState extends LibraryPageStateBase {
   RankingController get ranking {
     final existing = _ranking;
     if (existing != null) return existing;
-    return _ranking = RankingController(catalog: widget.runtime.catalog)
+    final controller = RankingController(catalog: widget.runtime.catalog)
       ..addListener(_applyRankDrill);
+    // 触控族的入口卡把榜单的行借到发现页上来（§4「发现页唯一一处允许出现榜单内容」），
+    // 所以这一页也得听见榜单的动静：卡上的行是等回来的，不是第一次铺就能有的那一帧。
+    // 桌面没有这张卡，也就不多这一个重画。
+    if (!desktopHost) controller.addListener(_onRankingFeed);
+    return _ranking = controller;
+  }
+
+  /// 榜单那边有动静了，而这一页正把入口卡铺在 发现 上。榜自己盖着的时候不用重画：
+  /// 那一页自己听着同一份内容。
+  void _onRankingFeed() {
+    if (!mounted || rankOpen) return;
+    setState(() {});
+  }
+
+  /// 入口卡要的那一份内容，第一次铺 触控族 的 发现 页时去要一次。放在铺页之后而不是
+  /// 铺页当中，因为建这一页不该顺手造出一个控制器来；`open()` 自己认「回过的榜不再
+  /// 问」，所以这一趟要么真的发一次请求，要么立刻回来。
+  bool _rankEntryWarmed = false;
+  void _warmRankEntry() {
+    if (_rankEntryWarmed) return;
+    _rankEntryWarmed = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(ranking.open());
+    });
+  }
+
+  /// 榜的名字用它自己的词：上游发的 赛道 与 榜块，一个都不写死（§5「禁止再写死榜名」
+  /// 同一条规矩）。还没回话时没有名字可借，那时这张卡也还没有行可排。
+  String get _rankEntryTitle {
+    final controller = _ranking;
+    if (controller == null) return '';
+    final track = controller.selectedTrack?.label;
+    String? board;
+    for (final value in controller.boards) {
+      if (value.id == controller.board) board = value.label;
+    }
+    return [?track, ?board].join(' · ');
   }
 
   /// Once the 赛道 tree is on screen, honour the drill that asked for it. A 榜 the
@@ -398,11 +436,23 @@ class _LibraryPageState extends LibraryPageStateBase {
     // yet reached -- whichever way it needs moving is the way that costs least.
     final revealStart = viewport.getOffsetToReveal(chip, 0.0).offset;
     final revealEnd = viewport.getOffsetToReveal(chip, 1.0).offset;
-    final wanted = revealEnd > position.pixels
-        ? revealEnd
-        : revealStart < position.pixels
-        ? revealStart
-        : null;
+    // `revealEnd > revealStart` says the chip is wider than the row it has to be
+    // shown in (the two offsets differ by exactly chipWidth - viewportWidth), so
+    // no offset shows it whole and the promise has one part left to keep: the
+    // leading edge, which is where the name is read from. Reaching for the
+    // trailing edge here would slide that off the left -- and the pinned tail of
+    // the touch family's row makes an ordinary 题材 name over-wide on a narrow
+    // window.
+    final double? wanted;
+    if (revealEnd > revealStart) {
+      wanted = (revealStart - position.pixels).abs() > 0.5 ? revealStart : null;
+    } else {
+      wanted = revealEnd > position.pixels
+          ? revealEnd
+          : revealStart < position.pixels
+          ? revealStart
+          : null;
+    }
     bandOwed.remove(rowKey);
     if (wanted == null) return;
     unawaited(
@@ -676,6 +726,10 @@ class _LibraryPageState extends LibraryPageStateBase {
     suggestionsEntry = null;
     filterPanelEntry?.remove();
     filterPanelEntry = null;
+    // The sheet is a route, so it outlives this page's tree on its own: the
+    // setter is dropped so a repaint queued from a settling router cannot be
+    // delivered to a body that no longer has a page to read.
+    filterSheetSetState = null;
     peekHide?.cancel();
     peekEntry?.remove();
     peekEntry = null;
@@ -687,6 +741,7 @@ class _LibraryPageState extends LibraryPageStateBase {
     }
     unawaited(sortEvents?.cancel());
     _ranking?.removeListener(_applyRankDrill);
+    _ranking?.removeListener(_onRankingFeed);
     _ranking?.dispose();
     for (final timer in feedFilterTimer.values) {
       timer?.cancel();
@@ -1517,8 +1572,20 @@ class _LibraryPageState extends LibraryPageStateBase {
 
   /// The drawer is an entry of the overlay, not of this page's tree, so it is
   /// rebuilt when it is told to -- and everything it shows (this type's panel,
-  /// what is picked in it) is read again at that moment.
+  /// what is picked in it) is read again at that moment. The touch family's
+  /// same layer is a route, so the same telling goes to its `setState`.
   void _repaintFilterPanel() {
+    final sheet = filterSheetSetState;
+    if (sheet != null) {
+      if (SchedulerBinding.instance.schedulerPhase ==
+          SchedulerPhase.persistentCallbacks) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && identical(filterSheetSetState, sheet)) sheet(() {});
+        });
+        return;
+      }
+      sheet(() {});
+    }
     final entry = filterPanelEntry;
     if (entry == null) return;
     // Asked for inside a frame it has to wait for that frame: `markNeedsBuild`
@@ -1544,17 +1611,6 @@ class _LibraryPageState extends LibraryPageStateBase {
       // 类型 is one of this page's own first-level pages on either tab, not a
       // narrowing of the list already on it: the chip changes the page.
       _gotoSlot(pane, value);
-      return;
-    }
-    if (group == 'view') {
-      // 推荐 / 最新 is 发现's mode rather than one of its pages: it changes what
-      // the same page asks for -- another sort -- and reaches into nothing else.
-      // It must not write the shared levels behind the viewer's back.
-      final before = feedKeyOf(pane);
-      setState(() => view = value);
-      if (before == feedKeyOf(pane)) return;
-      _switchFeed(seed: true);
-      _rearmFeed(feed);
       return;
     }
     if (group == 'sort') {
@@ -1663,26 +1719,32 @@ class _LibraryPageState extends LibraryPageStateBase {
     _repaintFilterPanel();
   }
 
-  /// 桌面的第二行尾部：`≡ 更多筛选 · n`。点开的是右上角的浮层，不是新的一页——
-  /// 它改的是参数，权重不该和换页同级，所以它不进第一行。
+  /// 第二行尾部的 `≡`。桌面点开的是锚在这枚 chip 下沿的浮层；触控族点开的是一条
+  /// 底部弹层——390 宽的屏上，锚在行尾的浮层没有地方开，而行本身只有 52 高。
+  /// 两族是同一层的两种形状，不是两个功能：读同一份 `rows`、写同一个 `dims`。
   void _toggleFilterPanel() {
-    if (filterPanelEntry != null) {
+    if (_filterLayerOpen) {
       _closeFilterPanel();
+      return;
+    }
+    final bucket = themesOf(genre);
+    if (bucket.rows.isEmpty && !bucket.loading && bucket.error == null) {
+      unawaited(_loadThemes(genre));
+    }
+    if (!desktopHost) {
+      _openFilterSheet();
       return;
     }
     final chip = filterChipKey.currentContext;
     final anchor = chip == null ? null : globalRectOf(chip);
     if (anchor == null) return;
-    final bucket = themesOf(genre);
-    if (bucket.rows.isEmpty && !bucket.loading && bucket.error == null) {
-      unawaited(_loadThemes(genre));
-    }
     filterPanelEntry = showAnchoredPanel(
       context: context,
       anchor: anchor,
       id: 'filter-panel',
       panel: (context, close) => DiscoverFilterPanel(
         genre: genre,
+        genreLabel: _genreNames[genre] ?? genre,
         rows: themesOf(genre).rows,
         selected: dims,
         loading: themesOf(genre).loading,
@@ -1695,18 +1757,79 @@ class _LibraryPageState extends LibraryPageStateBase {
     );
   }
 
+  /// The touch family's L2′: the same panel, in a sheet that stays where it was
+  /// opened. The route holds no state of its own -- it re-reads the page on every
+  /// rebuild the page asks for, so 选完留在原地 is one mechanism rather than two.
+  void _openFilterSheet() {
+    StateSetter? bound;
+    unawaited(
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        useSafeArea: true,
+        builder: (sheetContext) => ConstrainedBox(
+          // 原型给这块层的上限是屏高的 76%：再高就盖住了它要改的那张列表，而
+          // 「选一个看一眼」正是触控族这一层的用法。
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.76,
+          ),
+          child: SingleChildScrollView(
+            child: StatefulBuilder(
+              builder: (context, setSheetState) {
+                bound = setSheetState;
+                filterSheetSetState = setSheetState;
+                final bucket = themesOf(genre);
+                return DiscoverFilterPanel(
+                  genre: genre,
+                  genreLabel: _genreNames[genre] ?? genre,
+                  rows: bucket.rows,
+                  selected: dims,
+                  loading: bucket.loading,
+                  error: bucket.error,
+                  dismissLabel: '收起',
+                  onPick: (dimKey, itemId) =>
+                      _pickDim(dimKey, itemId, destination),
+                  onRetry: () => unawaited(_loadThemes(genre)),
+                  onDone: () => Navigator.of(sheetContext).pop(),
+                );
+              },
+            ),
+          ),
+        ),
+      ).whenComplete(() {
+        // Only the sheet this call opened may clear the page: a second one opened
+        // over the first must not have the first's exit wipe out the live setter.
+        if (!mounted || !identical(filterSheetSetState, bound)) return;
+        _filterPanelClosed();
+      }),
+    );
+  }
+
+  /// The one layer the tail `≡` has open, whichever family it is wearing.
+  bool get _filterLayerOpen =>
+      filterPanelEntry != null || filterSheetSetState != null;
+
   void _closeFilterPanel() {
     final entry = filterPanelEntry;
-    if (entry == null) return;
-    entry.remove();
-    _filterPanelClosed();
+    if (entry != null) {
+      entry.remove();
+      _filterPanelClosed();
+      return;
+    }
+    if (filterSheetSetState != null && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
   }
 
   /// 抽屉走了——不管是「完成」、点遮罩还是 `Esc`——页面就不该再握着它，并把焦点还给
   /// 那枚 chip。留着它，下一次 `F` 会去「关」一个已经不存在的层。
   void _filterPanelClosed() {
     filterPanelEntry = null;
-    filterChipFocus.requestFocus();
+    filterSheetSetState = null;
+    // The sheet's own route took the focus and gives it back by being popped; a
+    // keyboard focus request from here would only fight that dismissal.
+    if (desktopHost) filterChipFocus.requestFocus();
   }
 
   int get _dimCount => dims.values.where((ids) => ids.isNotEmpty).length;
@@ -2118,7 +2241,15 @@ class _LibraryPageState extends LibraryPageStateBase {
     // What this page holds, in the order its levels are reached: which stream,
     // which type, which theme inside it. Both pages answer in the same sentence
     // because both ask the same two questions.
-    final lead = pane == 0 ? (view == 'latest' ? '最新上架' : '为你发现') : '符合筛选的故事';
+    //
+    // 「最新上架」 is the one heading the L3 档 can write on its own: 热度/收藏 are
+    // both "the flow the app chose for you", so they share the default words
+    // rather than invent a heading per 档 that no viewer asked for.
+    final lead = pane != 0
+        ? '符合筛选的故事'
+        : sortFor(pane, slot) == 'online_time'
+        ? '最新上架'
+        : '为你发现';
     final themeName = level2Options(pane, slot)
         .where((option) => option.id == level2 && option.id.isNotEmpty)
         .map((option) => option.label)
@@ -2183,6 +2314,11 @@ class _LibraryPageState extends LibraryPageStateBase {
         ),
     ];
     final text = queryOf(pane);
+    // A search query replaces the level rather than sitting under it: the row
+    // answers the one question the page is actually in -- what to leave behind.
+    // 推荐/最新 is gone from this row on both families: it was the touch
+    // family's two words for one request parameter, and 「推荐」 is not a sort
+    // upstream publishes at all. L3 -- 行尾那一枚 -- owns 排序 now.
     final groups = <List<({Widget chip, bool chosen})>>[
       if (text.isNotEmpty)
         [
@@ -2199,14 +2335,8 @@ class _LibraryPageState extends LibraryPageStateBase {
             chosen: false,
           ),
         ]
-      // 推荐/最新 is the touch family's two words for one parameter, and 「推荐」
-      // is not a sort upstream publishes at all. The mouse family gets the three
-      // real 档 in L3 instead, so this row stops offering a mode it no longer
-      // means: one layer, one question.
-      else if (pane == 0 && !desktopHost)
-        group('view', view, {'recommend': '推荐', 'latest': '最新'}),
       // 类型 is the 一级 of both pages, so it sits on this row on either tab.
-      if (text.isEmpty)
+      else
         group(
           'genre',
           genre,
@@ -2281,6 +2411,11 @@ class _LibraryPageState extends LibraryPageStateBase {
           padding: const EdgeInsets.only(right: 8),
           child: ChoiceChip(
             key: ValueKey('theme-rail-${option.id}'),
+            // 触控族的这条 rail 会横滑：选中的勾是 Material 3 淡入淡出的，它会改变
+            // 这枚 chip 的宽度、把后面的每一枚在一次性 reveal 之后再挪几个点。选中的
+            // 底色和加粗已经说了同一句话，所以这里把勾去掉——留在行尾的是稳定的偏移，
+            // 「点一下就被完整显示」那条承诺才有地方成立。
+            showCheckmark: !desktopHost ? false : null,
             label: Text(
               option.label,
               style: TextStyle(
@@ -2321,11 +2456,96 @@ class _LibraryPageState extends LibraryPageStateBase {
     ];
   }
 
-  /// L2′ and L3, where the mouse family keeps them: the fixed tail of the second
-  /// row, so they never slide away with the content they narrow (§6.1.2③).
-  List<Widget> _narrowControls(int pane) {
-    if (!desktopHost || pane != 0) return const [];
+  /// L2′ and L3, where each family keeps them: the fixed tail of the second row,
+  /// so they never slide away with the content they narrow (§6.1.2③).
+  ///
+  /// [rowWidth] is the width this row has been given: the touch family pins the
+  /// two controls *beside* a strip that has to keep sliding, so they are capped
+  /// at half of it -- a `排序 · 最新上架 ▾` that eats the 题材 rail on a split-screen
+  /// window would be a row with nothing left to narrow.
+  List<Widget> _narrowControls(int pane, double rowWidth) {
     final catalog = widget.runtime.catalog;
+    if (!desktopHost) {
+      // 触控族的两枚在两个目录页都出现：原型把 `≡` 和 `排序` 钉在 `发现`/`分类`
+      // 第二行的行尾，词表缺行那一态也不收——缺的是主题行，不是改请求的能力。这一族
+      // 不铺 `SortMenu`：`MenuAnchor` 在 52 高的行尾没有地方开，它的 hover 计时在这
+      // 里也没有对应的手；`SortSheet` 是同一份 `catalogSortKeys` 的另一种形状。
+      final selected = sortFor(pane, slotOfPane(pane));
+      return [
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: rowWidth * .5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 和桌面同一个判断：只答 题材 一行的运行时没有别的维度可给，点开来的
+              // 抽屉是一间只装着「重试」的房间。
+              if (catalog is FilteredCatalogRepository)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ActionChip(
+                    // 键按页分：甩动中两页一起铺，同一个键撞两次 `find.byKey` 就会
+                    // 一次捞出两枚。所以唯一会开着抽屉的那一页（发现）拿桌面也用的那个
+                    // 短名，分类那一页后缀自己的页名——和 `filter-choices-*` 同一套
+                    // 命名。锚点句柄 `filterChipKey` 只桌面需要（浮层要问位置），触控族
+                    // 的弹层不锚在 chip 上。
+                    key: ValueKey(
+                      pane == 0
+                          ? 'filter-narrow'
+                          : 'filter-narrow-${paneName(pane)}',
+                    ),
+                    onPressed: _toggleFilterPanel,
+                    visualDensity: VisualDensity.compact,
+                    label: Text(
+                      // 原型：`≡${nPicked ? ' ${nPicked}' : ''}`。数字是已经选下的维数；
+                      // 一枚都不选时行尾只留符号本身，390 宽的屏上它和主题行分同一行。
+                      _dimCount == 0 ? '≡' : '≡ $_dimCount',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ),
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: ActionChip(
+                    // The one key both families' 排序 answers to, so a test -- and
+                    // the 「换排序不换页」promise it is checked by -- asks either
+                    // shape. 分类那一枚按页改名：两页同时铺时短名只能用一次。
+                    key: ValueKey(
+                      pane == 0 ? 'sort-menu' : 'sort-menu-${paneName(pane)}',
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => unawaited(
+                      SortSheet.show(
+                        context,
+                        selected: selected,
+                        onPick: (value) => _selectFilter('sort', value, pane),
+                      ),
+                    ),
+                    label: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            '排序 · ${catalogSortLabels[selected] ?? selected}',
+                            // 行窄到装不下全名时省略号收掉的是档位名，不是这一枚：
+                            // 弹层里三档的原文仍然写全，读回来也在 chip 的语义里。
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                        const Icon(Icons.arrow_drop_down, size: 18),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ];
+    }
+    if (pane != 0) return const [];
     return [
       // A runtime that only ever answers the 题材 row has no dimension to offer;
       // the drawer would be a room with a retry that cannot work in it.
@@ -2488,19 +2708,28 @@ class _LibraryPageState extends LibraryPageStateBase {
         ),
       );
     }
-    final trailing = _narrowControls(pane);
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: SizedBox(
         height: _filterRowHeight,
-        child: trailing.isEmpty
-            ? body
-            : Row(
-                children: [
-                  Expanded(child: body),
-                  ...trailing,
-                ],
-              ),
+        // The row's own width is what the pinned tail is measured against: the
+        // touch family's two controls share this row with a strip that has to
+        // keep sliding, so they may take at most half of it (see
+        // `_narrowControls`). A LayoutBuilder rather than a constant because the
+        // half is a split-screen window's half, not a phone's.
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final trailing = _narrowControls(pane, box.maxWidth);
+            return trailing.isEmpty
+                ? body
+                : Row(
+                    children: [
+                      Expanded(child: body),
+                      ...trailing,
+                    ],
+                  );
+          },
+        ),
       ),
     );
   }
@@ -2641,6 +2870,8 @@ class _LibraryPageState extends LibraryPageStateBase {
     // And a list that has never been asked for anything -- the theme next door,
     // spread on screen mid-drag -- asks for its first page now.
     _enterLevel2(f);
+    // 入口卡借的那一份榜单内容，从这一页第一次铺出来时就开始要（§4）。
+    if (pane == 0 && !desktopHost) _warmRankEntry();
     return RefreshIndicator(
       onRefresh: () => _reload(f, refreshThemes: false, force: true),
       key: ValueKey(
@@ -2661,6 +2892,20 @@ class _LibraryPageState extends LibraryPageStateBase {
               child: _sectionTitleAt(pane, slot, level2),
             ),
           ),
+          // §4 的第二入口：榜单升成目的地之后入口深了一层，触控族用这张卡补回来。它借的
+          // 只是内容——`rankBoard` 不吃 genre/theme，所以点它只换目的地，不写这两页的层。
+          // 没有行可排（这运行时没有榜）的时候它自己不占位；搜索吃了两层，它也跟着不在。
+          if (pane == 0 && !desktopHost && queryOf(pane).isEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: padding),
+                child: RankEntryCard(
+                  title: _rankEntryTitle,
+                  entries: _ranking?.entries ?? const [],
+                  onOpen: _openRanking,
+                ),
+              ),
+            ),
           if (f.refreshing || f.cachedAt != null || f.refreshError != null)
             SliverToBoxAdapter(
               child: Padding(
@@ -2846,7 +3091,7 @@ class _LibraryPageState extends LibraryPageStateBase {
         builder: (context, child, _) {
           _attachTabs(AutoTabsRouter.of(context));
           return PopScope(
-            canPop: suggestionsPane == null && filterPanelEntry == null,
+            canPop: suggestionsPane == null && !_filterLayerOpen,
             onPopInvokedWithResult: (didPop, _) {
               if (!didPop) _closeOverlays();
             },

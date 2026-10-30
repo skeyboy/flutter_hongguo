@@ -144,3 +144,126 @@ class SortMenuState extends State<SortMenu> {
     ),
   );
 }
+
+/// L3 排序, in the shape the touch family uses: the same three 档 from the same
+/// upstream row, arriving as a bottom sheet instead of a dropdown.
+///
+/// A menu anchored to the tail chip of a 390-point screen has no room to open
+/// into, and the row it sits in is 52 points tall -- so this family gets the
+/// sheet the design draws. [SortMenu]'s hover timings have no counterpart here:
+/// a finger has no hover, and the chip is pressed exactly like every other chip
+/// in the row.
+///
+/// Picking a 档 closes the sheet, which is the opposite of 更多筛选's drawer: this
+/// is one question with one answer, and what §6.1.4 promises is that the list
+/// changes while the page and its scroll position do not.
+class SortSheet extends StatelessWidget {
+  const SortSheet({
+    super.key,
+    required this.selected,
+    required this.onPick,
+    this.onDismiss,
+  });
+
+  /// The sort actually in force, whether it came from here or from 设置.
+  final String selected;
+  final ValueChanged<String> onPick;
+
+  /// The way out that is not an answer: the design's sheet header repeats 收起
+  /// because a finger that opened the sheet to look has to be able to stop
+  /// looking without hitting a 档. Null falls back to popping the route.
+  final VoidCallback? onDismiss;
+
+  /// The sheet as the page opens it: the route is popped on the way out so that
+  /// the list change is not stacked behind a layer nobody asked to keep.
+  static Future<void> show(
+    BuildContext context, {
+    required String selected,
+    required ValueChanged<String> onPick,
+  }) => showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    useSafeArea: true,
+    builder: (sheetContext) => SortSheet(
+      selected: selected,
+      onDismiss: () => Navigator.of(sheetContext).pop(),
+      onPick: (value) {
+        Navigator.of(sheetContext).pop();
+        onPick(value);
+      },
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Column(
+        key: const ValueKey('sort-sheet'),
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Text(
+                '排序',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '只改请求，不换页',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              TextButton(
+                key: const ValueKey('sort-sheet-dismiss'),
+                onPressed: onDismiss ?? () => Navigator.of(context).pop(),
+                child: const Text('收起'),
+              ),
+            ],
+          ),
+          for (final key in catalogSortKeys)
+            InkWell(
+              key: ValueKey('sort-$key'),
+              onTap: () => onPick(key),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        catalogSortLabels[key] ?? key,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: key == selected
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                          color: key == selected
+                              ? scheme.primary
+                              : scheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    if (key == selected)
+                      Icon(Icons.check, size: 18, color: scheme.primary),
+                  ],
+                ),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Text(
+              '三档就是上游全部：没有「推荐」，也没有「追剧」。',
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

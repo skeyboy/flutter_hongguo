@@ -371,15 +371,19 @@ void main() {
   testWidgets('a horizontal drag in a chip row scrolls the row, not the page', (
     tester,
   ) async {
-    // Narrow enough that 频道 and 类型 together do not fit and the row has
-    // somewhere to scroll to.
-    await mount(tester, FakeRuntime(), const Size(320, 844));
+    // Narrow enough that the type row does not fit and has somewhere to scroll
+    // to -- which takes a 160-point window now: the row stopped carrying 频道 when
+    // 排序 moved to L3, so three type chips only outrun a surface this small. The
+    // pull is sized to stay inside the extent the row has, because a pull that
+    // runs out of a row is handed to the level above it -- which is the other
+    // test's subject, not this one's.
+    await mount(tester, FakeRuntime(), const Size(160, 844));
     final row = find.byKey(const ValueKey('filter-choices-discover'));
     final scrollable = tester.state<ScrollableState>(
       find.descendant(of: row, matching: find.byType(Scrollable)),
     );
     expect(scrollable.position.maxScrollExtent, greaterThan(0));
-    await tester.drag(row, const Offset(-160, 0));
+    await tester.drag(row, const Offset(-40, 0));
     await tester.pumpAndSettle();
     expect(scrollable.position.pixels, greaterThan(0));
     // The row still had width of its own, so the pull was spent there: not on
@@ -422,13 +426,14 @@ void main() {
   testWidgets('the row of a level turned by a swipe shows what it turned to', (
     tester,
   ) async {
-    await mount(tester, FakeRuntime(WideThemesCatalog()), const Size(320, 844));
+    await mount(tester, FakeRuntime(WideThemesCatalog()), const Size(160, 844));
     final rail = find.byKey(const ValueKey('theme-rail'));
     final choices = find.byKey(const ValueKey('filter-choices-discover'));
     final ai = find.byKey(const ValueKey('filter-genre-discover-ai_series'));
     // The row is wider than this page and is at its own start, so the last type
     // -- the one the strip is two pulls away from turning to -- is past its
-    // edge, and nothing has been tapped to bring it in.
+    // edge, and nothing has been tapped to bring it in. (160, not 320: the type
+    // row lost the 频道 chips, so it takes a window this narrow to outrun itself.)
     expect(
       tester
           .state<ScrollableState>(
