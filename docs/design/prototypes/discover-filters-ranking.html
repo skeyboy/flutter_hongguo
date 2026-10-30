@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<!--
+  发现页筛选分层 + 榜单独立模块 · 预览原型 v2
+  v1 的词表是编的；v2 的每一个筛选名、每一条榜单赛道、每一个热度数字都来自
+  docs/evidence/ranking-fields/ 的四次实机取样（packages/api/tool/rank_sample.dart）。
+  设计说明与交互规格见 ../discover-filters-and-ranking.md（§4 分层、§6 平台分派、§7 交互规格、§8 实测词表）。
+  无网络依赖，双击即开。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>原型 v2 · 发现页筛选分层与榜单模块（真词表）</title>
+<style>
+  :root{
+    --ink:#15171c; --ink2:#454a57; --ink3:#8b909e; --line:#e3e5ea;
+    --bg:#f6f7f9; --card:#fff; --brand:#ff2d55; --brand-soft:#fff0f3;
+    --hot:#fa7705; --gold:#c08a12;
+    --radius:12px; --row-h:44px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+       color:var(--ink);background:#eceef2;}
+  button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+  /* ---------- 原型控制条 ---------- */
+  .meta{position:sticky;top:0;z-index:80;display:flex;flex-wrap:wrap;gap:10px;align-items:center;
+        padding:10px 16px;background:#15171c;color:#fff;font-size:13px}
+  .meta b{font-weight:600}
+  .meta .seg{display:flex;background:#2a2d36;border-radius:9px;overflow:hidden}
+  .meta .seg button{padding:6px 12px;font-size:13px;color:#c8ccd6}
+  .meta .seg button[aria-pressed=true]{background:#fff;color:#15171c;font-weight:600}
+  .meta .hint{color:#9aa0ad;font-size:12px}
+  .stage{padding:18px}
+  /* ---------- 共用小件 ---------- */
+  .chips{display:flex;gap:8px;align-items:center;overflow-x:auto;scrollbar-width:none;padding:0 2px}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:0 0 auto;height:30px;padding:0 13px;border-radius:15px;background:#eef0f4;
+        color:var(--ink2);font-size:14px;white-space:nowrap;border:1px solid transparent}
+  .chip[aria-pressed=true]{background:var(--brand-soft);color:var(--brand);font-weight:600;border-color:#ffd0da}
+  .chip.more{background:#fff;border:1px dashed #c9cedb;color:var(--ink2)}
+  .chip .n{font-size:11px;opacity:.75;margin-left:3px}
+  .chip:focus-visible,.rail button:focus-visible,.sortbtn:focus-visible,.op:focus-visible,
+  .card:focus-visible,.grid button:focus-visible{outline:2px solid #4a90ff;outline-offset:2px}
+  .card{background:var(--card);border-radius:var(--radius);overflow:hidden;position:relative;
+        box-shadow:0 1px 3px rgba(20,22,28,.07);text-align:left}
+  .cover{aspect-ratio:3/4;position:relative}
+  .cover .eps{position:absolute;right:6px;bottom:6px;font-size:11px;color:#fff;
+              background:rgba(0,0,0,.45);padding:1px 6px;border-radius:8px}
+  .badge{position:absolute;left:6px;top:6px;font-size:10px;color:#fff;background:rgba(0,0,0,.42);
+         padding:2px 6px;border-radius:6px}
+  .badge.hot{background:rgba(250,119,5,.9)}
+  .tit{font-size:14px;font-weight:600;line-height:1.35;margin:8px 8px 2px;
+       display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .tags{margin:0 8px 10px;font-size:12px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .heat{display:flex;gap:6px;align-items:center;margin:0 8px 10px;font-size:12px;color:var(--hot);font-weight:600}
+  .heat .sc{color:var(--ink3);font-weight:400}
+  /* 上游字段位存在、语义未证实 → 虚线占位，不画假数 */
+  .todo{border:1px dashed #c6cbd6;color:#9aa0ad;border-radius:7px;font-size:11px;padding:1px 6px;
+        background:repeating-linear-gradient(135deg,#fafbfc 0 6px,#f2f4f7 6px 12px)}
+  /* ---------- 请求读出窗 ---------- */
+  .readout{margin:14px 16px 0;background:#15171c;color:#dfe3ea;border-radius:10px;padding:10px 12px;
+           font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace}
+  .readout .k{color:#8b90a3}
+  .readout .v{color:#7ee0a0;word-break:break-all}
+  .readout .row{display:block}
+  .readout em{color:#ffd08a;font-style:normal}
+  .readout .warn{color:#ff9db1}
+  /* ---------- 桌面外壳 ---------- */
+  .desk{display:none;max-width:1280px;margin:0 auto;background:#fff;border-radius:16px;
+        box-shadow:0 6px 24px rgba(20,22,28,.10);overflow:hidden;position:relative}
+  .desk.on{display:block}
+  .desk-top{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line)}
+  .logo{font-weight:700;color:var(--brand);letter-spacing:.5px}
+  .desk-top .search{flex:1;max-width:360px;height:34px;border-radius:17px;background:var(--bg);
+                    color:var(--ink3);font-size:13px;display:flex;align-items:center;padding:0 14px}
+  .sortbtn{height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line);font-size:13px;color:var(--ink2)}
+  .desk-body{display:flex;min-height:660px}
+  .rail{flex:0 0 168px;border-right:1px solid var(--line);padding:12px 8px;background:#fbfbfd}
+  .rail button{display:flex;width:100%;align-items:center;gap:9px;padding:10px 12px;border-radius:9px;
+               font-size:15px;color:var(--ink2);text-align:left}
+  .rail button[aria-current=page]{background:#fff;color:var(--brand);font-weight:600;
+                                  box-shadow:0 1px 3px rgba(20,22,28,.08)}
+  .rail .note{margin:14px 8px 0;font-size:11px;color:var(--ink3);line-height:1.6}
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+  .drow{display:flex;align-items:center;gap:8px;padding:9px 18px;border-bottom:1px solid var(--line)}
+  .drow .lbl{flex:0 0 auto;font-size:12px;color:var(--ink3);margin-right:2px}
+  .drow .chips{flex:1;min-width:0}
+  .dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;padding:16px 18px 26px;overflow:auto}
+  .dlist{padding:8px 18px 24px;overflow:auto}
+  /* 下拉面板（溢出项 / 排序 / 更多筛选） */
+  .pop{position:absolute;z-index:60;background:#fff;border:1px solid var(--line);border-radius:12px;
+       box-shadow:0 10px 30px rgba(20,22,28,.16);padding:12px;display:none}
+  .pop.on{display:block}
+  .pop h4{margin:0 0 8px;font-size:13px;color:var(--ink2);display:flex;justify-content:space-between;align-items:center}
+  .pop .dim{margin-bottom:10px}
+  .pop .dim .dn{font-size:11px;color:var(--ink3);margin-bottom:5px}
+  /* 桌面 hover 预览 */
+  .peek{position:absolute;z-index:70;width:300px;background:#fff;border-radius:14px;
+        box-shadow:0 14px 40px rgba(20,22,28,.22);padding:12px;display:none;gap:12px}
+  .peek.on{display:flex}
+  .peek .pv{flex:0 0 92px;border-radius:9px;aspect-ratio:3/4;position:relative}
+  .peek .pn{flex:1;min-width:0;font-size:12px;color:var(--ink2);line-height:1.8}
+  .peek .pn b{display:block;font-size:14px;color:var(--ink);margin-bottom:3px}
+  .peek .go{margin-top:8px;font-size:12px;color:var(--brand);font-weight:600}
+  /* ---------- 移动外壳 ---------- */
+  .mob{display:none;justify-content:center;gap:26px;flex-wrap:wrap}
+  .mob.on{display:flex}
+  .phone{width:340px;height:730px;background:#fff;border-radius:34px;padding:8px;
+         box-shadow:0 12px 34px rgba(20,22,28,.18);position:relative}
+  .screen{height:100%;border-radius:27px;background:var(--bg);overflow:hidden;display:flex;flex-direction:column;position:relative}
+  .pnav{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:10px 12px 6px;background:#fff}
+  .pnav .search{flex:1;height:32px;border-radius:16px;background:var(--bg);color:var(--ink3);
+                font-size:13px;display:flex;align-items:center;padding:0 12px}
+  .pnav .ic{width:32px;height:32px;border-radius:16px;display:grid;place-items:center;color:var(--ink2);font-size:15px}
+  .tabs{display:flex;gap:16px;padding:6px 14px 8px;background:#fff}
+  .tabs button{font-size:15px;color:var(--ink3);padding:4px 0;position:relative}
+  .tabs button[aria-current=page]{color:var(--ink);font-weight:700}
+  .tabs button[aria-current=page]::after{content:"";position:absolute;left:50%;transform:translateX(-50%);
+      bottom:-2px;width:18px;height:3px;border-radius:2px;background:var(--brand)}
+  .scroll{flex:1;overflow-y:auto;position:relative}
+  .topfold{padding:6px 14px 10px;background:#fff;transition:opacity .18s, max-height .18s, padding .18s;
+           overflow:hidden;max-height:90px}
+  .folded .topfold{max-height:0;opacity:0;padding-top:0;padding-bottom:0}
+  .swipehint{font-size:12px;color:var(--ink3);text-align:center}
+  .sticky2{position:sticky;top:0;z-index:20;background:#fff;box-shadow:0 1px 0 var(--line)}
+  .prow{display:flex;align-items:center;gap:8px;height:var(--row-h);padding:0 12px}
+  .prow .chips{flex:1;min-width:0}
+  .sheet{position:absolute;inset:0;z-index:50;display:none}
+  .sheet.on{display:block}
+  .sheet .mask{position:absolute;inset:0;background:rgba(20,22,28,.34)}
+  .sheet .body{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:18px 18px 0 0;
+               padding:14px 16px calc(18px + env(safe-area-inset-bottom));max-height:76%;overflow:auto;
+               box-shadow:0 -6px 24px rgba(20,22,28,.16)}
+  .sheet h4{margin:0 0 10px;font-size:15px;display:flex;justify-content:space-between;align-items:center}
+  .sheet .op{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;
+             padding:11px 2px;font-size:15px;border-bottom:1px solid var(--line);text-align:left}
+  .sheet .op[aria-pressed=true]{color:var(--brand);font-weight:600}
+  .sheet .op .p{color:#8b909e;font-size:12px;font-weight:400}
+  .sheet .done{margin-top:12px;width:100%;height:42px;border-radius:21px;background:var(--brand);color:#fff;font-size:15px;font-weight:600}
+  .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:12px 12px 90px}
+  .tabbar{flex:0 0 auto;display:flex;background:#fff;border-top:1px solid var(--line)}
+  .tabbar button{flex:1;padding:9px 0 12px;font-size:12px;color:var(--ink3)}
+  .tabbar button[aria-current=page]{color:var(--brand);font-weight:600}
+  /* ---------- 榜单 ---------- */
+  .rankhead{padding:14px 18px 4px}
+  .rankhead h3{margin:0;font-size:19px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .rankhead .when{font-size:12px;color:var(--ink3);margin-top:5px;line-height:1.7}
+  .scope{display:inline-flex;align-items:center;font-size:11px;color:var(--brand);
+         background:var(--brand-soft);border-radius:7px;padding:2px 7px;font-weight:600}
+  .plist{list-style:none;margin:0;padding:6px 18px 30px}
+  .plist li{display:flex;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+  .pos{flex:0 0 30px;text-align:center;font-size:19px;font-weight:800;color:var(--ink3);font-style:italic}
+  .p1{color:#fff;background:radial-gradient(circle at 30% 30%,var(--gold),#8a5f07);border-radius:9px;width:30px;height:30px;display:grid;place-items:center}
+  .p2{color:#fff;background:radial-gradient(circle at 30% 30%,#9aa3b2,#6a7382);border-radius:9px;width:30px;height:30px;display:grid;place-items:center}
+  .p3{color:#fff;background:radial-gradient(circle at 30% 30%,#c07a4c,#8b4f28);border-radius:9px;width:30px;height:30px;display:grid;place-items:center}
+  .mini{width:46px;height:60px;border-radius:7px;flex:0 0 auto;position:relative}
+  .rinfo{flex:1;min-width:0}
+  .rinfo .t{font-size:15px;font-weight:600}
+  .rinfo .s{font-size:12px;color:var(--ink3);margin-top:3px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .rside{flex:0 0 auto;text-align:right;font-size:12px;color:var(--ink3);line-height:1.6}
+  .rside .h{color:var(--hot);font-weight:700;font-size:13px}
+  /* 榜行就地二级动作：不抢行高，hover/focus 才显出下划线（触控族常驻可见） */
+  .inlink{color:var(--brand);font-size:12px;font-weight:600;padding:0;background:none;border:0;
+          border-bottom:1px solid transparent;cursor:pointer}
+  .inlink:hover,.inlink:focus-visible{border-bottom-color:var(--brand)}
+  .bdg{color:var(--brand);background:var(--brand-soft);border:1px solid #ffd0da;border-radius:6px;
+       padding:0 5px;font-size:11px;font-weight:600}
+  .aside-note{margin:0 18px 22px;padding:11px 13px;border:1px solid var(--line);border-radius:10px;
+              background:#fff;font-size:12px;color:var(--ink2);line-height:1.8}
+  .aside-note b{color:var(--ink)}
+  .aside-note code{background:#eef0f4;padding:1px 5px;border-radius:5px}
+  .entrycard{margin:2px 12px 6px;padding:10px 12px;border-radius:12px;background:#fff;
+             display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2);box-shadow:0 1px 3px rgba(20,22,28,.06)}
+  .entrycard b{color:var(--ink)}
+  .entrycard .top{display:flex;gap:6px;margin-left:auto}
+  .entrycard .top span{font-size:11px;color:var(--hot);font-weight:700;background:#fff5ea;padding:2px 6px;border-radius:6px}
+  .entrycard .go{color:var(--brand);font-weight:600}
+  /* ---------- 状态演示 ---------- */
+  .sk{background:linear-gradient(90deg,#eef0f4 25%,#f7f8fa 50%,#eef0f4 75%);background-size:200% 100%;
+      animation:sh 1.1s infinite;border-radius:10px}
+  @keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  .state{margin:14px 18px;padding:12px 14px;border-radius:11px;font-size:13px;line-height:1.8}
+  .state.empty{background:#fff8ec;border:1px solid #f3dfb6;color:#8a6a1f}
+  .state.err{background:#fff0f3;border:1px solid #ffd0da;color:#a11335}
+  .state button{margin-left:8px;text-decoration:underline;font-size:13px;color:var(--brand);font-weight:600}
+  .legend{max-width:1280px;margin:6px auto 0;padding:0 16px;font-size:12px;color:#6b7180;line-height:1.9}
+  .legend code{background:#e7e9ef;padding:1px 5px;border-radius:5px}
+  .kbd{max-width:1280px;margin:8px auto 26px;padding:0 16px;font-size:12px;color:#6b7180;line-height:2}
+  .kbd kbd{background:#fff;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;font:11px ui-monospace,Menlo,monospace}
+</style>
+</head>
+<body>
+
+<div class="meta">
+  <b>原型 v2 · 发现页筛选分层 + 榜单模块</b>
+  <div class="seg" role="group" aria-label="视图">
+    <button id="v-desk" aria-pressed="true">桌面（鼠标族）</button>
+    <button id="v-mob" aria-pressed="false">移动（触控族）</button>
+  </div>
+  <div class="seg" role="group" aria-label="数据状态">
+    <button data-mode="ok" aria-pressed="true">有词表</button>
+    <button data-mode="loading" aria-pressed="false">加载中</button>
+    <button data-mode="empty" aria-pressed="false">词表缺行</button>
+    <button data-mode="error" aria-pressed="false">请求失败</button>
+  </div>
+  <span class="hint">交互规格：<b>docs/design/discover-filters-and-ranking.md §7</b>；真词表来源：<b>docs/evidence/ranking-fields/</b></span>
+</div>
+
+<div class="readout" id="readout" aria-live="polite"></div>
+<div class="legend" id="legend"></div>
+<div class="kbd" id="kbd"></div>
+
+<div class="stage">
+<!-- ===================== 桌面 ===================== -->
+<div class="desk on" id="desk">
+  <div class="desk-top">
+    <span class="logo">红果</span>
+    <div class="search">搜索剧名 · 关键词</div>
+    <button class="sortbtn" id="d-filter-btn">筛选 <span id="d-filter-n"></span> ▾</button>
+    <button class="sortbtn" id="d-sort-btn">排序 · <b id="d-sort-val">最新上架</b> ▾</button>
+    <div class="pop" id="d-sort-pop" style="right:18px;top:46px;width:230px"></div>
+    <div class="pop" id="d-filter-pop" style="right:18px;top:46px;width:460px"></div>
+  </div>
+  <div class="desk-body">
+    <nav class="rail" id="d-rail" aria-label="目的地"></nav>
+    <div class="main">
+      <div id="d-rows"></div>
+      <div id="d-content"></div>
+      <div class="peek" id="d-peek"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 移动 ===================== -->
+<div class="mob" id="mob">
+  <div class="phone">
+    <div class="screen" id="screen">
+      <div class="pnav"><div class="search">搜索剧名 · 关键词</div><div class="ic">⌾</div><div class="ic" id="m-filter-btn">≡</div></div>
+      <div class="tabs" id="m-tabs" role="tablist"></div>
+      <div class="scroll" id="m-scroll">
+        <div class="topfold">
+          <div class="swipehint">左右滑动切换 · 上下滑动看更多</div>
+          <div class="prow" style="padding:8px 0 0"><span class="chip" style="background:#fff;border:1px solid var(--line);color:var(--ink3)">已离线 12 部 · 检查</span></div>
+        </div>
+        <div class="sticky2">
+          <div class="prow" id="m-row1"></div>
+          <div class="prow" id="m-row2"></div>
+        </div>
+        <div id="m-content"></div>
+      </div>
+      <div class="sheet" id="m-sheet"><div class="mask"></div><div class="body" id="m-sheet-body"></div></div>
+    </div>
+  </div>
+  <div style="max-width:260px;font-size:12px;color:#6b7180;line-height:1.9">
+    <p><b>折叠：</b>向下滚只收起搜索框/离线提示那段，<b>类型行与主题行常驻</b>（v0.3.12 实测语义）。</p>
+    <p><b>触控族：</b>排序与「更多筛选」都收成第二行<b>尾部</b>的控件，点开底部弹层；行内溢出走横向滑动。<b>桌面族相反：</b>溢出走「更多 ▾」下拉面板，排序在右上角——鼠标不指望横向拖拽。</p>
+    <p><b>词表缺行演示：</b>上游按类型发布筛选项，同一次运行里三个类型常常只回来一到两个（§8 的四次取样），所以第二行必须能整行消失而不是显示空壳。</p>
+  </div>
+</div>
+</div>
+
+<script>
+/* 下面这份 API 常量由 docs/evidence/ranking-fields/ 的四次实机取样导出，字段名与
+   show_name / selector_item_id 原样保留；卡面的热度、评分、徽标、主色也都是返回值。 */
+const API={
+  sampledAt:"2026-10-30T02:04:01Z",
+  panelRuns:["2026-10-30T02:05:04Z","2026-10-30T02:04:01Z"],
+  dims:{"short_play":{"genre":{"label":"全部体裁","items":[["真人剧","short_play"],["漫剧","comic_series"],["AI剧","ai_series"]]},"category_dim_theme":{"label":"全部主题","items":[["悬疑","cate_165"],["宫斗","cate_246"],["脑洞","cate_262"],["青春","cate_297"],["动作","cate_302"],["喜剧","cate_303"],["古言","cate_439"],["抗战","cate_504"],["灵异","cate_751"],["仙侠","cate_1013"],["玄幻","cate_1019"],["奇幻","cate_1020"],["现言","cate_1021"],["年代爱情","cate_1022"],["民国爱情","cate_1025"],["志怪","cate_1027"],["战神","cate_1038"],["权谋","cate_1047"],["女性成长","cate_1048"],["科幻","cate_1092"],["法律","cate_1136"],["刑侦","cate_1148"],["求生","cate_1168"],["武侠","cate_1172"],["种田","cate_1180"],["恐怖","cate_1219"],["商战","cate_1225"],["家国情怀","cate_1235"],["民国传奇","cate_1240"]]},"category_dim_role":{"label":"全部设定","items":[["系统","cate_19"],["神豪","cate_20"],["神医","cate_26"],["重生","cate_36"],["穿越","cate_37"],["娱乐圈","cate_43"],["甜宠","cate_96"],["先婚后爱","cate_265"],["马甲","cate_266"],["特种兵","cate_375"],["病娇","cate_380"],["青梅竹马","cate_387"],["萌宠","cate_428"],["破镜重圆","cate_475"],["一见钟情","cate_477"],["医生","cate_487"],["丧尸","cate_582"],["异能","cate_598"],["白月光","cate_615"],["追妻火葬场","cate_616"],["大女主","cate_760"],["姐弟恋","cate_762"],["黑道","cate_826"],["灵魂互换","cate_831"],["家长里短","cate_862"],["玄学","cate_929"],["豪门","cate_936"],["传承觉醒","cate_1007"],["虐恋","cate_1008"],["小人物","cate_1010"],["反派主角","cate_1042"],["赘婿逆袭","cate_1044"],["强者回归","cate_1045"],["强强联合","cate_1049"],["打脸虐渣","cate_1051"],["暴富","cate_1191"],["双向救赎","cate_1200"],["大男主","cate_1207"],["方言","cate_1255"],["捞偏门","cate_1287"],["福宝","cate_1291"],["业界精英","cate_1293"]]},"category_dim_epoch":{"label":"全部背景","items":[["都市","cate_1"],["校园","cate_4"],["乡村","cate_11"],["年代","cate_79"],["职场","cate_127"],["民国","cate_390"],["架空","cate_452"],["现代","cate_757"],["古代","cate_758"],["宫廷","cate_1153"],["荒岛","cate_1162"]]},"sort":{"label":"全部推荐","items":[["最新上架","online_time"],["最高热度","hot_score"],["最高收藏","hot_collect"]]},"gender":{"label":"全部受众","items":[["男频","1"],["女频","0"]]},"online_time":{"label":"全部时间","items":[["7天内上新","days_7"],["14天内上新","days_14"],["30天内上新","days_30"],["90天内上新","days_90"]]}},"comic_series":{"genre":{"label":"全部体裁","items":[["真人剧","short_play"],["漫剧","comic_series"],["AI剧","ai_series"]]},"category_dim_theme":{"label":"全部主题","items":[["奇幻","cate_6"],["玄幻","cate_7"],["末世","cate_68"],["剧情","cate_316"],["脑洞","cate_755"],["豪门","cate_936"],["科幻","cate_1092"],["冒险","cate_1182"]]},"category_dim_role":{"label":"全部设定","items":[["系统","cate_19"],["总裁","cate_29"],["重生","cate_36"],["穿越","cate_37"],["娱乐圈","cate_43"],["异能","cate_598"],["逆袭","cate_739"],["反转","cate_756"]]},"category_dim_epoch":{"label":"全部背景","items":[["都市","cate_1"],["校园","cate_4"],["乡村","cate_11"],["年代","cate_79"],["职场","cate_127"],["民国","cate_390"],["架空","cate_452"],["异界","cate_599"],["古代","cate_758"]]},"sort":{"label":"全部推荐","items":[["最新上架","online_time"],["最高热度","hot_score"],["最高收藏","hot_collect"]]},"gender":{"label":"全部受众","items":[["男频","1"],["女频","0"]]},"creation_status":{"label":"全部状态","items":[["已完结","creation_status_0"],["连载中","creation_status_1"]]},"online_time":{"label":"全部时间","items":[["7天内上新","days_7"],["14天内上新","days_14"],["30天内上新","days_30"],["90天内上新","days_90"]]},"category_dim_art_style":{"label":"全部画风","items":[["3D漫","cate_5415"],["2D漫","cate_5416"],["表情包","cate_5417"]]}},"ai_series":{"genre":{"label":"全部体裁","items":[["真人剧","short_play"],["漫剧","comic_series"],["AI剧","ai_series"]]},"category_dim_theme":{"label":"全部主题","items":[["剧情","cate_316"],["奇幻","cate_6"],["玄幻","cate_7"],["末世","cate_68"],["脑洞","cate_755"],["豪门","cate_936"],["科幻","cate_1092"],["冒险","cate_1182"]]},"category_dim_role":{"label":"全部设定","items":[["逆袭","cate_739"],["反转","cate_756"],["穿越","cate_37"],["重生","cate_36"],["总裁","cate_29"],["系统","cate_19"],["娱乐圈","cate_43"],["异能","cate_598"]]},"category_dim_epoch":{"label":"全部背景","items":[["乡村","cate_11"],["年代","cate_79"],["校园","cate_4"],["民国","cate_390"],["都市","cate_1"],["职场","cate_127"],["架空","cate_452"],["异界","cate_599"],["古代","cate_758"]]},"sort":{"label":"全部推荐","items":[["最新上架","online_time"],["最高热度","hot_score"],["最高收藏","hot_collect"]]},"gender":{"label":"全部受众","items":[["男频","1"],["女频","0"]]},"online_time":{"label":"全部时间","items":[["7天内上新","days_7"],["14天内上新","days_14"],["30天内上新","days_30"],["90天内上新","days_90"]]}}},
+  feed:{"short_play":[["离婚后他才知道资方只认我",40,null,"8.4",null,null,"红果首发","#181018",976],["我有一辆寻宝三轮车",92,null,"8.4",null,null,"红果首发","#301810",1044],["鱼缸里到底有什么",78,null,"8.6",null,null,"红果首发","#101820",988],["精神小妹一出手，自闭陆总会说话了",40,null,"8.6",null,null,"红果首发","#202028",1039],["心动第七年",41,null,"8.4",null,null,"红果首发","#382018",984],["婆婆的手机",42,null,"8.4",null,null,"红果首发","#603808",1010],["与海鸥同行后大海成了我家鱼塘",71,null,"8.6",null,null,"红果首发","#382018",1017],["茶馆风云",41,null,"8.6",null,null,"新剧","#302018",1002],["千金止损",40,null,"8.5",null,null,"红果首发","#282018",1026],["我的饭搭子是状元",39,null,"8.4",null,null,"新剧","#581810",1005],["龙城岁月第二季",79,null,"8.5",null,null,"红果首发","#202020",1036],["后妈难当，真心终抵万难",45,null,"8.6",null,null,"红果首发","#281810",1020]],"comic_series":[["从黑龙开始，吞噬诸天第二季",70,null,"8.6",null,null,"新剧","#181010",1018],["南星照寒林：破院发家",65,null,"8.5",null,null,"新剧","#302018",958],["世子爷装疯，满朝皆惊",206,null,"8.5",null,null,"红果首发","#301008",1001],["庶女下乡：嫁个汉子奔小康",243,null,"8.5",null,null,"新剧","#402818",951],["清颜医妃",133,null,"8.5",null,null,"红果首发","#301810",966],["她关上门，我重启人生",57,null,"8.6",null,null,"新剧","#282018",1014],["竹篾生金姐带全村做大做强",94,null,"8.5",null,null,"红果首发","#383018",962],["职场西游记",85,null,"8.5",null,null,"新剧","#d09048",968],["阿妹的野生阿强哥",75,null,"8.4",null,null,"新剧","#282020",972],["天降萌娃：真千金的打脸日常",82,null,"8.4",null,null,"新剧","#e8c8c8",1036],["深渊猎人",164,null,"8.4",null,null,"新剧","#082038",1049],["愚相之下，一场大婚倾权谋",85,null,"8.5",null,null,"红果首发","#401818",956]],"ai_series":[["五百块住在我家,还真把自己当房东",66,null,"8.4",null,null,"新剧","#201820",1002],["十五万账单局中局",22,null,"8.6",null,null,"新剧","#381808",987],["婚后慢熟第四季",92,null,"8.5",null,null,"新剧","#201818",1019],["赘婿不装了：庆功宴我亮出百亿底牌",40,null,"8.4",null,null,"新剧","#281808",961],["带儿回家讨回公道",103,null,"8.4",null,null,"新剧","#381810",959],["开我二百五月薪，十八年老汤你们自己熬",43,null,"8.4",null,null,"新剧","#281810",959],["车座塞满舞伴的菜，我果断离婚清算家产",49,null,"8.4",null,null,"新剧","#201010",1035],["岁月向暖，终遇良人",50,null,"8.5",null,null,"新剧","#c89880",1032],["十张空卡，让我彻底清醒",45,null,"8.5",null,null,"新剧","#281010",951],["月子里被迫离开",74,null,"8.6",null,null,"新剧","#181810",1014],["渊微赋",40,null,"8.5",null,null,"新剧","#301008",979],["河底捞福，苏家小团团",64,null,"8.4",null,null,"新剧","#382018",1003]]},
+  rankTracks:[["全部","all",[["推荐榜","ranklist_hot_sc"],["热播榜","ranklist_hot_play_sc"],["臻果榜","ranklist_prestige"],["预约榜","ranklist_subscribe"],["新剧榜","ranklist_new_rank_sc"],["热搜榜","ranklist_hot_search_sc"],["追更榜","ranklist_chase_update"],["必看榜","ranklist_must_watch"],["收藏榜","ranklist_followed"]]],["漫剧","comic_series_rank",[["推荐榜","comic_series_hot_rank"],["热播榜","comic_series_hot_play"],["新剧榜","comic_series_new_rank"],["热搜榜","comic_series_hot_search"]]],["真人剧","human",[["推荐榜","human_hot_sc"],["热播榜","human_hot_play"],["新剧榜","human_new_rank"],["热搜榜","human_hot_search"],["必看榜","human_must_watch"],["收藏榜","human_followed"]]],["AI剧","ai_playlet",[["推荐榜","ai_playlet_hot_sc"],["热播榜","ai_playlet_hot_play"],["新剧榜","ai_playlet_new_rank"],["热搜榜","ai_playlet_hot_search"],["必看榜","ai_playlet_must_watch"],["收藏榜","ai_playlet_followed"]]],["演员","ranklist_celebrity",[]]],
+  rankBoards:{"recommend":[["糯糯下山，师兄们都慌了",63,"萌宝·全63集","8.2","997万推荐","4768万热度","爆剧","#282828",11770116],["万妖图录传第一季",81,"玄幻·全81集","8.2","986万推荐","4628万热度",null,"#282838",5754391],["搞笑疯人院：满级病友竟是大佬",82,"恋爱·全82集","8.2","974万推荐","4332万热度",null,"#381818",4175087],["末日漂流：从小木筏开始无限升级",104,"末世·全104集","8.2","966万推荐","4298万热度",null,"#282830",4393953],["全球死考：刚下刑场你让我去考试第一季",154,"脑洞·全154集","8.2","956万推荐","4413万热度",null,"#181818",4983416],["春潮夜渡",80,"恋爱·全80集","8.2","951万推荐","4344万热度",null,"#301010",3108402],["一村人养一个神第一季",80,"脑洞·全80集","8.2","936万推荐","4529万热度",null,"#202028",4019208],["谁说没灵根不能修仙的？之无灵证道",78,"玄幻·全78集","8.3","928万推荐","4735万热度",null,"#302018",5199596],["鬼医传人，下山赴婚约第1季",104,"玄幻·全104集","8.2","920万推荐","4688万热度",null,"#181820",1822621],["听说我死后成了反派白月光第一季",202,"恋爱·全202集","8.2","914万推荐","4597万热度",null,"#302020",5085101]],"hot":[["和离后我带女儿横扫魔域",1000,"玄幻·全1000集","8.2","9388万热度","422.8万收藏",null,"#481810",46297587],["学法律的玄学大师，很常见吗第二季",236,"脑洞·全236集","8.5","6190万热度","64.7万收藏","新剧","#380000",2689831],["遇棠方知涉：被偏执大佬黏上了3",99,"恋爱·全99集","8.4","6182万热度","38万收藏","新剧","#302018",1035],["烛九阴第八季",149,"玄幻·全149集","8.4","6038万热度","18.7万收藏","新剧","#202028",984],["我海洛薇兹，在韩国贵族学院假扮千金第二季",250,"脑洞·全250集","8.6","6019万热度","38.8万收藏","新剧","#281010",1005],["边军破刀：一路砍到裂土封王",539,"剧情·全539集","8.3","5973万热度","157.9万收藏",null,"#281810",31544557],["后妈只想苟，老公非要凑第二季",200,"恋爱·全200集","8.1","5850万热度","83.9万收藏",null,"#a06850",3887892],["反派拿捏！第三季",399,"恋爱·全399集","8.2","5828万热度","85.4万收藏",null,"#281020",4907711],["谁说纨绔不能当状元！第六季",154,"剧情·全154集","8.6","5820万热度","35.3万收藏","新剧","#281008",1420265],["修仙归来，我的未婚妻藏不住了",332,"玄幻·全332集","8.3","5807万热度","70.3万收藏",null,"#302028",17653452]],"new":[["学法律的玄学大师，很常见吗第二季",236,"脑洞·全236集","8.5","6190万热度","64.7万收藏","新剧","#380000",2689831],["遇棠方知涉：被偏执大佬黏上了3",99,"恋爱·全99集","8.4","6182万热度","38万收藏","新剧","#302018",1035],["烛九阴第八季",149,"玄幻·全149集","8.4","6038万热度","18.7万收藏","新剧","#202028",984],["我海洛薇兹，在韩国贵族学院假扮千金第二季",250,"脑洞·全250集","8.6","6019万热度","38.8万收藏","新剧","#281010",1005],["谁说纨绔不能当状元！第六季",154,"剧情·全154集","8.6","5820万热度","35.2万收藏","新剧","#281008",1420265],["乡下来的掌上明珠第四季",158,"萌宝·全158集","8.6","5462万热度","21.7万收藏","新剧","#382828",1138747],["父皇别慌，福星多多来啦第八季",176,"萌宝·全176集","8.6","5380万热度","8.7万收藏","新剧","#502018",1030],["我与四大尸王成了兄弟之末世躺赢指南第二季",186,"末世·全186集","8.3","5311万热度","24万收藏",null,"#382820",1876175],["拳十三之拳动乾坤第二季",181,"玄幻·全181集","8.5","5295万热度","11.3万收藏","新剧","#300808",998],["全员大佬：非正常捉妖师第二季",119,"玄幻·全119集","8.4","5279万热度","10.5万收藏","新剧","#282020",982]]},
+  rankMeta:{"recommend":["comic_series_hot_rank","",["comic_series_rank","comic_series_hot_rank"]],"hot":["comic_series_hot_play","1793325600",["comic_series_rank","comic_series_hot_play"]],"new":["comic_series_new_rank","1793325600",["comic_series_rank","comic_series_new_rank"]]},
+};
+
+/* ---------------- 维度与参数名：一屏一层，读出窗要说得清落哪 ---------------- */
+const GENRE_ID = { 'short_play':'short_play','comic_series':'comic_series','ai_series':'ai_series' };
+const GENRE_NAMES = { 'short_play':'真人剧','comic_series':'漫剧','ai_series':'AI剧' };
+/* 榜的赛道回到发现页时属于哪个类型域（cell_selector 的 selected_items 原样） */
+const TRACK_GENRE = { 'comic_series_rank':'comic_series','human':'short_play','ai_playlet':'ai_series' };
+/* app 侧的三个层次（现读 catalog.dart:409-421 的 _selection()）：
+   - 真填：genre / sort / category_dim_theme
+   - 键发了、值恒为空数组：category_dim_role / category_dim_epoch / gender / online_time
+   - 键在请求体里根本不存在：category_dim_art_style / creation_status（恰好是漫剧独有的两维） */
+const SENT_EMPTY = ['category_dim_role','category_dim_epoch','gender','online_time'];
+const NOT_SENT = ['category_dim_art_style','creation_status'];
+const DIM_ORDER = ['category_dim_theme','category_dim_role','category_dim_epoch',
+                   'category_dim_art_style','creation_status','gender','online_time'];
+const DIM_BODY_KEY = {
+  'category_dim_theme':'category_dim_theme','category_dim_role':'category_dim_role',
+  'category_dim_epoch':'category_dim_epoch','category_dim_art_style':'（请求体还没有这一维）',
+  'creation_status':'（请求体还没有这一维）','gender':'gender','online_time':'online_time'
+};
+const ROW1_LIMIT = { desk: 9, mob: 6 };
+
+/* ---------------- 状态 ---------------- */
+const S = {
+  view:'desk', mode:'ok', dest:'发现',
+  genre:'short_play',
+  /* 二级：主题 + 更多筛选；换类型全部归零（library_page.dart:2626 的现状语义） */
+  sel:{ theme:'', role:'', epoch:'', art:'', status:'', gender:'', time:'' },
+  sort:'online_time',
+  /* 榜单：赛道(selected_items) × 榜单(sub_selected_items) */
+  track:'comic_series_rank', board:'comic_series_hot_rank',
+  pop:null,            // 'sort' | 'filter' | 'overflow' | null（桌面）
+  sheet:null,          // 'sort' | 'filter' | null（移动底部弹层）
+  peek:null,           // 桌面 hover 预览的卡
+  drill:null,          // 下钻来源说明
+  keep:{}              // 目的地 → {genre,sel,sort,scrollTop}：保活演示
+};
+const KEEP_ON = ['发现','分类'];
+
+/* ---------------- 读出窗 ---------------- */
+function say(lines){
+  document.getElementById('readout').innerHTML =
+    '<span class="row"><span class="k">$ 这一层改的是 →</span></span>' +
+    lines.map(l=>`<span class="row">${l}</span>`).join('');
+}
+function selSummary(){
+  const picked = Object.entries(S.sel).filter(([,v])=>v).map(([k,v])=>`${k}=${v}`);
+  return picked.length? picked.join(', ') : '（无）';
+}
+/* 主题行到底有没有：读一次，四个面（读出窗 / 桌面行 / 桌面溢出 / 移动行）共用同一个判断，
+   否则「词表缺行」演示会出现画了行但读出窗说没画的自相矛盾 */
+function themeRow(){
+  if(S.mode==='empty') return null;
+  return (API.dims[S.genre]||{})['category_dim_theme'] || null;
+}
+function refreshReadout(){
+  const rows = [];
+  const keep = KEEP_ON.includes(S.dest) ? '，两个 pane 都保活' : '';
+  rows.push(`<span class="k">目的地</span> <em>${S.dest}</em> <span class="k">（L0 换页${keep}）</span>`);
+  if(S.dest==='发现' || S.dest==='分类'){
+    const g = API.dims[S.genre] || {};
+    rows.push(`<span class="k">L1 类型</span> <span class="v">select_items.genre = ['${S.genre}'] · req_scene = ${S.genre==='short_play'?'default':S.genre}</span> <span class="k">→ 换页 + L2 归零</span>`);
+    if(themeRow()){
+      rows.push(`<span class="k">L2 主题</span> <span class="v">select_items.category_dim_theme = ${S.sel.theme?JSON.stringify([S.sel.theme]):'[]'}</span> <span class="k">→ 换这一页内的可滑页</span>`);
+    } else {
+      rows.push(`<span class="k">L2 主题</span> <span class="warn">本次词表未给（上游按类型发布，缺行是常态）→ 整行不出现</span>`);
+    }
+    rows.push(`<span class="k">L2′ 更多筛选</span> <span class="v">${selSummary()}</span> <span class="k">→ 只改请求，不换页（本类型词表给了 ${Object.keys(API.dims[S.genre]||{}).length} 维；app 现在只填 体裁/推荐/主题，${SENT_EMPTY.length} 个键发了但恒空，${NOT_SENT.length} 个键没发）</span>`);
+    rows.push(`<span class="k">L3 排序</span> <span class="v">select_items.sort = ['${S.sort}']</span> <span class="k">→ 只改请求，不换页 · 上游只发布这三档</span>`);
+    rows.push(`<span class="k">POST</span> <span class="v">/reading/distribution/category/landpage/v {limit:18, offset, need_selector_panel:false, req_type:'only_content', session_id}</span>`);
+  } else if(S.dest==='榜单'){
+    const tr = API.rankTracks.find(t=>t[1]===S.track);
+    rows.push(`<span class="k">L0′ 赛道</span> <span class="v">selected_items = '${S.track}'</span> <span class="k">（${tr?tr[0]:''}，上游共 ${API.rankTracks.length} 条赛道）</span>`);
+    rows.push(`<span class="k">L1′ 榜单</span> <span class="v">sub_selected_items = '${S.board}'</span> <span class="k">（本赛道 ${(tr&&tr[2].length)||0} 块 · 这份常量是 live-sample 那一次，合计 ${API.rankTracks.reduce((a,t)=>a+t[2].length,0)} 块；四次实测量出 25–27，app 现在只接 3 块 → 条数一律现读、不得写死）</span>`);
+    rows.push(`<span class="k">周期</span> <span class="warn">上游没有这一维：cell_selector.inner_rows = 0（实测四次一致）→ 界面上不给「日/周/月」</span>`);
+    rows.push(`<span class="k">位次</span> <span class="v">cell_data 数组下标</span> <span class="k">；热度 = rec_text_item.RecommendText；收藏 = secondary_info_list[i].content</span>`);
+    rows.push(`<span class="k">趋势</span> <span class="warn">只有字段位 rec_arrow_type，四次样本全为 0 → 语义未证实，界面画虚线占位</span>`);
+    rows.push(`<span class="k">更新时刻</span> <span class="v">rank_version = ${rankVersionOf()}</span> <span class="k">（四次样本 1793325600 / 1793325840，mod 60 = 0 → 整分钟；推荐榜返回空串 → 该榜不承诺时刻）</span>`);
+    rows.push(`<span class="k">GET</span> <span class="v">/reading/bookapi/bookmall/cell/change/v?cell_id=7470092475068071998&tab_type=26&offset=…</span>`);
+  }
+  if(S.drill) rows.push(`<span class="k">下钻</span> <span class="warn">${S.drill}</span>`);
+  say(rows);
+}
+function rankVersionOf(){
+  const hit = Object.values(API.rankMeta).find(m=>m[0]===S.board);
+  return hit ? (hit[1]||'""（上游未给）') : '（这块榜未取样）';
+}
+
+/* ---------------- 公共渲染件 ---------------- */
+function grad(color){
+  const c = color || '#3b3f52';
+  return `background:linear-gradient(158deg,${c},#0e1015)`;
+}
+function chipBtn(label, id, on, attrs){
+  return `<button class="chip" aria-pressed="${!!on}" data-id="${id}" ${attrs||''}>${label}</button>`;
+}
+function dimChips(type, cur){
+  const d = (API.dims[S.genre]||{})[type];
+  if(!d) return '';
+  return d.items.map(([n,id])=>chipBtn(n,`${type}:${id}`, cur===id)).join('');
+}
+/* 卡面：[title, eps, sub_title, score, heat, heat2, badge, color, play_cnt] */
+function gridCard(c, i){
+  const [t,eps,sub,score,heat,heat2,badge,color] = c;
+  return `<button class="card" data-card="${i}" tabindex="0">
+    <span class="cover" style="${grad(color)}">
+      ${badge?`<span class="badge ${/爆/.test(badge)?'hot':''}">${badge}</span>`:''}
+      <span class="eps">全 ${eps} 集</span></span>
+    <span class="tit">${t}</span>
+    <span class="heat">${heat||''}<span class="sc">${score?('· '+score+'分'):''}</span></span>
+    <span class="tags">${sub||''}</span></button>`;
+}
+function rankRow(c, i){
+  const [t,eps,sub,score,heat,heat2,badge,color] = c;
+  const theme = (sub||'').split('·')[0].trim();
+  return `<li>
+    <span class="pos ${i<3?'p'+(i+1):''}">${i+1}</span>
+    <span class="mini cover" style="${grad(color)}"></span>
+    <span class="rinfo"><span class="t">${t}</span>
+      <span class="s">${sub||''}${score?` · ${score} 分`:''}${badge?` · <span class="bdg">${badge}</span>`:''}
+        ${theme?` · <button class="inlink" data-drill="theme" data-theme="${theme}" title="带着「${theme}」回发现页，只改 L2 主题">找同题材 ›</button>`:''}</span></span>
+    <span class="rside"><span class="h">${heat||''}</span>${heat2?`<br>${heat2}`:''}
+      <br><span class="todo">↗ 趋势 未证实</span></span></li>`;
+}
+
+/* ---------------- 目的地（L0） ---------------- */
+const DESTS = ['发现','分类','榜单','我的'];
+function goDest(d){
+  if(S.dest!==d && KEEP_ON.includes(S.dest)) S.keep[S.dest] = {genre:S.genre, sel:{...S.sel}, sort:S.sort};
+  S.dest=d; S.pop=null; S.sheet=null; S.peek=null; S.drill=null;
+  if(KEEP_ON.includes(d) && S.keep[d]){ S.genre=S.keep[d].genre; S.sel={...S.keep[d].sel}; S.sort=S.keep[d].sort; }
+  if(d==='榜单' && !API.rankTracks.some(t=>t[1]===S.track)) S.track=API.rankTracks[0][1];
+  renderAll();
+}
+
+/* ---------------- 桌面 ---------------- */
+function renderDesk(){
+  document.getElementById('d-rail').innerHTML =
+    DESTS.map(d=>`<button data-dest="${d}" aria-current="${d===S.dest?'page':'false'}">${
+      d==='榜单'?'🏆':d==='发现'?'🧭':d==='分类'?'🗂':'👤'} ${d}</button>`).join('')
+    + `<div class="note">目的地点击直达、零翻页动画（v0.3.13 已落地）。<br>排序与「更多筛选」都不占第一行。</div>`;
+  const rows = document.getElementById('d-rows');
+  const content = document.getElementById('d-content');
+  document.getElementById('d-sort-val').textContent = sortName(S.sort);
+  const nPicked = Object.values(S.sel).filter(Boolean).length;
+  document.getElementById('d-filter-n').textContent = nPicked?`（${nPicked}）`:'';
+
+  if(S.dest==='我的'){
+    rows.innerHTML = `<div class="drow"><span class="lbl">我的库</span><span style="font-size:13px;color:#8b909e">本页不在本轮设计范围</span></div>`;
+    content.innerHTML = `<div class="dgrid">${(API.feed['short_play']||[]).slice(0,4).map(gridCard).join('')}</div>`;
+    bind(); return;
+  }
+  if(S.mode==='loading'){ content.innerHTML = skel('dgrid',8); rows.innerHTML=rowsSkel(); bind(); return; }
+  if(S.mode==='error'){ content.innerHTML = errState(); rows.innerHTML=''; bind(); return; }
+
+  if(S.dest==='发现' || S.dest==='分类'){
+    /* 第一行：只剩类型（换页） */
+    const genreChips = Object.keys(GENRE_ID).map(g=>{
+      const name = ((API.dims[g]||API.dims['short_play']||{}).genre?.items||[]).find(x=>x[1]===g);
+      return chipBtn(name?name[0]:GENRE_NAMES[g], `genre:${g}`, S.genre===g);
+    }).join('');
+    rows.innerHTML = `<div class="drow"><span class="lbl">类型 L1</span><div class="chips">${genreChips}</div>
+        <span class="lbl" style="margin-left:auto">${S.dest} · ${GENRE_NAMES[S.genre]}</span></div>`;
+    /* 第二行：主题 + 溢出「更多 ▾」 + 更多筛选入口 */
+    const theme = themeRow();
+    if(theme){
+      const shown = theme.items.slice(0,ROW1_LIMIT.desk);
+      const hidden = theme.items.slice(ROW1_LIMIT.desk);
+      rows.innerHTML += `<div class="drow"><span class="lbl">主题 L2</span><div class="chips">
+          ${shown.map(([n,id])=>chipBtn(n,`category_dim_theme:${id}`,S.sel.theme===id)).join('')}
+          ${hidden.length?`<button class="chip more" data-pop="overflow">更多 ▾<span class="n">${hidden.length}</span></button>`:''}
+        </div>
+        <button class="chip more" data-pop="filter">≡ 更多筛选${nPicked?` · ${nPicked}`:''}</button></div>`;
+    } else {
+      rows.innerHTML += `<div class="drow"><span class="state empty" style="margin:0;flex:1">
+          上游这次没回 ${S.genre} 的 selector_rows —— 主题行整行不出现，
+          列表仍按「类型 + 排序」出内容；<button data-retry>现在重试</button></span></div>`;
+      rows.innerHTML += `<div class="drow"><span class="lbl">L2′</span>
+          <button class="chip more" data-pop="filter">≡ 更多筛选${nPicked?` · ${nPicked}`:''}</button></div>`;
+    }
+    content.innerHTML = `<div class="dgrid">${(API.feed[S.genre]||[]).map(gridCard).join('')}</div>`;
+  } else {
+    /* 榜单：赛道 × 榜单，两行都只属于榜单模块 */
+    const trackChips = API.rankTracks.map(t=>chipBtn(t[0], `track:${t[1]}`, S.track===t[1])).join('');
+    const tr = API.rankTracks.find(t=>t[1]===S.track);
+    const boardChips = (tr?tr[2]:[]).map(([n,id])=>chipBtn(n, `board:${id}`, S.board===id)).join('');
+    rows.innerHTML = `<div class="drow"><span class="lbl">赛道 L0′</span><div class="chips">${trackChips}</div></div>
+      <div class="drow"><span class="lbl">榜单 L1′</span><div class="chips">${boardChips}</div></div>`;
+    content.innerHTML = rankBlock('dlist');
+  }
+  bind();
+}
+function sortName(id){
+  for(const g of Object.keys(API.dims)){
+    const hit = ((API.dims[g]||{}).sort||{}).items?.find(x=>x[1]===id);
+    if(hit) return hit[0];
+  }
+  return id;
+}
+function skel(cls,n){
+  return `<div class="${cls}">${Array.from({length:n}).map(()=>
+    `<div class="sk" style="aspect-ratio:3/4"></div>`).join('')}</div>`;
+}
+function rowsSkel(){
+  return `<div class="drow"><div class="sk" style="height:30px;flex:1"></div></div>
+          <div class="drow"><div class="sk" style="height:30px;flex:1"></div></div>`;
+}
+function errState(){
+  return `<div class="state err">内容接口 HTTP 200 但空 body（现网出现过，catalog.dart:377 会把它升成签名请求再试一次）。
+    界面保留<b>上一次成功的内容</b>，只在顶部给一条可关的提示，不清空、不弹全屏错误。
+    <button data-retry>重试</button></div>`;
+}
+function rankBlock(cls){
+  const cards = API.rankBoards[Object.keys(API.rankBoards).find(k=>API.rankMeta[k][0]===S.board)] || null;
+  const tr = API.rankTracks.find(t=>t[1]===S.track);
+  const bn = tr? tr[2].find(x=>x[1]===S.board) : null;
+  const rvRaw = rankVersionOf();
+  const rv = /^\d+$/.test(rvRaw) ? rvRaw : null;
+  const head = `<div class="rankhead"><h3>${bn?bn[0]:S.board}
+      <span class="scope">${tr?tr[0]:''} · ${(tr&&tr[2].length)||0} 块榜</span></h3>
+    <div class="when">${rv? ('更新于 '+new Date(rv*1000).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})+'（rank_version 精确到分钟）')
+        : `rank_version ${rvRaw} → 界面既不写「更新于」，也不写「实时」（推荐榜实测返回空串）`}
+      · 位次=cell_data 下标 · 热度=rec_text_item</div></div>`;
+  if(tr && tr[2].length===0){
+    return head + `<div class="state empty">这条赛道<b>这一次没返回子榜</b>（原型这份常量取的是 live-sample，演员赛道连 <code>sub_cell_selector</code> 都没有）。
+      另外三次取样里它有剧星榜 <code>ranklist_series_actor</code> / 星光榜 <code>ranklist_actor_fans</code> 两块——但那是<b>演员榜，条目不是剧</b>，
+      本轮按「不接」处理：不画空 tab，也不把 <code>RankEntry</code> 假装成 <code>Drama</code>。<br>
+      同一份 cell_selector 四次量出 25–27 块榜，所以赛道和榜块数只能现读，任何界面都不许写死。</div>`;
+  }
+  if(!cards){
+    return head + `<div class="state empty">这条赛道/榜单上游已经发布（cell_selector 里就在），但 <code>CatalogClient.rank()</code> 现在把
+      <code>selected_items</code> 硬编码成 comic_series_rank、只认 3 个 board 名 —— 也就是「接口已发布、app 未接」，
+      不是上游缺能力。原型把 ${API.rankTracks.reduce((a,t)=>a+t[2].length,0)} 块全画出来（数字由 cell_selector 现算，不写死），实施按 §5 的模块边界逐个接。</div>`;
+  }
+  return head + `<ol class="${cls} plist">${cards.map((c,i)=>rankRow(c,i)).join('')}</ol>
+    <div class="aside-note"><b>榜卡三要素今天有两个真值</b>：位次（数组下标）、热度（<code>rec_text_item.RecommendText</code>，
+      如「997万推荐」「9388万热度」）、次行收藏/热度（<code>secondary_info_list[i].content</code>）、评分（<code>score</code>）、
+      徽标（<code>tag_info.text</code> = 爆剧/新剧）、占位主色（<code>color_dominate</code>）都在响应里，但 <code>Drama</code> 模型
+      （catalog.dart:81-129）一个都没留。<b>只有趋势</b>没有：字段位 <code>rec_arrow_type</code> 存在、四次样本全为 0。<br>
+      <b>口径冲突已实测</b>：热播榜第 3/4 名 <code>play_cnt</code>=1035/984，而 <code>rec_text_item</code> 写 6182万/6038万热度
+      —— 播放量与热度不是同一个数，界面只能选一个说「热度」，另一个不许混排。</div>`;
+}
+
+/* ---------------- 桌面弹层：排序 / 更多筛选 / 主题溢出 ---------------- */
+function deskPop(){
+  const pop = document.getElementById('d-sort-pop');
+  const fpop = document.getElementById('d-filter-pop');
+  const ov = document.getElementById('d-ov-pop');
+  document.getElementById('d-sort-pop').classList.toggle('on', S.pop==='sort');
+  fpop.classList.toggle('on', S.pop==='filter');
+  if(!ov) fpop.insertAdjacentHTML('afterend','<div class="pop" id="d-ov-pop" style="right:18px;top:46px;width:520px"></div>');
+  const ovPop = document.getElementById('d-ov-pop');
+  ovPop.classList.toggle('on', S.pop==='overflow');
+
+  if(S.pop==='sort'){
+    const sorts = ((API.dims[S.genre]||{}).sort||{items:[]}).items;
+    pop.innerHTML = `<h4>排序 · 只改请求，不换页</h4>` + sorts.map(([n,id])=>
+      `<button class="op" data-set="sort:${id}" aria-pressed="${S.sort===id}">${n}<span class="p">sort=['${id}']</span></button>`).join('')
+      + `<div style="font-size:11px;color:#8b909e;margin-top:8px;line-height:1.7">上游只发布这三档（landpage 的 <code>sort</code> 行）。
+         app 现在的「推荐」不对应任何一个 sort 值，实施时要把它折回「最新上架」。</div>`;
+  }
+  if(S.pop==='filter'){
+    const dims = API.dims[S.genre]||{};
+    let html = `<h4>更多筛选 · ${GENRE_NAMES[S.genre]}<span style="font-size:12px;color:#8b909e">选完只改请求，不换页</span></h4>`;
+    DIM_ORDER.filter(t=>t!=='category_dim_theme'&&dims[t]).forEach(t=>{
+      const selKey = {'category_dim_role':'role','category_dim_epoch':'epoch','category_dim_art_style':'art',
+                      'creation_status':'status','gender':'gender','online_time':'time'}[t];
+      html += `<div class="dim"><div class="dn">${dims[t].label}</div><div class="chips">
+        ${chipBtn('不限',`${t}::`, !S.sel[selKey])}
+        ${dims[t].items.map(([n,id])=>chipBtn(n,`${t}:${id}`,S.sel[selKey]===id)).join('')}</div></div>`;
+    });
+    const missing = DIM_ORDER.filter(t=>t!=='category_dim_theme' && !dims[t]);
+    if(missing.length) html += `<div style="font-size:11px;color:#8b909e;line-height:1.8">本次词表没给：${missing.join('、')}
+      —— 这些维度在别的类型/别的取样里出现过（漫剧有画风、状态），所以按「缺什么就不画什么」处理，不给空壳。</div>`;
+    html += `<button class="done" data-closepop>完成${Object.values(S.sel).filter(v=>v).length?`（已选 ${Object.values(S.sel).filter(v=>v).length}）`:''}</button>`;
+    fpop.innerHTML = html;
+  }
+  if(S.pop==='overflow'){
+    const theme = themeRow() || {items:[]};
+    ovPop.innerHTML = `<h4>主题 · 全部 ${theme.items.length} 项（桌面用下拉展开，不靠横向拖拽）</h4>
+      <div class="chips" style="flex-wrap:wrap;max-height:220px;overflow:auto">${
+        chipBtn('全部',`category_dim_theme:`, !S.sel.theme)
+        + theme.items.map(([n,id])=>chipBtn(n,`category_dim_theme:${id}`,S.sel.theme===id)).join('')}</div>`;
+  }
+}
+
+/* ---------------- 桌面 hover 预览 ---------------- */
+let peekTimer = null;
+function showPeek(i, el){
+  const c = (API.feed[S.genre]||[])[i]; if(!c) return;
+  const peek = document.getElementById('d-peek');
+  const [t,eps,sub,score,heat,heat2,badge,color] = c;
+  peek.innerHTML = `<span class="pv cover" style="${grad(color)}"></span>
+    <span class="pn"><b>${t}</b>${sub||''}<br>${heat||''}${score?` · ${score} 分`:''}${heat2?`<br>${heat2}`:''}
+    <br>停留 1.5 秒才出这张卡；移出后 300ms 收起，期间可 cancel。<br>
+    <span class="go" data-drill="theme">找同题材 ›</span> <span class="go" data-drill="rank">看它所在的榜 ›</span></span>`;
+  const host = document.getElementById('desk').getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  peek.style.left = Math.min(r.left-host.left, host.width-320)+'px';
+  peek.style.top = (r.bottom-host.top+8)+'px';
+  peek.classList.add('on'); S.peek=i;
+}
+function hidePeek(){ document.getElementById('d-peek').classList.remove('on'); S.peek=null; }
+
+/* ---------------- 移动 ---------------- */
+function renderMob(){
+  document.getElementById('m-tabs').innerHTML =
+    DESTS.map(d=>`<button data-mdest="${d}" aria-current="${d===S.dest?'page':'false'}">${d}</button>`).join('');
+  const r1=document.getElementById('m-row1'), r2=document.getElementById('m-row2'), c=document.getElementById('m-content');
+  const nPicked = Object.values(S.sel).filter(Boolean).length;
+  if(S.dest==='我的'){
+    r1.innerHTML=`<div class="chips"><span class="chip" aria-pressed="true">我的库</span></div>`; r2.innerHTML='';
+    c.innerHTML=`<div class="grid">${(API.feed['short_play']||[]).slice(0,3).map(gridCard).join('')}</div>`; bind(); return;
+  }
+  if(S.mode==='loading'){ r1.innerHTML=`<div class="sk" style="height:30px;flex:1"></div>`; r2.innerHTML='';
+    c.innerHTML=skel('grid',9); bind(); return; }
+  if(S.mode==='error'){ r1.innerHTML=''; r2.innerHTML=''; c.innerHTML=errState(); bind(); return; }
+
+  if(S.dest==='发现' || S.dest==='分类'){
+    r1.innerHTML = `<div class="chips">${Object.keys(GENRE_ID).map(g=>{
+        const d=(API.dims[g]||{}).genre; const hit=d&&d.items.find(x=>x[1]===g);
+        return chipBtn(hit?hit[0]:GENRE_NAMES[g],`genre:${g}`,S.genre===g);}).join('')}</div>`;
+    const theme=themeRow();
+    if(theme){
+      r2.innerHTML = `<div class="chips">${theme.items.slice(0,ROW1_LIMIT.mob).map(([n,id])=>
+          chipBtn(n,`category_dim_theme:${id}`,S.sel.theme===id)).join('')}
+        <button class="chip more" data-sheet="filter">≡${nPicked?` ${nPicked}`:''}</button>
+        <button class="chip more" data-sheet="sort">排序 · ${sortName(S.sort)} ▾</button></div>`;
+    } else {
+      /* 触控族没有桌面那样的整行提示位：把这枚占位做成「可按的」，点了就是重试，
+         而不是一块划不动的死标签（桌面用 .state.empty 行，语义一致）。 */
+      r2.innerHTML = `<div class="chips"><button class="chip more" data-retry>主题词表这次没回 · 重试</button>
+        <button class="chip more" data-sheet="filter">≡${nPicked?` ${nPicked}`:''}</button>
+        <button class="chip more" data-sheet="sort">排序 · ${sortName(S.sort)} ▾</button></div>`;
+    }
+    const entry = S.dest==='发现' ? rankEntryCard() : '';
+    c.innerHTML = entry + `<div class="grid">${(API.feed[S.genre]||[]).map(gridCard).join('')}</div>`;
+  } else {
+    const tr = API.rankTracks.find(t=>t[1]===S.track);
+    r1.innerHTML = `<div class="chips">${API.rankTracks.map(t=>chipBtn(t[0],`track:${t[1]}`,S.track===t[1])).join('')}</div>`;
+    r2.innerHTML = `<div class="chips">${(tr?tr[2]:[]).map(([n,id])=>chipBtn(n,`board:${id}`,S.board===id)).join('')}</div>`;
+    c.innerHTML = rankBlock('plist').replace('class="dlist plist"','class="plist"');
+  }
+  document.querySelectorAll('[data-mdest]').forEach(b=>b.onclick=()=>goDest(b.dataset.mdest));
+  document.querySelectorAll('.entrycard[data-mdest]').forEach(b=>b.onclick=()=>goDest('榜单'));
+  bind();
+}
+function rankEntryCard(){
+  const key = Object.keys(API.rankBoards)[1];      // 热播榜取样：真名真热度
+  const top = (API.rankBoards[key]||[]).slice(0,3);
+  if(!top.length) return '';
+  const names = top.map(c=>c[0]).join(' / ');
+  return `<div class="entrycard" data-mdest="榜单">🏆 <b>漫剧热播榜</b>
+    <span class="top">${top.map(c=>`<span>${(c[4]||'').replace('万热度','')}万</span>`).join('')}</span>
+    <span class="go">全部榜单 ›</span></div>
+    <div style="margin:0 12px 6px;font-size:11px;color:#8b909e;line-height:1.7">
+      入口卡只借用榜单的内容（位次 + 热度都是接口真值），不带类型/主题状态：榜单请求不吃 genre 与 theme。</div>`;
+}
+
+/* ---------------- 移动底部弹层 ---------------- */
+function mobSheet(){
+  const sheet=document.getElementById('m-sheet'), body=document.getElementById('m-sheet-body');
+  sheet.classList.toggle('on', !!S.sheet);
+  if(!S.sheet) return;
+  if(S.sheet==='sort'){
+    const sorts=((API.dims[S.genre]||{}).sort||{items:[]}).items;
+    body.innerHTML=`<h4>排序（只改请求，不换页）<button data-closesheet style="color:#8b909e;font-size:13px">收起</button></h4>`
+      + sorts.map(([n,id])=>`<button class="op" data-set="sort:${id}" aria-pressed="${S.sort===id}">${n}<span class="p">sort=['${id}']</span></button>`).join('')
+      + `<div style="font-size:11px;color:#8b909e;margin-top:8px;line-height:1.7">三档就是上游全部：没有「推荐」，也没有「追剧」。</div>`;
+  } else if(S.sheet==='filter'){
+    const dims=API.dims[S.genre]||{};
+    let html=`<h4>更多筛选 · ${GENRE_NAMES[S.genre]}<button data-closesheet style="color:#8b909e;font-size:13px">收起</button></h4>`;
+    DIM_ORDER.filter(t=>t!=='category_dim_theme'&&dims[t]).forEach(t=>{
+      const selKey={'category_dim_role':'role','category_dim_epoch':'epoch','category_dim_art_style':'art',
+                    'creation_status':'status','gender':'gender','online_time':'time'}[t];
+      html+=`<div style="margin:12px 0 6px;font-size:12px;color:#8b909e">${dims[t].label}</div>
+        <div class="chips" style="flex-wrap:wrap">${chipBtn('不限',`${t}::`,!S.sel[selKey])}
+        ${dims[t].items.map(([n,id])=>chipBtn(n,`${t}:${id}`,S.sel[selKey]===id)).join('')}</div>`;
+    });
+    const missing=DIM_ORDER.filter(t=>t!=='category_dim_theme'&&!dims[t]);
+    if(missing.length) html+=`<div style="font-size:11px;color:#8b909e;margin-top:10px;line-height:1.7">本次词表没给：${missing.join('、')}</div>`;
+    html+=`<button class="done" data-closesheet>完成${Object.values(S.sel).filter(v=>v).length?`（已选 ${Object.values(S.sel).filter(v=>v).length}）`:''}</button>`;
+    body.innerHTML=html;
+  }
+}
+
+/* ---------------- 交互绑定 ----------------
+   下拉面板、抽屉、hover 预览里的控件都是 bind() 之后才插进 DOM 的，
+   逐个绑 onclick 会漏掉它们（点不动）。所以能委托的一律委托到 document。 */
+function pick(sel, node){ return node ? node.closest(sel) : null; }
+
+document.addEventListener('click',(e)=>{
+  const t = e.target;
+
+  /* 抽屉/预览里的控件优先，命中后不再让卡面的 onclick 收到冒泡 */
+  const inner = t.closest('[data-id],[data-set],[data-pop],[data-sheet],[data-closesheet],[data-closepop],[data-retry],[data-dest],[data-drill]');
+  if(inner && inner.closest('[data-card]')) e.stopPropagation();
+
+  const idEl = pick('[data-id]', t);
+  if(idEl){
+    const [dim,val]=idEl.dataset.id.split(':');
+    if(dim==='genre'){
+      if(val && val!==S.genre){ S.genre=val; S.sel={theme:'',role:'',epoch:'',art:'',status:'',gender:'',time:''};
+        S.drill='换类型把 L2 全部归零（现状语义，library_page.dart:2626）：主题/设定/背景/画风/状态/受众/时间都不继承'; }
+      S.pop=null; S.sheet=null; renderAll(); return;
+    }
+    if(dim==='track'){ S.track=val; const tr=API.rankTracks.find(tt=>tt[1]===val); S.board=tr&&tr[2].length?tr[2][0][1]:'';
+      S.drill='换赛道重置榜单为该赛道第一块'; renderAll(); return; }
+    if(dim==='board'){ S.board=val; S.drill='换榜单不换赛道：selected_items 不变，只改 sub_selected_items'; renderAll(); return; }
+    const map={'category_dim_theme':'theme','category_dim_role':'role','category_dim_epoch':'epoch',
+               'category_dim_art_style':'art','creation_status':'status','gender':'gender','online_time':'time'};
+    const key=map[dim];
+    if(!key){ renderAll(); return; }
+    S.sel[key] = val===undefined? '' : (S.sel[key]===val? '' : val);
+    /* 多选式抽屉/面板：选完留在原地，不收起（触控族一次只点一个，收起要再点两次） */
+    if(S.sheet==='filter' || S.pop==='filter'){ S.drill='L2′ 更多筛选 · '+dim+'='+val+' → 只改 select_items，不换页；抽屉保持打开'; renderAll(); return; }
+    S.pop = S.pop==='overflow'? null : S.pop;
+    renderAll(); return;
+  }
+
+  const setEl = pick('[data-set]', t);
+  if(setEl){
+    const [k,v]=setEl.dataset.set.split(':');
+    if(k==='sort'){ S.sort=v; S.pop=null; S.sheet=null; S.drill='排序只改 select_items.sort，列表内容换、页面与滚动位置不换'; renderAll(); }
+    return;
+  }
+  const popEl = pick('[data-pop]', t);
+  if(popEl){ S.pop = S.pop===popEl.dataset.pop? null : popEl.dataset.pop; deskPop(); refreshReadout(); renderLegend(); return; }
+  const sheetEl = pick('[data-sheet]', t);
+  if(sheetEl){ S.sheet = S.sheet===sheetEl.dataset.sheet? null : sheetEl.dataset.sheet; mobSheet(); refreshReadout(); renderLegend(); return; }
+  if(pick('[data-closesheet]', t)){ S.sheet=null; mobSheet(); refreshReadout(); return; }
+  if(pick('[data-closepop]', t)){ S.pop=null; deskPop(); refreshReadout(); return; }
+  if(t.closest('.sheet .mask')){ S.sheet=null; mobSheet(); refreshReadout(); return; }
+  const retry = pick('[data-retry]', t);
+  if(retry){ S.mode='ok'; S.drill='重试成功：恢复上一次的选中与滚动位置（失败态不清状态）'; renderAll(); return; }
+  const dest = pick('[data-dest]', t);
+  if(dest){ goDest(dest.dataset.dest); return; }
+
+  const drill = pick('[data-drill]', t);
+  if(drill){
+    if(drill.dataset.drill==='theme'){
+      /* 下钻回发现页：带着榜卡/预览卡上的题材，把 L2 主题写上，其余层不动。
+         榜的赛道属于哪个类型域，由赛道 id 映射回去（上游 selected_items 就是类型域的另一种写法）。 */
+      const fromBoard = !!drill.dataset.theme;
+      const genre = fromBoard ? (TRACK_GENRE[S.track] || S.genre) : S.genre;
+      const label = fromBoard ? drill.dataset.theme
+        : (((API.feed[genre]||[])[S.peek]||[])[2] || '该剧');
+      S.genre = genre; S.dest = '发现'; S.pop = null; S.sheet = null; hidePeek();
+      const theme = (API.dims[genre]||{}).category_dim_theme || {items:[]};
+      const hit = theme.items.find(([n]) => label===n || label.startsWith(n));
+      S.sel.theme = hit ? hit[1] : '';
+      S.drill = hit
+        ? `下钻：类型切到「${GENRE_NAMES[genre]}」，L2 主题写上「${hit[0]}」=${hit[1]}；L3 排序与滚动位置都不动（主题只是这一页内的可滑页）`
+        : `下钻未命中：「${label}」不在 ${GENRE_NAMES[genre]} 的主题词表里（上游按类型发布，本类型只有 ${theme.items.length} 个主题）→ 只切类型，主题留「全部」，不硬凑一个相近的词`;
+      renderAll();
+    } else {
+      S.dest='榜单'; S.track='comic_series_rank'; S.board='comic_series_hot_play'; S.pop=null; hidePeek();
+      S.drill='卡面 → 榜单下钻：跳到漫剧·热播榜，位次由 cell_data 下标给';
+      renderAll();
+    }
+  }
+});
+
+function bind(){
+  /* 先渲染弹层与抽屉，再让上面那个委托去接管它们 */
+  deskPop(); mobSheet();
+  /* 桌面 hover 预览：1.5s 延迟、可 cancel */
+  document.querySelectorAll('[data-card]').forEach(el=>{
+    el.onmouseenter=()=>{ clearTimeout(peekTimer); peekTimer=setTimeout(()=>showPeek(+el.dataset.card, el),1500); };
+    el.onmouseleave=()=>{ clearTimeout(peekTimer); setTimeout(()=>{ if(S.peek!==null && !document.getElementById('d-peek').matches(':hover')) hidePeek(); },300); };
+    el.onclick=()=>{ S.drill='点卡 = 进播放详情（本轮不改）；这里演示的是「找同题材」下钻'; showPeek(+el.dataset.card, el); };
+  });
+}
+
+function renderLegend(){
+  let l;
+  if(S.dest==='榜单'){
+    l = '<b>榜单是目的地，不是发现页的一个参数</b>：它的请求不吃类型与主题（selected_items / sub_selected_items 自成一套），'
+      + '上游已发布 '+API.rankTracks.length+' 条赛道、'+API.rankTracks.reduce((a,t)=>a+t[2].length,0)+' 块榜，app 只接了 3 块；'
+      + '<b>周期这一维上游确实没有</b>（inner_rows=0），所以界面上不给「日/周/月」。';
+  } else if(S.dest==='我的'){
+    l = '本页不在本轮范围，占位。';
+  } else {
+    l = '<b>第一行只剩类型（换页）</b>；主题与「更多筛选」共 7 个维度里，app 今天已经在请求体里带了 6 个键但恒送空数组（catalog.dart:409-421）——'
+      + '<b>筛选能力不是上游缺口，是 app 没用</b>。排序独立成第三层，只改 <code>select_items.sort</code>。'
+      + '<span style="color:#8b909e">旧现状：类型和「推荐/最新/榜单」挤在同一行，前者换页、后者换参数，一进榜类型行就消失。</span>';
+  }
+  document.getElementById('legend').innerHTML = l;
+}
+function renderKbd(){
+  document.getElementById('kbd').innerHTML = S.view==='desk'
+    ? '<b>键盘族（桌面）：</b><kbd>Tab</kbd> 顺序 = 目的地 → 类型 → 主题 → 更多筛选 → 排序 → 卡面；'
+      + '<kbd>Esc</kbd> 关弹层/hover 预览；<kbd>←</kbd><kbd>→</kbd> 在 chip 行内移动焦点（行是原生顺序，不做漫游）；'
+      + '<kbd>Enter</kbd> 等同于点按；<kbd>F</kbd> 打开更多筛选、<kbd>O</kbd> 打开排序（这两个是本轮新增的单键，与播放页快捷键不冲突）。'
+    : '<b>触控族（移动）：</b>第一行/第二行横向滑动、到边后把手势交给外层翻页（现状 v0.3.7 的三级交接）；'
+      + '第二行右侧固定「≡」和「排序 ▾」两枚，点开底部弹层；长按卡面 = 收藏（本轮不动）。';
+}
+
+function renderAll(){
+  document.getElementById('desk').classList.toggle('on', S.view==='desk');
+  document.getElementById('mob').classList.toggle('on', S.view==='mob');
+  if(S.view==='desk') renderDesk(); else renderMob();
+  refreshReadout(); renderLegend(); renderKbd();
+}
+
+document.getElementById('v-desk').onclick=()=>{S.view='desk';
+  document.getElementById('v-desk').setAttribute('aria-pressed','true');
+  document.getElementById('v-mob').setAttribute('aria-pressed','false');
+  S.sheet=null; renderAll();};
+document.getElementById('v-mob').onclick=()=>{S.view='mob';
+  document.getElementById('v-mob').setAttribute('aria-pressed','true');
+  document.getElementById('v-desk').setAttribute('aria-pressed','false');
+  S.pop=null; hidePeek(); renderAll();};
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{
+  S.mode=b.dataset.mode;
+  document.querySelectorAll('[data-mode]').forEach(x=>x.setAttribute('aria-pressed', String(x===b)));
+  S.drill = S.mode==='ok'? null : ('状态演示：'+S.mode);
+  renderAll();
+});
+document.getElementById('d-sort-btn').onclick=()=>{S.pop=S.pop==='sort'?null:'sort';deskPop();refreshReadout();};
+document.getElementById('d-filter-btn').onclick=()=>{S.pop=S.pop==='filter'?null:'filter';deskPop();refreshReadout();};
+document.getElementById('m-filter-btn').onclick=()=>{S.sheet=S.sheet==='filter'?null:'filter';mobSheet();refreshReadout();};
+
+/* 移动：顶段折叠、两行吸顶（现状语义演示） */
+document.getElementById('m-scroll').addEventListener('scroll',(e)=>{
+  document.getElementById('screen').classList.toggle('folded', e.target.scrollTop>18);
+});
+
+/* 全局 Esc 关弹层（键盘族） */
+document.addEventListener('keydown',(e)=>{
+  if(e.key==='Escape'){ S.pop=null; S.sheet=null; hidePeek(); deskPop(); mobSheet(); refreshReadout(); }
+  if(e.key.toLowerCase()==='f' && !/input|textarea/i.test(document.activeElement.tagName)){
+    S.pop=S.pop==='filter'?null:'filter'; deskPop(); refreshReadout();
+  }
+  if(e.key.toLowerCase()==='o' && !/input|textarea/i.test(document.activeElement.tagName)){
+    S.pop=S.pop==='sort'?null:'sort'; deskPop(); refreshReadout();
+  }
+});
+
+renderAll();
+</script>
+</body>
+</html>

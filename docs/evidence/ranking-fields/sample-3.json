@@ -1,0 +1,5930 @@
+{
+  "at": "2026-10-30T02:05:11.817277Z",
+  "anonymous": true,
+  "note": "filter vocabulary and leaderboard field shape only; no urls, headers, signed parameters, media keys or bodies",
+  "cellSelectorSample": {
+    "outer_row": {
+      "row_name": "",
+      "type": "outer_row",
+      "selection_type": 3,
+      "row_keys": [
+        "items",
+        "row_name",
+        "type",
+        "selection_type"
+      ],
+      "item_count": 5,
+      "item_keys_sample": [
+        "show_name",
+        "selector_item_id",
+        "is_selected",
+        "recommend_group_id",
+        "recommend_info",
+        "selector_item_type",
+        "show_type",
+        "sub_cell_selector"
+      ],
+      "items": [
+        {
+          "show_name": "全部",
+          "selector_item_id": "all",
+          "is_selected": false,
+          "selector_item_type": "",
+          "sub_cell_selector": {
+            "outer_row": {
+              "row_name": "",
+              "type": "outer_row",
+              "selection_type": 3,
+              "row_keys": [
+                "items",
+                "row_name",
+                "type",
+                "selection_type"
+              ],
+              "item_count": 8,
+              "item_keys_sample": [
+                "show_name",
+                "selector_item_id",
+                "is_selected",
+                "recommend_group_id",
+                "recommend_info",
+                "selector_item_type",
+                "show_type",
+                "sub_title",
+                "title_url",
+                "dark_title_url",
+                "sub_tile_color",
+                "sub_tile_dark_color",
+                "backgroud_url",
+                "backgroud_dark_url",
+                "background_color",
+                "background_dark_color",
+                "panel_selector"
+              ],
+              "items": [
+                {
+                  "show_name": "推荐榜",
+                  "selector_item_id": "ranklist_hot_sc",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "热播榜",
+                  "selector_item_id": "ranklist_hot_play_sc",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "预约榜",
+                  "selector_item_id": "ranklist_subscribe",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "新剧榜",
+                  "selector_item_id": "ranklist_new_rank_sc",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "热搜榜",
+                  "selector_item_id": "ranklist_hot_search_sc",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "追更榜",
+                  "selector_item_id": "ranklist_chase_update",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "必看榜",
+                  "selector_item_id": "ranklist_must_watch",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "收藏榜",
+                  "selector_item_id": "ranklist_followed",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                }
+              ]
+            },
+            "inner_rows": [],
+            "inner_title": "",
+            "show_style": 0,
+            "selector_display_style": 3,
+            "no_collapse_arrow": true
+          }
+        },
+        {
+          "show_name": "真人剧",
+          "selector_item_id": "human",
+          "is_selected": false,
+          "selector_item_type": "",
+          "sub_cell_selector": {
+            "outer_row": {
+              "row_name": "",
+              "type": "outer_row",
+              "selection_type": 3,
+              "row_keys": [
+                "items",
+                "row_name",
+                "type",
+                "selection_type"
+              ],
+              "item_count": 6,
+              "item_keys_sample": [
+                "show_name",
+                "selector_item_id",
+                "is_selected",
+                "recommend_group_id",
+                "recommend_info",
+                "selector_item_type",
+                "show_type",
+                "sub_title",
+                "title_url",
+                "dark_title_url",
+                "sub_tile_color",
+                "sub_tile_dark_color",
+                "backgroud_url",
+                "backgroud_dark_url",
+                "background_color",
+                "background_dark_color",
+                "panel_selector"
+              ],
+              "items": [
+                {
+                  "show_name": "推荐榜",
+                  "selector_item_id": "human_hot_sc",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "热播榜",
+                  "selector_item_id": "human_hot_play",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "新剧榜",
+                  "selector_item_id": "human_new_rank",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "热搜榜",
+                  "selector_item_id": "human_hot_search",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "必看榜",
+                  "selector_item_id": "human_must_watch",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "收藏榜",
+                  "selector_item_id": "human_followed",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                }
+              ]
+            },
+            "inner_rows": [],
+            "inner_title": "",
+            "show_style": 0,
+            "selector_display_style": 3,
+            "no_collapse_arrow": true
+          }
+        },
+        {
+          "show_name": "漫剧",
+          "selector_item_id": "comic_series_rank",
+          "is_selected": true,
+          "selector_item_type": "",
+          "sub_cell_selector": {
+            "outer_row": {
+              "row_name": "",
+              "type": "outer_row",
+              "selection_type": 3,
+              "row_keys": [
+                "items",
+                "row_name",
+                "type",
+                "selection_type"
+              ],
+              "item_count": 4,
+              "item_keys_sample": [
+                "show_name",
+                "selector_item_id",
+                "is_selected",
+                "recommend_group_id",
+                "recommend_info",
+                "selector_item_type",
+                "show_type",
+                "sub_title",
+                "title_url",
+                "dark_title_url",
+                "sub_tile_color",
+                "sub_tile_dark_color",
+                "backgroud_url",
+                "backgroud_dark_url",
+                "background_color",
+                "background_dark_color",
+                "panel_selector"
+              ],
+              "items": [
+                {
+                  "show_name": "推荐榜",
+                  "selector_item_id": "comic_series_hot_rank",
+                  "is_selected": true,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "热播榜",
+                  "selector_item_id": "comic_series_hot_play",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "新剧榜",
+                  "selector_item_id": "comic_series_new_rank",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "热搜榜",
+                  "selector_item_id": "comic_series_hot_search",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                }
+              ]
+            },
+            "inner_rows": [],
+            "inner_title": "",
+            "show_style": 0,
+            "selector_display_style": 3,
+            "no_collapse_arrow": true
+          }
+        },
+        {
+          "show_name": "AI剧",
+          "selector_item_id": "ai_playlet",
+          "is_selected": false,
+          "selector_item_type": "",
+          "sub_cell_selector": {
+            "outer_row": {
+              "row_name": "",
+              "type": "outer_row",
+              "selection_type": 3,
+              "row_keys": [
+                "items",
+                "row_name",
+                "type",
+                "selection_type"
+              ],
+              "item_count": 6,
+              "item_keys_sample": [
+                "show_name",
+                "selector_item_id",
+                "is_selected",
+                "recommend_group_id",
+                "recommend_info",
+                "selector_item_type",
+                "show_type",
+                "sub_title",
+                "title_url",
+                "dark_title_url",
+                "sub_tile_color",
+                "sub_tile_dark_color",
+                "backgroud_url",
+                "backgroud_dark_url",
+                "background_color",
+                "background_dark_color"
+              ],
+              "items": [
+                {
+                  "show_name": "推荐榜",
+                  "selector_item_id": "ai_playlet_hot_sc",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "热播榜",
+                  "selector_item_id": "ai_playlet_hot_play",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "新剧榜",
+                  "selector_item_id": "ai_playlet_new_rank",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "热搜榜",
+                  "selector_item_id": "ai_playlet_hot_search",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "必看榜",
+                  "selector_item_id": "ai_playlet_must_watch",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "收藏榜",
+                  "selector_item_id": "ai_playlet_followed",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                }
+              ]
+            },
+            "inner_rows": [],
+            "inner_title": "",
+            "show_style": 0,
+            "selector_display_style": 3,
+            "no_collapse_arrow": true
+          }
+        },
+        {
+          "show_name": "演员",
+          "selector_item_id": "ranklist_celebrity",
+          "is_selected": false,
+          "selector_item_type": "",
+          "sub_cell_selector": {
+            "outer_row": {
+              "row_name": "",
+              "type": "outer_row",
+              "selection_type": 3,
+              "row_keys": [
+                "items",
+                "row_name",
+                "type",
+                "selection_type"
+              ],
+              "item_count": 2,
+              "item_keys_sample": [
+                "show_name",
+                "selector_item_id",
+                "is_selected",
+                "recommend_group_id",
+                "recommend_info",
+                "selector_item_type",
+                "show_type",
+                "sub_title",
+                "title_url",
+                "dark_title_url",
+                "sub_tile_color",
+                "sub_tile_dark_color",
+                "backgroud_url",
+                "backgroud_dark_url",
+                "background_color",
+                "background_dark_color"
+              ],
+              "items": [
+                {
+                  "show_name": "剧星榜",
+                  "selector_item_id": "ranklist_series_actor",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                },
+                {
+                  "show_name": "星光榜",
+                  "selector_item_id": "ranklist_actor_fans",
+                  "is_selected": false,
+                  "selector_item_type": ""
+                }
+              ]
+            },
+            "inner_rows": [],
+            "inner_title": "",
+            "show_style": 0,
+            "selector_display_style": 3,
+            "no_collapse_arrow": true
+          }
+        }
+      ]
+    },
+    "inner_rows": [],
+    "inner_title": "",
+    "show_style": 0,
+    "selector_display_style": 3,
+    "no_collapse_arrow": true
+  },
+  "filterVocabulary": {
+    "short_play": {
+      "themeCount": 29,
+      "themes": [
+        {
+          "name": "悬疑",
+          "id": "cate_165"
+        },
+        {
+          "name": "宫斗",
+          "id": "cate_246"
+        },
+        {
+          "name": "脑洞",
+          "id": "cate_262"
+        },
+        {
+          "name": "青春",
+          "id": "cate_297"
+        },
+        {
+          "name": "动作",
+          "id": "cate_302"
+        },
+        {
+          "name": "喜剧",
+          "id": "cate_303"
+        },
+        {
+          "name": "古言",
+          "id": "cate_439"
+        },
+        {
+          "name": "抗战",
+          "id": "cate_504"
+        },
+        {
+          "name": "灵异",
+          "id": "cate_751"
+        },
+        {
+          "name": "仙侠",
+          "id": "cate_1013"
+        },
+        {
+          "name": "玄幻",
+          "id": "cate_1019"
+        },
+        {
+          "name": "奇幻",
+          "id": "cate_1020"
+        },
+        {
+          "name": "现言",
+          "id": "cate_1021"
+        },
+        {
+          "name": "年代爱情",
+          "id": "cate_1022"
+        },
+        {
+          "name": "民国爱情",
+          "id": "cate_1025"
+        },
+        {
+          "name": "志怪",
+          "id": "cate_1027"
+        },
+        {
+          "name": "战神",
+          "id": "cate_1038"
+        },
+        {
+          "name": "权谋",
+          "id": "cate_1047"
+        },
+        {
+          "name": "女性成长",
+          "id": "cate_1048"
+        },
+        {
+          "name": "科幻",
+          "id": "cate_1092"
+        },
+        {
+          "name": "法律",
+          "id": "cate_1136"
+        },
+        {
+          "name": "刑侦",
+          "id": "cate_1148"
+        },
+        {
+          "name": "求生",
+          "id": "cate_1168"
+        },
+        {
+          "name": "武侠",
+          "id": "cate_1172"
+        },
+        {
+          "name": "种田",
+          "id": "cate_1180"
+        },
+        {
+          "name": "恐怖",
+          "id": "cate_1219"
+        },
+        {
+          "name": "商战",
+          "id": "cate_1225"
+        },
+        {
+          "name": "家国情怀",
+          "id": "cate_1235"
+        },
+        {
+          "name": "民国传奇",
+          "id": "cate_1240"
+        }
+      ],
+      "themeError": null,
+      "landpageCaptures": 1
+    },
+    "comic_series": {
+      "themeCount": 0,
+      "themes": [],
+      "themeError": "IncompleteCatalogResponse: 内容接口未返回数据，请稍后重试",
+      "landpageCaptures": 0
+    },
+    "ai_series": {
+      "themeCount": 8,
+      "themes": [
+        {
+          "name": "剧情",
+          "id": "cate_316"
+        },
+        {
+          "name": "奇幻",
+          "id": "cate_6"
+        },
+        {
+          "name": "玄幻",
+          "id": "cate_7"
+        },
+        {
+          "name": "末世",
+          "id": "cate_68"
+        },
+        {
+          "name": "脑洞",
+          "id": "cate_755"
+        },
+        {
+          "name": "豪门",
+          "id": "cate_936"
+        },
+        {
+          "name": "科幻",
+          "id": "cate_1092"
+        },
+        {
+          "name": "冒险",
+          "id": "cate_1182"
+        }
+      ],
+      "themeError": null,
+      "landpageCaptures": 1
+    }
+  },
+  "feeds": {
+    "short_play": {
+      "ok": true,
+      "error": null,
+      "count": 18,
+      "nextCursor": "18",
+      "rows": [
+        {
+          "id": "7701252774398266392",
+          "title": "离婚后他才知道资方只认我",
+          "episodeCount": 40,
+          "tagNames": [
+            "成长",
+            "女性成长",
+            "隐藏大佬",
+            "追妻",
+            "虐渣",
+            "大女主",
+            "现代",
+            "情感觉醒"
+          ]
+        },
+        {
+          "id": "7700797165664209944",
+          "title": "我有一辆寻宝三轮车",
+          "episodeCount": 92,
+          "tagNames": [
+            "都市",
+            "逆袭翻身",
+            "打脸反派",
+            "系统",
+            "大男主",
+            "现代",
+            "都市脑洞"
+          ]
+        },
+        {
+          "id": "7700862621431385113",
+          "title": "鱼缸里到底有什么",
+          "episodeCount": 78,
+          "tagNames": [
+            "悬疑",
+            "悬疑情感",
+            "自我救赎",
+            "打脸反派",
+            "大女主",
+            "现代",
+            "推理解谜"
+          ]
+        },
+        {
+          "id": "7700857209407671358",
+          "title": "精神小妹一出手，自闭陆总会说话了",
+          "episodeCount": 40,
+          "tagNames": [
+            "爱情",
+            "都市爱情",
+            "权力斗争",
+            "日久生情",
+            "逆风翻盘",
+            "直爽女主",
+            "总裁",
+            "现代"
+          ]
+        },
+        {
+          "id": "7701278287900707864",
+          "title": "心动第七年",
+          "episodeCount": 41,
+          "tagNames": [
+            "爱情",
+            "都市爱情",
+            "日久生情",
+            "故人重逢",
+            "揭露阴谋",
+            "直爽女主",
+            "忠诚男主",
+            "总裁",
+            "现代"
+          ]
+        },
+        {
+          "id": "7701721269640645656",
+          "title": "婆婆的手机",
+          "episodeCount": 42,
+          "tagNames": [
+            "家庭",
+            "家庭伦理",
+            "揭露阴谋",
+            "矛盾和解",
+            "乡村",
+            "现代"
+          ]
+        },
+        {
+          "id": "7700999976154827800",
+          "title": "与海鸥同行后大海成了我家鱼塘",
+          "episodeCount": 71,
+          "tagNames": [
+            "逆袭",
+            "奇幻脑洞",
+            "异能",
+            "轻松搞笑",
+            "大男主",
+            "方言",
+            "现代"
+          ]
+        },
+        {
+          "id": "7699488316164410393",
+          "title": "茶馆风云",
+          "episodeCount": 41,
+          "tagNames": [
+            "家庭",
+            "家庭伦理",
+            "揭露阴谋",
+            "极品亲戚",
+            "现代"
+          ]
+        },
+        {
+          "id": "7701614840002923544",
+          "title": "千金止损",
+          "episodeCount": 40,
+          "tagNames": [
+            "爱情",
+            "青春爱情",
+            "重生",
+            "日久生情",
+            "虐渣",
+            "隐藏大佬",
+            "忠诚男主",
+            "现代"
+          ]
+        },
+        {
+          "id": "7699106407588580376",
+          "title": "我的饭搭子是状元",
+          "episodeCount": 39,
+          "tagNames": [
+            "都市",
+            "都市日常",
+            "穿越",
+            "治愈",
+            "直爽女主",
+            "现代"
+          ]
+        },
+        {
+          "id": "7698719864680107070",
+          "title": "龙城岁月第二季",
+          "episodeCount": 79,
+          "tagNames": [
+            "剧情",
+            "犯罪",
+            "势力纷争",
+            "反转",
+            "大男主",
+            "现代",
+            "黑道"
+          ]
+        },
+        {
+          "id": "7701147375967947800",
+          "title": "后妈难当，真心终抵万难",
+          "episodeCount": 45,
+          "tagNames": [
+            "家庭",
+            "家庭伦理",
+            "逆风翻盘",
+            "极品亲戚",
+            "后妈",
+            "现代",
+            "亲情"
+          ]
+        },
+        {
+          "id": "7701291948576885784",
+          "title": "那个男人强无敌",
+          "episodeCount": 100,
+          "tagNames": [
+            "都市",
+            "都市玄幻",
+            "奉命下山",
+            "大男主",
+            "总裁",
+            "现代"
+          ]
+        },
+        {
+          "id": "7701719465611758616",
+          "title": "六万八的贺礼，让我看透婚礼上的人情冷暖",
+          "episodeCount": 40,
+          "tagNames": [
+            "都市",
+            "都市日常",
+            "隐藏大佬",
+            "打脸反派",
+            "揭露阴谋",
+            "大男主",
+            "总裁",
+            "现代"
+          ]
+        },
+        {
+          "id": "7698993535680269337",
+          "title": "杀手归来，以后换我保护妈妈",
+          "episodeCount": 85,
+          "tagNames": [
+            "都市",
+            "逆袭翻身",
+            "打脸反派",
+            "女强",
+            "刺客杀手",
+            "现代",
+            "亲情"
+          ]
+        },
+        {
+          "id": "7701728488977353753",
+          "title": "考试前一分钟，我夺回了准考证",
+          "episodeCount": 80,
+          "tagNames": [
+            "成长",
+            "女性成长",
+            "逆风翻盘",
+            "打脸反派",
+            "揭露阴谋",
+            "大女主",
+            "现代",
+            "励志自强"
+          ]
+        },
+        {
+          "id": "7698323268322741273",
+          "title": "国士归家",
+          "episodeCount": 61,
+          "tagNames": [
+            "都市",
+            "都市日常",
+            "重生",
+            "网络暴力",
+            "大男主",
+            "业界精英",
+            "现代"
+          ]
+        },
+        {
+          "id": "7700899985834904600",
+          "title": "红星巷往事",
+          "episodeCount": 43,
+          "tagNames": [
+            "年代",
+            "年代创业",
+            "经营奋斗",
+            "逆风翻盘",
+            "揭露阴谋",
+            "大男主"
+          ]
+        }
+      ]
+    },
+    "comic_series": {
+      "ok": false,
+      "error": "IncompleteCatalogResponse: 内容接口未返回数据，请稍后重试",
+      "count": null,
+      "nextCursor": null,
+      "rows": []
+    },
+    "ai_series": {
+      "ok": true,
+      "error": null,
+      "count": 18,
+      "nextCursor": "18",
+      "rows": [
+        {
+          "id": "7701751940455074840",
+          "title": "五百块住在我家,还真把自己当房东",
+          "episodeCount": 66,
+          "tagNames": [
+            "剧情",
+            "都市"
+          ]
+        },
+        {
+          "id": "7701393223658261528",
+          "title": "十五万账单局中局",
+          "episodeCount": 22,
+          "tagNames": [
+            "剧情",
+            "反转",
+            "都市"
+          ]
+        },
+        {
+          "id": "7701724104637811737",
+          "title": "婚后慢熟第四季",
+          "episodeCount": 92,
+          "tagNames": [
+            "恋爱",
+            "都市",
+            "豪门"
+          ]
+        },
+        {
+          "id": "7701400950644149272",
+          "title": "赘婿不装了：庆功宴我亮出百亿底牌",
+          "episodeCount": 40,
+          "tagNames": [
+            "总裁",
+            "都市",
+            "豪门"
+          ]
+        },
+        {
+          "id": "7701380852957072409",
+          "title": "带儿回家讨回公道",
+          "episodeCount": 103,
+          "tagNames": [
+            "剧情",
+            "逆袭",
+            "都市",
+            "豪门"
+          ]
+        },
+        {
+          "id": "7700925121019530302",
+          "title": "开我二百五月薪，十八年老汤你们自己熬",
+          "episodeCount": 43,
+          "tagNames": [
+            "新剧"
+          ]
+        },
+        {
+          "id": "7700912641375489086",
+          "title": "车座塞满舞伴的菜，我果断离婚清算家产",
+          "episodeCount": 49,
+          "tagNames": [
+            "剧情",
+            "逆袭",
+            "都市"
+          ]
+        },
+        {
+          "id": "7700488707584838718",
+          "title": "岁月向暖，终遇良人",
+          "episodeCount": 50,
+          "tagNames": [
+            "剧情",
+            "逆袭",
+            "都市"
+          ]
+        },
+        {
+          "id": "7701527738187795481",
+          "title": "十张空卡，让我彻底清醒",
+          "episodeCount": 45,
+          "tagNames": [
+            "剧情",
+            "逆袭",
+            "都市"
+          ]
+        },
+        {
+          "id": "7700935550533897241",
+          "title": "月子里被迫离开",
+          "episodeCount": 74,
+          "tagNames": [
+            "剧情",
+            "逆袭",
+            "年代",
+            "乡村"
+          ]
+        },
+        {
+          "id": "7700908559298464830",
+          "title": "渊微赋",
+          "episodeCount": 40,
+          "tagNames": [
+            "宫廷",
+            "逆袭",
+            "古代"
+          ]
+        },
+        {
+          "id": "7700462423735553048",
+          "title": "河底捞福，苏家小团团",
+          "episodeCount": 64,
+          "tagNames": [
+            "剧情",
+            "逆袭",
+            "年代",
+            "乡村"
+          ]
+        },
+        {
+          "id": "7701717920061066265",
+          "title": "婚礼当天，她选择替人撑场",
+          "episodeCount": 80,
+          "tagNames": [
+            "恋爱",
+            "都市"
+          ]
+        },
+        {
+          "id": "7701195307891035160",
+          "title": "家在心归处",
+          "episodeCount": 45,
+          "tagNames": [
+            "剧情",
+            "逆袭",
+            "都市",
+            "豪门"
+          ]
+        },
+        {
+          "id": "7701161291569695769",
+          "title": "重返2003，逆袭成福布斯榜首",
+          "episodeCount": 93,
+          "tagNames": [
+            "脑洞",
+            "重生",
+            "逆袭",
+            "都市"
+          ]
+        },
+        {
+          "id": "7700536659896437784",
+          "title": "七零小福星：带舅舅进山奇遇记",
+          "episodeCount": 79,
+          "tagNames": [
+            "脑洞",
+            "逆袭",
+            "年代",
+            "乡村"
+          ]
+        },
+        {
+          "id": "7701997779438013464",
+          "title": "神豪外挂第二季",
+          "episodeCount": 166,
+          "tagNames": [
+            "脑洞",
+            "系统",
+            "都市",
+            "豪门"
+          ]
+        },
+        {
+          "id": "7702053444823043097",
+          "title": "岁岁平安，再无我们",
+          "episodeCount": 42,
+          "tagNames": [
+            "恋爱",
+            "重生",
+            "都市"
+          ]
+        }
+      ]
+    }
+  },
+  "landpages": [
+    {
+      "request": "themes(short_play)",
+      "status": 200,
+      "dataKeys": [
+        "has_more",
+        "max_expand_num",
+        "next_offset",
+        "selector_rows",
+        "session_id",
+        "video_data"
+      ],
+      "rows": [
+        {
+          "row_name": "全部体裁",
+          "type": "genre",
+          "selection_type": 2,
+          "row_keys": [
+            "items",
+            "refresh_other_selector_row",
+            "row_name",
+            "selection_type",
+            "selector_row_style",
+            "type"
+          ],
+          "item_count": 3,
+          "item_keys_sample": [
+            "is_selected",
+            "recommend_group_id",
+            "recommend_info",
+            "selector_item_id",
+            "selector_item_type",
+            "show_name",
+            "show_type"
+          ],
+          "items": [
+            {
+              "show_name": "真人剧",
+              "selector_item_id": "short_play",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "漫剧",
+              "selector_item_id": "comic_series",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "AI剧",
+              "selector_item_id": "ai_series",
+              "is_selected": false,
+              "selector_item_type": ""
+            }
+          ]
+        },
+        {
+          "row_name": "全部主题",
+          "type": "category_dim_theme",
+          "selection_type": 2,
+          "row_keys": [
+            "items",
+            "row_name",
+            "selection_type",
+            "selector_row_style",
+            "type"
+          ],
+          "item_count": 29,
+          "item_keys_sample": [
+            "is_selected",
+            "recommend_group_id",
+            "recommend_info",
+            "selector_item_id",
+            "selector_item_type",
+            "show_name",
+            "show_type"
+          ],
+          "items": [
+            {
+              "show_name": "悬疑",
+              "selector_item_id": "cate_165",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "宫斗",
+              "selector_item_id": "cate_246",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "脑洞",
+              "selector_item_id": "cate_262",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "青春",
+              "selector_item_id": "cate_297",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "动作",
+              "selector_item_id": "cate_302",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "喜剧",
+              "selector_item_id": "cate_303",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "古言",
+              "selector_item_id": "cate_439",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "抗战",
+              "selector_item_id": "cate_504",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "灵异",
+              "selector_item_id": "cate_751",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "仙侠",
+              "selector_item_id": "cate_1013",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "玄幻",
+              "selector_item_id": "cate_1019",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "奇幻",
+              "selector_item_id": "cate_1020",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "现言",
+              "selector_item_id": "cate_1021",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "年代爱情",
+              "selector_item_id": "cate_1022",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "民国爱情",
+              "selector_item_id": "cate_1025",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "志怪",
+              "selector_item_id": "cate_1027",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "战神",
+              "selector_item_id": "cate_1038",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "权谋",
+              "selector_item_id": "cate_1047",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "女性成长",
+              "selector_item_id": "cate_1048",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "科幻",
+              "selector_item_id": "cate_1092",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "法律",
+              "selector_item_id": "cate_1136",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "刑侦",
+              "selector_item_id": "cate_1148",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "求生",
+              "selector_item_id": "cate_1168",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "武侠",
+              "selector_item_id": "cate_1172",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "种田",
+              "selector_item_id": "cate_1180",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "恐怖",
+              "selector_item_id": "cate_1219",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "商战",
+              "selector_item_id": "cate_1225",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "家国情怀",
+              "selector_item_id": "cate_1235",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "民国传奇",
+              "selector_item_id": "cate_1240",
+              "is_selected": false,
+              "selector_item_type": ""
+            }
+          ]
+        },
+        {
+          "row_name": "全部设定",
+          "type": "category_dim_role",
+          "selection_type": 2,
+          "row_keys": [
+            "items",
+            "row_name",
+            "selection_type",
+            "selector_row_style",
+            "type"
+          ],
+          "item_count": 42,
+          "item_keys_sample": [
+            "is_selected",
+            "recommend_group_id",
+            "recommend_info",
+            "selector_item_id",
+            "selector_item_type",
+            "show_name",
+            "show_type"
+          ],
+          "items": [
+            {
+              "show_name": "系统",
+              "selector_item_id": "cate_19",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "神豪",
+              "selector_item_id": "cate_20",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "神医",
+              "selector_item_id": "cate_26",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "重生",
+              "selector_item_id": "cate_36",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "穿越",
+              "selector_item_id": "cate_37",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "娱乐圈",
+              "selector_item_id": "cate_43",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "甜宠",
+              "selector_item_id": "cate_96",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "先婚后爱",
+              "selector_item_id": "cate_265",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "马甲",
+              "selector_item_id": "cate_266",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "特种兵",
+              "selector_item_id": "cate_375",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "病娇",
+              "selector_item_id": "cate_380",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "青梅竹马",
+              "selector_item_id": "cate_387",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "萌宠",
+              "selector_item_id": "cate_428",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "破镜重圆",
+              "selector_item_id": "cate_475",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "一见钟情",
+              "selector_item_id": "cate_477",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "医生",
+              "selector_item_id": "cate_487",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "丧尸",
+              "selector_item_id": "cate_582",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "异能",
+              "selector_item_id": "cate_598",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "白月光",
+              "selector_item_id": "cate_615",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "追妻火葬场",
+              "selector_item_id": "cate_616",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "大女主",
+              "selector_item_id": "cate_760",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "姐弟恋",
+              "selector_item_id": "cate_762",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "黑道",
+              "selector_item_id": "cate_826",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "灵魂互换",
+              "selector_item_id": "cate_831",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "家长里短",
+              "selector_item_id": "cate_862",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "玄学",
+              "selector_item_id": "cate_929",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "豪门",
+              "selector_item_id": "cate_936",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "传承觉醒",
+              "selector_item_id": "cate_1007",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "虐恋",
+              "selector_item_id": "cate_1008",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "小人物",
+              "selector_item_id": "cate_1010",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "反派主角",
+              "selector_item_id": "cate_1042",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "赘婿逆袭",
+              "selector_item_id": "cate_1044",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "强者回归",
+              "selector_item_id": "cate_1045",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "强强联合",
+              "selector_item_id": "cate_1049",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "打脸虐渣",
+              "selector_item_id": "cate_1051",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "暴富",
+              "selector_item_id": "cate_1191",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "双向救赎",
+              "selector_item_id": "cate_1200",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "大男主",
+              "selector_item_id": "cate_1207",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "方言",
+              "selector_item_id": "cate_1255",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "捞偏门",
+              "selector_item_id": "cate_1287",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "福宝",
+              "selector_item_id": "cate_1291",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "业界精英",
+              "selector_item_id": "cate_1293",
+              "is_selected": false,
+              "selector_item_type": ""
+            }
+          ]
+        },
+        {
+          "row_name": "全部背景",
+          "type": "category_dim_epoch",
+          "selection_type": 2,
+          "row_keys": [
+            "items",
+            "row_name",
+            "selection_type",
+            "selector_row_style",
+            "type"
+          ],
+          "item_count": 11,
+          "item_keys_sample": [
+            "is_selected",
+            "recommend_group_id",
+            "recommend_info",
+            "selector_item_id",
+            "selector_item_type",
+            "show_name",
+            "show_type"
+          ],
+          "items": [
+            {
+              "show_name": "都市",
+              "selector_item_id": "cate_1",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "校园",
+              "selector_item_id": "cate_4",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "乡村",
+              "selector_item_id": "cate_11",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "年代",
+              "selector_item_id": "cate_79",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "职场",
+              "selector_item_id": "cate_127",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "民国",
+              "selector_item_id": "cate_390",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "架空",
+              "selector_item_id": "cate_452",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "现代",
+              "selector_item_id": "cate_757",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "古代",
+              "selector_item_id": "cate_758",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "宫廷",
+              "selector_item_id": "cate_1153",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "荒岛",
+              "selector_item_id": "cate_1162",
+              "is_selected": false,
+              "selector_item_type": ""
+            }
+          ]
+        },
+        {
+          "row_name": "全部推荐",
+          "type": "sort",
+          "selection_type": 2,
+          "row_keys": [
+            "items",
+            "row_name",
+            "selection_type",
+            "selector_row_style",
+            "type"
+          ],
+          "item_count": 3,
+          "item_keys_sample": [
+            "is_selected",
+            "recommend_group_id",
+            "recommend_info",
+            "selector_item_id",
+            "selector_item_type",
+            "show_name",
+            "show_type"
+          ],
+          "items": [
+            {
+              "show_name": "最新上架",
+              "selector_item_id": "online_time",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "最高热度",
+              "selector_item_id": "hot_score",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "最高收藏",
+              "selector_item_id": "hot_collect",
+              "is_selected": false,
+              "selector_item_type": ""
+            }
+          ]
+        },
+        {
+          "row_name": "全部受众",
+          "type": "gender",
+          "selection_type": 2,
+          "row_keys": [
+            "items",
+            "row_name",
+            "selection_type",
+            "selector_row_style",
+            "type"
+          ],
+          "item_count": 2,
+          "item_keys_sample": [
+            "is_selected",
+            "recommend_group_id",
+            "recommend_info",
+            "selector_item_id",
+            "selector_item_type",
+            "show_name",
+            "show_type"
+          ],
+          "items": [
+            {
+              "show_name": "男频",
+              "selector_item_id": "1",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "女频",
+              "selector_item_id": "0",
+              "is_selected": false,
+              "selector_item_type": ""
+            }
+          ]
+        },
+        {
+          "row_name": "全部时间",
+          "type": "online_time",
+          "selection_type": 2,
+          "row_keys": [
+            "items",
+            "row_name",
+            "selection_type",
+            "selector_row_style",
+            "type"
+          ],
+          "item_count": 4,
+          "item_keys_sample": [
+            "is_selected",
+            "recommend_group_id",
+            "recommend_info",
+            "selector_item_id",
+            "selector_item_type",
+            "show_name",
+            "show_type"
+          ],
+          "items": [
+            {
+              "show_name": "7天内上新",
+              "selector_item_id": "days_7",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "14天内上新",
+              "selector_item_id": "days_14",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "30天内上新",
+              "selector_item_id": "days_30",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "90天内上新",
+              "selector_item_id": "days_90",
+              "is_selected": false,
+              "selector_item_type": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "request": "themes(ai_series)",
+      "status": 200,
+      "dataKeys": [
+        "has_more",
+        "max_expand_num",
+        "next_offset",
+        "selector_rows",
+        "session_id",
+        "video_data"
+      ],
+      "rows": [
+        {
+          "row_name": "全部体裁",
+          "type": "genre",
+          "selection_type": 2,
+          "row_keys": [
+            "items",
+            "refresh_other_selector_row",
+            "row_name",
+            "selection_type",
+            "selector_row_style",
+            "type"
+          ],
+          "item_count": 3,
+          "item_keys_sample": [
+            "is_selected",
+            "recommend_group_id",
+            "recommend_info",
+            "selector_item_id",
+            "selector_item_type",
+            "show_name",
+            "show_type"
+          ],
+          "items": [
+            {
+              "show_name": "真人剧",
+              "selector_item_id": "short_play",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "漫剧",
+              "selector_item_id": "comic_series",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "AI剧",
+              "selector_item_id": "ai_series",
+              "is_selected": false,
+              "selector_item_type": ""
+            }
+          ]
+        },
+        {
+          "row_name": "全部主题",
+          "type": "category_dim_theme",
+          "selection_type": 2,
+          "row_keys": [
+            "items",
+            "row_name",
+            "selection_type",
+            "selector_row_style",
+            "type"
+          ],
+          "item_count": 8,
+          "item_keys_sample": [
+            "is_selected",
+            "recommend_group_id",
+            "recommend_info",
+            "selector_item_id",
+            "selector_item_type",
+            "show_name",
+            "show_type"
+          ],
+          "items": [
+            {
+              "show_name": "剧情",
+              "selector_item_id": "cate_316",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "奇幻",
+              "selector_item_id": "cate_6",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "玄幻",
+              "selector_item_id": "cate_7",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "末世",
+              "selector_item_id": "cate_68",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "脑洞",
+              "selector_item_id": "cate_755",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "豪门",
+              "selector_item_id": "cate_936",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "科幻",
+              "selector_item_id": "cate_1092",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "冒险",
+              "selector_item_id": "cate_1182",
+              "is_selected": false,
+              "selector_item_type": ""
+            }
+          ]
+        },
+        {
+          "row_name": "全部设定",
+          "type": "category_dim_role",
+          "selection_type": 2,
+          "row_keys": [
+            "items",
+            "row_name",
+            "selection_type",
+            "selector_row_style",
+            "type"
+          ],
+          "item_count": 8,
+          "item_keys_sample": [
+            "is_selected",
+            "recommend_group_id",
+            "recommend_info",
+            "selector_item_id",
+            "selector_item_type",
+            "show_name",
+            "show_type"
+          ],
+          "items": [
+            {
+              "show_name": "逆袭",
+              "selector_item_id": "cate_739",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "反转",
+              "selector_item_id": "cate_756",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "穿越",
+              "selector_item_id": "cate_37",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "重生",
+              "selector_item_id": "cate_36",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "总裁",
+              "selector_item_id": "cate_29",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "系统",
+              "selector_item_id": "cate_19",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "娱乐圈",
+              "selector_item_id": "cate_43",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "异能",
+              "selector_item_id": "cate_598",
+              "is_selected": false,
+              "selector_item_type": ""
+            }
+          ]
+        },
+        {
+          "row_name": "全部背景",
+          "type": "category_dim_epoch",
+          "selection_type": 2,
+          "row_keys": [
+            "items",
+            "row_name",
+            "selection_type",
+            "selector_row_style",
+            "type"
+          ],
+          "item_count": 9,
+          "item_keys_sample": [
+            "is_selected",
+            "recommend_group_id",
+            "recommend_info",
+            "selector_item_id",
+            "selector_item_type",
+            "show_name",
+            "show_type"
+          ],
+          "items": [
+            {
+              "show_name": "乡村",
+              "selector_item_id": "cate_11",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "年代",
+              "selector_item_id": "cate_79",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "校园",
+              "selector_item_id": "cate_4",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "民国",
+              "selector_item_id": "cate_390",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "都市",
+              "selector_item_id": "cate_1",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "职场",
+              "selector_item_id": "cate_127",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "架空",
+              "selector_item_id": "cate_452",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "异界",
+              "selector_item_id": "cate_599",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "古代",
+              "selector_item_id": "cate_758",
+              "is_selected": false,
+              "selector_item_type": ""
+            }
+          ]
+        },
+        {
+          "row_name": "全部推荐",
+          "type": "sort",
+          "selection_type": 2,
+          "row_keys": [
+            "items",
+            "row_name",
+            "selection_type",
+            "selector_row_style",
+            "type"
+          ],
+          "item_count": 3,
+          "item_keys_sample": [
+            "is_selected",
+            "recommend_group_id",
+            "recommend_info",
+            "selector_item_id",
+            "selector_item_type",
+            "show_name",
+            "show_type"
+          ],
+          "items": [
+            {
+              "show_name": "最新上架",
+              "selector_item_id": "online_time",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "最高热度",
+              "selector_item_id": "hot_score",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "最高收藏",
+              "selector_item_id": "hot_collect",
+              "is_selected": false,
+              "selector_item_type": ""
+            }
+          ]
+        },
+        {
+          "row_name": "全部受众",
+          "type": "gender",
+          "selection_type": 2,
+          "row_keys": [
+            "items",
+            "row_name",
+            "selection_type",
+            "selector_row_style",
+            "type"
+          ],
+          "item_count": 2,
+          "item_keys_sample": [
+            "is_selected",
+            "recommend_group_id",
+            "recommend_info",
+            "selector_item_id",
+            "selector_item_type",
+            "show_name",
+            "show_type"
+          ],
+          "items": [
+            {
+              "show_name": "男频",
+              "selector_item_id": "1",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "女频",
+              "selector_item_id": "0",
+              "is_selected": false,
+              "selector_item_type": ""
+            }
+          ]
+        },
+        {
+          "row_name": "全部时间",
+          "type": "online_time",
+          "selection_type": 2,
+          "row_keys": [
+            "items",
+            "row_name",
+            "selection_type",
+            "selector_row_style",
+            "type"
+          ],
+          "item_count": 4,
+          "item_keys_sample": [
+            "is_selected",
+            "recommend_group_id",
+            "recommend_info",
+            "selector_item_id",
+            "selector_item_type",
+            "show_name",
+            "show_type"
+          ],
+          "items": [
+            {
+              "show_name": "7天内上新",
+              "selector_item_id": "days_7",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "14天内上新",
+              "selector_item_id": "days_14",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "30天内上新",
+              "selector_item_id": "days_30",
+              "is_selected": false,
+              "selector_item_type": ""
+            },
+            {
+              "show_name": "90天内上新",
+              "selector_item_id": "days_90",
+              "is_selected": false,
+              "selector_item_type": ""
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "browseCards": [
+    {
+      "request": "themes(short_play)",
+      "status": 200,
+      "dataKeys": [
+        "has_more",
+        "max_expand_num",
+        "next_offset",
+        "selector_rows",
+        "session_id",
+        "video_data"
+      ],
+      "count": 1,
+      "nextOffset": 1,
+      "hasMore": true,
+      "cards": [
+        {
+          "series_id": "7701252774398266392",
+          "title": "离婚后他才知道资方只认我",
+          "play_cnt": 976,
+          "score": "8.4",
+          "episode_cnt": 40,
+          "duration": 4414,
+          "content_type": 1,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701252774398266392",
+          "recommend_reason_list": "<string:412>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 0
+            },
+            "dark_bg_color": {
+              "$length": 0
+            },
+            "enable": true,
+            "info_type": 2,
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "红果首发"
+          },
+          "category_schema": "<string:1143>",
+          "color_dominate": "#181018",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "今日上新",
+              "data_type": 0,
+              "highlight": true
+            }
+          },
+          "book_exist": false,
+          "copyright": "红果创作服务平台千部计划",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": false
+        }
+      ]
+    },
+    {
+      "request": "browse(short_play)",
+      "status": 200,
+      "dataKeys": [
+        "has_more",
+        "max_expand_num",
+        "next_offset",
+        "session_id",
+        "video_data"
+      ],
+      "count": 18,
+      "nextOffset": 18,
+      "hasMore": true,
+      "cards": [
+        {
+          "series_id": "7701252774398266392",
+          "title": "离婚后他才知道资方只认我",
+          "play_cnt": 976,
+          "score": "8.4",
+          "episode_cnt": 40,
+          "duration": 4414,
+          "content_type": 1,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701252774398266392",
+          "recommend_reason_list": "<string:412>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 0
+            },
+            "dark_bg_color": {
+              "$length": 0
+            },
+            "enable": true,
+            "info_type": 2,
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "红果首发"
+          },
+          "category_schema": "<string:1143>",
+          "color_dominate": "#181018",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "今日上新",
+              "data_type": 0,
+              "highlight": true
+            }
+          },
+          "book_exist": false,
+          "copyright": "红果创作服务平台千部计划",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": false
+        },
+        {
+          "series_id": "7700797165664209944",
+          "title": "我有一辆寻宝三轮车",
+          "play_cnt": 1044,
+          "score": "8.4",
+          "episode_cnt": 92,
+          "duration": 6971,
+          "content_type": 1,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7700797165664209944",
+          "recommend_reason_list": "<string:412>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 0
+            },
+            "dark_bg_color": {
+              "$length": 0
+            },
+            "enable": true,
+            "info_type": 2,
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "红果首发"
+          },
+          "category_schema": "<string:1002>",
+          "color_dominate": "#301810",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "今日上新",
+              "data_type": 0,
+              "highlight": true
+            }
+          },
+          "book_exist": false,
+          "copyright": "阅益短剧",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": false
+        },
+        {
+          "series_id": "7700862621431385113",
+          "title": "鱼缸里到底有什么",
+          "play_cnt": 988,
+          "score": "8.6",
+          "episode_cnt": 78,
+          "duration": 4656,
+          "content_type": 1,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7700862621431385113",
+          "recommend_reason_list": "<string:412>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 0
+            },
+            "dark_bg_color": {
+              "$length": 0
+            },
+            "enable": true,
+            "info_type": 2,
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "红果首发"
+          },
+          "category_schema": "<string:1006>",
+          "color_dominate": "#101820",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "今日上新",
+              "data_type": 0,
+              "highlight": true
+            }
+          },
+          "book_exist": false,
+          "copyright": "快创短剧",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": false
+        },
+        {
+          "series_id": "7700857209407671358",
+          "title": "精神小妹一出手，自闭陆总会说话了",
+          "play_cnt": 1039,
+          "score": "8.6",
+          "episode_cnt": 40,
+          "duration": 3836,
+          "content_type": 1,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7700857209407671358",
+          "recommend_reason_list": "<string:412>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 0
+            },
+            "dark_bg_color": {
+              "$length": 0
+            },
+            "enable": true,
+            "info_type": 2,
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "红果首发"
+          },
+          "category_schema": "<string:1149>",
+          "color_dominate": "#202028",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "今日上新",
+              "data_type": 0,
+              "highlight": true
+            }
+          },
+          "book_exist": false,
+          "copyright": "红果创作服务平台千部计划",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": false
+        },
+        {
+          "series_id": "7701278287900707864",
+          "title": "心动第七年",
+          "play_cnt": 984,
+          "score": "8.4",
+          "episode_cnt": 41,
+          "duration": 4710,
+          "content_type": 1,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701278287900707864",
+          "recommend_reason_list": "<string:412>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 0
+            },
+            "dark_bg_color": {
+              "$length": 0
+            },
+            "enable": true,
+            "info_type": 2,
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "红果首发"
+          },
+          "category_schema": "<string:1294>",
+          "color_dominate": "#382018",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "今日上新",
+              "data_type": 0,
+              "highlight": true
+            }
+          },
+          "book_exist": false,
+          "copyright": "红果创作服务平台千部计划",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": false
+        },
+        {
+          "series_id": "7701721269640645656",
+          "title": "婆婆的手机",
+          "play_cnt": 1010,
+          "score": "8.4",
+          "episode_cnt": 42,
+          "duration": 4009,
+          "content_type": 1,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701721269640645656",
+          "recommend_reason_list": "<string:412>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 0
+            },
+            "dark_bg_color": {
+              "$length": 0
+            },
+            "enable": true,
+            "info_type": 2,
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "红果首发"
+          },
+          "category_schema": "<string:859>",
+          "color_dominate": "#603808",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "今日上新",
+              "data_type": 0,
+              "highlight": true
+            }
+          },
+          "book_exist": false,
+          "copyright": "红果创作服务平台千部计划",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": false
+        },
+        {
+          "series_id": "7700999976154827800",
+          "title": "与海鸥同行后大海成了我家鱼塘",
+          "play_cnt": 1017,
+          "score": "8.6",
+          "episode_cnt": 71,
+          "duration": 7342,
+          "content_type": 1,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7700999976154827800",
+          "recommend_reason_list": "<string:412>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 0
+            },
+            "dark_bg_color": {
+              "$length": 0
+            },
+            "enable": true,
+            "info_type": 2,
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "红果首发"
+          },
+          "category_schema": "<string:998>",
+          "color_dominate": "#382018",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "今日上新",
+              "data_type": 0,
+              "highlight": true
+            }
+          },
+          "book_exist": false,
+          "copyright": "欢华短剧",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": false
+        },
+        {
+          "series_id": "7699488316164410393",
+          "title": "茶馆风云",
+          "play_cnt": 1002,
+          "score": "8.6",
+          "episode_cnt": 41,
+          "duration": 3393,
+          "content_type": 1,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7699488316164410393",
+          "recommend_reason_list": "<string:201>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE83"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#008060"
+            },
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "新剧"
+          },
+          "category_schema": "<string:718>",
+          "color_dominate": "#302018",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "今日上新",
+              "data_type": 0,
+              "highlight": true
+            }
+          },
+          "book_exist": false,
+          "copyright": "短剧版权8727234912",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": false
+        },
+        {
+          "series_id": "7701614840002923544",
+          "title": "千金止损",
+          "play_cnt": 1026,
+          "score": "8.5",
+          "episode_cnt": 40,
+          "duration": 3699,
+          "content_type": 1,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701614840002923544",
+          "recommend_reason_list": "<string:412>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 0
+            },
+            "dark_bg_color": {
+              "$length": 0
+            },
+            "enable": true,
+            "info_type": 2,
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "红果首发"
+          },
+          "category_schema": "<string:1145>",
+          "color_dominate": "#282018",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "今日上新",
+              "data_type": 0,
+              "highlight": true
+            }
+          },
+          "book_exist": false,
+          "copyright": "红果创作服务平台千部计划",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": false
+        },
+        {
+          "series_id": "7699106407588580376",
+          "title": "我的饭搭子是状元",
+          "play_cnt": 1005,
+          "score": "8.4",
+          "episode_cnt": 39,
+          "duration": 3552,
+          "content_type": 1,
+          "recommend_info": "<string:90>",
+          "recommend_group_id": "7699106407588580376",
+          "recommend_reason_list": "<string:201>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE83"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#008060"
+            },
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "新剧"
+          },
+          "category_schema": "<string:855>",
+          "color_dominate": "#581810",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "今日上新",
+              "data_type": 0,
+              "highlight": true
+            }
+          },
+          "book_exist": false,
+          "copyright": "四川简州空港溪语文化传媒有限公司",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": false
+        },
+        {
+          "series_id": "7698719864680107070",
+          "title": "龙城岁月第二季",
+          "play_cnt": 1036,
+          "score": "8.5",
+          "episode_cnt": 79,
+          "duration": 8192,
+          "content_type": 1,
+          "recommend_info": "<string:90>",
+          "recommend_group_id": "7698719864680107070",
+          "recommend_reason_list": "<string:412>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 0
+            },
+            "dark_bg_color": {
+              "$length": 0
+            },
+            "enable": true,
+            "info_type": 2,
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "红果首发"
+          },
+          "category_schema": "<string:994>",
+          "color_dominate": "#202020",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "今日上新",
+              "data_type": 0,
+              "highlight": true
+            }
+          },
+          "book_exist": false,
+          "copyright": "红果创作服务平台",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": false
+        },
+        {
+          "series_id": "7701147375967947800",
+          "title": "后妈难当，真心终抵万难",
+          "play_cnt": 1020,
+          "score": "8.6",
+          "episode_cnt": 45,
+          "duration": 4132,
+          "content_type": 1,
+          "recommend_info": "<string:90>",
+          "recommend_group_id": "7701147375967947800",
+          "recommend_reason_list": "<string:412>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 0
+            },
+            "dark_bg_color": {
+              "$length": 0
+            },
+            "enable": true,
+            "info_type": 2,
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "红果首发"
+          },
+          "category_schema": "<string:1000>",
+          "color_dominate": "#281810",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "今日上新",
+              "data_type": 0,
+              "highlight": true
+            }
+          },
+          "book_exist": false,
+          "copyright": "文无传媒",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": false
+        }
+      ]
+    },
+    {
+      "request": "themes(ai_series)",
+      "status": 200,
+      "dataKeys": [
+        "has_more",
+        "max_expand_num",
+        "next_offset",
+        "selector_rows",
+        "session_id",
+        "video_data"
+      ],
+      "count": 1,
+      "nextOffset": 1,
+      "hasMore": true,
+      "cards": [
+        {
+          "series_id": "7701751940455074840",
+          "title": "五百块住在我家,还真把自己当房东",
+          "play_cnt": 1002,
+          "score": "8.4",
+          "episode_cnt": 66,
+          "duration": 2890,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701751940455074840",
+          "recommend_reason_list": "<string:411>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE83"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#008060"
+            },
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "新剧"
+          },
+          "category_schema": "<string:275>",
+          "color_dominate": "#201820",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "392万",
+              "data_type": 27,
+              "highlight": false
+            }
+          },
+          "book_exist": false,
+          "copyright": "三尼克（厦门）贸易有限公司",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": true
+        }
+      ]
+    },
+    {
+      "request": "browse(ai_series)",
+      "status": 200,
+      "dataKeys": [
+        "has_more",
+        "max_expand_num",
+        "next_offset",
+        "session_id",
+        "video_data"
+      ],
+      "count": 18,
+      "nextOffset": 18,
+      "hasMore": true,
+      "cards": [
+        {
+          "series_id": "7701751940455074840",
+          "title": "五百块住在我家,还真把自己当房东",
+          "play_cnt": 1002,
+          "score": "8.4",
+          "episode_cnt": 66,
+          "duration": 2890,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701751940455074840",
+          "recommend_reason_list": "<string:411>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE83"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#008060"
+            },
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "新剧"
+          },
+          "category_schema": "<string:275>",
+          "color_dominate": "#201820",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "392万",
+              "data_type": 27,
+              "highlight": false
+            }
+          },
+          "book_exist": false,
+          "copyright": "三尼克（厦门）贸易有限公司",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": true
+        },
+        {
+          "series_id": "7701393223658261528",
+          "title": "十五万账单局中局",
+          "play_cnt": 987,
+          "score": "8.6",
+          "episode_cnt": 22,
+          "duration": 1451,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701393223658261528",
+          "recommend_reason_list": "<string:411>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE83"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#008060"
+            },
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "新剧"
+          },
+          "category_schema": "<string:414>",
+          "color_dominate": "#381808",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "348万",
+              "data_type": 27,
+              "highlight": false
+            }
+          },
+          "book_exist": false,
+          "copyright": "郑州传悦文化传媒有限公司",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": true
+        },
+        {
+          "series_id": "7701724104637811737",
+          "title": "婚后慢熟第四季",
+          "play_cnt": 1019,
+          "score": "8.5",
+          "episode_cnt": 92,
+          "duration": 4200,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701724104637811737",
+          "recommend_reason_list": "<string:411>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE83"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#008060"
+            },
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "新剧"
+          },
+          "category_schema": "<string:414>",
+          "color_dominate": "#201818",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "335万",
+              "data_type": 27,
+              "highlight": false
+            }
+          },
+          "book_exist": false,
+          "copyright": "江月剧场",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": true
+        },
+        {
+          "series_id": "7701400950644149272",
+          "title": "赘婿不装了：庆功宴我亮出百亿底牌",
+          "play_cnt": 961,
+          "score": "8.4",
+          "episode_cnt": 40,
+          "duration": 3619,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701400950644149272",
+          "recommend_reason_list": "<string:411>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE83"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#008060"
+            },
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "新剧"
+          },
+          "category_schema": "<string:412>",
+          "color_dominate": "#281808",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "329万",
+              "data_type": 27,
+              "highlight": false
+            }
+          },
+          "book_exist": false,
+          "copyright": "长沙古言",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": true
+        },
+        {
+          "series_id": "7701380852957072409",
+          "title": "带儿回家讨回公道",
+          "play_cnt": 959,
+          "score": "8.4",
+          "episode_cnt": 103,
+          "duration": 6820,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701380852957072409",
+          "recommend_reason_list": "<string:411>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE83"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#008060"
+            },
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "新剧"
+          },
+          "category_schema": "<string:553>",
+          "color_dominate": "#381810",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "325万",
+              "data_type": 27,
+              "highlight": false
+            }
+          },
+          "book_exist": false,
+          "copyright": "天桥短剧",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": true
+        },
+        {
+          "series_id": "7700925121019530302",
+          "title": "开我二百五月薪，十八年老汤你们自己熬",
+          "play_cnt": 959,
+          "score": "8.4",
+          "episode_cnt": 43,
+          "duration": 2593,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7700925121019530302",
+          "recommend_reason_list": "<string:416>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE83"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#008060"
+            },
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "新剧"
+          },
+          "category_schema": "",
+          "color_dominate": "#281810",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "378万",
+              "data_type": 27,
+              "highlight": false
+            }
+          },
+          "book_exist": false,
+          "copyright": "深圳市光隅智能科技有限公司",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": true
+        },
+        {
+          "series_id": "7700912641375489086",
+          "title": "车座塞满舞伴的菜，我果断离婚清算家产",
+          "play_cnt": 1035,
+          "score": "8.4",
+          "episode_cnt": 49,
+          "duration": 3040,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7700912641375489086",
+          "recommend_reason_list": "<string:411>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE83"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#008060"
+            },
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "新剧"
+          },
+          "category_schema": "<string:414>",
+          "color_dominate": "#201010",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "341万",
+              "data_type": 27,
+              "highlight": false
+            }
+          },
+          "book_exist": false,
+          "copyright": "深圳市光隅智能科技有限公司",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": true
+        },
+        {
+          "series_id": "7700488707584838718",
+          "title": "岁月向暖，终遇良人",
+          "play_cnt": 1032,
+          "score": "8.5",
+          "episode_cnt": 50,
+          "duration": 3453,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7700488707584838718",
+          "recommend_reason_list": "<string:411>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE83"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#008060"
+            },
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "新剧"
+          },
+          "category_schema": "<string:414>",
+          "color_dominate": "#c89880",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "354万",
+              "data_type": 27,
+              "highlight": false
+            }
+          },
+          "book_exist": false,
+          "copyright": "长沙古言",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": true
+        },
+        {
+          "series_id": "7701527738187795481",
+          "title": "十张空卡，让我彻底清醒",
+          "play_cnt": 951,
+          "score": "8.5",
+          "episode_cnt": 45,
+          "duration": 3874,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701527738187795481",
+          "recommend_reason_list": "<string:411>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE83"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#008060"
+            },
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "新剧"
+          },
+          "category_schema": "<string:414>",
+          "color_dominate": "#281010",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "305万",
+              "data_type": 27,
+              "highlight": false
+            }
+          },
+          "book_exist": false,
+          "copyright": "长沙古言",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": true
+        },
+        {
+          "series_id": "7700935550533897241",
+          "title": "月子里被迫离开",
+          "play_cnt": 1014,
+          "score": "8.6",
+          "episode_cnt": 74,
+          "duration": 3548,
+          "content_type": 1004,
+          "recommend_info": "<string:90>",
+          "recommend_group_id": "7700935550533897241",
+          "recommend_reason_list": "<string:411>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE83"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#008060"
+            },
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "新剧"
+          },
+          "category_schema": "<string:553>",
+          "color_dominate": "#181810",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "382万",
+              "data_type": 27,
+              "highlight": false
+            }
+          },
+          "book_exist": false,
+          "copyright": "深圳添翼网络传媒有限公司",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": true
+        },
+        {
+          "series_id": "7700908559298464830",
+          "title": "渊微赋",
+          "play_cnt": 979,
+          "score": "8.5",
+          "episode_cnt": 40,
+          "duration": 2036,
+          "content_type": 1004,
+          "recommend_info": "<string:90>",
+          "recommend_group_id": "7700908559298464830",
+          "recommend_reason_list": "<string:411>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE83"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#008060"
+            },
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "新剧"
+          },
+          "category_schema": "<string:420>",
+          "color_dominate": "#301008",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "314万",
+              "data_type": 27,
+              "highlight": false
+            }
+          },
+          "book_exist": false,
+          "copyright": "杭州靛青文化传媒有限公司",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": true
+        },
+        {
+          "series_id": "7700462423735553048",
+          "title": "河底捞福，苏家小团团",
+          "play_cnt": 1003,
+          "score": "8.4",
+          "episode_cnt": 64,
+          "duration": 2899,
+          "content_type": 1004,
+          "recommend_info": "<string:90>",
+          "recommend_group_id": "7700462423735553048",
+          "recommend_reason_list": "<string:411>",
+          "tag_info": {
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE83"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#008060"
+            },
+            "is_align_to_edge": false,
+            "position": 2,
+            "text": "新剧"
+          },
+          "category_schema": "<string:553>",
+          "color_dominate": "#382018",
+          "sub_title_list": {
+            "$length": 2,
+            "$first": {
+              "can_click": false,
+              "content": "321万",
+              "data_type": 27,
+              "highlight": false
+            }
+          },
+          "book_exist": false,
+          "copyright": "宜春市剧漫文化传媒有限公司",
+          "disable_play": false,
+          "pay_info": {
+            "pay_type": 0
+          },
+          "support_listen": true
+        }
+      ]
+    }
+  ],
+  "leaderboards": {
+    "recommend": {
+      "sub_selected_items": "comic_series_hot_rank",
+      "ok": true,
+      "error": null,
+      "count": 10,
+      "nextCursor": "10",
+      "entries": [
+        {
+          "position": 1,
+          "id": "7677801492920667198",
+          "title": "糯糯下山，师兄们都慌了",
+          "episodeCount": 63,
+          "tagNames": [
+            "玄幻",
+            "3D",
+            "玄幻仙侠",
+            "轻松搞笑",
+            "萌宠",
+            "异界"
+          ]
+        },
+        {
+          "position": 2,
+          "id": "7621200213801176126",
+          "title": "万妖图录传第一季",
+          "episodeCount": 81,
+          "tagNames": [
+            "古装",
+            "3D",
+            "历史玄幻",
+            "奇幻脑洞",
+            "系统",
+            "升级流",
+            "降妖除魔",
+            "大女主",
+            "古代"
+          ]
+        },
+        {
+          "position": 3,
+          "id": "7675673932682251326",
+          "title": "搞笑疯人院：满级病友竟是大佬",
+          "episodeCount": 82,
+          "tagNames": [
+            "喜剧",
+            "3D",
+            "搞笑",
+            "穿书",
+            "扮猪吃虎",
+            "女强",
+            "黑客",
+            "现代",
+            "豪门"
+          ]
+        },
+        {
+          "position": 4,
+          "id": "7677436611537144894",
+          "title": "末日漂流：从小木筏开始无限升级",
+          "episodeCount": 104,
+          "tagNames": [
+            "灾难",
+            "3D",
+            "末世灾难",
+            "奇幻脑洞",
+            "系统",
+            "升级流",
+            "任务流",
+            "大男主",
+            "现代",
+            "天灾求生"
+          ]
+        },
+        {
+          "position": 5,
+          "id": "7675400266065136665",
+          "title": "全球死考：刚下刑场你让我去考试第一季",
+          "episodeCount": 154,
+          "tagNames": [
+            "奇幻",
+            "3D",
+            "奇幻脑洞",
+            "高能生存",
+            "系统",
+            "升级流",
+            "副本闯关",
+            "大男主",
+            "现代"
+          ]
+        },
+        {
+          "position": 6,
+          "id": "7669722678260943897",
+          "title": "春潮夜渡",
+          "episodeCount": 80,
+          "tagNames": [
+            "爱情",
+            "3D",
+            "古风爱情",
+            "女强",
+            "古代"
+          ]
+        },
+        {
+          "position": 7,
+          "id": "7676021826752891966",
+          "title": "一村人养一个神第一季",
+          "episodeCount": 80,
+          "tagNames": [
+            "奇幻",
+            "3D",
+            "奇幻脑洞",
+            "逆袭翻身",
+            "系统",
+            "降妖除魔",
+            "大女主",
+            "乱世",
+            "古代"
+          ]
+        },
+        {
+          "position": 8,
+          "id": "7699049204366199870",
+          "title": "鬼医传人，下山赴婚约第1季",
+          "episodeCount": 104,
+          "tagNames": [
+            "都市",
+            "3D",
+            "都市玄幻",
+            "升级流",
+            "隐藏大佬",
+            "打脸反派",
+            "大男主",
+            "豪门",
+            "现代"
+          ]
+        },
+        {
+          "position": 9,
+          "id": "7637569673411709976",
+          "title": "谁说没灵根不能修仙的？之无灵证道",
+          "episodeCount": 78,
+          "tagNames": [
+            "玄幻",
+            "3D",
+            "玄幻仙侠",
+            "逆袭翻身",
+            "升级流",
+            "法宝神器",
+            "大男主",
+            "古代"
+          ]
+        },
+        {
+          "position": 10,
+          "id": "7672334191970765848",
+          "title": "听说我死后成了反派白月光第一季",
+          "episodeCount": 202,
+          "tagNames": [
+            "爱情",
+            "3D",
+            "奇幻爱情",
+            "穿书",
+            "系统",
+            "日久生情",
+            "古灵精怪",
+            "嘴硬心软",
+            "古代"
+          ]
+        }
+      ],
+      "cellSelectorIsomorphicWith": "self（完整树见顶层 cellSelectorSample）",
+      "cellSelectorSelectedIds": [
+        "comic_series_rank",
+        "comic_series_hot_rank"
+      ],
+      "rankVersion": "",
+      "cellViewKeys": [
+        "cell_id",
+        "show_type",
+        "cell_name",
+        "cell_operation_type",
+        "use_recommend",
+        "cell_abstract",
+        "cell_id_str",
+        "cell_data",
+        "more_button_position",
+        "category_tag_ids",
+        "recommend_text",
+        "style",
+        "cell_selector",
+        "next_offset",
+        "has_more",
+        "session_id",
+        "ai_search_placeholder",
+        "push_start_info",
+        "book_hot_content_data"
+      ],
+      "rawEntryKeys": {
+        "keys": [
+          "cell_id",
+          "show_type",
+          "cell_name",
+          "cell_operation_type",
+          "use_recommend",
+          "video_data",
+          "category_tag_ids",
+          "style",
+          "group_id_type",
+          "cell_item_source_info",
+          "ai_search_placeholder",
+          "push_start_info",
+          "book_hot_content_data"
+        ],
+        "scalars": {
+          "cell_id": 0,
+          "show_type": 505,
+          "cell_name": "小卡",
+          "cell_operation_type": 0,
+          "use_recommend": false,
+          "group_id_type": 9
+        },
+        "rankSignals": {},
+        "nested": {
+          "video_data": "list(1)",
+          "style": "map(16)",
+          "cell_item_source_info": "map(1)"
+        }
+      },
+      "rankSignalNonNullCounts": {
+        "category_tag_ids": 0,
+        "book_hot_content_data": 0
+      },
+      "rawCards": [
+        {
+          "series_id": "7677801492920667198",
+          "title": "糯糯下山，师兄们都慌了",
+          "play_cnt": 11770116,
+          "score": "8.2",
+          "episode_cnt": 63,
+          "duration": 3794,
+          "content_type": 1004,
+          "recommend_info": "<string:153>",
+          "recommend_group_id": "7677801492920667198",
+          "rec_text_item": {
+            "RecommendText": "997万推荐",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:940>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "4768万热度",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#FA7705",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#FA7705",
+                "rec_style_dark_background_color": "#FA7705",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#FA7705"
+              },
+              "rec_type": 50
+            }
+          },
+          "tag_info": {
+            "text": "爆剧",
+            "bg_color": {
+              "$length": 1,
+              "$first": "#FE77511A"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#FE77511A"
+            },
+            "text_color": "#FE7751",
+            "dark_text_color": "#FE7751"
+          },
+          "category_schema": "<string:855>",
+          "color_dominate": "#282828",
+          "sub_title": "玄幻·全63集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "玄幻",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "青椒剪辑",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true,
+          "hot_comments": {
+            "note": "count only",
+            "count": 1
+          }
+        },
+        {
+          "series_id": "7621200213801176126",
+          "title": "万妖图录传第一季",
+          "play_cnt": 5754391,
+          "score": "8.2",
+          "episode_cnt": 81,
+          "duration": 9736,
+          "content_type": 1004,
+          "recommend_info": "<string:153>",
+          "recommend_group_id": "7621200213801176126",
+          "rec_text_item": {
+            "RecommendText": "986万推荐",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:811>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "4628万热度",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#FA7705",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#FA7705",
+                "rec_style_dark_background_color": "#FA7705",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#FA7705"
+              },
+              "rec_type": 50
+            }
+          },
+          "category_schema": "<string:1286>",
+          "color_dominate": "#282838",
+          "sub_title": "古装·全81集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "古装",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "梦绘星界动漫",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7675673932682251326",
+          "title": "搞笑疯人院：满级病友竟是大佬",
+          "play_cnt": 4175087,
+          "score": "8.2",
+          "episode_cnt": 82,
+          "duration": 9400,
+          "content_type": 1004,
+          "recommend_info": "<string:153>",
+          "recommend_group_id": "7675673932682251326",
+          "rec_text_item": {
+            "RecommendText": "974万推荐",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:810>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "4332万热度",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#FA7705",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#FA7705",
+                "rec_style_dark_background_color": "#FA7705",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#FA7705"
+              },
+              "rec_type": 50
+            }
+          },
+          "category_schema": "<string:1274>",
+          "color_dominate": "#381818",
+          "sub_title": "喜剧·全82集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "喜剧",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "南昌不周山文化",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true,
+          "hot_comments": {
+            "note": "count only",
+            "count": 1
+          }
+        },
+        {
+          "series_id": "7677436611537144894",
+          "title": "末日漂流：从小木筏开始无限升级",
+          "play_cnt": 4393953,
+          "score": "8.2",
+          "episode_cnt": 104,
+          "duration": 7579,
+          "content_type": 1004,
+          "recommend_info": "<string:153>",
+          "recommend_group_id": "7677436611537144894",
+          "rec_text_item": {
+            "RecommendText": "966万推荐",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:743>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "4298万热度",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#FA7705",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#FA7705",
+                "rec_style_dark_background_color": "#FA7705",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#FA7705"
+              },
+              "rec_type": 50
+            }
+          },
+          "category_schema": "<string:1429>",
+          "color_dominate": "#282830",
+          "sub_title": "灾难·全104集",
+          "sub_title_list": {
+            "$length": 1,
+            "$first": {
+              "content": "灾难",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "三福互娱",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7675400266065136665",
+          "title": "全球死考：刚下刑场你让我去考试第一季",
+          "play_cnt": 4983416,
+          "score": "8.2",
+          "episode_cnt": 154,
+          "duration": 7456,
+          "content_type": 1004,
+          "recommend_info": "<string:153>",
+          "recommend_group_id": "7675400266065136665",
+          "rec_text_item": {
+            "RecommendText": "956万推荐",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:807>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "4413万热度",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#FA7705",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#FA7705",
+                "rec_style_dark_background_color": "#FA7705",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#FA7705"
+              },
+              "rec_type": 50
+            }
+          },
+          "category_schema": "<string:1286>",
+          "color_dominate": "#181818",
+          "sub_title": "奇幻·全154集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "奇幻",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "宸枢",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7669722678260943897",
+          "title": "春潮夜渡",
+          "play_cnt": 3108402,
+          "score": "8.2",
+          "episode_cnt": 80,
+          "duration": 8133,
+          "content_type": 1004,
+          "recommend_info": "<string:153>",
+          "recommend_group_id": "7669722678260943897",
+          "rec_text_item": {
+            "RecommendText": "951万推荐",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:744>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "4344万热度",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#FA7705",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#FA7705",
+                "rec_style_dark_background_color": "#FA7705",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#FA7705"
+              },
+              "rec_type": 50
+            }
+          },
+          "category_schema": "<string:710>",
+          "color_dominate": "#301010",
+          "sub_title": "爱情·全80集",
+          "sub_title_list": {
+            "$length": 1,
+            "$first": {
+              "content": "爱情",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "鸿来原创",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true,
+          "hot_comments": {
+            "note": "count only",
+            "count": 1
+          }
+        },
+        {
+          "series_id": "7676021826752891966",
+          "title": "一村人养一个神第一季",
+          "play_cnt": 4019208,
+          "score": "8.2",
+          "episode_cnt": 80,
+          "duration": 3690,
+          "content_type": 1004,
+          "recommend_info": "<string:153>",
+          "recommend_group_id": "7676021826752891966",
+          "rec_text_item": {
+            "RecommendText": "936万推荐",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:809>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "4529万热度",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#FA7705",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#FA7705",
+                "rec_style_dark_background_color": "#FA7705",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#FA7705"
+              },
+              "rec_type": 50
+            }
+          },
+          "category_schema": "<string:1284>",
+          "color_dominate": "#202028",
+          "sub_title": "奇幻·全80集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "奇幻",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "短剧版权6810618168",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7699049204366199870",
+          "title": "鬼医传人，下山赴婚约第1季",
+          "play_cnt": 1822621,
+          "score": "8.2",
+          "episode_cnt": 104,
+          "duration": 6416,
+          "content_type": 1004,
+          "recommend_info": "<string:153>",
+          "recommend_group_id": "7699049204366199870",
+          "rec_text_item": {
+            "RecommendText": "929万推荐",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:809>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "4688万热度",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#FA7705",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#FA7705",
+                "rec_style_dark_background_color": "#FA7705",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#FA7705"
+              },
+              "rec_type": 50
+            }
+          },
+          "category_schema": "<string:1286>",
+          "color_dominate": "#181820",
+          "sub_title": "都市·全104集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "都市",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "众创众阅",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7637569673411709976",
+          "title": "谁说没灵根不能修仙的？之无灵证道",
+          "play_cnt": 5199596,
+          "score": "8.3",
+          "episode_cnt": 78,
+          "duration": 8288,
+          "content_type": 1004,
+          "recommend_info": "<string:153>",
+          "recommend_group_id": "7637569673411709976",
+          "rec_text_item": {
+            "RecommendText": "918万推荐",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:808>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "4735万热度",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#FA7705",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#FA7705",
+                "rec_style_dark_background_color": "#FA7705",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#FA7705"
+              },
+              "rec_type": 50
+            }
+          },
+          "category_schema": "<string:1145>",
+          "color_dominate": "#302018",
+          "sub_title": "玄幻·全78集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "玄幻",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "深圳幕后玩家文化科技有限公司",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true,
+          "hot_comments": {
+            "note": "count only",
+            "count": 1
+          }
+        },
+        {
+          "series_id": "7672334191970765848",
+          "title": "听说我死后成了反派白月光第一季",
+          "play_cnt": 5085101,
+          "score": "8.2",
+          "episode_cnt": 202,
+          "duration": 13477,
+          "content_type": 1004,
+          "recommend_info": "<string:154>",
+          "recommend_group_id": "7672334191970765848",
+          "rec_text_item": {
+            "RecommendText": "914万推荐",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:808>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "4597万热度",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#FA7705",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#FA7705",
+                "rec_style_dark_background_color": "#FA7705",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#FA7705"
+              },
+              "rec_type": 50
+            }
+          },
+          "category_schema": "<string:1286>",
+          "color_dominate": "#302020",
+          "sub_title": "爱情·全202集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "爱情",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "树下的椰子",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        }
+      ],
+      "videoSignalNonNullCounts": {
+        "series_id": 10,
+        "title": 10,
+        "play_cnt": 10,
+        "score": 10,
+        "episode_cnt": 10,
+        "duration": 10,
+        "content_type": 10,
+        "recommend_info": 10,
+        "recommend_group_id": 10,
+        "rec_text_item": 10,
+        "recommend_reason_list": 10,
+        "secondary_info_list": 10,
+        "tag_info": 1,
+        "category_schema": 10,
+        "color_dominate": 10,
+        "sub_title": 10,
+        "sub_title_list": 10,
+        "book_exist": 10,
+        "copyright": 10,
+        "disable_play": 10,
+        "pay_info": 10,
+        "support_listen": 10,
+        "hot_comments": 4
+      },
+      "dataKeys": [
+        "cell_view",
+        "has_more",
+        "next_offset",
+        "session_id",
+        "rank_version"
+      ]
+    },
+    "hot": {
+      "sub_selected_items": "comic_series_hot_play",
+      "ok": true,
+      "error": null,
+      "count": 10,
+      "nextCursor": "10",
+      "entries": [
+        {
+          "position": 1,
+          "id": "7698294694886788121",
+          "title": "和离后我带女儿横扫魔域",
+          "episodeCount": 1000,
+          "tagNames": [
+            "玄幻",
+            "3D",
+            "玄幻仙侠",
+            "系统",
+            "升级流",
+            "隐藏大佬",
+            "大男主",
+            "异界",
+            "古代"
+          ]
+        },
+        {
+          "position": 2,
+          "id": "7700968020511837208",
+          "title": "学法律的玄学大师，很常见吗第二季",
+          "episodeCount": 236,
+          "tagNames": [
+            "奇幻",
+            "3D",
+            "玄学",
+            "读心术",
+            "女强",
+            "总裁",
+            "现代"
+          ]
+        },
+        {
+          "position": 3,
+          "id": "7701199948087299096",
+          "title": "遇棠方知涉：被偏执大佬黏上了3",
+          "episodeCount": 99,
+          "tagNames": [
+            "爱情",
+            "3D",
+            "奇幻爱情",
+            "意识觉醒",
+            "系统",
+            "总裁",
+            "现代",
+            "都市甜宠"
+          ]
+        },
+        {
+          "position": 4,
+          "id": "7701303541440187416",
+          "title": "烛九阴第八季",
+          "episodeCount": 149,
+          "tagNames": [
+            "玄幻",
+            "3D",
+            "奇幻脑洞",
+            "故人重逢",
+            "报恩",
+            "权力斗争",
+            "美食",
+            "大男主",
+            "银发",
+            "龙族",
+            "异界",
+            "古代"
+          ]
+        },
+        {
+          "position": 5,
+          "id": "7701639065673681944",
+          "title": "我海洛薇兹，在韩国贵族学院假扮千金第二季",
+          "episodeCount": 250,
+          "tagNames": [
+            "3D",
+            "爱情",
+            "奇幻爱情",
+            "奇幻脑洞",
+            "系统",
+            "圆满结局",
+            "女强",
+            "豪门千金",
+            "游戏世界",
+            "豪门",
+            "都市甜宠"
+          ]
+        },
+        {
+          "position": 6,
+          "id": "7697453551529774105",
+          "title": "边军破刀：一路砍到裂土封王",
+          "episodeCount": 539,
+          "tagNames": [
+            "古装",
+            "3D",
+            "逆袭翻身",
+            "穿越",
+            "征战",
+            "大男主",
+            "乱世",
+            "古代"
+          ]
+        },
+        {
+          "position": 7,
+          "id": "7700436139546512408",
+          "title": "后妈只想苟，老公非要凑第二季",
+          "episodeCount": 200,
+          "tagNames": [
+            "爱情",
+            "3D",
+            "都市爱情",
+            "穿书",
+            "圆满结局",
+            "日久生情",
+            "总裁",
+            "后妈",
+            "豪门",
+            "现代",
+            "都市甜宠"
+          ]
+        },
+        {
+          "position": 8,
+          "id": "7699494516272663577",
+          "title": "反派拿捏！第三季",
+          "episodeCount": 399,
+          "tagNames": [
+            "爱情",
+            "3D",
+            "都市爱情",
+            "穿书",
+            "失忆",
+            "现代",
+            "都市甜宠"
+          ]
+        },
+        {
+          "position": 9,
+          "id": "7700909263228521497",
+          "title": "谁说纨绔不能当状元！第六季",
+          "episodeCount": 154,
+          "tagNames": [
+            "古装",
+            "3D",
+            "朝堂权谋",
+            "逆袭翻身",
+            "权力斗争",
+            "武修",
+            "打脸反派",
+            "大男主",
+            "世子",
+            "古代"
+          ]
+        },
+        {
+          "position": 10,
+          "id": "7699404840157334552",
+          "title": "修仙归来，我的未婚妻藏不住了",
+          "episodeCount": 332,
+          "tagNames": [
+            "都市",
+            "3D",
+            "都市玄幻",
+            "奉命下山",
+            "大男主",
+            "现代"
+          ]
+        }
+      ],
+      "cellSelectorIsomorphicWith": "cellSelectorSample",
+      "cellSelectorSelectedIds": [
+        "comic_series_rank",
+        "comic_series_hot_play"
+      ],
+      "rankVersion": "1793325840",
+      "cellViewKeys": [
+        "cell_id",
+        "show_type",
+        "cell_name",
+        "cell_operation_type",
+        "use_recommend",
+        "cell_abstract",
+        "cell_id_str",
+        "cell_data",
+        "more_button_position",
+        "category_tag_ids",
+        "recommend_text",
+        "style",
+        "rank_version",
+        "cell_selector",
+        "next_offset",
+        "has_more",
+        "session_id",
+        "ai_search_placeholder",
+        "push_start_info",
+        "book_hot_content_data"
+      ],
+      "rawEntryKeys": {
+        "keys": [
+          "cell_id",
+          "show_type",
+          "cell_name",
+          "cell_operation_type",
+          "use_recommend",
+          "video_data",
+          "category_tag_ids",
+          "style",
+          "group_id_type",
+          "ai_search_placeholder",
+          "push_start_info",
+          "book_hot_content_data"
+        ],
+        "scalars": {
+          "cell_id": 0,
+          "show_type": 505,
+          "cell_name": "小卡",
+          "cell_operation_type": 0,
+          "use_recommend": false,
+          "group_id_type": 9
+        },
+        "rankSignals": {},
+        "nested": {
+          "video_data": "list(1)",
+          "style": "map(16)"
+        }
+      },
+      "rankSignalNonNullCounts": {
+        "category_tag_ids": 0,
+        "book_hot_content_data": 0
+      },
+      "rawCards": [
+        {
+          "series_id": "7698294694886788121",
+          "title": "和离后我带女儿横扫魔域",
+          "play_cnt": 46297587,
+          "score": "8.2",
+          "episode_cnt": 1000,
+          "duration": 54230,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7698294694886788121",
+          "rec_text_item": {
+            "RecommendText": "9388万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:813>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "422.8万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "category_schema": "<string:1282>",
+          "color_dominate": "#481810",
+          "sub_title": "玄幻·全1000集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "玄幻",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "灵龙科技",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true,
+          "hot_comments": {
+            "note": "count only",
+            "count": 1
+          }
+        },
+        {
+          "series_id": "7700968020511837208",
+          "title": "学法律的玄学大师，很常见吗第二季",
+          "play_cnt": 2689831,
+          "score": "8.5",
+          "episode_cnt": 236,
+          "duration": 10414,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7700968020511837208",
+          "rec_text_item": {
+            "RecommendText": "6190万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:876>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "64.7万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "tag_info": {
+            "text": "新剧",
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE8314"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#0080601A"
+            },
+            "text_color": "#00AE83",
+            "dark_text_color": "#00AE83"
+          },
+          "category_schema": "<string:990>",
+          "color_dominate": "#380000",
+          "sub_title": "奇幻·全236集",
+          "sub_title_list": {
+            "$length": 1,
+            "$first": {
+              "content": "奇幻",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "苏州喵有鱼影视科技",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7701199948087299096",
+          "title": "遇棠方知涉：被偏执大佬黏上了3",
+          "play_cnt": 1035,
+          "score": "8.4",
+          "episode_cnt": 99,
+          "duration": 7921,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701199948087299096",
+          "rec_text_item": {
+            "RecommendText": "6182万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:939>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "38万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "tag_info": {
+            "text": "新剧",
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE8314"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#0080601A"
+            },
+            "text_color": "#00AE83",
+            "dark_text_color": "#00AE83"
+          },
+          "category_schema": "<string:1141>",
+          "color_dominate": "#302018",
+          "sub_title": "爱情·全99集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "爱情",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "短剧版权7796397294",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7701303541440187416",
+          "title": "烛九阴第八季",
+          "play_cnt": 984,
+          "score": "8.4",
+          "episode_cnt": 149,
+          "duration": 9841,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701303541440187416",
+          "rec_text_item": {
+            "RecommendText": "6038万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:875>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "18.7万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "tag_info": {
+            "text": "新剧",
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE8314"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#0080601A"
+            },
+            "text_color": "#00AE83",
+            "dark_text_color": "#00AE83"
+          },
+          "category_schema": "<string:1707>",
+          "color_dominate": "#202028",
+          "sub_title": "玄幻·全149集",
+          "sub_title_list": {
+            "$length": 1,
+            "$first": {
+              "content": "玄幻",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "梦绘星界动漫",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7701639065673681944",
+          "title": "我海洛薇兹，在韩国贵族学院假扮千金第二季",
+          "play_cnt": 1005,
+          "score": "8.6",
+          "episode_cnt": 250,
+          "duration": 20846,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701639065673681944",
+          "rec_text_item": {
+            "RecommendText": "6019万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:941>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "38.8万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "tag_info": {
+            "text": "新剧",
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE8314"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#0080601A"
+            },
+            "text_color": "#00AE83",
+            "dark_text_color": "#00AE83"
+          },
+          "category_schema": "<string:1576>",
+          "color_dominate": "#281010",
+          "sub_title": "3D·全250集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "3D",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "次元奇点",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7697453551529774105",
+          "title": "边军破刀：一路砍到裂土封王",
+          "play_cnt": 31544557,
+          "score": "8.3",
+          "episode_cnt": 539,
+          "duration": 23433,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7697453551529774105",
+          "rec_text_item": {
+            "RecommendText": "5973万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:810>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "157.9万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "category_schema": "<string:1135>",
+          "color_dominate": "#281810",
+          "sub_title": "古装·全539集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "古装",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "大姚县星芒文化传媒有限公司",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true,
+          "hot_comments": {
+            "note": "count only",
+            "count": 1
+          }
+        },
+        {
+          "series_id": "7700436139546512408",
+          "title": "后妈只想苟，老公非要凑第二季",
+          "play_cnt": 3887892,
+          "score": "8.1",
+          "episode_cnt": 200,
+          "duration": 12732,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7700436139546512408",
+          "rec_text_item": {
+            "RecommendText": "5850万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:811>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "83.9万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "category_schema": "<string:1568>",
+          "color_dominate": "#a06850",
+          "sub_title": "爱情·全200集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "爱情",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "花花夜读",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true,
+          "hot_comments": {
+            "note": "count only",
+            "count": 1
+          }
+        },
+        {
+          "series_id": "7699494516272663577",
+          "title": "反派拿捏！第三季",
+          "play_cnt": 4907711,
+          "score": "8.2",
+          "episode_cnt": 399,
+          "duration": 26639,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7699494516272663577",
+          "rec_text_item": {
+            "RecommendText": "5828万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:810>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "85.4万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "category_schema": "<string:996>",
+          "color_dominate": "#281020",
+          "sub_title": "爱情·全399集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "爱情",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "杭州潮汐互娱网络科技有限公司",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7700909263228521497",
+          "title": "谁说纨绔不能当状元！第六季",
+          "play_cnt": 1420265,
+          "score": "8.6",
+          "episode_cnt": 154,
+          "duration": 7322,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7700909263228521497",
+          "rec_text_item": {
+            "RecommendText": "5820万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:875>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "35.3万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "tag_info": {
+            "text": "新剧",
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE8314"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#0080601A"
+            },
+            "text_color": "#00AE83",
+            "dark_text_color": "#00AE83"
+          },
+          "category_schema": "<string:1429>",
+          "color_dominate": "#281008",
+          "sub_title": "古装·全154集",
+          "sub_title_list": {
+            "$length": 1,
+            "$first": {
+              "content": "古装",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "半亩文剧社",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7699404840157334552",
+          "title": "修仙归来，我的未婚妻藏不住了",
+          "play_cnt": 17653452,
+          "score": "8.3",
+          "episode_cnt": 332,
+          "duration": 18379,
+          "content_type": 1004,
+          "recommend_info": "<string:90>",
+          "recommend_group_id": "7699404840157334552",
+          "rec_text_item": {
+            "RecommendText": "5807万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:811>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "70.3万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "category_schema": "<string:857>",
+          "color_dominate": "#302028",
+          "sub_title": "都市·全332集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "都市",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "河南梦畅文化传媒有限公司",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        }
+      ],
+      "videoSignalNonNullCounts": {
+        "series_id": 10,
+        "title": 10,
+        "play_cnt": 10,
+        "score": 10,
+        "episode_cnt": 10,
+        "duration": 10,
+        "content_type": 10,
+        "recommend_info": 10,
+        "recommend_group_id": 10,
+        "rec_text_item": 10,
+        "recommend_reason_list": 10,
+        "secondary_info_list": 10,
+        "tag_info": 5,
+        "category_schema": 10,
+        "color_dominate": 10,
+        "sub_title": 10,
+        "sub_title_list": 10,
+        "book_exist": 10,
+        "copyright": 10,
+        "disable_play": 10,
+        "pay_info": 10,
+        "support_listen": 10,
+        "hot_comments": 3
+      },
+      "dataKeys": [
+        "cell_view",
+        "has_more",
+        "next_offset",
+        "session_id",
+        "rank_version"
+      ]
+    },
+    "new": {
+      "sub_selected_items": "comic_series_new_rank",
+      "ok": true,
+      "error": null,
+      "count": 10,
+      "nextCursor": "10",
+      "entries": [
+        {
+          "position": 1,
+          "id": "7700968020511837208",
+          "title": "学法律的玄学大师，很常见吗第二季",
+          "episodeCount": 236,
+          "tagNames": [
+            "奇幻",
+            "3D",
+            "玄学",
+            "读心术",
+            "女强",
+            "总裁",
+            "现代"
+          ]
+        },
+        {
+          "position": 2,
+          "id": "7701199948087299096",
+          "title": "遇棠方知涉：被偏执大佬黏上了3",
+          "episodeCount": 99,
+          "tagNames": [
+            "爱情",
+            "3D",
+            "奇幻爱情",
+            "意识觉醒",
+            "系统",
+            "总裁",
+            "现代",
+            "都市甜宠"
+          ]
+        },
+        {
+          "position": 3,
+          "id": "7701303541440187416",
+          "title": "烛九阴第八季",
+          "episodeCount": 149,
+          "tagNames": [
+            "玄幻",
+            "3D",
+            "奇幻脑洞",
+            "故人重逢",
+            "报恩",
+            "权力斗争",
+            "美食",
+            "大男主",
+            "银发",
+            "龙族",
+            "异界",
+            "古代"
+          ]
+        },
+        {
+          "position": 4,
+          "id": "7701639065673681944",
+          "title": "我海洛薇兹，在韩国贵族学院假扮千金第二季",
+          "episodeCount": 250,
+          "tagNames": [
+            "3D",
+            "爱情",
+            "奇幻爱情",
+            "奇幻脑洞",
+            "系统",
+            "圆满结局",
+            "女强",
+            "豪门千金",
+            "游戏世界",
+            "豪门",
+            "都市甜宠"
+          ]
+        },
+        {
+          "position": 5,
+          "id": "7700909263228521497",
+          "title": "谁说纨绔不能当状元！第六季",
+          "episodeCount": 154,
+          "tagNames": [
+            "古装",
+            "3D",
+            "朝堂权谋",
+            "逆袭翻身",
+            "权力斗争",
+            "武修",
+            "打脸反派",
+            "大男主",
+            "世子",
+            "古代"
+          ]
+        },
+        {
+          "position": 6,
+          "id": "7701297357853314073",
+          "title": "乡下来的掌上明珠第四季",
+          "episodeCount": 158,
+          "tagNames": [
+            "萌宝",
+            "3D",
+            "萌宝日常",
+            "治愈",
+            "异能",
+            "豪门千金",
+            "团宠",
+            "豪门",
+            "现代"
+          ]
+        },
+        {
+          "position": 7,
+          "id": "7700975749448092697",
+          "title": "父皇别慌，福星多多来啦第八季",
+          "episodeCount": 176,
+          "tagNames": [
+            "古装",
+            "3D",
+            "奇幻脑洞",
+            "异能",
+            "锦鲤",
+            "古代"
+          ]
+        },
+        {
+          "position": 8,
+          "id": "7700193386157837336",
+          "title": "我与四大尸王成了兄弟之末世躺赢指南第二季",
+          "episodeCount": 186,
+          "tagNames": [
+            "灾难",
+            "3D",
+            "末世灾难",
+            "打脸反派",
+            "异能",
+            "升级流",
+            "美食",
+            "大男主",
+            "现代"
+          ]
+        },
+        {
+          "position": 9,
+          "id": "7701186030967213081",
+          "title": "拳十三之拳动乾坤第二季",
+          "episodeCount": 181,
+          "tagNames": [
+            "玄幻",
+            "3D",
+            "玄幻仙侠",
+            "隐藏大佬",
+            "传承觉醒",
+            "升级流",
+            "征战",
+            "大男主",
+            "异界"
+          ]
+        },
+        {
+          "position": 10,
+          "id": "7700811856591457304",
+          "title": "全员大佬：非正常捉妖师第二季",
+          "episodeCount": 119,
+          "tagNames": [
+            "玄幻",
+            "3D",
+            "玄幻仙侠",
+            "轻松搞笑",
+            "降妖除魔",
+            "团队冒险",
+            "群像",
+            "古代"
+          ]
+        }
+      ],
+      "cellSelectorIsomorphicWith": "cellSelectorSample",
+      "cellSelectorSelectedIds": [
+        "comic_series_rank",
+        "comic_series_new_rank"
+      ],
+      "rankVersion": "1793325840",
+      "cellViewKeys": [
+        "cell_id",
+        "show_type",
+        "cell_name",
+        "cell_operation_type",
+        "use_recommend",
+        "cell_abstract",
+        "cell_id_str",
+        "cell_data",
+        "more_button_position",
+        "category_tag_ids",
+        "recommend_text",
+        "style",
+        "rank_version",
+        "cell_selector",
+        "next_offset",
+        "has_more",
+        "session_id",
+        "ai_search_placeholder",
+        "push_start_info",
+        "book_hot_content_data"
+      ],
+      "rawEntryKeys": {
+        "keys": [
+          "cell_id",
+          "show_type",
+          "cell_name",
+          "cell_operation_type",
+          "use_recommend",
+          "video_data",
+          "category_tag_ids",
+          "style",
+          "group_id_type",
+          "ai_search_placeholder",
+          "push_start_info",
+          "book_hot_content_data"
+        ],
+        "scalars": {
+          "cell_id": 0,
+          "show_type": 505,
+          "cell_name": "小卡",
+          "cell_operation_type": 0,
+          "use_recommend": false,
+          "group_id_type": 9
+        },
+        "rankSignals": {},
+        "nested": {
+          "video_data": "list(1)",
+          "style": "map(16)"
+        }
+      },
+      "rankSignalNonNullCounts": {
+        "category_tag_ids": 0,
+        "book_hot_content_data": 0
+      },
+      "rawCards": [
+        {
+          "series_id": "7700968020511837208",
+          "title": "学法律的玄学大师，很常见吗第二季",
+          "play_cnt": 2689831,
+          "score": "8.5",
+          "episode_cnt": 236,
+          "duration": 10414,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7700968020511837208",
+          "rec_text_item": {
+            "RecommendText": "6190万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:876>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "64.7万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "tag_info": {
+            "text": "新剧",
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE8314"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#0080601A"
+            },
+            "text_color": "#00AE83",
+            "dark_text_color": "#00AE83"
+          },
+          "category_schema": "<string:990>",
+          "color_dominate": "#380000",
+          "sub_title": "奇幻·全236集",
+          "sub_title_list": {
+            "$length": 1,
+            "$first": {
+              "content": "奇幻",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "苏州喵有鱼影视科技",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7701199948087299096",
+          "title": "遇棠方知涉：被偏执大佬黏上了3",
+          "play_cnt": 1035,
+          "score": "8.4",
+          "episode_cnt": 99,
+          "duration": 7921,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701199948087299096",
+          "rec_text_item": {
+            "RecommendText": "6182万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:939>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "38万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "tag_info": {
+            "text": "新剧",
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE8314"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#0080601A"
+            },
+            "text_color": "#00AE83",
+            "dark_text_color": "#00AE83"
+          },
+          "category_schema": "<string:1141>",
+          "color_dominate": "#302018",
+          "sub_title": "爱情·全99集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "爱情",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "短剧版权7796397294",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7701303541440187416",
+          "title": "烛九阴第八季",
+          "play_cnt": 984,
+          "score": "8.4",
+          "episode_cnt": 149,
+          "duration": 9841,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701303541440187416",
+          "rec_text_item": {
+            "RecommendText": "6038万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:875>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "18.7万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "tag_info": {
+            "text": "新剧",
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE8314"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#0080601A"
+            },
+            "text_color": "#00AE83",
+            "dark_text_color": "#00AE83"
+          },
+          "category_schema": "<string:1707>",
+          "color_dominate": "#202028",
+          "sub_title": "玄幻·全149集",
+          "sub_title_list": {
+            "$length": 1,
+            "$first": {
+              "content": "玄幻",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "梦绘星界动漫",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7701639065673681944",
+          "title": "我海洛薇兹，在韩国贵族学院假扮千金第二季",
+          "play_cnt": 1005,
+          "score": "8.6",
+          "episode_cnt": 250,
+          "duration": 20846,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701639065673681944",
+          "rec_text_item": {
+            "RecommendText": "6019万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:941>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "38.8万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "tag_info": {
+            "text": "新剧",
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE8314"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#0080601A"
+            },
+            "text_color": "#00AE83",
+            "dark_text_color": "#00AE83"
+          },
+          "category_schema": "<string:1576>",
+          "color_dominate": "#281010",
+          "sub_title": "3D·全250集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "3D",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "次元奇点",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7700909263228521497",
+          "title": "谁说纨绔不能当状元！第六季",
+          "play_cnt": 1420265,
+          "score": "8.6",
+          "episode_cnt": 154,
+          "duration": 7322,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7700909263228521497",
+          "rec_text_item": {
+            "RecommendText": "5820万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:875>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "35.3万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "tag_info": {
+            "text": "新剧",
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE8314"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#0080601A"
+            },
+            "text_color": "#00AE83",
+            "dark_text_color": "#00AE83"
+          },
+          "category_schema": "<string:1429>",
+          "color_dominate": "#281008",
+          "sub_title": "古装·全154集",
+          "sub_title_list": {
+            "$length": 1,
+            "$first": {
+              "content": "古装",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "半亩文剧社",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7701297357853314073",
+          "title": "乡下来的掌上明珠第四季",
+          "play_cnt": 1138747,
+          "score": "8.6",
+          "episode_cnt": 158,
+          "duration": 12269,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701297357853314073",
+          "rec_text_item": {
+            "RecommendText": "5462万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:940>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "21.7万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "tag_info": {
+            "text": "新剧",
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE8314"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#0080601A"
+            },
+            "text_color": "#00AE83",
+            "dark_text_color": "#00AE83"
+          },
+          "category_schema": "<string:1278>",
+          "color_dominate": "#382828",
+          "sub_title": "萌宝·全158集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "萌宝",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "河南赢秋网络科技有限公司",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7700975749448092697",
+          "title": "父皇别慌，福星多多来啦第八季",
+          "play_cnt": 1030,
+          "score": "8.6",
+          "episode_cnt": 176,
+          "duration": 7771,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7700975749448092697",
+          "rec_text_item": {
+            "RecommendText": "5380万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:874>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "8.7万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "tag_info": {
+            "text": "新剧",
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE8314"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#0080601A"
+            },
+            "text_color": "#00AE83",
+            "dark_text_color": "#00AE83"
+          },
+          "category_schema": "<string:851>",
+          "color_dominate": "#502018",
+          "sub_title": "古装·全176集",
+          "sub_title_list": {
+            "$length": 1,
+            "$first": {
+              "content": "古装",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "杭州三只象网络科技有限公司",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7700193386157837336",
+          "title": "我与四大尸王成了兄弟之末世躺赢指南第二季",
+          "play_cnt": 1876175,
+          "score": "8.3",
+          "episode_cnt": 186,
+          "duration": 8132,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7700193386157837336",
+          "rec_text_item": {
+            "RecommendText": "5311万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:742>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "24万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "category_schema": "<string:1282>",
+          "color_dominate": "#382820",
+          "sub_title": "灾难·全186集",
+          "sub_title_list": {
+            "$length": 1,
+            "$first": {
+              "content": "灾难",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "济南市市中区程屿网络科技传媒工作室个体工",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7701186030967213081",
+          "title": "拳十三之拳动乾坤第二季",
+          "play_cnt": 998,
+          "score": "8.5",
+          "episode_cnt": 181,
+          "duration": 8925,
+          "content_type": 1004,
+          "recommend_info": "<string:89>",
+          "recommend_group_id": "7701186030967213081",
+          "rec_text_item": {
+            "RecommendText": "5295万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:941>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "11.4万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "tag_info": {
+            "text": "新剧",
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE8314"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#0080601A"
+            },
+            "text_color": "#00AE83",
+            "dark_text_color": "#00AE83"
+          },
+          "category_schema": "<string:1286>",
+          "color_dominate": "#300808",
+          "sub_title": "玄幻·全181集",
+          "sub_title_list": {
+            "$length": 3,
+            "$first": {
+              "content": "玄幻",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "创象影视",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        },
+        {
+          "series_id": "7700811856591457304",
+          "title": "全员大佬：非正常捉妖师第二季",
+          "play_cnt": 982,
+          "score": "8.4",
+          "episode_cnt": 119,
+          "duration": 8730,
+          "content_type": 1004,
+          "recommend_info": "<string:90>",
+          "recommend_group_id": "7700811856591457304",
+          "rec_text_item": {
+            "RecommendText": "5279万热度",
+            "RecommendType": 12,
+            "TextColor": "#FA7705",
+            "DarkTextColor": "#CC561F"
+          },
+          "recommend_reason_list": "<string:875>",
+          "secondary_info_list": {
+            "$length": 2,
+            "$first": {
+              "content": "10.5万收藏",
+              "data_type": 1,
+              "rec_arrow_type": 0,
+              "rec_reason_style": {
+                "rec_style_background_color": "#D7A461",
+                "rec_style_background_transparency": "0.07",
+                "rec_style_text_color": "#D7A461",
+                "rec_style_dark_background_color": "#A8804C",
+                "rec_style_dark_background_transparency": "0.07",
+                "rec_style_dark_text_color": "#A8804C"
+              },
+              "rec_type": 5
+            }
+          },
+          "tag_info": {
+            "text": "新剧",
+            "bg_color": {
+              "$length": 1,
+              "$first": "#00AE8314"
+            },
+            "dark_bg_color": {
+              "$length": 1,
+              "$first": "#0080601A"
+            },
+            "text_color": "#00AE83",
+            "dark_text_color": "#00AE83"
+          },
+          "category_schema": "<string:1145>",
+          "color_dominate": "#282020",
+          "sub_title": "玄幻·全119集",
+          "sub_title_list": {
+            "$length": 1,
+            "$first": {
+              "content": "玄幻",
+              "data_type": 3
+            }
+          },
+          "book_exist": false,
+          "copyright": "杭州市钱塘区岳桉文艺创作工作室",
+          "disable_play": false,
+          "pay_info": {},
+          "support_listen": true
+        }
+      ],
+      "videoSignalNonNullCounts": {
+        "series_id": 10,
+        "title": 10,
+        "play_cnt": 10,
+        "score": 10,
+        "episode_cnt": 10,
+        "duration": 10,
+        "content_type": 10,
+        "recommend_info": 10,
+        "recommend_group_id": 10,
+        "rec_text_item": 10,
+        "recommend_reason_list": 10,
+        "secondary_info_list": 10,
+        "tag_info": 9,
+        "category_schema": 10,
+        "color_dominate": 10,
+        "sub_title": 10,
+        "sub_title_list": 10,
+        "book_exist": 10,
+        "copyright": 10,
+        "disable_play": 10,
+        "pay_info": 10,
+        "support_listen": 10,
+        "hot_comments": 0
+      },
+      "dataKeys": [
+        "cell_view",
+        "has_more",
+        "next_offset",
+        "session_id",
+        "rank_version"
+      ]
+    }
+  }
+}
