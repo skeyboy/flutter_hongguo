@@ -1,0 +1,1421 @@
+{
+  "at": "2026-10-30T17:53:12.011602",
+  "note": "vocabulary hit rates, title similarity, per-dimension recall and precision only; no urls, headers, signed parameters, media keys or bodies",
+  "genre": "short_play",
+  "publishedRows": {
+    "short_play": [
+      {
+        "key": "category_dim_theme",
+        "label": "全部主题",
+        "count": 26,
+        "names": [
+          "动作",
+          "冒险",
+          "魔幻",
+          "爱情",
+          "家庭",
+          "家族",
+          "萌宝",
+          "悬疑",
+          "志怪",
+          "古装",
+          "玄幻",
+          "奇幻",
+          "成长",
+          "传奇",
+          "年代",
+          "都市",
+          "青春",
+          "喜剧",
+          "科幻",
+          "灾难",
+          "战争",
+          "综艺",
+          "剧情",
+          "逆袭",
+          "惊悚",
+          "恐怖"
+        ]
+      },
+      {
+        "key": "category_dim_role",
+        "label": "全部设定",
+        "count": 80,
+        "names": [
+          "女强",
+          "女尊",
+          "神女",
+          "大男主",
+          "男强",
+          "忠诚男主",
+          "天之骄子",
+          "热血硬汉",
+          "群像",
+          "团宠",
+          "大叔",
+          "美强惨",
+          "小人物",
+          "反派主角",
+          "霸道男主",
+          "市井英雄",
+          "商界女王",
+          "直爽女主",
+          "大女主",
+          "战神",
+          "神豪",
+          "龙王",
+          "总裁",
+          "业界精英",
+          "医生",
+          "法医",
+          "律师",
+          "特工",
+          "黑客",
+          "厨师",
+          "厨娘",
+          "拳击手",
+          "主播",
+          "豪门千金",
+          "落魄千金",
+          "真假千金",
+          "侠客",
+          "剑客",
+          "刺客杀手",
+          "武林高手",
+          "少帅",
+          "军阀",
+          "书生",
+          "女帝",
+          "将军",
+          "世子",
+          "学神",
+          "天才",
+          "神童",
+          "天生灵骨"
+        ]
+      },
+      {
+        "key": "category_dim_epoch",
+        "label": "全部背景",
+        "count": 24,
+        "names": [
+          "未来",
+          "架空",
+          "现代",
+          "古代",
+          "民国",
+          "乡村",
+          "校园",
+          "职场",
+          "商界",
+          "黑道",
+          "豪门",
+          "世家",
+          "娱乐圈",
+          "星际",
+          "游戏世界",
+          "荒岛",
+          "异界",
+          "方言",
+          "英语",
+          "德语",
+          "法语",
+          "日语",
+          "韩语",
+          "小语种"
+        ]
+      },
+      {
+        "key": "gender",
+        "label": "全部受众",
+        "count": 2,
+        "names": [
+          "男频",
+          "女频"
+        ]
+      },
+      {
+        "key": "online_time",
+        "label": "全部时间",
+        "count": 4,
+        "names": [
+          "7天内上新",
+          "14天内上新",
+          "30天内上新",
+          "90天内上新"
+        ]
+      }
+    ],
+    "comic_series": [
+      {
+        "key": "category_dim_theme",
+        "label": "全部主题",
+        "count": 8,
+        "names": [
+          "剧情",
+          "奇幻",
+          "玄幻",
+          "末世",
+          "脑洞",
+          "豪门",
+          "科幻",
+          "冒险"
+        ]
+      },
+      {
+        "key": "category_dim_role",
+        "label": "全部设定",
+        "count": 8,
+        "names": [
+          "逆袭",
+          "反转",
+          "穿越",
+          "重生",
+          "总裁",
+          "系统",
+          "娱乐圈",
+          "异能"
+        ]
+      },
+      {
+        "key": "category_dim_epoch",
+        "label": "全部背景",
+        "count": 9,
+        "names": [
+          "乡村",
+          "年代",
+          "校园",
+          "民国",
+          "都市",
+          "职场",
+          "架空",
+          "异界",
+          "古代"
+        ]
+      },
+      {
+        "key": "gender",
+        "label": "全部受众",
+        "count": 2,
+        "names": [
+          "男频",
+          "女频"
+        ]
+      },
+      {
+        "key": "creation_status",
+        "label": "全部状态",
+        "count": 2,
+        "names": [
+          "已完结",
+          "连载中"
+        ]
+      },
+      {
+        "key": "online_time",
+        "label": "全部时间",
+        "count": 4,
+        "names": [
+          "7天内上新",
+          "14天内上新",
+          "30天内上新",
+          "90天内上新"
+        ]
+      }
+    ],
+    "ai_series": [
+      {
+        "key": "category_dim_theme",
+        "label": "全部主题",
+        "count": 8,
+        "names": [
+          "剧情",
+          "奇幻",
+          "玄幻",
+          "末世",
+          "脑洞",
+          "豪门",
+          "科幻",
+          "冒险"
+        ]
+      },
+      {
+        "key": "category_dim_role",
+        "label": "全部设定",
+        "count": 8,
+        "names": [
+          "逆袭",
+          "反转",
+          "穿越",
+          "重生",
+          "总裁",
+          "系统",
+          "娱乐圈",
+          "异能"
+        ]
+      },
+      {
+        "key": "category_dim_epoch",
+        "label": "全部背景",
+        "count": 9,
+        "names": [
+          "乡村",
+          "年代",
+          "校园",
+          "民国",
+          "都市",
+          "职场",
+          "架空",
+          "异界",
+          "古代"
+        ]
+      },
+      {
+        "key": "gender",
+        "label": "全部受众",
+        "count": 2,
+        "names": [
+          "男频",
+          "女频"
+        ]
+      },
+      {
+        "key": "online_time",
+        "label": "全部时间",
+        "count": 4,
+        "names": [
+          "7天内上新",
+          "14天内上新",
+          "30天内上新",
+          "90天内上新"
+        ]
+      }
+    ]
+  },
+  "hitRates": {
+    "denominator": 17,
+    "themeOnly_current": 17,
+    "roleOrTheme": 17,
+    "anyOfThreeDims": 17,
+    "specificNotGeneric": 17,
+    "onlyReachableViaOtherGenre": 5,
+    "noTagAtAll": 0
+  },
+  "titleRelatedness": {
+    "seedTitle": "半夜来客",
+    "seedTags": [
+      "都市",
+      "都市日常",
+      "揭露阴谋",
+      "人性寓言",
+      "矛盾和解",
+      "总裁",
+      "现代"
+    ],
+    "compared": 16,
+    "atLeast25pct": 0,
+    "atLeast25pctAndSharesTag": 0,
+    "top6": [
+      {
+        "title": "除夕夜，我让堂哥输到哭",
+        "score": 0.0,
+        "sharesTag": true
+      },
+      {
+        "title": "湾区女子图鉴",
+        "score": 0.0,
+        "sharesTag": true
+      },
+      {
+        "title": "我开一元修梦铺震惊堂弟",
+        "score": 0.0,
+        "sharesTag": true
+      },
+      {
+        "title": "财来",
+        "score": 0.0,
+        "sharesTag": true
+      },
+      {
+        "title": "回村头一夜，小卖铺来了个女人",
+        "score": 0.0,
+        "sharesTag": true
+      },
+      {
+        "title": "离婚后他才知道资方只认我",
+        "score": 0.0,
+        "sharesTag": true
+      }
+    ]
+  },
+  "pooledTitleRelatedness": {
+    "poolSize": 80,
+    "compared": 79,
+    "atLeast25pct": 0,
+    "atLeast15pct": 0,
+    "top8": [
+      {
+        "title": "婚糖",
+        "score": 0.0,
+        "tags": [
+          "爱情",
+          "都市爱情",
+          "先婚后爱",
+          "替嫁",
+          "隐藏大佬",
+          "忠诚男主",
+          "总裁",
+          "现代"
+        ]
+      },
+      {
+        "title": "湾区女子图鉴",
+        "score": 0.0,
+        "tags": [
+          "爱情",
+          "都市爱情",
+          "商业联姻",
+          "逼婚",
+          "先婚后爱",
+          "总裁",
+          "现代"
+        ]
+      },
+      {
+        "title": "我开一元修梦铺震惊堂弟",
+        "score": 0.0,
+        "tags": [
+          "逆袭",
+          "奇幻脑洞",
+          "梦境操控",
+          "治愈",
+          "大男主",
+          "极品亲戚",
+          "现代"
+        ]
+      },
+      {
+        "title": "财来",
+        "score": 0.0,
+        "tags": [
+          "都市",
+          "逆袭翻身",
+          "暴富",
+          "大男主",
+          "现代"
+        ]
+      },
+      {
+        "title": "回村头一夜，小卖铺来了个女人",
+        "score": 0.0,
+        "tags": [
+          "逆袭",
+          "经营奋斗",
+          "暧昧拉扯",
+          "大男主",
+          "现代",
+          "乡村"
+        ]
+      },
+      {
+        "title": "离婚后他才知道资方只认我",
+        "score": 0.0,
+        "tags": [
+          "成长",
+          "女性成长",
+          "隐藏大佬",
+          "追妻",
+          "虐渣",
+          "大女主",
+          "现代",
+          "情感觉醒"
+        ]
+      },
+      {
+        "title": "我有一辆寻宝三轮车",
+        "score": 0.0,
+        "tags": [
+          "都市",
+          "逆袭翻身",
+          "打脸反派",
+          "系统",
+          "大男主",
+          "现代",
+          "都市脑洞"
+        ]
+      },
+      {
+        "title": "鱼缸里到底有什么",
+        "score": 0.0,
+        "tags": [
+          "悬疑",
+          "悬疑情感",
+          "自我救赎",
+          "打脸反派",
+          "大女主",
+          "现代",
+          "推理解谜"
+        ]
+      }
+    ]
+  },
+  "dimFilterProbes": [
+    {
+      "label": "对照：同 sort 不带维度",
+      "dims": {},
+      "returned": 17,
+      "selfReportedPct": 0.0,
+      "overlapWithHot": 0,
+      "overlapWithNewest": 17,
+      "titles": [
+        "半夜来客",
+        "除夕夜，我让堂哥输到哭",
+        "湾区女子图鉴",
+        "我开一元修梦铺震惊堂弟",
+        "财来",
+        "回村头一夜，小卖铺来了个女人"
+      ]
+    },
+    {
+      "label": "有区分力的维度命中",
+      "dims": {
+        "category_dim_role": [
+          "cate_5206"
+        ]
+      },
+      "returned": 18,
+      "selfReportedPct": 0.0,
+      "overlapWithHot": 0,
+      "overlapWithNewest": 4,
+      "titles": [
+        "半夜来客",
+        "湾区女子图鉴",
+        "精神小妹一出手，自闭陆总会说话了",
+        "心动第七年",
+        "那个男人强无敌",
+        "六万八的贺礼，让我看透婚礼上的人情冷暖"
+      ]
+    },
+    {
+      "label": "跨体裁 id（只在别的体裁词表里发布）",
+      "dims": {
+        "category_dim_role": [
+          "cate_19"
+        ]
+      },
+      "returned": 13,
+      "selfReportedPct": 0.0,
+      "overlapWithHot": 0,
+      "overlapWithNewest": 0,
+      "titles": [
+        "继承遗产后，我开启全球寻亲之旅",
+        "财富自由：从魅力提现开始",
+        "高冷校花救济我，我靠贴贴成神豪",
+        "相亲绝美女总裁，竟是娃娃亲",
+        "十倍返现：我的精神小妹军团",
+        "小卖部通末世：开局泡面换黄金"
+      ]
+    },
+    {
+      "label": "泛词维度命中（df=4）",
+      "dims": {
+        "category_dim_role": [
+          "cate_5206"
+        ]
+      },
+      "returned": 18,
+      "selfReportedPct": 0.0,
+      "overlapWithHot": 0,
+      "overlapWithNewest": 4,
+      "titles": [
+        "半夜来客",
+        "湾区女子图鉴",
+        "精神小妹一出手，自闭陆总会说话了",
+        "心动第七年",
+        "那个男人强无敌",
+        "六万八的贺礼，让我看透婚礼上的人情冷暖"
+      ]
+    },
+    {
+      "label": "同维度换值：主题·动作",
+      "dims": {
+        "category_dim_theme": [
+          "cate_9165"
+        ]
+      },
+      "returned": 18,
+      "selfReportedPct": 0.0,
+      "overlapWithHot": 0,
+      "overlapWithNewest": 0,
+      "titles": [
+        "铁拳无敌廖师傅",
+        "弃少归来，争龙扫黑录",
+        "凤起武坛",
+        "扫黑：边陲利刃",
+        "咏春扫黑",
+        "野路子·第一季"
+      ]
+    },
+    {
+      "label": "同维度换值：主题·冒险",
+      "dims": {
+        "category_dim_theme": [
+          "cate_9163"
+        ]
+      },
+      "returned": 18,
+      "selfReportedPct": 0.0,
+      "overlapWithHot": 0,
+      "overlapWithNewest": 0,
+      "titles": [
+        "失落咕噜岛",
+        "外星异兽之魔岛怪物",
+        "民宿惊现恐龙蛋",
+        "雇佣兵荒岛求生爆火出圈第二季",
+        "诡秘小金龙第一季",
+        "荒岛营救"
+      ]
+    }
+  ],
+  "idSetEquality": {
+    "对照：同 sort 不带维度 ⟷ 有区分力的维度命中": {
+      "identical": false,
+      "shared": 4,
+      "sizes": [
+        17,
+        18
+      ]
+    },
+    "对照：同 sort 不带维度 ⟷ 跨体裁 id（只在别的体裁词表里发布）": {
+      "identical": false,
+      "shared": 0,
+      "sizes": [
+        17,
+        13
+      ]
+    },
+    "对照：同 sort 不带维度 ⟷ 泛词维度命中（df=4）": {
+      "identical": false,
+      "shared": 4,
+      "sizes": [
+        17,
+        18
+      ]
+    },
+    "对照：同 sort 不带维度 ⟷ 同维度换值：主题·动作": {
+      "identical": false,
+      "shared": 0,
+      "sizes": [
+        17,
+        18
+      ]
+    },
+    "对照：同 sort 不带维度 ⟷ 同维度换值：主题·冒险": {
+      "identical": false,
+      "shared": 0,
+      "sizes": [
+        17,
+        18
+      ]
+    },
+    "有区分力的维度命中 ⟷ 跨体裁 id（只在别的体裁词表里发布）": {
+      "identical": false,
+      "shared": 0,
+      "sizes": [
+        18,
+        13
+      ]
+    },
+    "有区分力的维度命中 ⟷ 泛词维度命中（df=4）": {
+      "identical": true,
+      "shared": 18,
+      "sizes": [
+        18,
+        18
+      ]
+    },
+    "有区分力的维度命中 ⟷ 同维度换值：主题·动作": {
+      "identical": false,
+      "shared": 0,
+      "sizes": [
+        18,
+        18
+      ]
+    },
+    "有区分力的维度命中 ⟷ 同维度换值：主题·冒险": {
+      "identical": false,
+      "shared": 0,
+      "sizes": [
+        18,
+        18
+      ]
+    },
+    "跨体裁 id（只在别的体裁词表里发布） ⟷ 泛词维度命中（df=4）": {
+      "identical": false,
+      "shared": 0,
+      "sizes": [
+        13,
+        18
+      ]
+    },
+    "跨体裁 id（只在别的体裁词表里发布） ⟷ 同维度换值：主题·动作": {
+      "identical": false,
+      "shared": 0,
+      "sizes": [
+        13,
+        18
+      ]
+    },
+    "跨体裁 id（只在别的体裁词表里发布） ⟷ 同维度换值：主题·冒险": {
+      "identical": false,
+      "shared": 0,
+      "sizes": [
+        13,
+        18
+      ]
+    },
+    "泛词维度命中（df=4） ⟷ 同维度换值：主题·动作": {
+      "identical": false,
+      "shared": 0,
+      "sizes": [
+        18,
+        18
+      ]
+    },
+    "泛词维度命中（df=4） ⟷ 同维度换值：主题·冒险": {
+      "identical": false,
+      "shared": 0,
+      "sizes": [
+        18,
+        18
+      ]
+    },
+    "同维度换值：主题·动作 ⟷ 同维度换值：主题·冒险": {
+      "identical": false,
+      "shared": 0,
+      "sizes": [
+        18,
+        18
+      ]
+    }
+  },
+  "rows": [
+    {
+      "id": "7701614843089914904",
+      "title": "半夜来客",
+      "tags": [
+        "都市",
+        "都市日常",
+        "揭露阴谋",
+        "人性寓言",
+        "矛盾和解",
+        "总裁",
+        "现代"
+      ],
+      "themeOnly": [
+        "都市"
+      ],
+      "roleOrTheme": [
+        "都市",
+        "总裁"
+      ],
+      "anyDim": [
+        "都市",
+        "总裁",
+        "现代"
+      ],
+      "pick": {
+        "tag": "总裁",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5206",
+        "df": 4
+      },
+      "specificPick": {
+        "tag": "总裁",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5206",
+        "df": 4
+      },
+      "onlyOtherGenre": null
+    },
+    {
+      "id": "7699845744500427838",
+      "title": "除夕夜，我让堂哥输到哭",
+      "tags": [
+        "家庭",
+        "家庭伦理",
+        "矛盾和解",
+        "大男主",
+        "极品亲戚",
+        "现代",
+        "乡村",
+        "家长里短"
+      ],
+      "themeOnly": [
+        "家庭"
+      ],
+      "roleOrTheme": [
+        "家庭",
+        "大男主",
+        "极品亲戚"
+      ],
+      "anyDim": [
+        "家庭",
+        "大男主",
+        "极品亲戚",
+        "现代",
+        "乡村"
+      ],
+      "pick": {
+        "tag": "极品亲戚",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5336",
+        "df": 3
+      },
+      "specificPick": {
+        "tag": "极品亲戚",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5336",
+        "df": 3
+      },
+      "onlyOtherGenre": null
+    },
+    {
+      "id": "7701332919490448409",
+      "title": "湾区女子图鉴",
+      "tags": [
+        "爱情",
+        "都市爱情",
+        "商业联姻",
+        "逼婚",
+        "先婚后爱",
+        "总裁",
+        "现代"
+      ],
+      "themeOnly": [
+        "爱情"
+      ],
+      "roleOrTheme": [
+        "爱情",
+        "总裁"
+      ],
+      "anyDim": [
+        "爱情",
+        "总裁",
+        "现代"
+      ],
+      "pick": {
+        "tag": "总裁",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5206",
+        "df": 4
+      },
+      "specificPick": {
+        "tag": "总裁",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5206",
+        "df": 4
+      },
+      "onlyOtherGenre": null
+    },
+    {
+      "id": "7702094159468842009",
+      "title": "我开一元修梦铺震惊堂弟",
+      "tags": [
+        "逆袭",
+        "奇幻脑洞",
+        "梦境操控",
+        "治愈",
+        "大男主",
+        "极品亲戚",
+        "现代"
+      ],
+      "themeOnly": [
+        "逆袭"
+      ],
+      "roleOrTheme": [
+        "逆袭",
+        "大男主",
+        "极品亲戚"
+      ],
+      "anyDim": [
+        "逆袭",
+        "大男主",
+        "极品亲戚",
+        "现代"
+      ],
+      "pick": {
+        "tag": "极品亲戚",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5336",
+        "df": 3
+      },
+      "specificPick": {
+        "tag": "极品亲戚",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5336",
+        "df": 3
+      },
+      "onlyOtherGenre": null
+    },
+    {
+      "id": "7700599767360867352",
+      "title": "财来",
+      "tags": [
+        "都市",
+        "逆袭翻身",
+        "暴富",
+        "大男主",
+        "现代"
+      ],
+      "themeOnly": [
+        "都市"
+      ],
+      "roleOrTheme": [
+        "都市",
+        "大男主"
+      ],
+      "anyDim": [
+        "都市",
+        "大男主",
+        "现代"
+      ],
+      "pick": {
+        "tag": "大男主",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5224",
+        "df": 7
+      },
+      "specificPick": {
+        "tag": "都市",
+        "dim": "category_dim_theme",
+        "dimRank": 1,
+        "id": "cate_5022",
+        "df": 4
+      },
+      "onlyOtherGenre": null
+    },
+    {
+      "id": "7700891739917126681",
+      "title": "回村头一夜，小卖铺来了个女人",
+      "tags": [
+        "逆袭",
+        "经营奋斗",
+        "暧昧拉扯",
+        "大男主",
+        "现代",
+        "乡村"
+      ],
+      "themeOnly": [
+        "逆袭"
+      ],
+      "roleOrTheme": [
+        "逆袭",
+        "大男主"
+      ],
+      "anyDim": [
+        "逆袭",
+        "大男主",
+        "现代",
+        "乡村"
+      ],
+      "pick": {
+        "tag": "大男主",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5224",
+        "df": 7
+      },
+      "specificPick": {
+        "tag": "逆袭",
+        "dim": "category_dim_theme",
+        "dimRank": 1,
+        "id": "cate_5031",
+        "df": 3
+      },
+      "onlyOtherGenre": null
+    },
+    {
+      "id": "7701252774398266392",
+      "title": "离婚后他才知道资方只认我",
+      "tags": [
+        "成长",
+        "女性成长",
+        "隐藏大佬",
+        "追妻",
+        "虐渣",
+        "大女主",
+        "现代",
+        "情感觉醒"
+      ],
+      "themeOnly": [
+        "成长"
+      ],
+      "roleOrTheme": [
+        "成长",
+        "大女主"
+      ],
+      "anyDim": [
+        "成长",
+        "大女主",
+        "现代"
+      ],
+      "pick": {
+        "tag": "大女主",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5260",
+        "df": 2
+      },
+      "specificPick": {
+        "tag": "大女主",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5260",
+        "df": 2
+      },
+      "onlyOtherGenre": null
+    },
+    {
+      "id": "7700797165664209944",
+      "title": "我有一辆寻宝三轮车",
+      "tags": [
+        "都市",
+        "逆袭翻身",
+        "打脸反派",
+        "系统",
+        "大男主",
+        "现代",
+        "都市脑洞"
+      ],
+      "themeOnly": [
+        "都市"
+      ],
+      "roleOrTheme": [
+        "都市",
+        "大男主"
+      ],
+      "anyDim": [
+        "都市",
+        "大男主",
+        "现代"
+      ],
+      "pick": {
+        "tag": "大男主",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5224",
+        "df": 7
+      },
+      "specificPick": {
+        "tag": "都市",
+        "dim": "category_dim_theme",
+        "dimRank": 1,
+        "id": "cate_5022",
+        "df": 4
+      },
+      "onlyOtherGenre": {
+        "tag": "系统",
+        "id": "cate_19",
+        "under": "comic_series",
+        "dim": "category_dim_role"
+      }
+    },
+    {
+      "id": "7700862621431385113",
+      "title": "鱼缸里到底有什么",
+      "tags": [
+        "悬疑",
+        "悬疑情感",
+        "自我救赎",
+        "打脸反派",
+        "大女主",
+        "现代",
+        "推理解谜"
+      ],
+      "themeOnly": [
+        "悬疑"
+      ],
+      "roleOrTheme": [
+        "悬疑",
+        "大女主"
+      ],
+      "anyDim": [
+        "悬疑",
+        "大女主",
+        "现代"
+      ],
+      "pick": {
+        "tag": "大女主",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5260",
+        "df": 2
+      },
+      "specificPick": {
+        "tag": "大女主",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5260",
+        "df": 2
+      },
+      "onlyOtherGenre": null
+    },
+    {
+      "id": "7700857209407671358",
+      "title": "精神小妹一出手，自闭陆总会说话了",
+      "tags": [
+        "爱情",
+        "都市爱情",
+        "权力斗争",
+        "日久生情",
+        "逆风翻盘",
+        "直爽女主",
+        "总裁",
+        "现代"
+      ],
+      "themeOnly": [
+        "爱情"
+      ],
+      "roleOrTheme": [
+        "爱情",
+        "直爽女主",
+        "总裁"
+      ],
+      "anyDim": [
+        "爱情",
+        "直爽女主",
+        "总裁",
+        "现代"
+      ],
+      "pick": {
+        "tag": "直爽女主",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5250",
+        "df": 3
+      },
+      "specificPick": {
+        "tag": "直爽女主",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5250",
+        "df": 3
+      },
+      "onlyOtherGenre": null
+    },
+    {
+      "id": "7701278287900707864",
+      "title": "心动第七年",
+      "tags": [
+        "爱情",
+        "都市爱情",
+        "日久生情",
+        "故人重逢",
+        "揭露阴谋",
+        "直爽女主",
+        "忠诚男主",
+        "总裁",
+        "现代"
+      ],
+      "themeOnly": [
+        "爱情"
+      ],
+      "roleOrTheme": [
+        "爱情",
+        "直爽女主",
+        "忠诚男主",
+        "总裁"
+      ],
+      "anyDim": [
+        "爱情",
+        "直爽女主",
+        "忠诚男主",
+        "总裁",
+        "现代"
+      ],
+      "pick": {
+        "tag": "忠诚男主",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5226",
+        "df": 2
+      },
+      "specificPick": {
+        "tag": "忠诚男主",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5226",
+        "df": 2
+      },
+      "onlyOtherGenre": null
+    },
+    {
+      "id": "7701721269640645656",
+      "title": "婆婆的手机",
+      "tags": [
+        "家庭",
+        "家庭伦理",
+        "揭露阴谋",
+        "矛盾和解",
+        "乡村",
+        "现代"
+      ],
+      "themeOnly": [
+        "家庭"
+      ],
+      "roleOrTheme": [
+        "家庭"
+      ],
+      "anyDim": [
+        "家庭",
+        "乡村",
+        "现代"
+      ],
+      "pick": {
+        "tag": "家庭",
+        "dim": "category_dim_theme",
+        "dimRank": 1,
+        "id": "cate_5001",
+        "df": 3
+      },
+      "specificPick": {
+        "tag": "家庭",
+        "dim": "category_dim_theme",
+        "dimRank": 1,
+        "id": "cate_5001",
+        "df": 3
+      },
+      "onlyOtherGenre": null
+    },
+    {
+      "id": "7700999976154827800",
+      "title": "与海鸥同行后大海成了我家鱼塘",
+      "tags": [
+        "逆袭",
+        "奇幻脑洞",
+        "异能",
+        "轻松搞笑",
+        "大男主",
+        "方言",
+        "现代"
+      ],
+      "themeOnly": [
+        "逆袭"
+      ],
+      "roleOrTheme": [
+        "逆袭",
+        "大男主"
+      ],
+      "anyDim": [
+        "逆袭",
+        "大男主",
+        "方言",
+        "现代"
+      ],
+      "pick": {
+        "tag": "大男主",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5224",
+        "df": 7
+      },
+      "specificPick": {
+        "tag": "逆袭",
+        "dim": "category_dim_theme",
+        "dimRank": 1,
+        "id": "cate_5031",
+        "df": 3
+      },
+      "onlyOtherGenre": {
+        "tag": "异能",
+        "id": "cate_598",
+        "under": "comic_series",
+        "dim": "category_dim_role"
+      }
+    },
+    {
+      "id": "7699488316164410393",
+      "title": "茶馆风云",
+      "tags": [
+        "家庭",
+        "家庭伦理",
+        "揭露阴谋",
+        "极品亲戚",
+        "现代"
+      ],
+      "themeOnly": [
+        "家庭"
+      ],
+      "roleOrTheme": [
+        "家庭",
+        "极品亲戚"
+      ],
+      "anyDim": [
+        "家庭",
+        "极品亲戚",
+        "现代"
+      ],
+      "pick": {
+        "tag": "极品亲戚",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5336",
+        "df": 3
+      },
+      "specificPick": {
+        "tag": "极品亲戚",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5336",
+        "df": 3
+      },
+      "onlyOtherGenre": null
+    },
+    {
+      "id": "7701614840002923544",
+      "title": "千金止损",
+      "tags": [
+        "爱情",
+        "青春爱情",
+        "重生",
+        "日久生情",
+        "虐渣",
+        "隐藏大佬",
+        "忠诚男主",
+        "现代"
+      ],
+      "themeOnly": [
+        "爱情"
+      ],
+      "roleOrTheme": [
+        "爱情",
+        "忠诚男主"
+      ],
+      "anyDim": [
+        "爱情",
+        "忠诚男主",
+        "现代"
+      ],
+      "pick": {
+        "tag": "忠诚男主",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5226",
+        "df": 2
+      },
+      "specificPick": {
+        "tag": "忠诚男主",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5226",
+        "df": 2
+      },
+      "onlyOtherGenre": {
+        "tag": "重生",
+        "id": "cate_36",
+        "under": "comic_series",
+        "dim": "category_dim_role"
+      }
+    },
+    {
+      "id": "7699106407588580376",
+      "title": "我的饭搭子是状元",
+      "tags": [
+        "都市",
+        "都市日常",
+        "穿越",
+        "治愈",
+        "直爽女主",
+        "现代"
+      ],
+      "themeOnly": [
+        "都市"
+      ],
+      "roleOrTheme": [
+        "都市",
+        "直爽女主"
+      ],
+      "anyDim": [
+        "都市",
+        "直爽女主",
+        "现代"
+      ],
+      "pick": {
+        "tag": "直爽女主",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5250",
+        "df": 3
+      },
+      "specificPick": {
+        "tag": "直爽女主",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5250",
+        "df": 3
+      },
+      "onlyOtherGenre": {
+        "tag": "穿越",
+        "id": "cate_37",
+        "under": "comic_series",
+        "dim": "category_dim_role"
+      }
+    },
+    {
+      "id": "7698719864680107070",
+      "title": "龙城岁月第二季",
+      "tags": [
+        "剧情",
+        "犯罪",
+        "势力纷争",
+        "反转",
+        "大男主",
+        "现代",
+        "黑道"
+      ],
+      "themeOnly": [
+        "剧情"
+      ],
+      "roleOrTheme": [
+        "剧情",
+        "大男主"
+      ],
+      "anyDim": [
+        "剧情",
+        "大男主",
+        "现代",
+        "黑道"
+      ],
+      "pick": {
+        "tag": "大男主",
+        "dim": "category_dim_role",
+        "dimRank": 0,
+        "id": "cate_5224",
+        "df": 7
+      },
+      "specificPick": {
+        "tag": "剧情",
+        "dim": "category_dim_theme",
+        "dimRank": 1,
+        "id": "cate_5030",
+        "df": 1
+      },
+      "onlyOtherGenre": {
+        "tag": "反转",
+        "id": "cate_756",
+        "under": "comic_series",
+        "dim": "category_dim_role"
+      }
+    }
+  ]
+}

@@ -33,6 +33,7 @@
 
 - [体验设计](design/interaction-cache-v2.md)
 - [0.2.1 实现、设置验证与缓存验收](interaction-cache-validation.md)
+- [筛选词表与列表的 SQLite 缓存 + 差异 patch](design/catalog-sqlite-cache.md)：表设计、四条「不许删」护栏、DB-first 时序与 JSON→SQLite 迁移口径。
 
 ## 投屏
 

@@ -374,7 +374,8 @@ function dimChips(type, cur){
 /* 卡面：[title, eps, sub_title, score, heat, heat2, badge, color, play_cnt] */
 function gridCard(c, i){
   const [t,eps,sub,score,heat,heat2,badge,color] = c;
-  return `<button class="card" data-card="${i}" tabindex="0">
+  const feed = Object.keys(API.feed).find(g=>(API.feed[g]||[]).some(x=>x[0]===t)) || S.genre;
+  return `<button class="card" data-card="${i}" data-feed="${feed}" tabindex="0">
     <span class="cover" style="${grad(color)}">
       ${badge?`<span class="badge ${/爆/.test(badge)?'hot':''}">${badge}</span>`:''}
       <span class="eps">全 ${eps} 集</span></span>
@@ -740,7 +741,7 @@ function bind(){
   document.querySelectorAll('[data-card]').forEach(el=>{
     el.onmouseenter=()=>{ clearTimeout(peekTimer); peekTimer=setTimeout(()=>showPeek(+el.dataset.card, el),1500); };
     el.onmouseleave=()=>{ clearTimeout(peekTimer); setTimeout(()=>{ if(S.peek!==null && !document.getElementById('d-peek').matches(':hover')) hidePeek(); },300); };
-    el.onclick=()=>{ S.drill='点卡 = 进播放详情（本轮不改）；这里演示的是「找同题材」下钻'; showPeek(+el.dataset.card, el); };
+    el.onclick=()=>{ location.href='video-detail.html?g='+encodeURIComponent(el.dataset.feed||S.genre)+'&i='+el.dataset.card; };
   });
 }
 

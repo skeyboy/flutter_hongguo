@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<!--
+  视频详情承接页 · 可预览原型（点击发现/分类/榜单里的卡片进入的二级页）
+  风格与 discover-filters-ranking.html 同一套：色板、卡片、读出窗、meta 条全部沿用，
+  并共用它的 API.feed（同一批实机样本的剧、真实集数与评分）。
+  标签 / 面板词 / 推荐轨条目来自 docs/evidence/detail-related-2026-10-30/live-sample-2.json
+  （packages/api/tool/related_vocab_sample.dart，18:04 那次捕获：主题 29 / 设定 42 / 背景 11）。
+  简介文案、观看进度、海报是设计演示值——勾选顶部「标注演示数据」把所有演示位描成虚线。
+  设计说明见 ../video-detail-redesign.md。无网络依赖，双击即开。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>原型 · 视频详情承接页（电脑 / 手机 / 平板）</title>
+<style>
+  :root{
+    --ink:#15171c; --ink2:#454a57; --ink3:#8b909e; --line:#e3e5ea;
+    --bg:#f6f7f9; --card:#fff; --brand:#ff2d55; --brand-soft:#fff0f3;
+    --hot:#fa7705; --gold:#c08a12; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+       color:var(--ink);background:#eceef2}
+  button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+  [hidden]{display:none !important}
+  /* ---------- 原型控制条 ---------- */
+  .meta{position:sticky;top:0;z-index:90;display:flex;flex-wrap:wrap;gap:10px;align-items:center;
+        padding:10px 16px;background:#15171c;color:#fff;font-size:13px}
+  .meta b{font-weight:600}
+  .seg{display:flex;background:#2a2d36;border-radius:9px;overflow:hidden}
+  .seg button{padding:6px 12px;font-size:13px;color:#c8ccd6}
+  .seg button[aria-pressed=true]{background:#fff;color:#15171c;font-weight:600}
+  .meta label{display:flex;align-items:center;gap:6px;color:#c8ccd6}
+  .meta .hint{color:#9aa0ad;font-size:12px}
+  .stage{padding:18px}
+  .frame{margin:0 auto;max-width:1280px;transition:max-width .18s}
+  /* ---------- 读出窗 ---------- */
+  .readout{margin:0 16px 14px;background:#15171c;color:#dfe3ea;border-radius:10px;padding:10px 12px;
+           font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace}
+  .readout .k{color:#8b90a3}
+  .readout .v{color:#7ee0a0;word-break:break-all}
+  .readout em{color:#ffd08a;font-style:normal}
+  .readout .warn{color:#ff9db1}
+  .readout .row{display:block}
+  /* ---------- 共用小件 ---------- */
+  .demo-mark [data-demo]{outline:1px dashed var(--hot);outline-offset:1px;border-radius:6px}
+  .todo{border:1px dashed #c6cbd6;color:#9aa0ad;border-radius:7px;font-size:11px;padding:1px 6px;
+        background:repeating-linear-gradient(135deg,#fafbfc 0 6px,#f2f4f7 6px 12px);white-space:nowrap}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .chip{flex:0 0 auto;height:30px;padding:0 13px;border-radius:15px;background:#eef0f4;color:var(--ink2);
+        font-size:14px;white-space:nowrap;border:1px solid transparent}
+  .chip:hover{background:#e6e8ee}
+  .chip[aria-pressed=true]{background:var(--brand-soft);color:var(--brand);font-weight:600;border-color:#ffd0da}
+  .chip .n{font-size:11px;opacity:.72;margin-left:3px}
+  button:focus-visible{outline:2px solid #4a90ff;outline-offset:2px}
+  .card{background:var(--card);border-radius:var(--radius);overflow:hidden;position:relative;text-align:left;
+        box-shadow:0 1px 3px rgba(20,22,28,.07)}
+  .cover{aspect-ratio:3/4;position:relative;background:linear-gradient(158deg,var(--c,#3b3f52),#0e1015)}
+  .cover .eps{position:absolute;right:6px;bottom:6px;font-size:11px;color:#fff;background:rgba(0,0,0,.45);
+              padding:1px 6px;border-radius:8px}
+  .cover .badge{position:absolute;left:6px;top:6px;font-size:10px;color:#fff;background:rgba(0,0,0,.42);
+                padding:2px 6px;border-radius:6px}
+  .cover .badge.hot{background:rgba(250,119,5,.9)}
+  .card .tit{font-size:14px;font-weight:600;line-height:1.35;margin:8px 8px 2px;
+             display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .card .tags{margin:0 8px 10px;font-size:12px;color:var(--ink3);white-space:nowrap;overflow:hidden;
+              text-overflow:ellipsis}
+  .card .heat{display:flex;gap:6px;align-items:center;margin:0 8px 10px;font-size:12px;color:var(--hot);
+              font-weight:600}
+  .card .heat .sc{color:var(--ink3);font-weight:400}
+  /* ---------- 播放器画面 ---------- */
+  .vid{position:relative;background:#0b0d12;border-radius:14px;overflow:hidden}
+  .vid .bgfill{position:absolute;inset:-25%;background:linear-gradient(140deg,var(--c,#3b3f52),#0e1015);
+               filter:blur(46px) saturate(1.25);opacity:.5}
+  .vid .frame-in{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+  .vid .portrait{height:100%;aspect-ratio:9/16;position:relative;border-radius:6px;overflow:hidden;
+                 background:linear-gradient(160deg,var(--c,#3b3f52),#0b0d12);
+                 box-shadow:0 0 60px rgba(0,0,0,.45)}
+  .vid .portrait .wm{position:absolute;left:12px;top:12px;font-size:12px;color:rgba(255,255,255,.72)}
+  .vid .portrait .sub{position:absolute;left:9%;right:9%;bottom:17%;text-align:center;color:#fff;font-size:14px;
+                      line-height:1.6;text-shadow:0 2px 10px rgba(0,0,0,.7)}
+  .ctrl{position:absolute;left:0;right:0;bottom:0;padding:10px 12px 12px;
+        background:linear-gradient(transparent,rgba(0,0,0,.74));color:#fff}
+  .bar{height:4px;border-radius:2px;background:rgba(255,255,255,.25);position:relative;cursor:pointer}
+  .bar i{display:block;height:4px;border-radius:2px;background:var(--brand);width:var(--p,32%)}
+  .bar b{position:absolute;top:-4px;left:var(--p,32%);width:12px;height:12px;margin-left:-6px;border-radius:50%;
+         background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.4);opacity:0}
+  .vid:hover .bar b{opacity:1}
+  .bar .tip{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(21,23,28,.92);
+            color:#fff;font-size:11px;padding:2px 7px;border-radius:6px;white-space:nowrap;opacity:0}
+  .bar:hover .tip{opacity:1}
+  .ctl-row{display:flex;align-items:center;gap:10px;margin-top:9px;font-size:13px;flex-wrap:wrap}
+  .ctl-row button{color:#fff;padding:4px 8px;border-radius:6px}
+  .ctl-row button:hover{background:rgba(255,255,255,.15)}
+  .ctl-row .sp{flex:1}
+  .bigplay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+  .bigplay span{width:54px;height:54px;border-radius:50%;background:rgba(255,255,255,.18);color:#fff;
+                display:flex;align-items:center;justify-content:center;font-size:24px;backdrop-filter:blur(4px)}
+  .kpihint{margin:8px 2px 0;font-size:11px;color:var(--ink3)}
+  /* ---------- 电脑 / 平板外壳（沿用发现页原型的浅色客户端底） ---------- */
+  .desk{display:none;background:var(--card);border-radius:16px;overflow:hidden;position:relative;
+        box-shadow:0 6px 24px rgba(20,22,28,.10)}
+  .desk.on{display:block}
+  .desk-top{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--line);
+            background:#fbfbfd}
+  .lights{display:flex;gap:8px;flex:0 0 auto}
+  .lights i{width:12px;height:12px;border-radius:50%;display:block}
+  .lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}
+  .lights i:nth-child(3){background:#28c840}
+  .wcap{display:none;gap:2px;margin-left:auto}
+  .wcap button{width:40px;height:26px;border-radius:5px;font-size:11px;color:var(--ink2)}
+  .wcap button:hover{background:#e9ebf0}
+  .wcap button.x:hover{background:#e11d48;color:#fff}
+  .desk[data-os=win] .lights{display:none}
+  .desk[data-os=win] .wcap{display:flex}
+  .desk[data-os=win] .desk-top .search{margin-left:6px}
+  .logo{font-weight:700;color:var(--brand);letter-spacing:.5px;flex:0 0 auto}
+  .back{display:flex;align-items:center;gap:4px;font-size:13px;color:var(--ink2);padding:5px 10px;
+        border-radius:8px;flex:0 0 auto}
+  .back:hover{background:#eef0f4;color:var(--ink)}
+  .desk-top .search{flex:1;max-width:360px;height:34px;border-radius:17px;background:var(--bg);color:var(--ink3);
+                    font-size:13px;display:flex;align-items:center;padding:0 14px;margin-left:auto}
+  .desk-top .me{width:30px;height:30px;border-radius:50%;background:linear-gradient(140deg,#ff5f7e,#b0234a);
+                color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .hero{position:relative;padding:20px 24px;color:#fff;background:linear-gradient(150deg,var(--c,#3b3f52),#0e1015)}
+  .hero::after{content:"";position:absolute;inset:0;
+               background:radial-gradient(90% 130% at 10% 0%,rgba(0,0,0,.12),rgba(0,0,0,.6))}
+  .hero .inner{position:relative;z-index:2;display:flex;gap:22px}
+  .hero .poster{flex:0 0 140px}
+  .hero .poster .cover{box-shadow:0 10px 28px rgba(0,0,0,.42)}
+  .hero h1{font-size:26px;font-weight:700;letter-spacing:-.5px;margin:2px 0 8px}
+  .hero .sub{font-size:13px;color:rgba(255,255,255,.74);margin-bottom:12px}
+  .hero .chip{background:rgba(255,255,255,.15);color:#fff}
+  .hero .chip:hover{background:rgba(255,255,255,.26)}
+  .hero .chip[aria-pressed=true]{background:#fff;color:var(--brand);border-color:#fff}
+  .cta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px}
+  .btn{height:42px;padding:0 20px;border-radius:21px;font-size:15px;display:inline-flex;align-items:center;gap:7px}
+  .btn.pri{background:var(--brand);color:#fff;font-weight:600}
+  .btn.gh{border:1px solid rgba(255,255,255,.34);color:#fff;background:rgba(255,255,255,.1)}
+  .btn.gh:hover{background:rgba(255,255,255,.2)}
+  .hero .todo{border-color:rgba(255,255,255,.32);color:rgba(255,255,255,.7);background:rgba(255,255,255,.06)}
+  .wrap{display:flex;gap:20px;padding:20px 24px 6px}
+  .col-main{flex:1;min-width:0}
+  .side{flex:0 0 330px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fcfcfe;
+        display:flex;flex-direction:column}
+  .tabs{display:flex;border-bottom:1px solid var(--line);background:#fff}
+  .tabs button{flex:1;padding:11px 0;font-size:14px;color:var(--ink2)}
+  .tabs button[aria-selected=true]{color:var(--brand);font-weight:600;box-shadow:inset 0 -2px 0 var(--brand)}
+  .side .body{padding:12px;max-height:520px;overflow:auto}
+  .epseg{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+  .epseg button{padding:4px 10px;border-radius:7px;font-size:12px;background:#eef0f4;color:var(--ink2)}
+  .epseg button[aria-pressed=true]{background:var(--ink);color:#fff}
+  .epgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:7px}
+  .epgrid button{height:34px;border-radius:8px;background:#eef0f4;font-size:13px;color:var(--ink2);position:relative}
+  .epgrid button:hover{background:#e2e5eb}
+  .epgrid button.now{background:var(--brand);color:#fff;font-weight:600}
+  .epgrid button.done::after{content:"";position:absolute;right:4px;top:4px;width:5px;height:5px;
+        border-radius:50%;background:var(--gold)}
+  .switchrow{display:flex;align-items:center;gap:8px;margin:12px 2px 0;font-size:13px;color:var(--ink2)}
+  .switchrow i{width:34px;height:20px;border-radius:10px;background:#d6dae2;position:relative;margin-left:auto}
+  .switchrow i::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
+        background:#fff;transition:transform .15s}
+  .switchrow[aria-pressed=true] i{background:var(--brand)}
+  .switchrow[aria-pressed=true] i::after{transform:translateX(14px)}
+  .queue{display:flex;flex-direction:column;gap:8px}
+  .queue .q{display:flex;gap:10px;align-items:center;padding:7px;border-radius:10px}
+  .queue .q:hover{background:#f1f3f7}
+  .queue .q .cover{flex:0 0 42px;aspect-ratio:3/4}
+  .queue .q .n{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .queue .q .o{font-size:11px;color:var(--ink3)}
+  .intro{font-size:14px;line-height:1.85;color:var(--ink2);max-height:4.6em;overflow:hidden;position:relative}
+  .intro.open{max-height:none}
+  .intro .fade{position:absolute;left:0;right:0;bottom:0;height:1.4em;background:linear-gradient(transparent,#fff)}
+  .intro.open .fade{display:none}
+  .more{font-size:13px;color:var(--brand);margin-top:6px;padding:2px 0}
+  .sect{padding:8px 24px 4px}
+  .sect-h{display:flex;align-items:baseline;gap:8px;margin:14px 0 10px;flex-wrap:wrap}
+  .sect-h h3{margin:0;font-size:19px;font-weight:700}
+  .sect-h .why{font-size:12px;color:var(--ink3);border:1px solid var(--line);border-radius:8px;padding:2px 7px}
+  .sect-h .why:hover{color:var(--brand);border-color:#ffd0da;background:var(--brand-soft)}
+  .sect-h .req{margin-left:auto;font-size:11px;color:var(--ink3);font-family:ui-monospace,Menlo,monospace}
+  .rail{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px}
+  .rail .card{flex:0 0 150px}
+  .grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+  .peek{position:absolute;left:8px;right:8px;bottom:8px;background:rgba(21,23,28,.92);color:#fff;font-size:11px;
+        line-height:1.5;padding:7px 8px;border-radius:8px;opacity:0;transform:translateY(6px);transition:.14s;
+        pointer-events:none}
+  .card:hover .peek{opacity:1;transform:none}
+  .pop{position:absolute;z-index:70;background:#fff;border:1px solid var(--line);border-radius:12px;
+       box-shadow:0 10px 30px rgba(20,22,28,.16);padding:12px 14px;font-size:12px;line-height:1.75;
+       color:var(--ink2);max-width:360px;display:none}
+  .pop.on{display:block}
+  .pop h4{margin:0 0 6px;font-size:13px;color:var(--ink)}
+  .pop code{background:#f2f4f7;padding:1px 5px;border-radius:5px;font-size:11px}
+  .empty{margin:6px 24px 16px;padding:14px;border:1px dashed #c6cbd6;border-radius:12px;font-size:13px;
+         color:var(--ink2);background:repeating-linear-gradient(135deg,#fafbfc 0 8px,#f3f5f8 8px 16px)}
+  /* ---------- 手机 / 平板设备框 ---------- */
+  .device{display:none;background:#0b0d12;border-radius:34px;padding:10px;position:relative;margin:0 auto;
+          box-shadow:0 20px 54px rgba(8,10,14,.34)}
+  .device.on{display:block}
+  .device.pad{border-radius:26px;padding:13px}
+  .sbar{display:flex;align-items:center;justify-content:space-between;height:32px;padding:0 14px;font-size:12px;
+        font-weight:600;color:#fff}
+  .sbar .r{font-weight:500;font-size:11px;color:#dfe3ea}
+  .hind{position:absolute;left:50%;transform:translateX(-50%);bottom:4px;width:112px;height:4px;border-radius:2px;
+        background:rgba(255,255,255,.55);z-index:70;pointer-events:none}
+  .screen{border-radius:24px;overflow:hidden;background:#fff;height:742px;display:flex;flex-direction:column}
+  .device.land .screen{height:352px}
+  .mnav{display:flex;align-items:center;gap:8px;height:44px;padding:0 10px;font-size:14px;color:#fff;
+        position:absolute;top:32px;left:0;right:0;z-index:22}
+  .mnav .ttl{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+             text-shadow:0 1px 6px rgba(0,0,0,.55)}
+  .mnav .ic{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+            font-size:16px;color:#fff;background:rgba(0,0,0,.3);backdrop-filter:blur(6px)}
+  .screen.mode-page .mnav{position:static;color:var(--ink);background:#fff;border-bottom:1px solid rgba(0,0,0,.07)}
+  .screen.mode-page .mnav .ttl{text-shadow:none}
+  .screen.mode-page .mnav .ic{color:var(--ink2);background:transparent;backdrop-filter:none}
+  .screen.mode-page .mnav .ic:hover{background:rgba(0,0,0,.06)}
+  .mbody{flex:1;min-height:0;overflow-y:auto;background:#fff;overscroll-behavior:contain}
+  .mbody.flat{overflow:hidden;background:#0b0d12}
+  .imm{position:relative;height:100%}
+  .imm .vid{position:absolute;inset:0;border-radius:0}
+  .imm .vid .portrait{width:100%;height:100%;aspect-ratio:auto;border-radius:0}
+  .railv{position:absolute;right:10px;bottom:104px;display:flex;flex-direction:column;gap:15px;align-items:center;z-index:12}
+  .railv button{color:#fff;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:3px;width:46px;
+                text-shadow:0 1px 6px rgba(0,0,0,.55)}
+  .railv button span{font-size:21px}
+  .mfoot{position:absolute;left:12px;right:66px;bottom:66px;color:#fff;z-index:12}
+  .mfoot .t{font-size:16px;font-weight:700;margin-bottom:4px;text-shadow:0 1px 8px rgba(0,0,0,.6)}
+  .mfoot .d{font-size:12px;color:rgba(255,255,255,.84);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mfoot .jump{margin-top:8px;height:30px;padding:0 12px;border-radius:15px;background:rgba(255,255,255,.16);
+               color:#fff;font-size:12px;display:inline-flex;align-items:center;gap:6px;backdrop-filter:blur(4px)}
+  .swipe{position:absolute;left:0;right:0;bottom:40px;text-align:center;font-size:11px;color:rgba(255,255,255,.5);z-index:12}
+  .mseg{display:flex;margin:8px 12px 12px;background:#f2f4f7;border-radius:9px;padding:2px}
+  .mseg button{flex:1;padding:7px 0;font-size:13px;border-radius:7px;color:var(--ink2)}
+  .mseg button[aria-selected=true]{background:#fff;color:var(--ink);font-weight:600;
+                                   box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .mhero{display:flex;gap:14px;padding:14px}
+  .mhero .poster{flex:0 0 100px}
+  .mhero h2{margin:2px 0 6px;font-size:20px;font-weight:700;line-height:1.25}
+  .mhero .s{font-size:12px;color:var(--ink3);margin-bottom:10px}
+  .mrow3{display:flex;gap:8px;padding:0 14px 12px}
+  .mrow3 button{flex:1;height:42px;border-radius:21px;font-size:14px;display:flex;align-items:center;
+                justify-content:center;gap:5px}
+  .mrow3 .pri{background:var(--brand);color:#fff;font-weight:600}
+  .mrow3 .gh{background:#f2f4f7;color:var(--ink2)}
+  .msec{padding:2px 14px 14px}
+  .msec-h{display:flex;align-items:baseline;gap:6px;margin:8px 0 10px;flex-wrap:wrap}
+  .msec-h h3{margin:0;font-size:17px;font-weight:700}
+  .msec-h .why{font-size:11px;color:var(--ink3);border:1px solid var(--line);border-radius:7px;padding:1px 6px}
+  .mrail{display:flex;gap:12px;overflow-x:auto;scrollbar-width:none;padding-bottom:4px}
+  .mrail::-webkit-scrollbar{display:none}
+  .mrail .card{flex:0 0 110px;background:none;box-shadow:none}
+  .mrail .card .tit{margin:6px 2px 0;font-size:13px}
+  .mrail .card .tags{margin:2px 2px 0}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:40;background:#fff;border-radius:18px 18px 0 0;
+         box-shadow:0 -10px 30px rgba(10,12,18,.22);transform:translateY(100%);transition:transform .22s;
+         display:flex;flex-direction:column;max-height:76%}
+  .sheet.on{transform:none}
+  .sheet .grab{width:36px;height:4px;border-radius:2px;background:#d6dae2;margin:9px auto 4px}
+  .sheet header{display:flex;align-items:center;gap:8px;padding:2px 14px 8px;border-bottom:1px solid var(--line)}
+  .sheet header b{font-size:15px}
+  .sheet header .seg{margin-left:auto;background:#f2f4f7;border-radius:8px;padding:2px}
+  .sheet header .seg button{padding:4px 10px;font-size:12px;color:var(--ink2);border-radius:6px}
+  .sheet header .seg button[aria-pressed=true]{background:#fff;color:var(--ink);font-weight:600;
+        box-shadow:0 1px 3px rgba(0,0,0,.1)}
+  .sheet .body{padding:12px 14px 18px;overflow:auto}
+  .sheet .epgrid{grid-template-columns:repeat(5,1fr)}
+  .mask{position:absolute;inset:0;z-index:35;background:rgba(10,12,18,.4);opacity:0;pointer-events:none;transition:.2s}
+  .mask.on{opacity:1;pointer-events:auto}
+  .mnote{padding:10px 14px 18px;font-size:11px;color:var(--ink3);line-height:1.75}
+  /* 触控族：去掉 hover 专属件、放大点击目标 */
+  body.touch .peek,body.touch .kpihint{display:none}
+  body.touch .btn{height:48px;padding:0 22px;font-size:16px}
+  body.touch .chip{height:34px;padding:0 14px;font-size:14px}
+  body.touch .tabs button{padding:14px 0;font-size:15px}
+  body.touch .epgrid button{height:44px;font-size:14px}
+  body.touch .card .tit{font-size:15px}
+  .frame.narrow .side{flex:0 0 262px}
+  .frame.narrow .wrap{gap:14px;padding:16px 16px 6px}
+  .frame.narrow .sect{padding-left:16px;padding-right:16px}
+  .frame.narrow .epgrid{grid-template-columns:repeat(5,1fr)}
+  .foot{max-width:1280px;margin:16px auto 0;font-size:12px;color:var(--ink3);line-height:1.85}
+  .foot b{color:var(--ink2)}
+</style>
+</head>
+<body>
+
+<div class="meta">
+  <b>视频详情承接页</b>
+  <div class="seg" id="seg-platform" role="group" aria-label="设备族">
+    <button data-dom="desk" data-w="1280" data-touch="0" aria-pressed="true">电脑客户端</button>
+    <button data-dom="phone" data-w="390" data-touch="1" aria-pressed="false">手机 竖</button>
+    <button data-dom="phone" data-w="740" data-touch="1" aria-pressed="false">手机 横</button>
+    <button data-dom="desk" data-w="820" data-touch="1" aria-pressed="false">平板 竖</button>
+    <button data-dom="desk" data-w="1080" data-touch="1" aria-pressed="false">平板 横</button>
+  </div>
+  <div class="seg" id="seg-os" role="group" aria-label="电脑窗口外壳">
+    <button data-v="mac" aria-pressed="true">macOS</button>
+    <button data-v="win" aria-pressed="false">Windows</button>
+  </div>
+  <div class="seg" id="seg-seed" role="group" aria-label="进来的那部剧"></div>
+  <div class="seg" id="seg-mobilemode" role="group" aria-label="手机形态">
+    <button data-v="imm" aria-pressed="true">沉浸播放</button>
+    <button data-v="page" aria-pressed="false">详情可滚</button>
+  </div>
+  <label><input type="checkbox" id="cb-demo"> 标注演示数据</label>
+  <span class="hint">剧名 · 集数 · 评分 = 与发现页原型同一份实机常量；标签 / 面板词 / 推荐轨 = 实机样本；简介 · 进度 · 海报 = 演示值</span>
+</div>
+
+<div class="readout" id="readout"></div>
+
+<div class="stage">
+ <div class="frame" id="frame">
+
+  <!-- ========= 电脑 / 平板：同一套 DOM ========= -->
+  <section class="desk on" id="desk" data-os="mac">
+    <div class="desk-top">
+      <span class="lights"><i></i><i></i><i></i></span>
+      <span class="logo">红果短剧</span>
+      <button class="back" id="desk-back">‹ 返回</button>
+      <div class="search">⌕ 搜索剧名、题材</div>
+      <span class="me">我</span>
+      <span class="wcap"><button>─</button><button>▢</button><button class="x">✕</button></span>
+    </div>
+
+    <div class="hero" id="hero">
+      <div class="inner">
+        <div class="poster"><div class="cover" id="hero-cover"></div></div>
+        <div style="flex:1;min-width:0">
+          <h1 id="hero-title"></h1>
+          <div class="sub" id="hero-sub"></div>
+          <div class="chips" id="hero-chips"></div>
+          <div class="cta">
+            <button class="btn pri" id="desk-play">▶ <span id="desk-play-label"></span></button>
+            <button class="btn gh" id="desk-fav">♡ 收藏</button>
+            <button class="btn gh" id="desk-dl">⭳ 下载全集</button>
+            <span class="todo" title="上游详情接口没有评分以外的口碑字段">评论 / 弹幕 未证实</span>
+            <span class="todo">演职人员 未证实</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <div class="col-main">
+        <div class="vid" id="desk-vid" style="aspect-ratio:4/3;max-height:520px">
+          <div class="bgfill"></div>
+          <div class="frame-in"><div class="portrait">
+            <span class="wm">红果短剧</span>
+            <span class="sub" data-demo>「她推开那扇门的时候，就知道今晚不该来。」</span>
+          </div></div>
+          <div class="bigplay" id="desk-bigplay"><span>❚❚</span></div>
+          <div class="ctrl">
+            <div class="bar" id="desk-bar"><i></i><b></b><span class="tip" data-demo>00:31 / 01:24</span></div>
+            <div class="ctl-row">
+              <button id="desk-pp">❚❚ 暂停</button>
+              <button data-epnav="prev">⏮ 上一集</button>
+              <button data-epnav="next">下一集 ⏭</button>
+              <span class="sp"></span>
+              <button data-demo>1.0× 倍速</button>
+              <button data-demo>⌧ 字幕</button>
+              <button data-demo>⧉ 画中画</button>
+              <button data-demo>⛶ 全屏</button>
+            </div>
+          </div>
+        </div>
+        <div class="kpihint">快捷键 <kbd>Space</kbd> 播放/暂停 · <kbd>←</kbd><kbd>→</kbd> 5 秒 ·
+          <kbd>N</kbd>/<kbd>P</kbd> 上下集 · <kbd>M</kbd> 静音 · <kbd>F</kbd> 全屏 ·
+          <kbd>Esc</kbd> 关抽屉。触控族（平板）不显示这一行，外接键盘时才浮出来。</div>
+
+        <div class="sect" style="padding-left:0;padding-right:0">
+          <div class="intro" id="desk-intro"><span id="desk-intro-t" data-demo></span><span class="fade"></span></div>
+          <button class="more" id="desk-intro-more">展开</button>
+        </div>
+      </div>
+
+      <aside class="side">
+        <div class="tabs" id="desk-tabs" role="tablist">
+          <button role="tab" data-v="ep" aria-selected="true">选集</button>
+          <button role="tab" data-v="rec" aria-selected="false">接下来播放</button>
+          <button role="tab" data-v="dl" aria-selected="false">缓存</button>
+        </div>
+        <div class="body" id="desk-side"></div>
+      </aside>
+    </div>
+
+    <div id="desk-related"></div>
+
+    <div class="sect" style="padding-bottom:26px">
+      <div class="sect-h"><h3>大家都在看</h3>
+        <button class="why" data-why="hot">这不是推荐 · 来源说明</button></div>
+      <div class="grid-cards" id="desk-hot"></div>
+    </div>
+    <div class="pop" id="pop"></div>
+  </section>
+
+  <!-- ========= 手机 / 平板设备框（平板复用上面的 desk DOM） ========= -->
+  <div class="device" id="device">
+    <div class="sbar"><span>9:41</span><span class="r" id="sbar-r">iPhone · 触控</span></div>
+    <div class="screen" id="screen">
+      <div class="mnav">
+        <button class="ic" id="m-back">‹</button>
+        <span class="ttl" id="m-title"></span>
+        <button class="ic" id="m-fav">♡</button>
+        <button class="ic" data-demo>⋯</button>
+      </div>
+
+      <div class="mbody flat" id="m-imm">
+        <div class="imm">
+          <div class="vid">
+            <div class="bgfill"></div>
+            <div class="frame-in"><div class="portrait">
+              <span class="wm">红果短剧</span>
+              <span class="sub" data-demo>「她推开那扇门的时候，就知道今晚不该来。」</span>
+            </div></div>
+            <div class="railv">
+              <button id="m-fav2"><span>♡</span>收藏</button>
+              <button id="m-ep"><span>▤</span>选集</button>
+              <button id="m-dl"><span>⭳</span>缓存</button>
+              <button data-demo><span>↗</span>分享</button>
+            </div>
+            <div class="mfoot">
+              <div class="t" id="m-imm-title"></div>
+              <div class="d" id="m-imm-desc" data-demo></div>
+              <button class="jump" id="m-imm-jump">▤ <span id="m-imm-jump-t"></span></button>
+            </div>
+            <div class="ctrl" style="padding-bottom:6px"><div class="bar"><i></i><b></b></div></div>
+            <div class="swipe">上滑下一集 · 下滑上一集 · 点画面出/收控制条</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mbody" id="m-page" hidden>
+        <div class="vid" data-demo style="height:206px">
+          <div class="bgfill"></div>
+          <div class="frame-in"><div class="portrait"><span class="wm">红果短剧</span></div></div>
+          <div class="bigplay"><span>▶</span></div>
+          <div class="ctrl" style="padding:8px 10px 10px">
+            <div class="bar" style="--p:22%"><i></i><b></b></div>
+            <div class="ctl-row" style="margin-top:7px;font-size:12px">
+              <button>▶ 播放</button><span class="sp"></span><button>下一集 ⏭</button><button>⛶</button>
+            </div>
+          </div>
+        </div>
+        <div class="mhero">
+          <div class="poster"><div class="cover" id="mp-cover"></div></div>
+          <div style="flex:1;min-width:0">
+            <h2 id="mp-title"></h2>
+            <div class="s" id="mp-sub"></div>
+            <div class="chips" id="mp-chips"></div>
+          </div>
+        </div>
+        <div class="mrow3">
+          <button class="pri" id="mp-play">▶ <span id="mp-play-t"></span></button>
+          <button class="gh" id="mp-fav">♡ 收藏</button>
+          <button class="gh" id="mp-ep">▤ 选集</button>
+        </div>
+        <div class="msec">
+          <div class="intro" id="mp-intro"><span id="mp-intro-t" data-demo></span><span class="fade"></span></div>
+          <button class="more" id="mp-intro-more">展开</button>
+        </div>
+        <div id="mp-related"></div>
+        <div class="mnote">手机上相关推荐只保留「有可证关系」的那一块，且排在选集之后；
+          「大家都在看」不进这条滚动流的顶部，避免观众把它当成这部剧的续集或同系列。</div>
+      </div>
+
+      <div class="mseg" id="mbar">
+        <button data-v="imm" aria-selected="true">播放中</button>
+        <button data-v="page" aria-selected="false">详情</button>
+        <button data-v="rec" aria-selected="false">推荐</button>
+      </div>
+
+      <div class="mask" id="mask"></div>
+      <div class="sheet" id="sheet">
+        <div class="grab"></div>
+        <header><b id="sheet-t">选集</b>
+          <div class="seg" id="sheet-seg">
+            <button data-v="all" aria-pressed="true">全部</button>
+            <button data-v="unseen" aria-pressed="false">未看</button>
+          </div>
+        </header>
+        <div class="body" id="sheet-body"></div>
+      </div>
+    </div>
+    <div class="hind"></div>
+  </div>
+
+ </div><!-- /frame -->
+</div>
+
+<div class="foot">
+  <b>这一页是二级承接页：</b>发现 / 分类 / 榜单里的卡片点进来就是它（发现页原型 <code>discover-filters-ranking.html</code>
+  的卡片点击已接到本页，带 <code>?g=&amp;i=</code> 过来）；左上「返回」回到列表，滚动位置和筛选状态由列表页保活。<br>
+  <b>设备族分派按宽度 × 输入族，不按设备名：</b>&lt;600 单列（播放器吃满，选集/缓存走底部抽屉）；
+  横屏手机仍单列吃满，不缩成窄栏；600–900 窄版双栏；≥900 宽版双栏（电脑客户端、平板横屏）。
+  平板和电脑是同一套 DOM，只差点击目标尺寸与是否显示 hover 预览 / 快捷键。<br>
+  <b>推荐块为什么只有一块、名字还这么短：</b>上游没有 related / recommend / 相似 端点，
+  唯一能自证的关联是把这部剧自己的面板词 <code>cate_</code> id 放进 <code>select_items</code> 再要一页。
+  卡片自带标签和面板词不同源（实机 17 行里只有 2 行能在「全部主题」找到同名，放宽到 设定∪主题 是 12 行，
+  再放宽到带背景词就 17/17 —— 因为「都市 / 现代」几乎每行都有，等于没筛）。
+  所以块名只写命中的那一个词；一个词都对不上时整块不出现（切到「后妈难当」看这个状态）。
+</div>
+
+<script>
+/* ===== 与发现页原型共用同一份实机常量：[title, eps, sub, score, heat, heat2, badge, color] ===== */
+const FEED = {
+ short_play:[["离婚后他才知道资方只认我",40,null,"8.4",null,null,"红果首发","#181018"],["我有一辆寻宝三轮车",92,null,"8.4",null,null,"红果首发","#301810"],["鱼缸里到底有什么",78,null,"8.6",null,null,"红果首发","#101820"],["精神小妹一出手，自闭陆总会说话了",40,null,"8.6",null,null,"红果首发","#202028"],["心动第七年",41,null,"8.4",null,null,"红果首发","#382018"],["婆婆的手机",42,null,"8.4",null,null,"红果首发","#603808"],["与海鸥同行后大海成了我家鱼塘",71,null,"8.6",null,null,"红果首发","#382018"],["茶馆风云",41,null,"8.6",null,null,"新剧","#302018"],["千金止损",40,null,"8.5",null,null,"红果首发","#282018"],["我的饭搭子是状元",39,null,"8.4",null,null,"新剧","#581810"],["龙城岁月第二季",79,null,"8.5",null,null,"红果首发","#202020"],["后妈难当，真心终抵万难",45,null,"8.6",null,null,"红果首发","#281810"]],
+ comic_series:[["从黑龙开始，吞噬诸天第二季",70,null,"8.6",null,null,"新剧","#181010"],["南星照寒林：破院发家",65,null,"8.5",null,null,"新剧","#302018"],["世子爷装疯，满朝皆惊",206,null,"8.5",null,null,"红果首发","#301008"],["庶女下乡：嫁个汉子奔小康",243,null,"8.5",null,null,"新剧","#402818"],["清颜医妃",133,null,"8.5",null,null,"红果首发","#301810"],["她关上门，我重启人生",57,null,"8.6",null,null,"新剧","#282018"],["竹篾生金姐带全村做大做强",94,null,"8.5",null,null,"红果首发","#383018"],["职场西游记",85,null,"8.4",null,null,"新剧","#d09048"],["阿妹的野生阿强哥",75,null,"8.4",null,null,"新剧","#282020"],["天降萌娃：真千金的打脸日常",82,null,"8.4",null,null,"新剧","#e8c8c8"],["深渊猎人",164,null,"8.4",null,null,"新剧","#082038"],["愚相之下，一场大婚倾权谋",85,null,"8.5",null,null,"红果首发","#401818"]],
+ ai_series:[["五百块住在我家,还真把自己当房东",66,null,"8.4",null,null,"新剧","#201820"],["十五万账单局中局",22,null,"8.6",null,null,"新剧","#381808"],["婚后慢熟第四季",92,null,"8.5",null,null,"新剧","#201818"],["赘婿不装了：庆功宴我亮出百亿底牌",40,null,"8.4",null,null,"新剧","#281808"],["带儿回家讨回公道",103,null,"8.4",null,null,"新剧","#381810"],["开我二百五月薪，十八年老汤你们自己熬",43,null,"8.4",null,null,"新剧","#281810"],["车座塞满舞伴的菜，我果断离婚清算家产",49,null,"8.4",null,null,"新剧","#201010"],["岁月向暖，终遇良人",50,null,"8.5",null,null,"新剧","#c89880"],["十张空卡，让我彻底清醒",45,null,"8.5",null,null,"新剧","#281010"],["月子里被迫离开",74,null,"8.6",null,null,"新剧","#181810"],["渊微赋",40,null,"8.5",null,null,"新剧","#301008"],["河底捞福，苏家小团团",64,null,"8.4",null,null,"新剧","#382018"]],
+};
+/* ===== 实机样本：卡片自带标签 + 面板对照（live-sample-2.json 18:04） ===== */
+const TAGS = {
+ '半夜来客':{tags:['都市','都市日常','揭露阴谋','人性寓言','矛盾和解','总裁','现代'],eps:null,
+   pick:{tag:'都市',dim:'category_dim_epoch',id:'cate_1',df:4},
+   cross:{tag:'总裁',dim:'category_dim_role',id:'cate_29',df:0,under:'comic_series'}},
+ '除夕夜，我让堂哥输到哭':{tags:['家庭','家庭伦理','矛盾和解','大男主','极品亲戚','现代','乡村','家长里短'],eps:null,
+   pick:{tag:'家长里短',dim:'category_dim_role',id:'cate_862',df:1}},
+ '鱼缸里到底有什么':{tags:['悬疑','悬疑情感','自我救赎','打脸反派','大女主','现代','推理解谜'],eps:78,
+   pick:{tag:'悬疑',dim:'category_dim_theme',id:'cate_165',df:1}},
+ '龙城岁月第二季':{tags:['剧情','犯罪','势力纷争','反转','大男主','现代','黑道'],eps:79,
+   pick:{tag:'黑道',dim:'category_dim_role',id:'cate_826',df:1},noSample:true},
+ '离婚后他才知道资方只认我':{tags:['成长','女性成长','隐藏大佬','追妻','虐渣','大女主','现代','情感觉醒'],eps:40,
+   pick:{tag:'大女主',dim:'category_dim_role',id:'cate_760',df:2},noSample:true},
+};
+/* 每块里的条目 = 那次筛选请求真实返回的前 6 条标题（dimFilterProbes.titles） */
+const RAILS = {
+ 'category_dim_epoch|cate_1':['我的兄弟竟是女生','明月不照长子窗','太爷爷归来之爆改全家','继承遗产后，我开启全球寻亲之旅','车城深汕第二季','归晚'],
+ 'category_dim_role|cate_29':['我的兄弟竟是女生','归晚','柔肩挡雨护平安','股神奶爸','错位人生归本真','半拍心跳暖余年'],
+ 'category_dim_role|cate_862':['弟媳妇进门后我懵了','修心守界情归圆满','二百万，跑了！','错付的心','这一次，女婿他绝不低头','90天我拿什么爱你'],
+ 'category_dim_theme|cate_165':['给我24小时','文物馆循环夜','四零四','X嫌疑人之致命剧本杀','唐人街诡案1:轮回公馆','我在镇抚司探案的那些年'],
+ 'category_dim_theme|cate_246':['兰心相照','夺风华','烬中寒刃','魂穿短剧，我就是来搞笑的','假凤入局掌六宫','撕毁婚书，我改嫁纨绔颠覆江山'],
+};
+const DIM_LABEL={category_dim_theme:'同题材',category_dim_role:'同设定',category_dim_epoch:'同背景'};
+const DIM_ROW={category_dim_theme:'全部主题',category_dim_role:'全部设定',category_dim_epoch:'全部背景'};
+/* 演示位：简介与进度。上游详情接口本轮没有留存简介字段，进度来自本地观看记录（设计里存在但值未实测）。 */
+const DEMO_DESC={
+ '半夜来客':'深夜，旧公寓的住户接连收到不属于任何人的访客记录。她本想报警，却发现每一条记录上都写着自己的名字。',
+ '除夕夜，我让堂哥输到哭':'除夕夜一桌年夜饭，把两家人的旧账全翻了出来。他这次不打算再忍。',
+ '鱼缸里到底有什么':'鱼缸不见了，婆婆也说不清昨晚的事。她沿着水痕一路找下去，找到的不是鱼。',
+ '龙城岁月第二季':'龙城第二条街换了主人。老陈从看守所出来那天，才发现儿子已经不在这条街上。',
+ '离婚后他才知道资方只认我':'她净身出户那天，资方会议上只剩下她的名字。',
+ '后妈难当，真心终抵万难':'（本轮样本未留存该剧简介 → 界面上这块应为骨架屏，不编文案）',
+};
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const Q=new URLSearchParams(location.search);
+const SEEDS=[['short_play',2],['short_play',10],['short_play',0],['short_play',11]];
+const state={dom:'desk',w:1280,touch:false,seed:0,g:'short_play',i:2,mode:'imm',side:'ep',
+             playing:true,fav:false,os:'mac'};
+if(Q.get('g')&&FEED[Q.get('g')]&&Number.isInteger(+Q.get('i'))){
+  state.g=Q.get('g'); state.i=+Q.get('i');
+  const k=SEEDS.findIndex(s=>s[0]===state.g&&s[1]===state.i);
+  if(k>=0) state.seed=k;
+}
+const cur=()=>{const c=(FEED[state.g]||[])[state.i]||FEED.short_play[2];
+  return {title:c[0],eps:c[1]??(TAGS[c[0]]&&TAGS[c[0]].eps),score:c[3],badge:c[6],color:c[7],
+          ev:TAGS[c[0]]||null};};
+/* 面板词是否命中：只认 live-sample-2 里对照过的那几个词，其余诚实标「面板无」 */
+const PANEL=new Set(['都市','现代','乡村','悬疑','家长里短','大女主','大男主','黑道','重生','穿越','系统','异能','先婚后爱','暴富','总裁','家庭','爱情','成长','逆袭','青春']);
+/* 海报色：能在实机 feed 里查到就查，查不到用固定调色板取稳定的一格。海报本身已标 data-demo。 */
+const PALETTE=['#101820','#301810','#282018','#382018','#581810','#202028','#603808','#302018'];
+function colorFor(name){
+  for (const g of Object.keys(FEED)) {
+    const hit = FEED[g].find(c=>c[0]===name);
+    if (hit) return hit[7];
+  }
+  let h=0; for (const ch of name) h=(h*31+ch.codePointAt(0))|0;
+  return PALETTE[Math.abs(h)%PALETTE.length];
+}
+
+function say(h){$('#readout').innerHTML=h;}
+function coverHTML(c,eps,badge){
+  return `<span class="cover" style="--c:${c.color||c}" data-demo>
+    ${badge?`<span class="badge ${/爆/.test(badge)?'hot':''}">${badge}</span>`:''}
+    ${eps?`<span class="eps">全 ${eps} 集</span>`:'<span class="eps">集数 未留存</span>'}</span>`;
+}
+function cardHTML(name,note,meta){
+  const m=meta||{}, c=m.color||colorFor(name);
+  return `<button class="card" data-name="${name}" style="width:100%">
+    ${coverHTML({color:c},m.eps,m.badge)}
+    <span class="tit">${name}</span><span class="tags">${note||''}</span>
+    <span class="peek" data-demo>悬停 1.5 秒出预览 · 点一下接播这一部</span></button>`;
+}
+function blocks(){
+  const d=cur(), ev=d.ev, out=[];
+  if(ev&&ev.pick){
+    const p=ev.pick, items=RAILS[`${p.dim}|${p.id}`]||[];
+    out.push({word:p.tag,title:`${DIM_LABEL[p.dim]} · ${p.tag}`,items,
+      req:`select_items{ ${p.dim}: ["${p.id}"] }`,
+      why:`<h4>这一块为什么在这里</h4>这部剧卡片上的 <code>${p.tag}</code>，
+        正好在发现页「${DIM_ROW[p.dim]}」一行里发布（<code>${p.id}</code>）。
+        请求带的就是这一个词：<code>select_items{ ${p.dim}: ["${p.id}"] }</code>。
+        ${items.length?`实测返回 18 条，本块展示前 6 条（真实标题）。`
+          :`<b>本轮未对这个词取样</b> → 正式实现里这块应当不出现，直到取样证明它能稳定返回内容。`}
+        它不是算法推荐，只是「和这部剧共用同一个面板词」，所以块名只写一个词，不写「猜你喜欢」。`});
+  }
+  if(ev&&ev.cross){
+    const x=ev.cross, items=RAILS[`${x.dim}|${x.id}`]||[];
+    out.push({word:x.tag,title:`同设定 · ${x.tag}（跨体裁词表 id）`,items,
+      req:`select_items{ ${x.dim}: ["${x.id}"] } ← 词表来自 ${x.under}`,
+      why:`<h4>谨慎使用</h4><code>${x.tag}</code> 只在 <b>${x.under}</b> 的设定行里发布，短剧面板没有这个词。
+        实测把它的 <code>${x.id}</code> 拿去筛短剧仍能返回 18 条，但这属于上游词表边界外的用法。
+        <b>正式实现默认不走这档</b>；原型留着是为了标出这条边界在哪。`});
+  }
+  return out;
+}
+function relatedHTML(host,deskMode){
+  const bs=blocks(), d=cur();
+  if(!bs.length){
+    const why = d.ev ? '这部剧的标签词都不在当前面板里。'
+      : '这部剧的卡片标签不在本轮实机样本里（本轮只对 17 行做过标签对照）。';
+    host.innerHTML = deskMode
+      ? `<div class="empty"><b>没有可证的关联 → 这一整块不出现。</b>${why}
+         与其铺一屏「猜你喜欢」，不如什么都不画：观众不会因为它出现在这部剧下面就认为它们相关。
+         <span class="todo">后端配合清单：详情接口带 selector_item_id 列表</span></div>`
+      : `<div class="mnote">没有可证关联 → 推荐块不出现，页面上只剩选集与「大家都在看」。</div>`;
+    return;
+  }
+  host.innerHTML = bs.map((b,bi)=>`
+    <div class="${deskMode?'sect':'msec'}" data-block="${bi}">
+      <div class="${deskMode?'sect-h':'msec-h'}"><h3>${b.title}</h3>
+        <button class="why" data-why="${bi}">来源说明</button>
+        <span class="req">${b.req}</span></div>
+      <div class="${deskMode?'rail':'mrail'}">${b.items.map(n=>
+        `<div style="flex:0 0 ${deskMode?150:110}px">${cardHTML(n,`筛选词：${b.word}`)}</div>`).join('')}</div>
+    </div>`).join('');
+}
+/* ===== 电脑 / 平板 ===== */
+function renderDesk(){
+  const d=cur(), eps=d.eps;
+  $('#hero').style.setProperty('--c',d.color);
+  $('#hero-cover').outerHTML=`<span class="cover" id="hero-cover" style="--c:${d.color}" data-demo>
+     ${d.badge?`<span class="badge">${d.badge}</span>`:''}
+     ${eps?`<span class="eps">全 ${eps} 集</span>`:''}</span>`;
+  $('#hero-title').textContent=d.title;
+  $('#hero-sub').innerHTML=`<span ${eps?'':'class="todo"'}>${eps?`共 ${eps} 集`:'集数未在本轮样本留存'}</span>
+     · ${d.score?`<span>${d.score} 分</span>`:''}
+     · <span data-demo>上次看到第 ${Math.max(1,Math.round((eps||40)*0.12))} 集</span>
+     · 卡片自带标签 ${d.ev?d.ev.tags.length+' 个（实机）':'未在本轮样本留存'}`;
+  const tags=d.ev?d.ev.tags:['（本轮样本未留存该剧标签）'];
+  $('#hero-chips').innerHTML=tags.slice(0,6).map((t,i)=>
+    `<button class="chip" data-tag="${t}" aria-pressed="${i===0&&PANEL.has(t)}">${t}
+      <span class="n">${PANEL.has(t)?'面板有':'面板无'}</span></button>`).join('');
+  $('#desk-play-label').textContent='继续观看';
+  $('#desk-intro-t').textContent=(DEMO_DESC[d.title]||'')+'　'.repeat(1)+(DEMO_DESC[d.title]||'');
+  $('#desk-vid').style.setProperty('--c',d.color);
+  relatedHTML($('#desk-related'),true);
+  renderSide();
+  $('#desk-hot').innerHTML=(FEED[state.g]||FEED.short_play).filter(c=>c[0]!==d.title)
+    .slice(0,10).map(c=>cardHTML(c[0],c[3]?c[3]+' 分':'',{eps:c[1],badge:c[6],color:c[7]})).join('');
+}
+function epButtons(from,to){
+  const cur0=cur(), seen=Math.max(1,Math.round((cur0.eps||40)*0.12));
+  let out='';
+  for(let i=from;i<=to;i++) out+=`<button class="${i===seen?'now':''} ${i<seen?'done':''}" data-ep="${i}" data-demo>${i}</button>`;
+  return out;
+}
+function renderSide(){
+  const d=cur(), body=$('#desk-side'), eps=d.eps||40, seg=eps>30?30:eps;
+  if(state.side==='ep'){
+    const groups=[]; for(let i=1;i<=eps;i+=seg) groups.push(`${i}-${Math.min(i+seg-1,eps)}`);
+    body.innerHTML=`<div class="epseg">${groups.map((g,i)=>`<button data-g="${i}" aria-pressed="${i===0}">${g}</button>`).join('')}</div>
+      <div class="epgrid">${epButtons(1,Math.min(seg,eps))}</div>
+      <button class="switchrow" aria-pressed="true">自动连播下一集<i></i></button>
+      <button class="switchrow" aria-pressed="false">仅看未看<i></i></button>
+      <div class="mnote" style="padding:10px 2px 0">电脑端把选集放进右侧栏：画面和集数同屏，不用先呼出抽屉。
+        分组数按真实集数算（${eps} 集 → ${groups.length} 组），组内数字为演示位。</div>`;
+    body.querySelector('.epseg').onclick=e=>{
+      const b=e.target.closest('button'); if(!b) return;
+      body.querySelectorAll('.epseg button').forEach(x=>x.setAttribute('aria-pressed',x===b));
+      const st=(+b.dataset.g)*seg+1;
+      body.querySelector('.epgrid').innerHTML=epButtons(st,Math.min(st+seg-1,eps));
+    };
+  } else if(state.side==='rec'){
+    const b=blocks()[0], names=b?b.items:(FEED[state.g]||[]).slice(0,6).map(c=>c[0]);
+    body.innerHTML=`<div class="queue">${names.map((n,i)=>
+      `<div class="q"><span class="cover" data-demo style="--c:${(FEED[state.g]||[])[i]?FEED[state.g][i][7]:'#3b3f52'}"></span>
+       <div style="min-width:0"><div class="n">${n}</div>
+       <div class="o">队列第 ${i+1} 位${b?' · 来源：'+b.title:' · 无可证关系时不排队'}</div></div></div>`).join('')}</div>
+      <div class="mnote" style="padding:10px 2px 0">电脑端把「接下来播放」做成可编辑队列：
+        看完这部按队列接播，比在下方铺一屏卡片更合键盘用户的连看习惯。队列内容 = 本页唯一那块可证推荐。</div>`;
+  } else {
+    body.innerHTML=`<div class="chips" style="margin-bottom:10px"><button class="chip" aria-pressed="true">第 1-${eps} 集</button>
+        <button class="chip">前 10 集</button><button class="chip">未看集</button></div>
+      <div class="mnote" style="padding:0 2px 8px">缓存只留「选集范围 + 并发 1–3」两档，不放任何额度文案。</div>
+      <div class="epgrid">${epButtons(1,Math.min(18,eps))}</div>`;
+  }
+}
+/* ===== 手机 ===== */
+function renderPhone(){
+  const d=cur(), eps=d.eps;
+  $('#m-title').textContent=d.title;
+  $('#m-imm-title').textContent=d.title;
+  $('#m-imm-desc').textContent=DEMO_DESC[d.title]||'';
+  $('#m-imm-jump-t').textContent=eps?`共 ${eps} 集 · 选集`:'选集';
+  $$('#device .vid').forEach(v=>v.style.setProperty('--c',d.color));
+  $('#mp-cover').outerHTML=`<span class="cover" id="mp-cover" style="--c:${d.color}" data-demo>
+     ${d.badge?`<span class="badge">${d.badge}</span>`:''}${eps?`<span class="eps">全 ${eps} 集</span>`:''}</span>`;
+  $('#mp-title').textContent=d.title;
+  $('#mp-sub').innerHTML=`<span ${eps?'':'class="todo"'}>${eps?`共 ${eps} 集`:'集数未留存'}</span>
+     · <span data-demo>看到第 ${Math.max(1,Math.round((eps||40)*0.12))} 集</span>`;
+  $('#mp-chips').innerHTML=(d.ev?d.ev.tags:['（标签未留存）']).slice(0,4)
+     .map(t=>`<button class="chip" data-tag="${t}">${t}</button>`).join('');
+  $('#mp-play-t').textContent='继续观看';
+  $('#mp-intro-t').textContent=(DEMO_DESC[d.title]||'')+'　'+(DEMO_DESC[d.title]||'');
+  relatedHTML($('#mp-related'),false);
+}
+function applyMode(){
+  const page=state.dom==='phone'&&state.mode==='page';
+  $('#screen').classList.toggle('mode-page',page);
+  $('#m-imm').hidden=!(!page); $('#m-page').hidden=!!page;
+  $('#m-imm').classList.toggle('flat',!page);
+  $$('#mbar button').forEach(x=>x.setAttribute('aria-selected',x.dataset.v===(page?'page':'imm')));
+}
+function openSheet(kind){
+  const d=cur(), eps=d.eps||40, seg=Math.min(20,eps);
+  $('#sheet-t').textContent=kind==='dl'?'缓存本剧':'选集';
+  $('#sheet-seg').hidden=kind!=='ep';
+  $('#sheet-body').innerHTML=(kind==='dl'
+    ?`<div class="chips" style="margin-bottom:10px"><button class="chip" aria-pressed="true">第 1-${eps} 集</button>
+       <button class="chip">前 10 集</button><button class="chip">未看集</button></div>
+      <div class="mnote" style="padding:0 2px 8px">并发 1–3 档；无额度文案。</div>`
+    :'')+`<div class="epseg">${[...Array(Math.ceil(eps/seg))].map((_,i)=>
+       `<button data-g="${i}" aria-pressed="${i===0}">${i*seg+1}-${Math.min((i+1)*seg,eps)}</button>`).join('')}</div>
+      <div class="epgrid">${epButtons(1,seg)}</div>`;
+  $('#sheet').classList.add('on'); $('#mask').classList.add('on');
+}
+function closeSheet(){$('#sheet').classList.remove('on');$('#mask').classList.remove('on');}
+function pressIn(g,b){g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));}
+
+/* ===== 控制条 ===== */
+$('#seg-platform').onclick=e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  pressIn($('#seg-platform'),b);
+  const dom=b.dataset.dom,w=+b.dataset.w,touch=b.dataset.touch==='1';
+  const land=dom==='phone'&&w>600;
+  state.dom=dom; state.w=w; state.touch=touch;
+  $('#frame').style.maxWidth=w+'px';
+  $('#frame').classList.toggle('narrow',dom==='desk'&&w<900);
+  $('#desk').classList.toggle('on',dom==='desk');
+  $('#device').classList.toggle('on',dom==='phone');
+  $('#device').classList.toggle('land',land);
+  $('#device').style.maxWidth='';
+  document.body.classList.toggle('touch',touch);
+  $('#seg-mobilemode').style.display=dom==='phone'?'':'none';
+  $('#seg-os').style.display=dom==='desk'&&!touch?'':'none';
+  $('#sbar-r').textContent=dom==='phone'?(land?'iPhone 横屏 · 触控':'iPhone · 触控'):'iPad · 触控';
+  applyMode();
+  const fam=dom==='phone'?(land?'手机横屏':'手机竖屏'):(touch?(w<900?'平板竖屏':'平板横屏'):'电脑客户端');
+  say(`<span class="row"><span class="k">设备族</span> <em>${fam}</em>
+     <span class="k">分派</span> <span class="v">宽 ${w}px × ${touch?'触控':'鼠标键盘'}</span></span>
+     <span class="row"><span class="k">布局</span> ${w<600?'单列：播放器吃满，选集/缓存走底部抽屉（拇指可达）'
+       :w<900?'窄版双栏：与电脑端同一套 DOM，点击目标 ≥44px、无 hover 预览'
+       :'宽版双栏：左播放器 + 右侧「选集 / 接下来播放 / 缓存」栏'}</span>
+     <span class="warn">平板和电脑共用同一套详情页 DOM，只差尺寸与输入族；文案、来源口径、块顺序完全一致。</span></span>`);
+};
+$('#seg-os').onclick=e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  pressIn($('#seg-os'),b); $('#desk').dataset.os=b.dataset.v;
+  say(`<span class="row"><span class="k">窗口外壳</span> <em>${b.textContent}</em>
+     <span class="warn">macOS：红黄绿 + 可拖标题栏；Windows：自绘 ─▢、搜索靠左。内容区两端完全同一套。</span></span>`);
+};
+(function buildSeeds(){
+  $('#seg-seed').innerHTML=SEEDS.map((s,k)=>{
+    const c=(FEED[s[0]]||[])[s[1]];
+    return `<button data-k="${k}" aria-pressed="${k===state.seed}">${c[0].slice(0,5)}…</button>`;}).join('');
+})();
+$('#seg-seed').onclick=e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  pressIn($('#seg-seed'),b); state.seed=+b.dataset.k;
+  [state.g,state.i]=SEEDS[state.seed]; renderAll();
+  const d=cur(), bs=blocks();
+  say(`<span class="row"><span class="k">进入详情</span> <em>${d.title}</em>
+     <span class="v">POST /novel/player/multi_video_detail/preload/v1 {vid}</span></span>
+     <span class="row"><span class="k">卡片标签</span> <span class="v">${d.ev?d.ev.tags.join(' / '):'本轮样本未留存'}</span></span>
+     <span class="row"><span class="k">可证关系</span> ${bs.length?`<em>${bs.map(b=>b.title).join(' / ')}</em>`
+        :'<span class="warn">无 → 推荐块整块不出现</span>'}
+     <span class="warn">上游没有 related/recommend 端点，这块是 select_items 带一个面板词换来的</span></span>`);
+};
+$('#seg-mobilemode').onclick=e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  pressIn($('#seg-mobilemode'),b); state.mode=b.dataset.v; applyMode();
+  say(`<span class="row"><span class="k">手机形态</span> <em>${b.textContent}</em>
+     <span class="warn">沉浸态沿用红果/抖音的「详情即播放」；详情态给从收藏、历史进来的观众。</span></span>`);
+};
+$('#mbar').onclick=e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  if(b.dataset.v==='rec'){ state.mode='page'; applyMode();
+    $('#mp-related').scrollIntoView({behavior:'smooth'}); return; }
+  state.mode=b.dataset.v; applyMode();
+};
+$('#cb-demo').onchange=e=>document.body.classList.toggle('demo-mark',e.target.checked);
+$('#desk-tabs').onclick=e=>{
+  const b=e.target.closest('[role=tab]'); if(!b) return;
+  $$('#desk-tabs button').forEach(x=>x.setAttribute('aria-selected',x===b));
+  state.side=b.dataset.v; renderSide();
+  say(`<span class="row"><span class="k">右侧栏</span> <em>${b.textContent}</em>
+     <span class="warn">选集=同一条 detail 的 episodes；缓存=本地队列；接下来播放=内存队列，不落库</span></span>`);
+};
+const toggleIntro=(host,btn)=>{const el=$(host);el.classList.toggle('open');
+  btn.textContent=el.classList.contains('open')?'收起':'展开';};
+$('#desk-intro-more').onclick=e=>toggleIntro('#desk-intro',e.target);
+$('#mp-intro-more').onclick=e=>toggleIntro('#mp-intro',e.target);
+function fav(on){state.fav=on;
+  $('#desk-fav').innerHTML=(on?'♥':'♡')+' 收藏'; $('#mp-fav').innerHTML=(on?'♥':'♡')+' 收藏';
+  $('#m-fav').textContent=on?'♥':'♡'; $('#m-fav2').innerHTML=`<span>${on?'♥':'♡'}</span>收藏`;}
+['#desk-fav','#m-fav','#m-fav2','#mp-fav'].forEach(s=>$(s).onclick=()=>fav(!state.fav));
+$('#m-ep').onclick=()=>openSheet('ep'); $('#mp-ep').onclick=()=>openSheet('ep');
+$('#m-dl').onclick=()=>openSheet('dl'); $('#m-imm-jump').onclick=()=>openSheet('ep');
+$('#mask').onclick=closeSheet; $('#sheet').onclick=e=>{
+  const b=e.target.closest('.epseg button'); if(!b) return;
+  b.parentNode.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  const eps=cur().eps||40, seg=Math.min(20,eps), st=(+b.dataset.g)*seg+1;
+  $('#sheet .epgrid').innerHTML=epButtons(st,Math.min(st+seg-1,eps));
+};
+$('#sheet-seg').onclick=e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  pressIn($('#sheet-seg'),b);
+  const eps=cur().eps||40, seen=Math.max(1,Math.round(eps*0.12));
+  const from=b.dataset.v==='unseen'?seen+1:1;
+  $('#sheet .epgrid').innerHTML=epButtons(from,Math.min(from+19,eps));
+};
+$('#desk-side').addEventListener('click',e=>{
+  const sw=e.target.closest('.switchrow');
+  if(sw){sw.setAttribute('aria-pressed',sw.getAttribute('aria-pressed')!=='true');return;}
+  const ep=e.target.closest('[data-ep]');
+  if(ep) say(`<span class="row"><span class="k">播放第</span> <em>${ep.dataset.ep}</em> 集
+     <span class="v">POST /novel/player/multi_video_model/v1/ {vid}</span>
+     <span class="warn">换集不换页，也不重新请求推荐</span></span>`);
+});
+$('#desk-vid').onclick=()=>{state.playing=!state.playing;
+  $('#desk-bigplay').hidden=!state.playing; $('#desk-bigplay span').textContent=state.playing?'❚❚':'▶';
+  $('#desk-pp').textContent=state.playing?'❚❚ 暂停':'▶ 播放';};
+document.addEventListener('click',e=>{
+  const chip=e.target.closest('[data-tag]');
+  if(chip){const t=chip.dataset.tag;
+    $$('[data-tag]').forEach(x=>x.setAttribute('aria-pressed',x===chip));
+    say(PANEL.has(t)
+      ? `<span class="row"><span class="k">点标签「${t}」</span> <em>回发现页并带上筛选</em>
+         <span class="v">select_items{ …: ["cate_…"] }</span>
+         <span class="warn">这就是「关联到题材」唯一可证的形式：词表 id 进请求，返回集由上游按这个词筛</span></span>`
+      : `<span class="row"><span class="k">点标签「${t}」</span>
+         <span class="warn">当前面板三行里没有同名项 → 不做跳转筛选，只当文本；否则是假入口</span></span>`);
+    return;}
+  const why=e.target.closest('[data-why]');
+  if(why){const pop=$('#pop'),bs=blocks(),idx=why.dataset.why;
+    pop.innerHTML=idx==='hot'?`<h4>大家都在看</h4>这一格请求的是 <code>sort=hot_score</code>，
+      跟这部剧没有因果关系，所以不写「猜你喜欢」。上游确实排了这个序，
+      但卡片没有可信 <code>published_at</code>，因此块里不画「最新」角标。`
+      :(bs[idx]?bs[idx].why:'');
+    const r=why.getBoundingClientRect(),hr=$('#desk').getBoundingClientRect();
+    pop.style.left=Math.min(r.left-hr.left,hr.width-380)+'px';
+    pop.style.top=(r.bottom-hr.top+8)+'px'; pop.classList.add('on'); return;}
+  if(!e.target.closest('.pop')) $('#pop').classList.remove('on');
+  const card=e.target.closest('.card[data-name]');
+  if(card) say(`<span class="row"><span class="k">打开推荐里的</span> <em>${card.dataset.name}</em>
+     <span class="v">POST /novel/player/multi_video_detail/preload/v1 {vid}</span>
+     <span class="warn">推荐里点进去 = 新的详情承接页；返回时列表页保活原位</span></span>`);
+});
+$('#desk-back').onclick=$('#m-back').onclick=()=>{
+  say(`<span class="row"><span class="k">返回</span> <em>回列表页原位</em>
+     <span class="warn">列表页保活：体裁、筛选、排序、滚动位置都不重发请求（见发现页原型 §保活）</span></span>`);
+};
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){closeSheet();$('#pop').classList.remove('on');}
+  if([' ','ArrowLeft','ArrowRight'].includes(e.key)&&state.dom==='desk'&&!state.touch){
+    e.preventDefault();
+    say(`<span class="row"><span class="k">键盘</span> <em>${e.key===' '?'Space':e.key}</em>
+     <span class="warn">电脑客户端在详情页直接生效（焦点不在输入框时）；触控族不显示任何键盘文案</span></span>`);}
+});
+function renderAll(){renderDesk();renderPhone();applyMode();}
+renderAll();
+</script>
+</body>
+</html>
