@@ -158,3 +158,33 @@ Dart 侧的迁移分四处：
 本轮证据与读数记录在 [docs/evidence/playback-protocol-2026-10-28/findings.md](../evidence/playback-protocol-2026-10-28/findings.md)。验证统计：API 90 项通过（含新的 `playback_device_test.dart` 与重写的 `video_model_client_test.dart`），`tool/verify_all.sh` 退出码 0，`dart analyze` 无问题；真实 macOS App 带窗口的单集验收（`tool/verify_mac_live.sh`）取到 8,879,851 字节片源并出帧 1080×1920、seek 与音轨均正常。这些是当次匿名请求的读数，不能证明任意账号、网络或全部受限内容可访问。
 
 发布记录：修复提交 `0b5280d` 推到 main 后，标签没有硬搬——`v0.3.8`（`026519c`）作为一次未发布的记录留在历史里，版本改切 `0.3.9+21`（`9a0542c`，两处 pubspec 各一行）。提交树先在分离 worktree 跑 `tool/verify_all.sh` 到退出码 0，再推 main、打轻量标签 `v0.3.9` 触发 Release run `40643856179`：`preflight`、`build / plan`、`build / verify` 与五个 `build / native`（android、android-tv、macos、linux、windows）以及 `publish` 全 success，`ios-signed` 按默认跳过；run 从 `06:26:23Z` 跑到 `06:38:50Z`，`publish` 这一步只占 28 秒，发布在 `06:38:46Z`。也就是说这条 Linux 上的 zlib 分歧已被语义对拍吸收，本地 macOS 全绿不再是唯一依据。发布页 `draft: false`，15 个附件＝12 个安装包 + `iOS-signing-status.txt` + `SHA256SUMS.txt` + `release-manifest.json`；manifest 记 `version 0.3.9 / build 21 / commit 9a0542c9…`、`assets` 13 项（12 个安装包 + 状态文件），SHA256SUMS 共 14 行即那 13 项加 manifest 自身，12 个安装包逐条与 GitHub 给出的资产 `sha256` digest 对上，无错配、无 manifest 里有而附件缺的项。正文 25 条要点里第 6 条是本轮的「Playback URL acquisition」，措辞已随修复一起放宽：向量对拍验的是框架、密钥派生与压缩前的明文，不再声称逐字节。
+
+## 2026-10-30：同一句空包文案换了成因——按秒聚集，被拒即换身份
+
+观众侧又出现「暂时无法播放 / 播放信息未返回数据，请稍后重试」。这句文案只有两个出处，都在取址这一跳：HTTP 200 空 body（[packages/api/lib/src/video_model_client.dart:271](../../packages/api/lib/src/video_model_client.dart#L271)）和信封里 `data` 为空（同文件 [:525](../../packages/api/lib/src/video_model_client.dart#L525)），两者都抛 `IncompleteCatalogResponse`。这次它和 10-28 那次不是同一个病：那次是准入条件整体换了（合成身份 + 签名头一律软拦截，怎么重试都空），修完是「能问通」；这次是**同一台机器上时好时坏**，所以先把"看起来像"的三条逐个否掉，全部读数见 [docs/evidence/playback-identity-2026-10-30/findings.md](../evidence/playback-identity-2026-10-30/findings.md)。
+
+- 不是解码：修前修后所有带回 `data` 的运行都是 `definition: 1080p` / `encrypted: true` / `checkedMediaUrl: true` / `contentKeyValid: true`，5 个成功样本无一失败。坏的是根本没拿到 `data`，不是拿到解不开。
+- 不是版本回归：`git diff --name-only v0.3.9..HEAD -- packages/api` 只有 `media_cache.dart` 与其测试（下载车道那轮）；`video_model_client.dart`、`playback_device.dart`、`network_retry.dart` 自 `v0.3.9` 在提交历史里未动。「上一个版本正常」在这条链路上是成立的，也正因此成因不在我们的代码里。
+- 不是身份被拉黑，也不是某一集被拒：同一个共享身份连问 8 发 `8/8` 带回数据，每发换新身份 `7/8`；3 部剧 × 首/中/末集共 9 个 vid 各问 3 次，`27/27` 全部带回数据。
+
+剩下的是**按秒聚集的窗口**。07:27 那一轮里，4 次走到取址的尝试有 3 次各自连发 3 个 `200 + 0 字节`（合计 9 个空包），而同一次运行、同一进程、同一秒里，取址之前的带签名浏览/详情正常返回 36–60KB。旧恢复恰好帮不上忙：它在约 1.3 秒内重发**逐字节相同**的请求——同一个进程级注册身份（[runtime_native.dart:117](../../packages/app/lib/platform/runtime_native.dart#L117) 全进程只构造一个 `PlaybackDeviceRegistry`，[:221](../../packages/app/lib/platform/runtime_native.dart#L221) 注入取址客户端，[:138](../../packages/app/lib/platform/runtime_native.dart#L138) 还把它挂成下载车道的 `resolve`），同一个 body——等于在同一个窗口里把同一个问题原样再问两遍。
+
+改法就顺着这个形状来，三处：
+
+| 变更 | 位置 | 说明 |
+|---|---|---|
+| 取址跳自己的恢复窗口 | [video_model_client.dart:190](../../packages/api/lib/src/video_model_client.dart#L190) `playbackRetry()` | 3 次恢复，等待 700–900 / 2000–2300 / 4000–4500ms（合计 ≥5 秒，带抖动）；默认 deadline 由 12 秒放宽到 20 秒（[:175](../../packages/api/lib/src/video_model_client.dart#L175)）。目录请求维持原 3 发/1.3 秒，不受影响 |
+| 被拒就换身份 | [:235](../../packages/api/lib/src/video_model_client.dart#L235)；[playback_device.dart:81](../../packages/api/lib/src/playback_device.dart#L81) `rotate()` | 恢复整块挪进注册之后：首发复用已持有身份，这一跳回空包就把该身份记为 `refused`，下一次尝试先重新注册、用新 `device_id`/`iid` 提问。`rotate(refusedDeviceId:)` 会核对当前已发放的身份，并发的恢复只多花一次注册而不是各注册各的 |
+| 恢复次数按错误类型分派 | [network_retry.dart:109](../../packages/api/lib/src/network_retry.dart#L109) | 只有「必要字段缺失」类错误吃满配置的恢复；传输/服务端失败仍 1 次。新增 `maxRecoveries`（默认 2）保证其他调用方行为不变 |
+
+`PlaybackUnavailable`（信封带业务码、`status_code` 或空 entry 的明确拒绝）继续一次就停——那是内容维度的答复，重复请求不改变答案。
+
+线上复测：修后 6 连发里凡走到取址的运行都拿到 data（4/4，修前 1/4）。其中 `after/probe-6.json` 是这条修复的直接证据：`注册(384) → POST(0) → 注册(380) → POST(0) → 注册(384) → POST(22666)`，且这一发与上一发的时间戳相差 12 秒，而修前的三连发在 1 秒多点内打完。两次修后失败（`after/probe-2/3.json`）都没发出 POST，死在带签名的题材/详情跳——本轮没改那条链路的准入，既不算本修复的反例，也不列入本修复的成果。诚实边界：线上读数只能证明「轮换 + 更宽窗口」这个组合有效，无法把两项各自的作用分离开。
+
+实机与离线：`./tool/verify_mac_live.sh 7701332919490448409 7701334783946673176`（真实窗口、真实播放器）取到 11,195,297 字节片源，出帧 1080×1920、时长 172,800ms、seek 10,000/10,000、音轨识别正常，`00:07 +1: All tests passed!`。离线：`playback_device_test.dart` + `video_model_client_test.dart` 合计 `+32` 全通过（新增断言含"第二次提问的 `device_id` 与第一次不同"「首发命中不产生额外注册」「`playbackRetry()` 3 段等待 / `maxRecoveries == 3` / 总散布 ≥5000ms」）；core、api、update、cast 的 `dart test` 与 tv、app 的 `flutter test` 本轮实跑退出码均为 `0`。
+
+门禁缺口要说清：本轮拿不出一份退出码 0 的 `tool/verify_all.sh` 总读数。它第 12 行的整树格式检查与第 13 行的 `dart analyze --fatal-infos` 各被**不属于本轮**的在途工作挡住——`packages/api/tool/rank_sample.dart:422` 引用了尚不存在的 `CatalogClient.rank`，另有 `theme_rail_live_test.dart`、`desktop_fakes.dart`、`discover_desktop_layers_test.dart` 三个文件未格式化。本轮只保证自己那 7 个文件在这两项上干净，没有代别人收口。期间一次后台任务通知自称「退出码 0」，核对该任务自己的输出文件后判定不成立：那份输出只有 `Changed …` / `Formatted 252 files (8 changed)`，同一条检查重跑的真实退出码是 `1`——以后引用门禁结论以输出文件为准。
+
+与参考实现的偏离（下一轮再动）：`references/hongguo-web` 1.1.6 之后把注册的 `REGISTER_UA` 从 `72232` 对齐到 `73932`（与 body 的 `version_code 73932` 一致），并加了注册失败冷却与 `resetPlaybackDevice`。Dart 本轮不跟：注册这一跳每次实测都是 `200 / 355–384` 字节，没有可归因的失败；而把 `tool/upstream_protocol.json` 推进到 1.1.8 需要重新生成 `packages/core/test/fixtures/node_oracle.json`（1.1.8 重构动了 `pure-sign.js`），属单独一轮更大的同步。另一件考虑过也没做的是「同一集短时间内复用一次取址结果」：它能削掉 App 自己造成的 POST 突发，但有把已签名的媒体地址用过期之险，收益不抵风险。
+
+本轮未提交、未发布；工作树与其他在途工作共用，改动只落在上面 api 的 5 个源文件、2 个测试文件与 2 个只读探测工具。

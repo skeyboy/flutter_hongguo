@@ -1,0 +1,70 @@
+{
+  "at": "2026-10-30T07:27:24.435438Z",
+  "anonymous": true,
+  "recoveryEnabled": true,
+  "results": [
+    {
+      "probe": "themes",
+      "configuredSigned": false,
+      "ok": false,
+      "errorType": "IncompleteCatalogResponse",
+      "exchanges": [
+        {
+          "status": 200,
+          "bodyBytes": 0,
+          "signed": false
+        },
+        {
+          "status": 200,
+          "bodyBytes": 0,
+          "signed": true
+        },
+        {
+          "status": 200,
+          "bodyBytes": 0,
+          "signed": true
+        }
+      ]
+    },
+    {
+      "probe": "themes",
+      "configuredSigned": true,
+      "ok": true,
+      "filters": 29,
+      "exchanges": [
+        {
+          "status": 200,
+          "bodyBytes": 0,
+          "signed": true
+        },
+        {
+          "status": 200,
+          "bodyBytes": 19162,
+          "signed": true
+        }
+      ]
+    },
+    {
+      "probe": "playback-metadata",
+      "ok": false,
+      "errorType": "IncompleteCatalogResponse",
+      "exchanges": [
+        {
+          "status": 200,
+          "bodyBytes": 0,
+          "signed": true
+        },
+        {
+          "status": 200,
+          "bodyBytes": 0,
+          "signed": true
+        },
+        {
+          "status": 200,
+          "bodyBytes": 0,
+          "signed": true
+        }
+      ]
+    }
+  ]
+}

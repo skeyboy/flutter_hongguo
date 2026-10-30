@@ -21,6 +21,31 @@ class FixedDevices extends PlaybackDeviceRegistry {
   Future<PlaybackDevice> get({CancelToken? cancelToken}) async => device;
 }
 
+/// A registration that hands out a different pair every time it is asked to
+/// trade one in, so a test can see which identity each attempt carried.
+class RotatingDevices extends PlaybackDeviceRegistry {
+  RotatingDevices() : super(dio: Dio());
+  int rotations = 0;
+  @override
+  Future<PlaybackDevice> get({CancelToken? cancelToken}) async =>
+      _issued(issued++);
+  @override
+  Future<PlaybackDevice> rotate({
+    String? refusedDeviceId,
+    CancelToken? cancelToken,
+  }) async {
+    rotations++;
+    return _issued(issued++);
+  }
+
+  int issued = 0;
+  static PlaybackDevice _issued(int serial) => PlaybackDevice(
+    deviceId: '76616224674414${serial.toString().padLeft(4, '0')}',
+    iid: '39120885448${serial.toString().padLeft(4, '0')}',
+    cdid: 'rotating-cdid',
+  );
+}
+
 class FakeAdapter implements HttpClientAdapter {
   /// The value of `video_model.fallback_api`, unless [model] replaces the whole
   /// inlined model.
@@ -303,6 +328,62 @@ void main() {
     // The first answer plus the two bounded recoveries, and no second hop.
     expect(adapter.requests, hasLength(3));
     dio.close();
+  });
+  test(
+    'a recovery that got nothing trades the refused identity for a new one',
+    () async {
+      final adapter = ThinBodyAdapter(emptyPosts: 1);
+      final dio = Dio()..httpClientAdapter = adapter;
+      final devices = RotatingDevices();
+      final track = await VideoModelClient(
+        dio: dio,
+        builder: builder(),
+        devices: devices,
+        retry: NetworkRetry(wait: (_) async {}),
+      ).fetchTrack('123');
+      expect(track.url.toString(), 'https://a.qznovelvod.com/test.mp4');
+      // The empty answer is keyed to the pair it refused, so the next try asks
+      // with a registration this process did not have before.
+      expect(devices.rotations, 1);
+      final posts = adapter.requests
+          .where((request) => request.method == 'POST')
+          .toList();
+      expect(posts, hasLength(2));
+      expect(
+        posts[1].uri.queryParameters['device_id'],
+        isNot(posts[0].uri.queryParameters['device_id']),
+      );
+      dio.close();
+    },
+  );
+  test(
+    'an answer on the first try keeps the identity the process already holds',
+    () async {
+      final adapter = FakeAdapter('https://test.fqnovel.com/info');
+      final dio = Dio()..httpClientAdapter = adapter;
+      final devices = RotatingDevices();
+      await VideoModelClient(
+        dio: dio,
+        builder: builder(),
+        devices: devices,
+      ).fetchTrack('123');
+      expect(devices.rotations, 0);
+      dio.close();
+    },
+  );
+  test('the player hop recovers over a wider window than a catalog hop', () {
+    final catalog = NetworkRetry();
+    final playback = VideoModelClient.playbackRetry();
+    expect(catalog.maxRecoveries, 2);
+    expect(playback.maxRecoveries, 3);
+    expect(playback.delays, hasLength(3));
+    final spread = playback.delays.fold<Duration>(
+      Duration.zero,
+      (a, b) => a + b,
+    );
+    // The block this hop is recovered from lasts seconds, not the ~1s a catalog
+    // recovery spreads out, so the last try must not be reached inside that.
+    expect(spread.inMilliseconds, greaterThanOrEqualTo(5000));
   });
   test(
     'an envelope with no data is the same soft block, and is retried',

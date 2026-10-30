@@ -1,0 +1,48 @@
+{
+  "at": "2026-10-30T07:51:24.616854Z",
+  "anonymous": true,
+  "recoveryEnabled": true,
+  "results": [
+    {
+      "probe": "themes",
+      "configuredSigned": false,
+      "ok": true,
+      "filters": 29,
+      "exchanges": [
+        {
+          "status": 200,
+          "bodyBytes": 0,
+          "signed": false
+        },
+        {
+          "status": 200,
+          "bodyBytes": 19080,
+          "signed": true
+        }
+      ]
+    },
+    {
+      "probe": "themes",
+      "configuredSigned": true,
+      "ok": false,
+      "errorType": "IncompleteCatalogResponse",
+      "exchanges": [
+        {
+          "status": 200,
+          "bodyBytes": 0,
+          "signed": true
+        },
+        {
+          "status": 200,
+          "bodyBytes": 0,
+          "signed": true
+        },
+        {
+          "status": 200,
+          "bodyBytes": 0,
+          "signed": true
+        }
+      ]
+    }
+  ]
+}

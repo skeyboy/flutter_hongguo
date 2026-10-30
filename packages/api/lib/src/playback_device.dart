@@ -68,6 +68,29 @@ class PlaybackDeviceRegistry {
   Future<PlaybackDevice> get({CancelToken? cancelToken}) =>
       _pending ??= _register(cancelToken: cancelToken);
 
+  /// The identity the platform last admitted to this process, if any.
+  PlaybackDevice? _issued;
+
+  /// Trade the identity that just got refused for a newly registered one.
+  ///
+  /// The player endpoint answers by the pair of registered `device_id`/`iid` and
+  /// request bytes, so a recovery that replays the pair the answer came back
+  /// empty for asks the same question. Whoever holds the refused pair drops it;
+  /// a caller whose identity was already replaced by another in-flight recovery
+  /// keeps the newer one instead of stampeding the registration endpoint.
+  Future<PlaybackDevice> rotate({
+    String? refusedDeviceId,
+    CancelToken? cancelToken,
+  }) {
+    if (_issued == null ||
+        (refusedDeviceId != null && _issued!.deviceId != refusedDeviceId)) {
+      return get(cancelToken: cancelToken);
+    }
+    _issued = null;
+    _pending = null;
+    return get(cancelToken: cancelToken);
+  }
+
   Future<PlaybackDevice> _register({CancelToken? cancelToken}) async {
     final now = clockMillis();
     final cdid = uuid();
@@ -94,6 +117,7 @@ class PlaybackDeviceRegistry {
         throw StateError('register HTTP ${response.statusCode}');
       }
       final device = parseDevice(response.data ?? '', cdid);
+      _issued = device;
       return device;
     } on Object {
       _pending = null;

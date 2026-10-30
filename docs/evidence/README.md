@@ -9,6 +9,7 @@
 | [native-pipeline](native-pipeline) | 核心/API/页面测试、AOT/JS 对拍、MP4 解码结果、macOS 与 iOS 模拟器离线播放日志 |
 | [current-mac](current-mac) | 当前 Mac 原生算法、真实单集播放、Release 架构/打包与验收 JSON |
 | [playback-protocol-2026-10-28](playback-protocol-2026-10-28/findings.md) | 取址改走匿名设备注册前后的线上只读探测读数、注册信封离线对拍、API 回归日志 |
+| [playback-identity-2026-10-30](playback-identity-2026-10-30/findings.md) | 取址空包按秒聚集的修前/修后线上读数、身份与分集矩阵、身份轮换后的 API 回归与 macOS 实机日志 |
 
 常用入口：
 

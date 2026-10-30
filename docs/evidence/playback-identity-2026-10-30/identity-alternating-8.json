@@ -1,0 +1,32 @@
+{
+  "at": "2026-10-30T07:33:33.982090Z",
+  "rounds": 8,
+  "sharedIdentity": {
+    "answered": 8,
+    "emptyBody": 0,
+    "sequence": [
+      "200/22717/data",
+      "200/22844/data",
+      "200/22683/data",
+      "200/22884/data",
+      "200/22696/data",
+      "200/22686/data",
+      "200/22677/data",
+      "200/22652/data"
+    ]
+  },
+  "freshIdentityEachAsk": {
+    "answered": 7,
+    "emptyBody": 1,
+    "sequence": [
+      "200/0/none",
+      "200/22695/data",
+      "200/22681/data",
+      "200/22658/data",
+      "200/22868/data",
+      "200/22660/data",
+      "200/22673/data",
+      "200/22728/data"
+    ]
+  }
+}

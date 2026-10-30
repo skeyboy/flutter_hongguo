@@ -16,10 +16,16 @@ class NetworkRetry {
   final List<Duration> delays;
   final Future<void> Function(Duration) wait;
   final DateTime Function() now;
+
+  /// How many times an envelope that never arrived may be asked again. Two is
+  /// what the catalog hops need; the player hop is given more because the
+  /// upstream answer is keyed to a window of seconds, not to the request.
+  final int maxRecoveries;
   NetworkRetry({
     List<Duration>? delays,
     Future<void> Function(Duration)? wait,
     DateTime Function()? now,
+    this.maxRecoveries = 2,
   }) : delays =
            delays ??
            [
@@ -98,9 +104,9 @@ class NetworkRetry {
             : budget.guard(Future.sync(operation)));
       } catch (error) {
         budget?.check();
-        // Empty/incomplete responses get at most two recoveries; transport and
-        // server failures get one. Deterministic business errors never qualify.
-        final maximum = error is IncompleteCatalogResponse ? 2 : 1;
+        // Empty/incomplete responses get the configured recoveries; transport
+        // and server failures get one. Deterministic business errors never qualify.
+        final maximum = error is IncompleteCatalogResponse ? maxRecoveries : 1;
         if (attempt >= delays.length ||
             attempt >= maximum ||
             !(shouldRetry ?? transient)(error)) {

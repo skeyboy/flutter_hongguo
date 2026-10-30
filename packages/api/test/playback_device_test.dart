@@ -57,6 +57,31 @@ class RegisterAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+/// Answers every registration with a different pair, so a test can tell the
+/// identity this process holds from one it just registered.
+class RotatingRegisterAdapter implements HttpClientAdapter {
+  final List<RequestOptions> requests = [];
+  int _serial = 0;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    requests.add(options);
+    final serial = ++_serial;
+    return ResponseBody.fromString(
+      '{"code":0,"device_id_str":"76616224674414700$serial",'
+      '"install_id_str":"39120885448500$serial"}',
+      200,
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
   final fixture = jsonDecode(
     File('test/fixtures/register_vector.json').readAsStringSync(),
@@ -210,6 +235,42 @@ void main() {
         throwsA(isA<IncompleteCatalogResponse>()),
       );
       expect(adapter.requests, hasLength(2));
+    },
+  );
+  test('a refused identity is traded for a newly registered one', () async {
+    final adapter = RotatingRegisterAdapter();
+    final dio = Dio()..httpClientAdapter = adapter;
+    addTearDown(dio.close);
+    final registry = PlaybackDeviceRegistry(dio: dio);
+    final held = await registry.get();
+    expect(adapter.requests, hasLength(1));
+    final renewed = await registry.rotate(refusedDeviceId: held.deviceId);
+    expect(renewed.deviceId, isNot(held.deviceId));
+    expect(adapter.requests, hasLength(2));
+    // What the platform just admitted is now what every caller holds.
+    expect((await registry.get()).deviceId, renewed.deviceId);
+    expect(adapter.requests, hasLength(2));
+  });
+  test(
+    'an identity another recovery already replaced is not registered again',
+    () async {
+      final adapter = RotatingRegisterAdapter();
+      final dio = Dio()..httpClientAdapter = adapter;
+      addTearDown(dio.close);
+      final registry = PlaybackDeviceRegistry(dio: dio);
+      final stale = await registry.get();
+      final current = await registry.rotate(refusedDeviceId: stale.deviceId);
+      // A second flight that was refused the old pair adopts the newer one
+      // instead of stampeding the registration endpoint.
+      final adopted = await registry.rotate(refusedDeviceId: stale.deviceId);
+      expect(adopted.deviceId, current.deviceId);
+      expect(adapter.requests, hasLength(2));
+      final racing = await Future.wait([
+        registry.rotate(refusedDeviceId: current.deviceId),
+        registry.rotate(refusedDeviceId: current.deviceId),
+      ]);
+      expect(racing.first.deviceId, racing.last.deviceId);
+      expect(adapter.requests, hasLength(3));
     },
   );
 }

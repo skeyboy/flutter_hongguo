@@ -1,0 +1,106 @@
+{
+  "at": "2026-10-30T07:35:47.431545Z",
+  "asksPerVid": 3,
+  "registration": "one anonymous device shared for the run",
+  "rows": [
+    {
+      "seriesId": "7701332919490448409",
+      "episodeIndex": 0,
+      "vid": "7701334783946673176",
+      "episodes": 30,
+      "attempts": [
+        "200/22716/data",
+        "200/22706/data",
+        "200/22991/data"
+      ]
+    },
+    {
+      "seriesId": "7701332919490448409",
+      "episodeIndex": 15,
+      "vid": "7701334791865502744",
+      "episodes": 30,
+      "attempts": [
+        "200/22724/data",
+        "200/22891/data",
+        "200/22722/data"
+      ]
+    },
+    {
+      "seriesId": "7701332919490448409",
+      "episodeIndex": 29,
+      "vid": "7701334740283952152",
+      "episodes": 30,
+      "attempts": [
+        "200/22785/data",
+        "200/22603/data",
+        "200/22795/data"
+      ]
+    },
+    {
+      "seriesId": "7702094159468842009",
+      "episodeIndex": 0,
+      "vid": "7702096198429068312",
+      "episodes": 92,
+      "attempts": [
+        "200/22759/data",
+        "200/22638/data",
+        "200/22606/data"
+      ]
+    },
+    {
+      "seriesId": "7702094159468842009",
+      "episodeIndex": 46,
+      "vid": "7702096005906304024",
+      "episodes": 92,
+      "attempts": [
+        "200/22357/data",
+        "200/22303/data",
+        "200/22459/data"
+      ]
+    },
+    {
+      "seriesId": "7702094159468842009",
+      "episodeIndex": 91,
+      "vid": "7702096157924658200",
+      "episodes": 92,
+      "attempts": [
+        "200/22544/data",
+        "200/22415/data",
+        "200/22356/data"
+      ]
+    },
+    {
+      "seriesId": "7700599767360867352",
+      "episodeIndex": 0,
+      "vid": "7700601704382745662",
+      "episodes": 61,
+      "attempts": [
+        "200/22822/data",
+        "200/22773/data",
+        "200/22623/data"
+      ]
+    },
+    {
+      "seriesId": "7700599767360867352",
+      "episodeIndex": 30,
+      "vid": "7700601650137812030",
+      "episodes": 61,
+      "attempts": [
+        "200/21511/data",
+        "200/21500/data",
+        "200/21620/data"
+      ]
+    },
+    {
+      "seriesId": "7700599767360867352",
+      "episodeIndex": 60,
+      "vid": "7700601665165986878",
+      "episodes": 61,
+      "attempts": [
+        "200/22715/data",
+        "200/22715/data",
+        "200/22521/data"
+      ]
+    }
+  ]
+}

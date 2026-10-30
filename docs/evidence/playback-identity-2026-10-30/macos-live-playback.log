@@ -1,0 +1,16 @@
+00:00 +0: loading /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/macos_live_poc_test.dart
+Building macOS application...                                   
+✓ Built build/macos/Build/Products/Debug/Hongguo.app
+00:00 +0: current Mac: native Dart algorithms → real first episode → local player
+00:01 +0: loading /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/macos_live_poc_test.dart
+media_kit: NativeReferenceHolder: Allocated 521470119936
+00:04 +0: current Mac: native Dart algorithms → real first episode → local player
+VideoOutput.Resize
+{handle: 521473288912, id: 521495769792, rect: {height: 0.0, left: 0.0, top: 0.0, width: 0.0}}
+NativeVideoController: Texture ID: 521495769792
+VideoOutput.Resize
+{handle: 521473288912, id: 521495769792, rect: {height: 1920.0, top: 0.0, left: 0.0, width: 1080.0}}
+MAC_LIVE_POC_RESULT=/Users/lee/Library/Containers/com.example.hongguoApp/Data/Library/Application Support/com.example.hongguoApp/mac-live-poc-result.json
+MAC_LIVE_POC_SUMMARY={"ok":true,"platform":"macos","nativeDart":true,"localServerUsed":false,"seriesId":"7701332919490448409","initialVid":"7701334783946673176","vid":"7701334783946673176","episodeIndex":1,"prefetchedEpisodes":0,"switchMs":null,"switchStages":null,"title":"湾区女子图鉴","localFile":"/Users/lee/Library/Containers/com.example.hongguoApp/Data/Library/Application Support/com.example.hongguoApp/media-cache/7701334783946673176_best.mp4","bytes":11195297,"width":1080,"height":1920,"durationMs":172800,"seekTargetMs":10000,"seekPositionMs":10000,"audioTrackRecognized":true,"audioOutputWarning":null,"frameBytes":1495024}
+00:07 +1: (tearDownAll)
+00:07 +1: All tests passed!
