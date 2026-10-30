@@ -21,6 +21,7 @@
 ## 筛选与发布
 
 - [横向筛选面板实现](design/horizontal-filter-panel.md)
+- [发现页顶部筛选分层与榜单拆成目的地](design/discover-filters-and-ranking.md)：四层筛选的一层一义、逐层人机规格、PC 与移动按输入族分派，词表以四次实机取样为据（[原始读数](evidence/ranking-fields/README.md)、[可交互原型](design/prototypes/discover-filters-ranking.html)）。
 - [私有仓库、五端 CI 与 Release](github-release.md)
 
 ## 本地剧目库
