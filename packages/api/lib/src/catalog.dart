@@ -6,7 +6,84 @@ import 'package:hongguo_core/hongguo_core.dart';
 
 import 'video_model_client.dart';
 import 'network_retry.dart';
+import 'ranking.dart';
 import 'request_control.dart';
+
+/// The `select_items` key of the 主题 row — the one dimension that pages inside
+/// the discover pane rather than only narrowing the request.
+const categoryThemeKey = 'category_dim_theme';
+
+/// Every dimension the panel can publish, in the order `selector_rows` sends
+/// them. Upstream publishes these per genre — 画风 and 状态 only exist for 漫剧 —
+/// and the two newly named keys were simply never sent before. The drawer has
+/// to know the whole list: naming「本次词表没给」means naming what a genre is
+/// expected to publish, which only this table can say.
+const catalogDimKeys = [
+  categoryThemeKey,
+  'category_dim_role',
+  'category_dim_epoch',
+  'category_dim_art_style',
+  'creation_status',
+  'gender',
+  'online_time',
+];
+
+/// The upstream `row_name` each dimension is published under. The four captures
+/// prove these labels; they do not prove that a row's `type` is spelled like the
+/// `select_items` key, so both are consulted.
+const catalogDimRowNames = {
+  categoryThemeKey: '主题',
+  'category_dim_role': '设定',
+  'category_dim_epoch': '背景',
+  'category_dim_art_style': '画风',
+  'creation_status': '状态',
+  'gender': '受众',
+  'online_time': '时间',
+};
+
+/// The three sort values upstream accepts, in panel order.
+const catalogSortKeys = ['online_time', 'hot_score', 'hot_collect'];
+
+/// What each sort value is called in the 全部推荐 row the panel itself publishes
+/// (all four captures send the same three, in this order). There is no 「推荐」
+/// or 「追剧」档 — the app's old 推荐 chip is the *absence* of a choice, so it
+/// folds back to whatever the viewer set in 设置 rather than posing as a fourth.
+const catalogSortLabels = {
+  'online_time': '最新上架',
+  'hot_score': '最高热度',
+  'hot_collect': '最高收藏',
+};
+
+/// Which dimensions each type published across the four live captures, in the
+/// order the panel shows them. 画风 and 状态 are 漫剧's alone; the other two
+/// types never sent them in any sample. The drawer needs this separately from
+/// what a request actually returned: 「本次词表没给：画风」is only an honest
+/// sentence about a type that is expected to have one.
+const catalogDimKeysByGenre = <String, List<String>>{
+  'short_play': [
+    categoryThemeKey,
+    'category_dim_role',
+    'category_dim_epoch',
+    'gender',
+    'online_time',
+  ],
+  'comic_series': [
+    categoryThemeKey,
+    'category_dim_role',
+    'category_dim_epoch',
+    'gender',
+    'creation_status',
+    'online_time',
+    'category_dim_art_style',
+  ],
+  'ai_series': [
+    categoryThemeKey,
+    'category_dim_role',
+    'category_dim_epoch',
+    'gender',
+    'online_time',
+  ],
+};
 
 String _text(dynamic value) => value == null ? '' : '$value';
 int _int(dynamic value) =>
@@ -151,6 +228,42 @@ class CatalogFilter {
   const CatalogFilter(this.name, this.id);
 }
 
+/// One whole dimension of the upstream `selector_rows` panel: the row `type`
+/// (which doubles as its `select_items` key), the upstream `row_name`, its
+/// `selection_type`, and the published items. Keeping the row's own identity is
+/// what lets the interface draw only what upstream actually sent — the panel
+/// differs per genre (漫剧 publishes 画风 and 状态, 真人剧 does not) and differs
+/// per request (four samples lost one to all three genres).
+class CatalogDim {
+  final String key, label;
+  final int selectionType;
+  final List<CatalogFilter> items;
+  const CatalogDim({
+    required this.key,
+    required this.label,
+    this.selectionType = 0,
+    this.items = const [],
+  });
+}
+
+/// A browse request with every dimension the user answered. `dims` maps an
+/// upstream dimension key to the chosen `selector_item_id`s; a key that is
+/// absent or empty sends an empty array, which is what upstream expects for
+/// 「不限」.
+class CatalogQuery {
+  final String genre, sort;
+  final Map<String, List<String>> dims;
+  final String? cursor;
+  final List<String> seen;
+  const CatalogQuery({
+    this.genre = 'short_play',
+    this.sort = 'online_time',
+    this.dims = const {},
+    this.cursor,
+    this.seen = const [],
+  });
+}
+
 abstract interface class CatalogRepository {
   Future<CatalogPage> browse({
     String genre = 'short_play',
@@ -164,8 +277,15 @@ abstract interface class CatalogRepository {
   Future<List<CatalogFilter>> themes(String genre);
 }
 
-abstract interface class RankCatalogRepository implements CatalogRepository {
-  Future<CatalogPage> rank({String board = 'recommend', String? cursor});
+/// The dimensions beyond 主题, and a browse that can carry them. Separate from
+/// `CatalogRepository` because the extra vocabulary is a capability, not a
+/// requirement: a backend that only knows 题材 must keep compiling and keep
+/// serving the two-row discover page. Callers gate on `is`, the way the rank
+/// surface already does.
+abstract interface class FilteredCatalogRepository
+    implements CatalogRepository {
+  Future<List<CatalogDim>> filterRows(String genre);
+  Future<CatalogPage> browseFiltered(CatalogQuery query);
 }
 
 class CatalogError implements Exception {
@@ -175,12 +295,20 @@ class CatalogError implements Exception {
   String toString() => message;
 }
 
-class CatalogClient implements CatalogRepository, RankCatalogRepository {
+class CatalogClient
+    implements
+        CatalogRepository,
+        RankCatalogRepository,
+        FilteredCatalogRepository {
   final NetworkRetry retry;
   final int browsePageSize;
   late final CatalogRequests _requests;
-  final _themeCache =
-      <String, ({DateTime expires, List<CatalogFilter> value})>{};
+
+  /// The last vocabulary that came back with rows in it, per genre. Upstream
+  /// sends selector rows per request, not per session — four samples in one
+  /// minute lost one to all three genres — so an empty answer falls back to the
+  /// previous good one instead of dropping a row the user can see.
+  final _vocabulary = <String, ({DateTime expires, List<CatalogDim> value})>{};
   final DateTime Function() now;
   final Dio dio;
   final String deviceId;
@@ -226,28 +354,56 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
     String? theme,
     String? cursor,
     List<String> seen = const [],
-  }) {
-    final ids = List<String>.of(seen);
+  }) => browseFiltered(
+    CatalogQuery(
+      genre: genre,
+      sort: sort,
+      dims: theme == null
+          ? const {}
+          : {
+              categoryThemeKey: [theme],
+            },
+      cursor: cursor,
+      seen: seen,
+    ),
+  );
+
+  @override
+  Future<CatalogPage> browseFiltered(CatalogQuery query) async {
+    for (final key in query.dims.keys) {
+      if (!catalogDimKeys.contains(key)) {
+        throw ArgumentError.value(key, 'dims', '上游没有发布这一维');
+      }
+    }
+    final ids = List<String>.of(query.seen);
+    final sortedDims = {
+      for (final key in catalogDimKeys)
+        if (query.dims[key] != null) key: List<String>.of(query.dims[key]!),
+    };
     return _requests.run(
-      jsonEncode(['browse', genre, sort, theme, cursor, ids]),
-      () => _browse(
-        genre: genre,
-        sort: sort,
-        theme: theme,
-        cursor: cursor,
-        seen: ids,
-      ),
+      jsonEncode([
+        'browse',
+        query.genre,
+        query.sort,
+        sortedDims,
+        query.cursor,
+        ids,
+      ]),
+      () => _browse(query: query, dims: sortedDims, seen: ids),
       label: 'catalog.browse',
     );
   }
 
   @override
-  Future<CatalogPage> rank({String board = 'recommend', String? cursor}) =>
-      _requests.run(
-        jsonEncode(['rank', board, cursor]),
-        () => _rank(board: board, cursor: cursor),
-        label: 'catalog.rank',
-      );
+  Future<RankPage> rankBoard({
+    String track = rankSeedTrack,
+    String? board,
+    String? cursor,
+  }) => _requests.run(
+    jsonEncode(['rank', track, board, cursor]),
+    () => _rankBoard(track: track, board: board, cursor: cursor),
+    label: 'catalog.rank',
+  );
   @override
   Future<CatalogPage> search(String query, {String? cursor}) => _requests.run(
     jsonEncode(['search', query.trim(), cursor]),
@@ -258,15 +414,27 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
   Future<DramaDetail> detail(String id) =>
       _requests.run('detail:$id', () => _detail(id), label: 'catalog.detail');
   @override
-  Future<List<CatalogFilter>> themes(String genre) =>
+  Future<List<CatalogFilter>> themes(String genre) async =>
+      _themeDim(await _vocabularyFor(genre)).items;
+  @override
+  Future<List<CatalogDim>> filterRows(String genre) => _vocabularyFor(genre);
+
+  /// One request serves both layers. A failed request still surfaces as an
+  /// error — the page has to be able to offer 现在重试 — but an answer that came
+  /// back with no rows in it falls back to the last real panel, because upstream
+  /// sends the selector panel per request and the same genre measured nine
+  /// dimensions in one sample and none in the next.
+  Future<List<CatalogDim>> _vocabularyFor(String genre) =>
       _requests.run('themes:$genre', () async {
-        final cached = _themeCache[genre];
+        final cached = _vocabulary[genre];
         if (cached != null && cached.expires.isAfter(now())) {
           RequestBudget.current.cacheHit = true;
           return cached.value;
         }
-        final values = List<CatalogFilter>.unmodifiable(await _themes(genre));
-        _themeCache[genre] = (
+        final rows = await _filterRows(genre);
+        if (rows.isEmpty) return cached?.value ?? const [];
+        final values = List<CatalogDim>.unmodifiable(rows);
+        _vocabulary[genre] = (
           expires: now().add(const Duration(hours: 6)),
           value: values,
         );
@@ -406,28 +574,43 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
     }
   }
 
+  /// Which `select_items` key a panel row answers for. A row that matches
+  /// neither its `type` nor its `row_name` is dropped: the drawer may only
+  /// offer a dimension the request body can actually carry.
+  static String? _dimKeyOf(Map<String, dynamic> row) {
+    final type = _text(row['type']);
+    for (final key in catalogDimKeys) {
+      if (type == key) return key;
+    }
+    if (type.isNotEmpty) {
+      for (final key in catalogDimKeys) {
+        if (type.contains(key)) return key;
+      }
+    }
+    final name = _text(row['row_name']);
+    for (final entry in catalogDimRowNames.entries) {
+      if (name.contains(entry.value)) return entry.key;
+    }
+    return null;
+  }
+
   static Map<String, dynamic> _selection(
     String genre,
     String sort,
-    String? theme,
+    Map<String, List<String>> dims,
   ) => {
-    'category_dim_epoch': [],
-    'online_time': [],
-    'gender': [],
-    'category_dim_role': [],
+    for (final key in catalogDimKeys) key: dims[key] ?? const [],
     'genre': [genre],
     'sort': [sort],
-    'category_dim_theme': theme == null ? [] : [theme],
   };
   Future<CatalogPage> _browse({
-    String genre = 'short_play',
-    String sort = 'online_time',
-    String? theme,
-    String? cursor,
+    required CatalogQuery query,
+    Map<String, List<String>> dims = const {},
     List<String> seen = const [],
   }) async {
+    final genre = query.genre, sort = query.sort, cursor = query.cursor;
     _genre(genre);
-    if (!['online_time', 'hot_score', 'hot_collect'].contains(sort)) {
+    if (!catalogSortKeys.contains(sort)) {
       throw ArgumentError('Invalid sort');
     }
     final offset = int.tryParse(cursor ?? '0') ?? 0;
@@ -440,7 +623,7 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
         'offset': offset,
         'need_selector_panel': false,
         'limit': browsePageSize,
-        'select_items': _selection(genre, sort, theme),
+        'select_items': _selection(genre, sort, dims),
         'session_id': '',
         'req_type': 'only_content',
         'client_req_type': 3,
@@ -467,7 +650,10 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
     );
   }
 
-  Future<List<CatalogFilter>> _themes(String genre) async {
+  /// `selector_rows` → every dimension upstream sent for this genre. Rows
+  /// without a `type` or without any items are dropped rather than padded, so
+  /// 「上游这次没给」and「这一维是空的」both simply do not appear.
+  Future<List<CatalogDim>> _filterRows(String genre) async {
     _genre(genre);
     final j = await _api(
       '/reading/distribution/category/landpage/v',
@@ -480,73 +666,101 @@ class CatalogClient implements CatalogRepository, RankCatalogRepository {
         'need_selector_panel': true,
         'req_type': 'default',
         'client_req_type': 3,
-        'select_items': _selection(genre, 'online_time', null),
+        'select_items': _selection(genre, 'online_time', const {}),
         'session_id': '',
       },
     );
     final rows = _list(_map(j['data'])['selector_rows']);
+    final dims = <CatalogDim>[];
     for (final value in rows) {
       final row = _map(value);
-      if (_text(row['type']).contains('theme') ||
-          _text(row['row_name']).contains('主题')) {
-        return _list(row['items'])
-            .map(
-              (v) => CatalogFilter(
-                _text(_map(v)['show_name']),
-                _text(_map(v)['selector_item_id']),
-              ),
-            )
-            .where((f) => f.id.isNotEmpty && f.name.isNotEmpty)
-            .toList();
-      }
+      final key = _dimKeyOf(row);
+      if (key == null) continue;
+      final items = _list(row['items'])
+          .map(
+            (v) => CatalogFilter(
+              _text(_map(v)['show_name']),
+              _text(_map(v)['selector_item_id']),
+            ),
+          )
+          .where((f) => f.id.isNotEmpty && f.name.isNotEmpty)
+          .toList();
+      if (items.isEmpty) continue;
+      dims.add(
+        CatalogDim(
+          key: key,
+          label: _text(row['row_name']),
+          selectionType: _int(row['selection_type']),
+          items: List.unmodifiable(items),
+        ),
+      );
     }
-    return [];
+    return dims;
   }
 
-  Future<CatalogPage> _rank({
-    String board = 'recommend',
+  /// The theme row, by its request key first and by upstream's own naming
+  /// second — the same row the old two-row interface only ever returned.
+  static CatalogDim _themeDim(List<CatalogDim> rows) {
+    for (final row in rows) {
+      if (row.key == categoryThemeKey) return row;
+    }
+    for (final row in rows) {
+      if (row.key.contains('theme') || row.label.contains('主题')) return row;
+    }
+    return const CatalogDim(key: categoryThemeKey, label: '全部主题');
+  }
+
+  Future<RankPage> _rankBoard({
+    String track = rankSeedTrack,
+    String? board,
     String? cursor,
   }) async {
-    const boards = {
-      'recommend': 'comic_series_hot_rank',
-      'hot': 'comic_series_hot_play',
-      'new': 'comic_series_new_rank',
-    };
-    if (!boards.containsKey(board)) throw ArgumentError('Invalid rank board');
+    validateSelectorId(track, 'track');
+    if (board != null) validateSelectorId(board, 'board');
     final offset = int.tryParse(cursor ?? '0') ?? 0;
     final j = await _api(
       '/reading/bookapi/bookmall/cell/change/v',
       signed: signLists,
       query: {
-        'cell_id': '7470092475068071998',
+        'cell_id': rankCellId,
         'tab_type': '26',
         'client_req_type': '2',
         'client_template': '2',
         'screen_width_px': '1350',
-        'selected_items': 'comic_series_rank',
-        'sub_selected_items': boards[board]!,
+        'selected_items': track,
+        'sub_selected_items': ?board,
         'session_uuid': _requestUuid(),
         if (offset > 0) 'offset': '$offset',
       },
     );
-    final view = _map(_map(j['data'])['cell_view']),
+    final data = _map(j['data']),
+        view = _map(data['cell_view']),
         raw = _list(view['cell_data']);
-    final items = _unique(
-      raw
-          .map((v) => Drama.fromJson(_map(v)))
-          .where((d) => d.id.isNotEmpty)
-          .toList(),
-    );
+    final entries = <RankEntry>[];
+    final ids = <String>{};
+    var unrecognized = 0;
+    for (final value in raw) {
+      final entry = parseRankCard(_map(value), entries.length + 1);
+      if (entry.drama.id.isEmpty) {
+        unrecognized++;
+        continue;
+      }
+      if (!ids.add(entry.drama.id)) continue;
+      entries.add(entry);
+    }
     final more = view['has_more'] == true || view['has_more'] == 1;
     final next = _int(view['next_offset'] ?? view['offset']);
-    return CatalogPage(
-      items,
+    return RankPage(
+      entries: entries,
+      unrecognizedCards: unrecognized,
       nextCursor:
           more &&
               raw.isNotEmpty &&
               (view['next_offset'] == null || next > offset)
           ? '${next > offset ? next : offset + raw.length}'
           : null,
+      updatedAt: parseRankVersion(data['rank_version']),
+      tracks: parseRankTracks(_map(view['cell_selector'])),
     );
   }
 

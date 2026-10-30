@@ -9,6 +9,7 @@ class CatalogAdapter implements HttpClientAdapter {
   final requests = <RequestOptions>[];
   final bodies = <Map<String, dynamic>>[];
   bool failDetail = false;
+  String rankVersion = '1793325840';
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
@@ -41,13 +42,47 @@ class CatalogAdapter implements HttpClientAdapter {
         jsonEncode({
           'code': 0,
           'data': {
+            'rank_version': rankVersion,
             'cell_view': {
+              'cell_selector': {
+                'outer_row': {
+                  'items': [
+                    {
+                      'show_name': '漫剧',
+                      'selector_item_id': 'comic_series_rank',
+                      'sub_cell_selector': {
+                        'outer_row': {
+                          'items': [
+                            {
+                              'show_name': '热播榜',
+                              'selector_item_id': 'comic_series_hot_play',
+                            },
+                          ],
+                        },
+                      },
+                    },
+                    {
+                      'show_name': '演员',
+                      'selector_item_id': 'ranklist_celebrity',
+                    },
+                  ],
+                },
+              },
               'cell_data': [
                 {
                   'video_data': {
                     'series_id': '123',
                     'title': '漫剧榜单',
                     'episode_cnt': 3,
+                    'rec_text_item': {'RecommendText': '6182万热度'},
+                    'secondary_info_list': [
+                      {'content': '422.8万收藏'},
+                    ],
+                    'score': '8.2',
+                    'tag_info': {'text': '爆剧'},
+                    'sub_title': '玄幻·全100集',
+                    'color_dominate': '#282828',
+                    'play_cnt': 1035,
                   },
                 },
               ],
@@ -169,22 +204,52 @@ void main() {
     });
     expect(CatalogClient.parseWebSearch(html).single.title, contains(']'));
   });
-  test(
-    'rank uses the real comic board and upstream pagination cursor',
-    () async {
-      final page = await client.rank(board: 'hot');
-      expect(page.items.single.title, '漫剧榜单');
-      expect(page.nextCursor, '10');
-      final query = adapter.requests.single.uri.queryParameters;
-      expect(query['sub_selected_items'], 'comic_series_hot_play');
-      expect(
-        query['session_uuid'],
-        matches(
-          RegExp(
-            r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-          ),
+  test('rank sends the upstream ids it was given and reads back the tree it published', () async {
+    final page = await client.rankBoard(board: 'comic_series_hot_play');
+    final entry = page.entries.single;
+    expect(entry.position, 1);
+    expect(entry.drama.title, '漫剧榜单');
+    expect(entry.heat, '6182万热度');
+    expect(entry.collect, '422.8万收藏');
+    expect(entry.score, '8.2');
+    expect(entry.badge, '爆剧');
+    expect(entry.subtitle, '玄幻·全100集');
+    expect(entry.dominateColor, '#282828');
+    expect(entry.drama.tagNames, ['爆剧']);
+    expect(page.nextCursor, '10');
+    expect(
+      page.updatedAt,
+      DateTime.fromMillisecondsSinceEpoch(1793325840000, isUtc: true),
+    );
+    expect(page.tracks.map((t) => (t.id, t.label, t.boards.length)), [
+      ('comic_series_rank', '漫剧', 1),
+      ('ranklist_celebrity', '演员', 0),
+    ]);
+    expect(page.tracks.first.boards.single.id, 'comic_series_hot_play');
+    final query = adapter.requests.single.uri.queryParameters;
+    expect(query['selected_items'], 'comic_series_rank');
+    expect(query['sub_selected_items'], 'comic_series_hot_play');
+    expect(
+      query['session_uuid'],
+      matches(
+        RegExp(
+          r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
         ),
-      );
-    },
-  );
+      ),
+    );
+  });
+  test('rank refuses a selector that is not an upstream id', () async {
+    // The likeliest mistake at this boundary is passing the row's show_name
+    // where its selector_item_id belongs; that must not reach the wire.
+    await expectLater(
+      client.rankBoard(board: '热播榜'),
+      throwsA(isA<ArgumentError>()),
+    );
+    expect(adapter.requests, isEmpty);
+  });
+  test('a board with no rank_version makes no time claim', () async {
+    adapter.rankVersion = '';
+    final page = await client.rankBoard();
+    expect(page.updatedAt, isNull);
+  });
 }
