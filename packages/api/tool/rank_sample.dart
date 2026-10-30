@@ -415,11 +415,11 @@ Future<void> main(List<String> args) async {
   Object? selectorSample;
   for (final entry in boards.entries) {
     final before = cells.length;
-    CatalogPage? page;
+    RankPage? page;
     String? error;
-    currentLabel = 'rank(${entry.key})';
+    currentLabel = 'rankBoard(${entry.key})';
     try {
-      page = await catalog.rank(board: entry.key);
+      page = await catalog.rankBoard(board: entry.key);
     } catch (failure) {
       error = '${failure.runtimeType}: $failure';
     }
@@ -429,16 +429,21 @@ Future<void> main(List<String> args) async {
       'sub_selected_items': entry.value,
       'ok': page != null,
       'error': error,
-      'count': page?.items.length,
+      'count': page?.entries.length,
+      'unrecognizedCards': page?.unrecognizedCards,
+      'updatedAt': page?.updatedAt?.toIso8601String(),
       'nextCursor': page?.nextCursor,
       'entries': [
-        for (final (index, drama) in (page?.items ?? const []).indexed)
+        for (final e in (page?.entries ?? const <RankEntry>[]))
           {
-            'position': index + 1,
-            'id': drama.id,
-            'title': drama.title,
-            'episodeCount': drama.episodeCount,
-            'tagNames': drama.tagNames,
+            'position': e.position,
+            'id': e.drama.id,
+            'title': e.drama.title,
+            'episodeCount': e.drama.episodeCount,
+            'tagNames': e.drama.tagNames,
+            'heat': e.heat,
+            'score': e.score,
+            'badge': e.badge,
           },
       ],
       'cellSelectorIsomorphicWith': selectorSample == capture?['cellSelector']
