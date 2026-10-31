@@ -23,6 +23,38 @@ class InstallPlan {
   });
 }
 
+/// Android cannot finish an install inside one call: 「安装未知应用」 is a per-app
+/// switch that lives in a settings screen the viewer has to leave the app for.
+/// So the verified APK is parked here and [resume] installs it when the app comes
+/// back -- which is the only moment the permission can have changed.
+class AndroidInstaller {
+  String? _parkedApk;
+
+  Future<InstallPlan> install(DownloadedRelease file) async {
+    if (await AndroidUpdate.canInstallPackages()) {
+      _parkedApk = null;
+      return InstallPlan(message: await AndroidUpdate.installApk(file.path));
+    }
+    final opened = await AndroidUpdate.openInstallPermissionSettings();
+    _parkedApk = file.path;
+    return InstallPlan(
+      message: opened
+          ? '需要先允许本应用安装未知应用：请在设置中打开该权限，回到应用后会继续安装。'
+          : '请先在系统设置的应用权限里允许本应用安装未知应用，再回到应用点「立即更新」。',
+    );
+  }
+
+  /// A return from the settings screen. Null means nothing was installed -- the
+  /// switch is still off, so the APK stays parked and the next return asks again.
+  Future<String?> resume() async {
+    final path = _parkedApk;
+    if (path == null) return null;
+    if (!await AndroidUpdate.canInstallPackages()) return null;
+    _parkedApk = null;
+    return AndroidUpdate.installApk(path);
+  }
+}
+
 /// The Dart build tag carries the architecture: `… on "macos_arm64"`. Reading it
 /// beats a subprocess and a plugin for choosing which image to install.
 String _archTag() {
@@ -57,7 +89,7 @@ String get updateHandoffDescription => switch (Platform.operatingSystem) {
   'windows' => '下载并校验后静默运行安装程序替换本应用，随后自动退出。',
   'macos' => '下载并校验后打开磁盘映像，把新的 Hongguo 拖进「应用程序」替换旧版本。',
   'linux' => '下载并校验后交给系统打开安装包。',
-  'android' => '下载并校验后交给系统安装器，请在系统弹窗中确认安装。',
+  'android' => '下载并校验后交给系统安装器；若还没允许本应用安装未知应用，会先带你到系统设置开启，回来后继续安装。',
   'ios' => 'iOS 不允许应用自行安装，检查到新版本只会给出发布页地址。',
   _ => '下载并校验后按本机方式安装。',
 };
@@ -65,7 +97,11 @@ String get updateHandoffDescription => switch (Platform.operatingSystem) {
 /// Hands a verified file to the operating system. Every branch says in the
 /// user's words what actually has to happen next -- none of them claims an
 /// installation this app cannot perform.
-Future<InstallPlan> handOff(DownloadedRelease file, ReleaseInfo release) async {
+Future<InstallPlan> handOff(
+  DownloadedRelease file,
+  ReleaseInfo release, {
+  required AndroidInstaller android,
+}) async {
   switch (Platform.operatingSystem) {
     case 'windows':
       return _runWindowsInstaller(file.path);
@@ -74,8 +110,10 @@ Future<InstallPlan> handOff(DownloadedRelease file, ReleaseInfo release) async {
     case 'linux':
       return _openOnLinux(file);
     case 'android':
-      final message = await AndroidUpdate.installApk(file.path);
-      return InstallPlan(message: message);
+      // The bytes are verified; whether the system will accept them is a
+      // per-app setting the viewer controls, so ask before opening a session
+      // that would be dropped without a word.
+      return android.install(file);
     default:
       return InstallPlan(
         message: '这个平台不能自行安装更新，请打开发布页下载。',

@@ -45,6 +45,10 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
 
   bool _watchingLifecycle = false;
 
+  /// Android's install is the one handoff that can only finish across a trip to
+  /// the settings screen, so the verified APK parks here until a return.
+  final AndroidInstaller _android = AndroidInstaller();
+
   UpdateController({
     required Dio dio,
     required this.readSettings,
@@ -92,7 +96,20 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(runQuietly());
+    if (state != AppLifecycleState.resumed) return;
+    unawaited(_returnToForeground());
+  }
+
+  /// Coming back from the settings screen answers two things, in this order: the
+  /// daily check first, then the install it was blocking -- last, so that the
+  /// system's own words about the session are what the viewer reads.
+  Future<void> _returnToForeground() async {
+    await runQuietly();
+    final word = await _android.resume();
+    if (word == null) return;
+    error = null;
+    message = word;
+    notifyListeners();
   }
 
   /// The silent path: never reports, never interrupts. A throttled or failed
@@ -257,7 +274,7 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
         release,
         onProgress: reportProgress,
       );
-      final plan = await handOff(file, release);
+      final plan = await handOff(file, release, android: _android);
       message = plan.message;
       // The prompt was answered: a transfer this device just handed to the system
       // must not come back as a new interruption later in the same session.
