@@ -1,8 +1,14 @@
 # TV 资源列表、剧集列表与容器间焦点导航方案
 
-日期：2026-10-20。项目：`/Users/lee/Desktop/flutter_hongguo`。
+日期：2026-10-20。项目：本仓库 `packages/tv` 与 `packages/app/lib/features/tv`（早期记录写的是 `/Users/lee/Desktop/flutter_hongguo`，该路径已失效）。
 
-本方案覆盖 TV 资源列表、详情页剧集、播放页选集面板及其相邻控件容器。沿用现有 `auto_route` 保活架构、题材缓存合并和栏目焦点记忆，新增统一的跨行导航规则。资源列表的左右连续索引、整体边界、连续按键及分页等待已实施。上下目标列记忆、详情页/面板剧集网格及目录返回键快捷转移等其余内容仍为设计，不能视为已经上线。
+本方案覆盖 TV 资源列表、详情页剧集、播放页选集面板及其相邻控件容器。沿用现有 `auto_route` 保活架构、题材缓存合并和栏目焦点记忆，新增统一的跨行导航规则。
+
+2026-10-31 校订，实际实施与本方案的差异按下列口径读，正文的历史描述保留原样：
+
+- **已上线：** 资源列表的左右连续索引、整体边界（行末/行首跨行、索引 0 才退 sidebar、末项有更多数据时登记一个待移动意图）、连续按键按逻辑目标累加、分页等待期间不抢焦点。播放页选集面板已是有界 `TvGrid`，不是原描述的 `Wrap`，并以 `initialFocusId` 定位当前集（`packages/tv/lib/src/player_surface.dart:572-596`）。详情页剧集已不是 `Wrap`，改为横向分页的 `EpisodePager`（`packages/app/lib/playback/episode_pager.dart`），4 行定高、翻页与跨行手递焦点自成一套，与本文设想的「详情页与面板共用同一列算法」不是同一条路线。
+- **仍是设计、未实施：** 上下移动的目标列记忆（§2「上下移动与不完整末行」）、§3 的目录返回键快捷转移 sidebar、§5 的 `grid_navigation.dart`/`TvGridNavigator`/`TvEpisodeGrid`/`transferTo(zone)`/`awaitMore(anchor, direction)` 分层，以及 §3 表格里的「快捷返回 sidebar」「菜单键别名」。`pane_boundary.dart` 目前只有 `exitLeft()`，没有任何 zone 概念。
+- 逐界面遥控器可达状态与验收记录统一记在 [实施记录](android-tv-implementation.md) §2，本文只描述导航规则本身。
 
 ## 1. 修改前的实现与冲突（问题基线）
 
@@ -48,6 +54,8 @@
 ```
 
 实现上保留 `preferredColumn`，不能用落点 9 的当前列覆盖之前的目标列。用户进行左右移动后，才将目标列更新为新位置的列。没有上一行或下一行时，交给该容器的整体边界规则，不能跳到意外控件。
+
+**更正（2026-10-31）：本段是待实施设计，不是现状。** 全仓库不存在 `preferredColumn`，`TvGrid` 的上下移动只做 `index ± columns`（`packages/tv/lib/src/grid.dart:199-207`）；落点越界时返回 `KeyEventResult.ignored`（同文件 209-218，仅横向越界才消费），事件因此冒泡给 `TvNavigation.focusInDirection` 的几何寻焦。也就是说末行不满时，上下键的落点由屏幕几何决定，可能出现「6↓ 落到 8 而非 9」和「再按上回到别的行」，本节示例的 6↓9↑6、7↓9↑7 尚未成立。要落实本节，必须先实现纯算法层的目标列记忆，不能靠几何寻焦兜底。
 
 若布局宽度、字体或列数改变，按剧目/剧集 ID 找回条目，并基于新列数重算行列，不复用旧行号。
 
@@ -130,7 +138,12 @@
 
 导航决策建议明确区分：`moveTo(id)`、`transferTo(zone)`、`awaitMore(anchor, direction)`、`stay`。后三种也属于已处理事件，不再退回 `ReadingOrderTraversalPolicy` 随机选目标。普通按钮组和文本编辑控件仍保留自己的键盘处理。
 
+**实施状态（2026-10-31）：本节全部未实施，属建议稿。** `packages/tv/lib/src/` 现有 `environment/focusable/grid/choice_rail/player_state/player_surface/back_scope/back_dispatcher/pane_boundary`，没有 `grid_navigation.dart`、`grid_focus_controller.dart`、`TvEpisodeGrid`，也没有任何 `zone`/`transferTo`/`awaitMore` 标识符（全仓库检索为 0 命中）。当前真实形态是：`TvGrid` 内部自持 `logicalTarget`/`pendingRight`/`cancelMoves()`，把「待跨页意图」实现成一个网格私有字段；`pane_boundary.dart` 只有 `exitLeft()` 一个方向。下面两条与本文的差别也一并记录：
+
 `auto_route` 继续管理页面生命周期；跨行只迁移焦点，不创建新路由。容器记忆按“栏目/页面 + 题材/查询 + zone”隔离，不能用一个全局 FocusNode 记录覆盖所有页面。
+
+1. §6.4 建议详情页改为单个 `CustomScrollView`，实际未采纳且原风险已消解：`tv_detail_page.dart` 仍是外层 `SingleChildScrollView`，但剧集块换成 `EpisodePager`，其高度由 `rows` 定死（`episode_pager.dart` 的 `SizedBox(height: gridHeight)` + 页内 `NeverScrollableScrollPhysics` 网格），不再是本文担心的「无限高度网格嵌在滚动页里」。改为 sliver 只在需要详情页整体滚动续页时才有收益。
+2. 焦点记忆没有做成 zone 注册表，而是每个网格各自持有：`TvGrid` 按 ID 建节点、`EpisodePager` 按全局集序号建 `_cellNodes`，两套并存。这满足「不用一个全局 FocusNode 覆盖所有页面」，但「同一算法、不同容器」的目标没有达成。
 
 ## 6. 滚动、快速按键与数据更新
 
@@ -160,6 +173,8 @@
 | 100+ 剧集、字体放大、视口变化、后台刷新 | 仍按实际列数导航，条目可见，稳定 ID 和页面状态保留 |
 
 设备验证保留关键截图、输入按键序列、活动路由/zone、目标 ID、实际焦点 ID 和滚动 offset；不只检查按键回调被调用。现有 102 项 App 和 12 项 TV 回归作为基线，实际实施后重新记录新的结果。
+
+**计数校订（2026-10-31）：** 「12 项」是 2026-10-20 写本文时的基线，「20 项」是文末 §8 同一次实施后的结果，两者不矛盾但极易被读成冲突，此后一律以仓库当前 `flutter test` 输出为准，不再在本文里维护数字。同样要区分证据等级：本文与 §8 提到的 `build/verification/*` 是 gitignore 的本机临时目录，仓库里读不到；可在版本库中核对的设备证据在 `docs/evidence/tv-focus-fix/`（adb `input keyevent` 序列 + uiautomator dump + 截图，含修复前/后日志）与 `docs/android-tv-remote-fix.md`，其余「设备通过」目前没有可复核产物。
 
 
 ## 8. 本次已实施的资源网格行为

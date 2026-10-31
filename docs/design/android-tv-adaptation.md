@@ -1,6 +1,8 @@
 # Android TV 遥控器适配分析与实施方案
 
 > 2026-10-20 实施更新：独立 TV module 与 App/flavor 集成已落地，实际范围和验收边界见 [实施记录](android-tv-implementation.md)。以下保留原分析方案，不能视作全部条目已实施。
+>
+> 2026-10-31 校订：本文件是分析稿，落地位置与部分数值已变更。§3.2 的文件布局未采用，实际归属见该节末尾对照表；§5.1 的控件自动隐藏时长按实施记录里的唯一口径为准；逐界面的遥控器可达状态（含尚未达标项）统一记在 [实施记录](android-tv-implementation.md) §2，本文件不再重复登记状态。
 
 日期：2026-10-20。分析对象：`flutter_hongguo/packages/app` 主工程及 `packages/api`、`packages/core`，源码基线 HEAD `6830b07`，同时检查了当时工作区文件。`imports/` 内历史迁入版本不作为改造对象。
 
@@ -77,6 +79,18 @@ packages/app/lib/
   playback/tv_player_controls.dart    # TV 状态机、进度预览与菜单
 ```
 
+**该布局未采用（2026-10-31 校订）。** TV 能力没有落进 `packages/app`，而是抽成独立包 `packages/tv`，App 侧只保留页面。逐文件的实际归属如下，按实际路径查找，不要按上面这张表找：
+
+| 本节设想 | 实际落地 |
+|---|---|
+| `platform/device_profile.dart` / `_native.dart` | 未建独立 profile 对象。flavor 判定是 `packages/tv/lib/src/environment.dart` 的 `tvBuild`/`TvEnvironment`；设备事实是同一文件的 `TvDeviceProfile.read()`，只作诊断打印（`packages/app/lib/main.dart:24-28`），不参与任何决策 |
+| `input/remote_intents.dart` / `remote_actions.dart` | `environment.dart` 的 `isRemoteConfirm`/`isRemoteBack` 与 `TvNavigation` 单一按键入口 |
+| `input/tv_focus_registry.dart` | 未实现通用焦点注册表。稳定身份由 `packages/tv/lib/src/grid.dart` 按 ID 持有 `FocusNode`；页面级返回焦点由各宿主页自理 |
+| `widgets/tv_focusable.dart` | `packages/tv/lib/src/focusable.dart` 的 `TvFocusable` |
+| `features/tv/tv_shell.dart` | `packages/app/lib/features/tv/tv_library_page.dart` + `tv_feed_page.dart` + `tv_detail_page.dart` |
+| `playback/tv_player_controls.dart` | `packages/tv/lib/src/player_state.dart`（纯 UI 状态）+ `player_surface.dart`（控件与面板） |
+| —（本节未列） | `back_scope.dart`/`back_dispatcher.dart`/`pane_boundary.dart`/`choice_rail.dart`，即 §5.2 的 Back 协调与容器边界 |
+
 保持原分层：`core` 的 crypto/media/models 不感知遥控器；`api` 不导入 Widgets；app 的 input 层表达 Intent，由播放/目录控制器调用现有业务。TV shell 复用现有 Runtime/Repository，不再复制签名、取址、解密或历史存储。
 
 ### 3.3 Manifest 与资源要求
@@ -142,6 +156,15 @@ MediaSession 的 play/pause/next/previous 与 UI Intent 最终进入同一命令
 | 下载中/失败 | 移动到取消/重试/返回 | 执行当前项 | 取消当前准备并返回上一层；不留下覆盖新请求的旧结果 |
 
 状态定义：`videoHidden`、`controlsVisible`、`seekPreview`、`panelOpen`、`preparing`、`failed`。交互层持有 UI 状态，播放/准备状态仍由现有业务提供，不重复管理两份 player 状态。暂停、忙碌、错误、菜单打开或焦点在控件内时禁止自动隐藏；播放中且焦点返回视频后，约 4 秒无操作才隐藏。
+
+**唯一口径（2026-10-31 校订）：** 上面这句「约 4 秒」与实施稿早期「只在明确返回画面时隐藏」都不再有效，两处合并为本条。实际状态机是 `packages/tv/lib/src/player_state.dart:3` 的 `TvPlayerLayer { video, controls, seek, panel }`（`preparing`/`failed` 仍由宿主 `PlayerPage` 持有，不在交互层复制）。控制栏隐藏规则：
+
+- 仅在 `layer == controls` 时计时，时长 30 秒（`packages/tv/lib/src/player_surface.dart:111`）。
+- 任何按键——包括被子按钮自己消费掉的确认/方向键——都重置计时：`player_surface.dart:89` 注册全局 `HardwareKeyboard` 观察器，`_handleActivity` 只观察不消费。这满足本节「焦点位于控件或菜单期间不得自动隐藏」，因为遥控器每一步操作都会重新计时。
+- 计时到点时若路由上还有弹层（面板、对话框），不隐藏而是再等一轮（`player_surface.dart:113-116`），避免焦点被从打开的面板里抽走。
+- 返回键、「返回画面」按钮立即隐藏并把焦点交还视频根节点。
+
+选 30 秒而不是 Android TV 常见的 3–5 秒，是为了优先保证「十尺距离下焦点不能凭空消失」；代价是控制栏停留偏久。这条属于可复验的取舍，若后续在实体设备上确认 5 秒也抽不掉焦点，应改为缩短时长并同步本节，而不是在别处再写第三种数值。
 
 进度预览保存进入时的 position/playing，重复方向键只更新预览，不对每个 repeat 都调用 seek；提交/短按去抖策略必须统一，结束时再 seek。无论如何优化，离开预览都有明确提交/取消语义。列表方向导航不发生 seek，输入法文字操作也不触发播放快捷键。
 

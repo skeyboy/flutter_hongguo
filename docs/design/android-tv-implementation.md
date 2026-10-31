@@ -4,6 +4,11 @@
 
 日期：2026-10-20。基于 [适配分析](android-tv-adaptation.md)，已实现独立 `hongguo_tv` 模块、App 适配和 mobile/tv Android 分包。原有 PC、手机业务继续使用既有页面与媒体服务。本次不涉及 imports 中的历史工程。
 
+> 2026-10-31 复核：§1 的模块职责表仍与 `packages/tv/lib/src/` 对得上；§2 改成按「能不能走到」
+> 与「有没有 TV 描边/字号/路由」两栏分列，并给出当前文件的行号，早期那份含糊的要点列表作废；
+> §3 的 flavor/运行策略未变；§4 的 `9 项/81 项/6 项` 是 2026-10-20 的快照数字，当前数字以本轮
+> 表格与 `flutter test` 为准。逐界面的遥控器状态另有清单，见 §2。
+
 ## 1. 模块边界
 
 `packages/tv` 是独立 Flutter package，唯一运行依赖为 Flutter，不依赖 App、API、核心算法或 media_kit。已加入根 workspace，App 通过 path 依赖接入。
@@ -22,12 +27,25 @@ App 的 `features/tv/tv_library_page.dart` / `tv_detail_page.dart` 负责电视�
 
 ## 2. 已接入的界面与操作
 
-- 侧栏：短剧、漫剧、AI 短剧、本地缓存、我的（含设置）；较低逻辑高度时侧栏可滚动。
-- TV 目录：独立大卡片布局、标题、焦点描边；支持排序、题材、手动分页。分页追加不抢焦点。
-- 搜索：确认“搜索短剧”后打开输入对话框，使用系统输入法；文字编辑阶段不拦截左右按键。无需触摸弹出输入法。
-- 详情：加载失败可重试；首次聚焦开始观看；每个分集可确认播放。返回目录时恢复原卡片焦点与网格位置。
-- 本地缓存、我的（收藏/历史）和设置：使用现有业务页，外层统一加入 TV 方向导航/确认映射。TV 设置隐藏手机后台/PiP 能力，并明确展示运行策略。
-- 播放：等比使用既有 Video；busy/error 提供返回/重试。媒体键播放/暂停、前后轨道连接到原播放实例/切集入口。
+遥控器可达有两个门槛，2026-10-31 起本表按第一个门槛如实分列：**能走到**＝Material
+控件自身可聚焦，`TvNavigation` 的几何遍历能把它当方向目标、确认键能投递
+`ActivateIntent`；**电视上能用**＝另有 3px 聚焦描边、10 尺字号和 TV 路由。只做到前者
+的界面不算接入，标 否 而不是含糊过去。
+
+| 界面 | 焦点目标与操作 | 描边 | 证据 |
+|---|---|---|---|
+| 侧栏 | 短剧、漫剧、AI 短剧、本地缓存、我的（含设置）；较低逻辑高度时可滚动 | 是 | `features/tv/tv_library_page.dart`（该页另一会话在改，行号不在此钉）；首个焦点 `nav-0`，见 `test/tv_catalog_test.dart:67` |
+| TV 目录/榜单 | 大卡片布局、标题、排序、题材、自动分页；分页追加不抢焦点 | 是 | `packages/tv/lib/src/grid.dart`，卡片节点 `tv-grid-*` |
+| 搜索 | 确认后打开输入对话框走系统输入法，文字编辑阶段不拦截左右键 | 是 | `tv_library_page.dart` 搜索对话框；退出链路见 `test/tv_search_remote_exit_test.dart` |
+| 详情 | 顶部自带 `返回目录`（不再有 AppBar 箭头），动作行 `开始观看`/`下载剧集`/收藏，分集用 `EpisodePager`，空分集改为 `刷新分集`，并按看剧记录定位 | 是 | `features/tv/tv_detail_page.dart:137`、`:177`、`:191`、`:223`、`:234`；定位与空列表用例见 `test/tv_library_surfaces_test.dart` |
+| 分集翻页 | 4 行定宽翻页，单元格 `episode-cell-N`，选中集带描边高亮 | 是 | `playback/episode_pager.dart`，用例 `test/episode_pager_tv_page_test.dart` |
+| 播放 | 四层控件状态＋选集/清晰度面板，见下表；等比复用既有 Video，busy/error 给返回/重试，媒体键播放/暂停与前后轨道接到原播放实例 | 是 | `packages/tv/lib/src/player_surface.dart` |
+| 本地缓存 | 剧目卡片按 `标题，N 集 · 体积` 成一个目标；进入后每个文件拆成 `播放` 与 `删除缓存` 两个目标，刷新/补全/重试都在导航里 | 是 | `features/local_cache_page.dart:75`、`:156`、`:171`、`:428`、`:463`、`:485`、`:493`、`:546` |
+| 我的（收藏/历史） | 三个货架切换、每行「打开」＋「取消收藏/移除历史」两个目标、`清空历史`、设置入口；TV 上打开的是 `TvDetailPage` | 是 | `features/my_page.dart:127`、`:335`、`:384`、`:441`、`:450`、`:577` |
+| 危险操作确认 | `删除缓存`、`清空历史` 走同一个 TV 弹窗，默认焦点落在 `取消`，确认键右移一步才是删除 | 是 | `widgets/tv_confirm.dart:12`、`:28`；按键链路见 `test/tv_library_surfaces_test.dart` |
+| 设置 | 1005 行：Switch/Dropdown/TextField 能被方向键走到也能确认，但**没有 TV 分支**，无描边、无 10 尺字号；后台/PiP 能力在 TV 上隐藏 | 否 | `features/settings_page.dart` 全文件 0 处 `TvFocusable` |
+| 下载管理 | 341 行同样只有 Material 焦点 | 否 | `features/downloads_page.dart` 0 处 `TvFocusable` |
+| 下载选集面板 | 与搜索对话框同处另一会话的改造中 | 进行中 | `downloads/download_selection.dart` |
 
 | 当前层 | 左右方向 | 上下方向 | 确认 | 返回 |
 |---|---|---|---|---|
@@ -36,7 +54,13 @@ App 的 `features/tv/tv_library_page.dart` / `tv_detail_page.dart` 负责电视�
 | 进度预览 | 累积预览，约束到片长 | 打开控制栏 | 提交一次 seek | 取消预览，不 seek |
 | 选集/清晰度 | 面板内移动 | 面板内移动/滚动 | 选择并关闭面板 | 关闭一层，恢复播放按钮焦点 |
 
-控制栏只在用户明确返回画面时隐藏；聚焦期间不计时自动消失，避免遥控器操作中焦点被移除。当前并未照搬分析稿里所有自动隐藏/长按加速建议：repeat 支持连续固定步进，未做加速曲线。
+控制栏的隐藏口径只有一条（2026-10-31 校订，早期「只在明确返回画面时隐藏、聚焦期间不
+计时」这句是错的，已在 [适配分析](android-tv-adaptation.md) §5.1 同步废止）：30 秒无操作
+计时隐藏，任何一次遥控器按键重新计时——包括被子按钮消费掉的键，所以焦点在控制栏上不会
+被计时夺走；有模态路由压在上面时推迟隐藏；按返回/明确回到画面时立刻隐藏。选 30 秒而不是
+Android TV 惯用的 3–5 秒，是因为本页控件层多、面板要停留；若日后收紧，改这段和
+`player_surface.dart` 的同一个常量，不要留两份说法。当前并未照搬分析稿里所有长按加速
+建议：repeat 支持连续固定步进，未做加速曲线。
 
 确认兼容 D-pad select、Enter、numpadEnter、gamepad A；返回兼容系统 Back、Escape/goBack、gamepad B。Home、电源和音量由系统处理。父级方向导航只处理子控件未消费的事件，播放器面板内方向不透传为 seek。
 
@@ -91,6 +115,45 @@ CI 的 `platforms` 新增 `android-tv`，可与 `android` 独立选择。TV 附�
 - Android 集成：TV flavor 在 Android 15 arm64 模拟器中完成目录→详情→真实 CENC 流水线→media_kit 本地播放→遥控 seek→返回详情。片长约 1523ms，有实际音轨。此设备是手机系统镜像，不计作 Android TV 系统或电视真机通过。
 
 曾尝试安装 Android 14 TV arm64 镜像并新建 TV AVD，但镜像/默认数据盘耗尽主机空间；较小自定义数据盘未能稳定启动。已清理本次新增的 TV 镜像/测试数据，不清理其他项目的文件。这个限制不通过放宽测试掩盖。
+
+### 2026-10-31 轮：把 §2 的账补平
+
+§2 过去把「外层有 `TvNavigation`，所以 Material 控件能被方向键走到」写成「已接入 TV」，
+而 `本地缓存`、`我的` 实际仍是手机字号、无描边、点开的是手机详情页。本轮只动共享业务页与
+TV 详情页，不碰另一会话在改的 `tv_library_page.dart` / `download_selection.dart`：
+
+- `features/tv/tv_detail_page.dart`：删掉 AppBar——它的箭头是触摸路由的唯一出口，遥控器
+  永远拿不到；页内自带 `返回目录`。按看剧记录定位到本设备看到的那一集，播放器退出后重新
+  定位并翻页。分集为空时把 `开始观看` 换成 `刷新分集`，不再留一个按下去没反应的按钮。
+- `features/my_page.dart`：货架、行、`清空历史`、设置入口全部 `TvFocusable`；一行拆成
+  「打开」＋「取消收藏/移除历史」两个目标；TV 上打开 `TvDetailPage` 而不是手机详情页。
+- `features/local_cache_page.dart`：剧目卡片与分集文件同理，播放/删除各成一个目标。
+- `widgets/tv_confirm.dart`（新）：TV 上的确认弹窗把焦点停在 `取消`，破坏性操作在右一步。
+- `test/tv_catalog_test.dart`：离场改用遥控器 Back（`escape`，Android keycode 4），不再用
+  `pageBack()` 点触摸箭头——那条断言恰好是它过去能过的原因。
+- `test/tv_library_surfaces_test.dart`（新，13 例）：三页在 1920×1080 下的按键链路用例，含
+  删除弹窗 取消→右→确认 的走位，同时钉住手机分支不受影响。
+
+验证（本地 NTFS 克隆；SMB 盘不能承载 Windows 构建）：
+
+| 检查 | 结果 |
+|---|---|
+| `dart format --set-exit-if-changed` 本轮 6 个文件 | 0 变更 |
+| `flutter analyze` 全仓 | No issues found |
+| `packages/app` `flutter test` | +344 ~1 全过（跳过的 1 例是 TV 预览专项） |
+| `packages/tv` / `core` / `cast` | +36 / +117 / +52 全过 |
+| `flutter build apk --debug --flavor tv --target-platform android-arm64` | √ `app-tv-debug.apk` |
+| `flutter build apk --debug --flavor mobile --target-platform android-arm64` | √ `app-mobile-debug.apk` |
+
+同机 `packages/api`（9 例）与 `packages/update`（1 例）失败，与本轮无关：api 卡在临时目录被
+占用（errno 32，文件锁），update 是 `release_downloader_test.dart:89` 用 `/` 手拼路径断言、
+Windows 返回 `\`。上一轮 Windows 记录（`docs/evidence/windows-verify-2026-10-30/findings.md`）
+写的是「全过」，这一轮不复现——api 的用例数已从 52 涨到 109，那一条要么当时没跑到，要么环境
+变了，需要在 Mac 或 x64 CI 上复核，不能沿用旧表。
+
+P1 里仍未接入的是设置页（1005 行、0 处 `TvFocusable`）和下载管理页（341 行同理）：它们的
+开关/下拉框能被方向键走到并确认，但没有描边、没有 10 尺字号。本轮没有半做进去——一页三十
+多个控件改一半只会让 §2 的表更难自证。下一步就从 §2 标 否 的那两行开始。
 
 ## 5. 验收边界
 
