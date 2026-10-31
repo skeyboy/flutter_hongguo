@@ -6,6 +6,7 @@ import 'package:hongguo_tv/hongguo_tv.dart';
 
 import '../../platform/runtime.dart';
 import '../../playback/episode_pager.dart';
+import '../../personal/personal_library.dart';
 import '../../recommendations/related_dramas_section.dart';
 import '../player_page.dart';
 import '../../personal/favorite_button.dart';
@@ -21,10 +22,40 @@ class TvDetailPage extends StatefulWidget {
 class _TvDetailPageState extends State<TvDetailPage> {
   late Future<DramaDetail> future;
   final playNode = FocusNode(debugLabel: 'tv-detail-play');
+  final EpisodePagerController pager = EpisodePagerController();
+  late final PersonalLibrary library;
+
+  /// Global index of the episode this device left off on, or -1 with no record.
+  /// The pager marks and reveals it so the remote lands on the watch-again
+  /// episode instead of page one.
+  int currentEpisode = -1;
+
   @override
   void initState() {
     super.initState();
-    future = widget.runtime.catalog.detail(widget.initial.id);
+    library = personalLibraryFor(widget.runtime);
+    future = _open();
+  }
+
+  Future<DramaDetail> _open() async {
+    final detail = await widget.runtime.catalog.detail(widget.initial.id);
+    await _syncCurrent(detail);
+    return detail;
+  }
+
+  /// A missing or unreadable record must not block the page: the grid simply
+  /// starts unmarked.
+  Future<void> _syncCurrent(DramaDetail detail) async {
+    try {
+      await library.load();
+    } catch (_) {
+      return;
+    }
+    if (!mounted) return;
+    final vid = library.latestFor(detail.drama.id)?.vid;
+    setState(
+      () => currentEpisode = detail.episodes.indexWhere((e) => e.vid == vid),
+    );
   }
 
   @override
@@ -51,12 +82,21 @@ class _TvDetailPageState extends State<TvDetailPage> {
         ),
       ),
     );
-    if (mounted) playNode.requestFocus();
+    if (!mounted) return;
+    // The player has written its record by now, so the grid can move to the
+    // episode actually watched and show that page for the next selection.
+    await _syncCurrent(d);
+    if (!mounted) return;
+    pager.showCurrent();
+    playNode.requestFocus();
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.initial.title)),
+    // No Material AppBar: its leading arrow is the only way out of this route
+    // on touch, it never takes the focus ring, and on a 10-foot screen an
+    // arrow the remote cannot reach reads as decoration. The body carries an
+    // explicit 返回 target that the D-pad walk lands on.
     body: TvNavigation(
       child: FutureBuilder<DramaDetail>(
         future: future,
@@ -66,10 +106,7 @@ class _TvDetailPageState extends State<TvDetailPage> {
               child: TvFocusable(
                 label: '重试',
                 autofocus: true,
-                onActivate: () => setState(
-                  () =>
-                      future = widget.runtime.catalog.detail(widget.initial.id),
-                ),
+                onActivate: () => setState(() => future = _open()),
                 child: Text(
                   '加载失败：${snapshot.error}\n重试',
                   style: const TextStyle(fontSize: 22),
@@ -83,7 +120,7 @@ class _TvDetailPageState extends State<TvDetailPage> {
                 label: '返回',
                 autofocus: true,
                 onActivate: () => Navigator.maybePop(context),
-                child: const Text('正在加载 · 返回'),
+                child: const Text('正在加载 · 返回', style: TextStyle(fontSize: 22)),
               ),
             );
           }
@@ -93,12 +130,33 @@ class _TvDetailPageState extends State<TvDetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  d.drama.title,
-                  style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    TvFocusable(
+                      label: '返回目录',
+                      onActivate: () => Navigator.maybePop(context),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        child: Text('‹ 返回', style: TextStyle(fontSize: 24)),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        d.drama.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -111,29 +169,41 @@ class _TvDetailPageState extends State<TvDetailPage> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    TvFocusable(
-                      label: '开始观看',
-                      autofocus: true,
-                      focusNode: playNode,
-                      onActivate: d.episodes.isEmpty
-                          ? null
-                          : () => play(d, null),
-                      child: const Padding(
-                        padding: EdgeInsets.all(14),
-                        child: Text('▶ 开始观看', style: TextStyle(fontSize: 24)),
+                    // An empty episode list has nothing to play or download, so
+                    // the action line offers the retry instead of a control the
+                    // remote can only land on and not use.
+                    if (d.episodes.isEmpty)
+                      TvFocusable(
+                        label: '刷新分集',
+                        autofocus: true,
+                        onActivate: () => setState(() => future = _open()),
+                        child: const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: Text(
+                            '暂无可播放的分集，可能已临时下架\n按确认刷新，或返回目录换个剧',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 22),
+                          ),
+                        ),
+                      )
+                    else
+                      TvFocusable(
+                        label: '开始观看',
+                        autofocus: true,
+                        focusNode: playNode,
+                        onActivate: () => play(d, null),
+                        child: const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: Text('▶ 开始观看', style: TextStyle(fontSize: 24)),
+                        ),
                       ),
-                    ),
-                    if (widget.runtime is DownloadRuntime) ...[
+                    if (d.episodes.isNotEmpty &&
+                        widget.runtime is DownloadRuntime) ...[
                       const SizedBox(width: 16),
                       TvFocusable(
                         label: '下载剧集',
-                        onActivate: d.episodes.isEmpty
-                            ? null
-                            : () => showDownloadSelection(
-                                context,
-                                widget.runtime,
-                                d,
-                              ),
+                        onActivate: () =>
+                            showDownloadSelection(context, widget.runtime, d),
                         child: const Padding(
                           padding: EdgeInsets.all(14),
                           child: Text('下载剧集', style: TextStyle(fontSize: 20)),
@@ -148,14 +218,24 @@ class _TvDetailPageState extends State<TvDetailPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
-                EpisodePager(
-                  episodes: d.episodes,
-                  currentIndex: () => -1,
-                  onSelected: (index) => play(d, index),
-                  rows: 4,
-                  cellExtent: 170,
-                ),
+                if (d.episodes.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  EpisodePager(
+                    episodes: d.episodes,
+                    currentIndex: () => currentEpisode,
+                    onSelected: (index) => play(d, index),
+                    controller: pager,
+                    rows: 4,
+                    cellExtent: 170,
+                  ),
+                  if (currentEpisode >= 0) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      '已定位到上次观看的第 ${d.episodes[currentEpisode].index} 集',
+                      style: const TextStyle(fontSize: 18),
+                    ),
+                  ],
+                ],
                 const SizedBox(height: 32),
                 RelatedDramasSection(
                   runtime: widget.runtime,

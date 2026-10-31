@@ -86,7 +86,11 @@ void main() {
       await t.pumpAndSettle();
       expect(find.text('▶ 开始观看'), findsOneWidget);
       expect(FocusManager.instance.primaryFocus?.debugLabel, 'tv-detail-play');
-      await t.pageBack();
+      // The detail route has no AppBar arrow on TV: 返回 is the remote's Back key
+      // (Android keycode 4, which the integration remotes send as `escape`), or
+      // the page's own 返回目录 target. Tapping a touch affordance would prove
+      // nothing about the hardware path.
+      await t.sendKeyEvent(LogicalKeyboardKey.escape);
       await t.pumpAndSettle();
       expect(FocusManager.instance.primaryFocus?.debugLabel, previousCard);
       await t.pumpWidget(const SizedBox());
