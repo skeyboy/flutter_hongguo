@@ -43,8 +43,8 @@ App 的 `features/tv/tv_library_page.dart` / `tv_detail_page.dart` 负责电视�
 | 本地缓存 | 剧目卡片按 `标题，N 集 · 体积` 成一个目标；进入后每个文件拆成 `播放` 与 `删除缓存` 两个目标，刷新/补全/重试都在导航里 | 是 | `features/local_cache_page.dart:75`、`:156`、`:171`、`:428`、`:463`、`:485`、`:493`、`:546` |
 | 我的（收藏/历史） | 三个货架切换、每行「打开」＋「取消收藏/移除历史」两个目标、`清空历史`、设置入口；TV 上打开的是 `TvDetailPage` | 是 | `features/my_page.dart:127`、`:335`、`:384`、`:441`、`:450`、`:577` |
 | 危险操作确认 | `删除缓存`、`清空历史` 走同一个 TV 弹窗，默认焦点落在 `取消`，确认键右移一步才是删除 | 是 | `widgets/tv_confirm.dart:12`、`:28`；按键链路见 `test/tv_library_surfaces_test.dart` |
-| 设置 | 1005 行：Switch/Dropdown/TextField 能被方向键走到也能确认，但**没有 TV 分支**，无描边、无 10 尺字号；后台/PiP 能力在 TV 上隐藏 | 否 | `features/settings_page.dart` 全文件 0 处 `TvFocusable` |
-| 下载管理 | 341 行同样只有 Material 焦点 | 否 | `features/downloads_page.dart` 0 处 `TvFocusable` |
+| 设置 | 约 30 个控件全部换成一个目标一行：开关把状态写进标签（`已开启`/`已关闭`）、下拉框改成确认键推进的取值器（不再有菜单路由）、输入框与说明文字升到 19–22px、`ExpansionTile` 改为自带 `展开/收起` 目标、重建身份与删除走同一个 TV 弹窗、侧栏跳转目标加宽到 300px | 是 | `features/settings_page.dart:458`（`tv`）、`:464`（`_tvRow`）、`:501`（`_tvButton`）、`:525`（`_tvCycle`）、`:548`（`_advancedFields` 两端共用）、`:595`、`:676`、`:746`、`:811`（整页字号）、`:1016`、`:1275`；用例 `test/tv_settings_surfaces_test.dart`（8 例）、`test/tv_settings_test.dart`（TV 预览专项） |
+| 下载管理 | 每行拆成「主操作」＋「次操作」两个目标，标签带上剧名与集数；筛选片、AppBar 的离线剧集/刷新、错误态 `重试` 全部 `TvFocusable`；删除走 TV 弹窗；TV 上去掉 AppBar 返回箭头，改用遥控器 Back | 是 | `features/downloads_page.dart:110`、`:136`（`_tvTask`）、`:224`（`_touchTask` 原样保留）、`:305`、`:325`、`:391`、`:419`；用例 `test/downloads_tv_test.dart`（6 例） |
 | 下载选集面板 | 与搜索对话框同处另一会话的改造中 | 进行中 | `downloads/download_selection.dart` |
 
 | 当前层 | 左右方向 | 上下方向 | 确认 | 返回 |
@@ -154,6 +154,60 @@ Windows 返回 `\`。上一轮 Windows 记录（`docs/evidence/windows-verify-20
 P1 里仍未接入的是设置页（1005 行、0 处 `TvFocusable`）和下载管理页（341 行同理）：它们的
 开关/下拉框能被方向键走到并确认，但没有描边、没有 10 尺字号。本轮没有半做进去——一页三十
 多个控件改一半只会让 §2 的表更难自证。下一步就从 §2 标 否 的那两行开始。
+
+### 2026-10-31 次轮：§2 标 否 的那两行
+
+上一轮留下的两页补完了。做法仍是「一个目标一行、状态写进标签」，不引入新的模块：
+
+- `features/settings_page.dart`：`bool get tv` 走 `TvEnvironment.of(context)`，因此同一份
+  页面在手机/PC 上保持 Material，在 TV 上不需要第二个文件。开关（含播放能力项、自动检查
+  更新）与取值器共用 `_tvRow`；下拉框改成确认键推进的取值器，理由是菜单路由里要把焦点交
+  出去再要回来，两个键才能做完一个键的事。`高级接口与签名参数` 从 `ExpansionTile` 改为
+  `展开/收起` 目标，字段表 `_advancedFields()` 两端共用，避免最危险的一组参数在两个布局
+  里各写一遍。整页说明文字用一层 `DefaultTextStyle.merge` 提到 19px，约 20 个 `Text` 调用
+  点不逐个改。侧栏跳转列在 TV 上从 170px 加宽到 300px——`高级接口与签名参数` 在 20px 下
+  放不下，第一轮就是被这条溢出测出来的。
+- `features/downloads_page.dart`：行内两个目标（主操作带状态图标与进度，次操作是删除/取消
+  的图标），沿用本地缓存页的拆法——整行一个目标会把行尾的破坏性操作吞掉。筛选片、AppBar
+  两个动作、错误态 `重试` 都成目标；`_remove` 改用 `showTvConfirm`。TV 上
+  `automaticallyImplyLeading: false`：遥控器用 Back 离开，看得见却走不到的箭头不算通路。
+- `test/tv_settings_surfaces_test.dart`（新，8 例）与 `test/downloads_tv_test.dart`（新，6
+  例）：1920×1080 下用 `select` 走真链路，钉住「TV 上没有 SwitchListTile/DropdownButton/
+  ExpansionTile/ListTile/TextButton/OutlinedButton/FilledButton/IconButton」、取值器一次
+  推进一格且只在保存后落盘、侧栏跳转会真的滚动、弹窗停在 `取消` 右移一步才执行，并同时断言
+  手机分支的 Material 控件不受影响。
+- `test/tv_settings_test.dart`（TV 预览专项重写）：原来点的是 `DropdownButton` 的菜单项，
+  那是它过去唯一能过的原因；改为按标签里的状态循环到目标值，顺带证明取值器确实在推进。
+
+写用例时撞到一个仍未修的问题：TV 预览模式（`--dart-define=HONGGUO_TV=true`）下跳到
+`会话凭据` 后再按 `下`，主焦点直接变成 null——默认模式下同样三步不会，遥控器要靠再按一次
+`上` 才抓回描边。本轮把这条走位改成向 `上`（每一步都必须落在声明过的目标集合里），页尾丢
+焦点的成因留到下一轮，不用放宽断言把它藏起来。
+
+验证（本地 NTFS 克隆；SMB 盘不能承载 Windows 构建）：
+
+| 检查 | 结果 |
+|---|---|
+| `dart format --set-exit-if-changed` 本轮 5 个文件 | 0 变更 |
+| `flutter analyze` 全仓 | No issues found |
+| `packages/app` `flutter test` | +358 ~1 全过（跳过的 1 例是下面这条 TV 预览专项） |
+| `flutter test --dart-define=HONGGUO_TV=true test/tv_settings_test.dart` | +1 通过 |
+| 两份新用例在默认与 TV 预览两种模式下各跑一遍 | 8 与 6 全过 |
+| `packages/tv` / `core` / `cast` | +36 / +117 / +52 全过 |
+| `flutter build apk --debug --flavor tv --target-platform android-arm64` | √ `app-tv-debug.apk` |
+| `flutter build apk --debug --flavor mobile --target-platform android-arm64` | √ `app-mobile-debug.apk` |
+
+`--dart-define=HONGGUO_TV=true` 跑全套仍不是绿的（本轮实测 +251 −108）：它把整个 App（含目录、
+详情、播放器）切到 TV 分支，手机用例的触摸控件断言自然全灭，失败集中在 `catalog_tabs_test` (25)、
+`interaction_cache_test` (9)、`discover_desktop_layers_test` (9)、`adaptive_ui_test` (8)、
+`theme_rail_test` (7)、`search_suggestions_test` (7)、`mobile_discover_layers_test` (7)、
+`horizontal_filters_test` (7) 等手机/PC 专项。这是预览开关本身的粒度问题，不是这两页引入的；
+TV 分支的正确回归是上面那条 flavor 专项加两组 `TvEnvironment` 用例。
+
+到这里 §2 只剩 `下载选集面板` 一行标 进行中（`download_selection.dart` 由另一会话在改）。
+`描边＝是` 说的是遥控器能走到并看得见面，仍不等于电视真机上验收：`docs/android-tv-emulator-
+verification.md` 的原生链路覆盖的是目录→详情→播放，设置页与下载管理页的按键走位还没有在
+Android TV 系统镜像上复核过。
 
 ## 5. 验收边界
 
