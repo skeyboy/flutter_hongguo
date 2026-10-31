@@ -35,7 +35,7 @@
 | 编排 | `packages/app/lib/update/update_controller.dart` | 注入 `dio` / 当前版本 / `target` / 读写 `AppSettings`；节流、`WidgetsBindingObserver` 的 resumed 触发（先例 `packages/app/lib/downloads/download_manager.dart:89,534,554`）、下载进度、失败语言 |
 | 安装策略 | `packages/app/lib/update/install_strategy.dart` | 按平台把校验完的文件交给系统：见 §5 表 |
 | UI | `packages/app/lib/update/update_dialog.dart` + `settings_page.dart` 新段 + 根页挂载 | 弹窗（正文可滚）、「检查更新」行、忽略语义 |
-| 原生 | `packages/app/android/app/src/main/kotlin/.../MainActivity.kt` 新通道 + `AndroidManifest.xml` 权限 | `abi` / `stageDir` / `install` |
+| 原生 | `packages/app/android/app/src/main/kotlin/.../MainActivity.kt` 新通道 + `AndroidManifest.xml` 权限 | `abi` / `stageDir` / `canInstall` / `askPermission` / `install`，安装结果由 `onNewIntent` 读 `PackageInstaller.EXTRA_STATUS` 后回话 |
 
 持久化跟着现有链路走，不新开文件：`AppSettings` 增**四**字段 `updateChecksEnabled`（默认开）、`ignoredUpdateVersion`、`lastUpdateCheckAt`（epoch 毫秒）、`updateFeedEtag`（上一问的校验子），改齐字段、`toJson:88`、`fromJson:114`、`copyWith:168` 与 `validate:240` 五处（`validate` 限长 120 且拒绝换行，防写入失控的响应头）；写盘仍是 `settings/settings_store.dart` → `FilePreferencesBackend`（tmp+rename）。
 
@@ -55,7 +55,7 @@
 | --- | --- | --- | --- |
 | Windows | `Hongguo-<v>-windows-x64-setup.exe` | 下载 → sha256 → 写一条 `start "" "<setup>" /VERYSILENT /NORESTART /SUPPRESSMSGBOXES` 的临时 cmd 并 detached 起 → `exit(0)` 让正在运行的 exe 解锁。`tool/ci/windows-installer.iss` 是 `PrivilegesRequired=lowest` + `DefaultDirName={localappdata}\Programs\Hongguo` + 固定 `AppId`，所以原地升级不要 UAC、也不会开出第二份安装 | 单测覆盖选件/校验；**没有 Windows 设备**，静默装成功与否不做实机断言 |
 | macOS | `Hongguo-<v>-macos-arm64.dmg`（v0.3.13 实测 22,547,501 字节 ≈ 21.5 MB） | 下载（沙箱内 app support 的 `updates/`）→ sha256 → `open <dmg>`；`open` 失败再退到 `open -R` 并在弹窗里给出可选中的完整路径 | macOS 真窗口跑通「检查 → 下载 21.5 MB dmg → 校验 → 弹出 dmg」，见 §9；本轮取不到窗口像素，所以只有运行期结论、没有画面结论 |
-| Android（mobile flavor） | `Hongguo-<v>-android-<abi>.apk`，`abi` 取 `Build.SUPPORTED_ABIS` 首个，回落 `arm64-v8a` | 下载 → sha256 → 通道 `install` 用 `PackageInstaller` 会话写盘并 `commit(pendingIntent.intentSender)`，系统弹安装确认 | 逻辑与选件走单测；**本轮不做真机安装**（HyperOS 安装策略与 split 包 versionCode 降级门仍在），所以不声称装机成功 |
+| Android（mobile flavor） | `Hongguo-<v>-android-<abi>.apk`，`abi` 取 `Build.SUPPORTED_ABIS` 首个，回落 `arm64-v8a` | 下载 → sha256 → **先问 `canRequestPackageInstalls()`**：没开就 `startActivity(ACTION_MANAGE_UNKNOWN_APP_SOURCES, package:…)` 并把已校验的 APK 停在 `AndroidInstaller` 里，回前台（`WidgetsBindingObserver` resumed）再问一次，开了才开 `PackageInstaller` 会话；`commit` 的 `PendingIntent` 回到 `onNewIntent`，`STATUS_PENDING_USER_ACTION` 就把 `Intent.EXTRA_INTENT` 拉起（系统确认弹窗由此出现），`SUCCESS`/`FAILED` 与 `EXTRA_STATUS_MESSAGE` 原样回话给 `install` 那一次调用 | 逻辑与选件走单测（`test/android_install_test.dart` 覆盖四种先后：已授权直接开会话、未授权只跳设置不开会话、回来仍没开就继续等、回来开了就补装）＋ Kotlin 在本机 `flutter build apk --debug --flavor mobile` 编过；**不做真机安装**，装机成功与否仍不声称 |
 | Linux | `Hongguo-<v>-linux-x64.deb`，无 deb 时 `linux-x64.tar.gz` | 下载 → sha256 → `xdg-open <deb>` 交给系统包管理器；tar.gz 只落到「文件已备好，请按现有方式替换」 | 无 Linux 设备，只有单测 |
 | iOS | 无（不选附件） | 只提示，弹窗给出发布页 `html_url` 供复制 | 不发版本，无验证 |
 | Android TV | 不参与 | `tvBuild` 全部跳过 | — |
@@ -122,3 +122,14 @@
 - 发布运行 `41086909414`（event=push，jobs 现读）：`preflight / build-plan / build-verify / native(macos-15) / native(android-tv) / native(android) / native(linux) / native(windows-2022) / publish` 九条 **success**，`ios-signed` **skipped**。Release `v0.3.15`：`draft=false`、`prerelease=false`、`publishedAt=2026-10-30T16:23:40Z`、正文 15,946 字符、**15 个附件**且每个带 `sha256:` digest（`Hongguo-0.3.15-macos-arm64.dmg` 22,646,177 字节）。
 - shipped kernel 的线上读数（`cd packages/update && dart run tool/live_feed_check.dart 0.3.14 0.3.15`）：`viewer on v0.3.14 -> available`、同一人忽略该 tag 后 `-> ignored`、`v0.3.15 -> upToDate`；选件按平台各自命中 `Hongguo-0.3.15-{macos-arm64.dmg 22646177, windows-x64-setup.exe 26787270, linux-x64.deb 9875086, android-arm64-v8a.apk 36579184}`，`ios -> NONE`，全部 `host=github.com`，`SHA256SUMS.txt` 与 `release-manifest.json` 都在。
 - **同一笔不对称**：这份补记排在 `faf3e2c` 之后，所以 `v0.3.15` 树里没有它；标签指向 `faf3e2c` 本身，读数要看 `main`。
+
+### 9.3 Android 装机链路修复（2026-10-31）
+
+用户报「Android 端更新下载后无法打开安装」，要求先申请安装权限、给了权限再装。读代码定位到两处缺口，都在同一条链路上：
+
+1. **`install` 从不问权限**。`packages/app/android/app/src/main/kotlin/.../MainActivity.kt` 的 `installFrom()` 直接 `createSession → commit`，而 `REQUEST_INSTALL_PACKAGES` 在 Android 8+ 是**只在系统设置里开**的特殊访问权限（`canRequestPackageInstalls()`），运行时弹窗问不出来。清单里 `mobile/AndroidManifest.xml` 早就声明了这条权限，但声明≠授予：没授予时 `commit` 的会话不会走到安装确认，界面上却已经回了「已交给系统安装器，请在弹窗中确认安装。」——即用户看到的「下载完什么都没打开」。
+2. **会话结果被吞掉**。`commit` 递出去的 `PendingIntent`（action `hongguo.update.result`，指向本 Activity）此前没有任何接收方：`STATUS_PENDING_USER_ACTION` 时系统把**真正要拉起的确认弹窗**包在 `Intent.EXTRA_INTENT` 里等着应用去 `startActivity`，不读它就不会有弹窗；`FAILED` 与 `EXTRA_STATUS_MESSAGE` 也一并丢失，所以失败只能显示成 catch 里那句兜底文案。
+
+修法是把这两半接成一条有先后的流：`hongguo/update` 增 `canInstall`（`Build.VERSION.SDK_INT < O` 视为已允许，因为那时是安装器自己提示的全局「未知来源」）与 `askPermission`（`ACTION_MANAGE_UNKNOWN_APP_SOURCES` + `package:` URI，OEM 没有这一页就返回 false）；Dart 侧新增 `AndroidInstaller`（`install_strategy.dart`）把「已校验但系统还不收」的 APK **停在内存里**，控制器已有的 `WidgetsBindingObserver` 在 resumed 时先跑当日检查、再问一次权限，开了就补开安装会话——设置页回不来结果，所以只能靠回前台这一信号，这也是为什么状态要落在 `AndroidInstaller` 而不是散在控制器字段里。`install` 这一次通道调用**不再立即回话**，等 `onNewIntent` 读到状态再回（`answerInstall` 保证只回一次，Activity 销毁即丢弃），Dart 侧 60 秒兜底超时，免得系统永不回话把弹窗的按钮钉死在「正在下载…」。`updateHandoffDescription` 的 Android 一句同步改成会先带用户去设置。
+
+验证口径：`packages/app/test/android_install_test.dart` 7 例（mock `hongguo/update`）钉住先后顺序与「未授权绝不开会话」——已授权直接开、未授权只跳设置、回来仍没开就继续等、回来开了就补装，加 OEM 没有那一页的文案、桌面/无处理器时 `canInstall` 必须答**已允许**（否则别的平台被这道新闸门卡住，回归护栏）、以及系统永不回话时 60 秒兜底那句；`flutter analyze` 全仓 `No issues found!`；`test/update_prompt_test.dart` + `update_controller_test.dart` 共 15 例全过。**Kotlin 在这一环第一次进了本机编译**：`flutter build apk --debug --flavor mobile --target-platform android-arm64` 头一遍报 `Unresolved reference 'EXTRA_INTENT'`——那个 extra 在 `Intent` 上而不是 `PackageInstaller` 上，改对后编过。真机安装仍不做，装机成功与否不声称。
