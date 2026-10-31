@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:hongguo_tv/hongguo_tv.dart' show TvEnvironment, TvFocusable;
 
+import '../catalog/local_group_delete.dart';
+import '../catalog/local_library.dart';
 import '../downloads/download_manager.dart';
 import '../platform/runtime.dart';
 import '../navigation/app_navigation.dart';
-import '../catalog/local_library.dart';
 import '../playback/local_playlist.dart';
 import '../widgets/tv_confirm.dart';
 import 'local_cache_page.dart';
@@ -117,6 +118,57 @@ class _DownloadsPageState extends State<DownloadsPage> {
       if (confirmed != true || !mounted) return;
     }
     await _action(() => manager.remove(task.key));
+  }
+
+  /// One key for a queue a restart, a dropped network or a cancelled batch left
+  /// in pieces. The per-task 继续下载 stays for a single episode; this is the
+  /// answer to 「我刚把后台下载打开」.
+  Future<void> _resumeAll() async {
+    if (working) return;
+    setState(() => working = true);
+    try {
+      final count = manager.resumeAll();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(count == 0 ? '没有需要继续的下载' : '已重新排队 $count 条下载'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => working = false);
+    }
+  }
+
+  /// 归类删除 for the queue: the drama's records and its cached files go together,
+  /// because a viewer who is done with a series never wants one leftover episode
+  /// holding the shelf open.
+  Future<void> _removeDrama(EpisodeDownload first, int taskCount) async {
+    if (working) return;
+    final confirmed = await showTvConfirm(
+      context,
+      title: '删除本剧全部下载？',
+      body: '${first.drama.title}\n$taskCount 条下载记录与本地缓存文件一并删除，删除后需重新下载才能离线观看。',
+      confirmLabel: '删除全部',
+    );
+    if (confirmed != true || !mounted) return;
+    final files = await widget.runtime.localEpisodes();
+    final group =
+        groupLocalEpisodes(files)
+            .where((g) => g.id == first.drama.id)
+            .firstOrNull ??
+        LocalDramaGroup(
+          id: first.drama.id,
+          drama: first.drama,
+          files: const [],
+        );
+    await _action(() async {
+      final result = await removeLocalDrama(widget.runtime, group);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(result.caption)));
+      }
+    });
   }
 
   String _episodeLine(EpisodeDownload task) =>
@@ -354,6 +406,31 @@ class _DownloadsPageState extends State<DownloadsPage> {
               ),
               icon: const Icon(Icons.video_library_outlined),
             ),
+          if (manager.resumableCount > 0)
+            if (tv)
+              TvFocusable(
+                key: const ValueKey('downloads-resume-all-tv'),
+                label: '继续全部下载',
+                onActivate: working ? null : _resumeAll,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.play_circle_outline, size: 20),
+                      SizedBox(width: 8),
+                      Text('继续全部', style: TextStyle(fontSize: 18)),
+                    ],
+                  ),
+                ),
+              )
+            else
+              IconButton(
+                key: const ValueKey('downloads-resume-all'),
+                tooltip: '继续全部下载',
+                onPressed: working ? null : _resumeAll,
+                icon: const Icon(Icons.play_circle_outline),
+              ),
           if (tv)
             TvFocusable(
               label: '刷新下载',
@@ -481,13 +558,75 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                         top: 16,
                                         bottom: 8,
                                       ),
-                                      child: Text(
-                                        group.first.drama.title,
-                                        style: tv
-                                            ? const TextStyle(fontSize: 24)
-                                            : Theme.of(context)
-                                                  .textTheme
-                                                  .titleMedium,
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              group.first.drama.title,
+                                              style: tv
+                                                  ? const TextStyle(
+                                                      fontSize: 24,
+                                                    )
+                                                  : Theme.of(context)
+                                                        .textTheme
+                                                        .titleMedium,
+                                            ),
+                                          ),
+                                          if (tv)
+                                            TvFocusable(
+                                              key: ValueKey(
+                                                'downloads-drama-tv-${group.first.drama.id}',
+                                              ),
+                                              label:
+                                                  '${group.first.drama.title} 删除本剧',
+                                              onActivate: working
+                                                  ? null
+                                                  : () => _removeDrama(
+                                                      group.first,
+                                                      group.length,
+                                                    ),
+                                              child: const Padding(
+                                                padding: EdgeInsets.symmetric(
+                                                  horizontal: 10,
+                                                  vertical: 6,
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      Icons
+                                                          .delete_sweep_outlined,
+                                                      size: 20,
+                                                    ),
+                                                    SizedBox(width: 6),
+                                                    Text(
+                                                      '删除本剧',
+                                                      style: TextStyle(
+                                                        fontSize: 18,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            )
+                                          else
+                                            IconButton(
+                                              key: ValueKey(
+                                                'downloads-drama-${group.first.drama.id}',
+                                              ),
+                                              tooltip: '删除本剧全部下载',
+                                              onPressed: working
+                                                  ? null
+                                                  : () => _removeDrama(
+                                                      group.first,
+                                                      group.length,
+                                                    ),
+                                              icon: const Icon(
+                                                Icons.delete_sweep_outlined,
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                     ),
                                     for (final task

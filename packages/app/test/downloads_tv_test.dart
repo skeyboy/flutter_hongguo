@@ -317,11 +317,13 @@ void main() {
       // The row was never a ListTile, and it is still not one: the phone keeps
       // its two trailing icon buttons per task.
       expect(find.byType(ListTile), findsNothing);
-      // Two app bar actions plus the ready row's play and delete pair and the
-      // transferring row's pause and cancel pair.
-      expect(find.byType(IconButton), findsNWidgets(6));
+      // The two app bar actions, the drama header's whole-drama delete and the
+      // ready row's play and delete pair plus the transferring row's pause and
+      // cancel pair. Nothing is waiting to continue here, so 继续全部 stays away.
+      expect(find.byType(IconButton), findsNWidgets(7));
       expect(find.byType(ChoiceChip), findsNWidgets(3));
       expect(find.byTooltip('离线观看'), findsOneWidget);
+      expect(find.byTooltip('删除本剧全部下载'), findsOneWidget);
       expect(find.byTooltip('删除下载记录'), findsOneWidget);
       expect(find.byTooltip('暂停下载'), findsOneWidget);
 

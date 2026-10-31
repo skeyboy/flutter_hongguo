@@ -42,6 +42,7 @@ class EpisodeDownload {
     'bytes': bytes,
     'fraction': fraction,
     'message': message,
+    'autoResume': automaticPause,
   };
   factory EpisodeDownload.fromJson(Map<String, dynamic> json) {
     final vid = json['vid'] as String, quality = json['quality'] as String;
@@ -61,6 +62,7 @@ class EpisodeDownload {
       fraction: (json['fraction'] as num?)?.toDouble().clamp(0, 1),
       bytes: (json['bytes'] as int? ?? 0).clamp(0, 1 << 50),
       phase: DownloadPhase.values.byName(json['phase'] as String),
+      automaticPause: json['autoResume'] == true,
     );
   }
 }
@@ -162,6 +164,12 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
     return null;
   }
 
+  /// Only the phone hands a transfer to a lane that outlives this app run, and
+  /// only once the viewer opted into 后台下载. Desktop and TV keep 上次未完成，点击继续:
+  /// their transfers died with the app, so restarting one is the viewer's call.
+  bool get continuesAfterRestart =>
+      !television && mobile && settings().backgroundDownloads;
+
   bool _notificationScheduled = false;
   void _emit() {
     if (_closed || _notificationScheduled) return;
@@ -182,22 +190,35 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
     final data = await backend.read();
     if (data != null) {
       if (data['version'] != 1) throw StateError('下载记录版本不受支持');
+      final keepGoing = continuesAfterRestart;
       final parsed = <String, EpisodeDownload>{};
       for (final json in data['tasks'] as List? ?? []) {
         final task = EpisodeDownload.fromJson(
           Map<String, dynamic>.from(json as Map),
         );
+        var autoResumed = false;
         if (task.phase == DownloadPhase.queued ||
             task.phase == DownloadPhase.running) {
-          task.phase = DownloadPhase.paused;
-          task.message = '上次未完成，点击继续';
+          if (keepGoing) {
+            task.phase = DownloadPhase.queued;
+            task.automaticPause = true;
+            autoResumed = true;
+          } else {
+            task.phase = DownloadPhase.paused;
+            task.automaticPause = false;
+          }
+        } else if (keepGoing &&
+            task.phase == DownloadPhase.paused &&
+            task.automaticPause) {
+          task.phase = DownloadPhase.queued;
+          autoResumed = true;
         }
         task.message = switch (task.phase) {
           DownloadPhase.ready => '已下载',
           DownloadPhase.failed => '上次下载未完成，请重试',
           DownloadPhase.cancelled => '已取消',
           DownloadPhase.paused => '已暂停，点击继续',
-          _ => '等待下载',
+          _ => autoResumed ? '正在继续上次的后台下载' : '等待下载',
         };
         parsed[task.key] = task;
       }
@@ -205,6 +226,10 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
     }
     _loaded = true;
     _emit();
+    // Deliberately no _pump() here: the host still has to adopt the transfers its
+    // previous run handed to the system lane. reconcile() starts the queue once
+    // those finished files have been counted, so a phone does not re-download
+    // something that completed while the app was away.
   }
 
   Future<void> _save() {
@@ -253,6 +278,10 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
     }
     await _save();
     _emit();
+    // What 后台下载 re-queued at load time starts here, after the host has adopted
+    // the system lane's finished files: a task whose video is already on disk is
+    // marked ready above, so only the genuinely unfinished work transfers.
+    _pump();
   }
 
   Future<T> _serialized<T>(Future<T> Function() action) {
@@ -421,14 +450,7 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
 
   void resume(String key) {
     final task = _tasks[key];
-    if (task == null ||
-        ![
-          DownloadPhase.paused,
-          DownloadPhase.failed,
-          DownloadPhase.cancelled,
-        ].contains(task.phase)) {
-      return;
-    }
+    if (task == null || !_resumable(task)) return;
     task.phase = DownloadPhase.queued;
     task.message = '等待下载';
     task.fraction = null;
@@ -436,6 +458,33 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
     _checkpoint();
     _emit();
     _pump();
+  }
+
+  bool _resumable(EpisodeDownload task) => [
+    DownloadPhase.paused,
+    DownloadPhase.failed,
+    DownloadPhase.cancelled,
+  ].contains(task.phase);
+
+  int get resumableCount => _tasks.values.where(_resumable).length;
+
+  /// 下载管理's one control for a queue a restart or a dropped network left in
+  /// pieces: re-queues every task that is not already waiting or done, without
+  /// touching ready or running work.
+  int resumeAll() {
+    if (_closed) return 0;
+    final targets = _tasks.values.where(_resumable).toList();
+    for (final task in targets) {
+      task.phase = DownloadPhase.queued;
+      task.message = '等待下载';
+      task.fraction = null;
+      task.automaticPause = false;
+    }
+    if (targets.isEmpty) return 0;
+    _checkpoint();
+    _emit();
+    _pump();
+    return targets.length;
   }
 
   void cancel(String key) {
@@ -556,12 +605,15 @@ class DownloadManager extends ChangeNotifier with WidgetsBindingObserver {
       active.stop();
     }
     _active.clear();
+    final keepGoing = continuesAfterRestart;
     for (final task in _tasks.values) {
       if (task.phase == DownloadPhase.running ||
           task.phase == DownloadPhase.queued) {
         task.phase = DownloadPhase.paused;
         task.message = '上次未完成，点击继续';
-        task.automaticPause = false;
+        // Persisted as an automatic pause so the next run of a host that owns a
+        // system transfer lane re-queues it without asking.
+        task.automaticPause = keepGoing;
       }
     }
     await _save().catchError((Object _) {});

@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:hongguo_tv/hongguo_tv.dart' show TvEnvironment, TvFocusable;
 
 import '../catalog/local_artwork.dart';
+import '../catalog/local_group_delete.dart';
 import '../catalog/local_library.dart';
+import '../downloads/latest_episode_pull.dart';
 import '../platform/runtime.dart';
 import '../playback/local_playlist.dart';
 import '../widgets/tv_confirm.dart';
@@ -418,6 +420,110 @@ class _LocalEpisodesPageState extends State<LocalEpisodesPage> {
     await _load();
   }
 
+  void _notice(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  /// Asks the catalog what this drama has online now, then queues only the
+  /// episodes the cache is missing. The local files are untouched whether or
+  /// not the network answered, so a failed pull still leaves the shelf playable.
+  Future<void> _pull() async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      final result = await pullLatestEpisodes(widget.runtime, group);
+      await _load();
+      _notice(result.caption);
+    } on StateError catch (e) {
+      _notice(e.message);
+    } catch (_) {
+      await _load();
+      _notice('在线拉取最新剧集失败，本地缓存仍可播放，请稍后重试。');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _removeGroup() async {
+    if (busy) return;
+    final confirmed = await showTvConfirm(
+      context,
+      title: '删除本剧全部缓存？',
+      body:
+          '${group.drama.title}\n${group.files.length} 个文件 · ${localBytesLabel(group.bytes)}\n删除后需重新下载才能离线观看。',
+      confirmLabel: '删除全部',
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => busy = true);
+    try {
+      final result = await removeLocalDrama(widget.runtime, group);
+      await _load();
+      _notice(result.caption);
+    } on StateError catch (e) {
+      _notice(e.message);
+    } catch (_) {
+      await _load();
+      _notice('删除未完成，请检查存储空间后重试。');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  /// The two drama-level actions as one row per family: a remote needs each to
+  /// be its own focus target, and a touch screen needs labels it can read.
+  Widget _groupActions({required bool tv}) {
+    final canPull = widget.runtime is DownloadRuntime && !group.unidentified;
+    Widget action({
+      required String id,
+      required String label,
+      required VoidCallback? onTap,
+      required IconData icon,
+    }) => tv
+        ? TvFocusable(
+            key: ValueKey('local-$id-tv'),
+            label: label,
+            onActivate: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 24),
+                  const SizedBox(width: 10),
+                  Text(label, style: const TextStyle(fontSize: 20)),
+                ],
+              ),
+            ),
+          )
+        : TextButton.icon(
+            key: ValueKey('local-$id'),
+            onPressed: onTap,
+            icon: Icon(icon),
+            label: Text(label),
+          );
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      children: [
+        if (canPull)
+          action(
+            id: 'pull',
+            label: '拉取最新剧集',
+            onTap: busy ? null : _pull,
+            icon: Icons.sync,
+          ),
+        if (group.files.isNotEmpty)
+          action(
+            id: 'remove-group',
+            label: '删除本剧缓存',
+            onTap: busy ? null : _removeGroup,
+            icon: Icons.delete_sweep_outlined,
+          ),
+      ],
+    );
+  }
+
   /// One cached file as two remote targets: play, and delete. A row-wide
   /// target would swallow the trailing action, and `_delete` needs a way in.
   Widget _tvEpisodeTile(LocalEpisode entry) => Row(
@@ -539,6 +645,8 @@ class _LocalEpisodesPageState extends State<LocalEpisodesPage> {
                           '${group.badge}\n${files.length} 个文件 · ${localBytesLabel(group.bytes)}',
                           style: TextStyle(fontSize: tv ? 18 : null),
                         ),
+                        const SizedBox(height: 12),
+                        _groupActions(tv: tv),
                         if (group.unidentified &&
                             widget.runtime is LibraryCacheRuntime)
                           if (tv)

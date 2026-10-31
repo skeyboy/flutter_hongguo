@@ -75,6 +75,21 @@ class DownloadFakeRuntime extends FakeRuntime
   }
   @override
   Future<List<LocalEpisode>> localEpisodes() async => List.of(files);
+
+  /// Mirrors `NativeRuntime.evict`: an in-use file refuses to go, and the queue
+  /// record only drops once the file is really gone.
+  @override
+  Future<void> evict(String vid, {String quality = 'best'}) async {
+    final file = files
+        .where((f) => f.vid == vid && f.quality == quality)
+        .firstOrNull;
+    if (file?.inUse == true) {
+      throw StateError('正在使用该视频，请结束播放后再删除');
+    }
+    files.removeWhere((f) => f.vid == vid && f.quality == quality);
+    await downloads.forget(vid, quality);
+  }
+
   @override
   PlaybackJob prepareLocal(String vid, {String quality = 'best'}) =>
       throw UnimplementedError();

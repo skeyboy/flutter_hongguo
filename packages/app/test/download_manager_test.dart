@@ -230,4 +230,120 @@ void main() {
     await runtime.dispose();
     expect(backend.data!['version'], 2);
   });
+
+  group('后台下载 continues across an app run', () {
+    /// Leaves one transfer mid-flight and one waiting, then closes the queue the
+    /// way an app run ends, and hands back the records it persisted.
+    Future<DownloadBackend> leaveUnfinished() async {
+      final backend = DownloadBackend();
+      final runtime = DownloadFakeRuntime(backend: backend, mobile: true)
+        ..settings = const AppSettings(backgroundDownloads: true);
+      final detail = await runtime.catalog.detail('123');
+      await runtime.downloads.enqueue(detail, [0, 1], 'best');
+      await queueTick();
+      expect(runtime.calls, ['11_best']);
+      await runtime.downloads.shutdown();
+      return backend;
+    }
+
+    DownloadFakeRuntime reopen(DownloadBackend backend, {bool tv = false}) =>
+        DownloadFakeRuntime(backend: backend, mobile: true, television: tv)
+          ..settings = const AppSettings(backgroundDownloads: true);
+
+    test(
+      'an opted-in phone re-queues and runs what the last run left unfinished',
+      () async {
+        final backend = await leaveUnfinished();
+        final restored = reopen(backend);
+        addTearDown(restored.dispose);
+
+        await restored.downloads.reconcile();
+        await queueTick();
+
+        expect(restored.calls, ['11_best']);
+        expect(
+          restored.downloads.taskFor('11', 'best')!.phase,
+          DownloadPhase.running,
+        );
+        expect(
+          restored.downloads.taskFor('12', 'best')!.phase,
+          DownloadPhase.queued,
+        );
+        expect(
+          restored.downloads.taskFor('12', 'best')!.message,
+          '正在继续上次的后台下载',
+        );
+      },
+    );
+    test('a phone that never opted in still asks for the tap', () async {
+      final backend = await leaveUnfinished();
+      final restored = reopen(backend);
+      restored.settings = const AppSettings(backgroundDownloads: false);
+      addTearDown(restored.dispose);
+
+      await restored.downloads.reconcile();
+      await queueTick();
+
+      expect(restored.calls, isEmpty);
+      expect(
+        restored.downloads.taskFor('11', 'best')!.phase,
+        DownloadPhase.paused,
+      );
+      expect(
+        restored.downloads.taskFor('12', 'best')!.phase,
+        DownloadPhase.paused,
+      );
+    });
+    test('a pause the viewer chose is not overridden by 后台下载', () async {
+      final backend = DownloadBackend();
+      final runtime = DownloadFakeRuntime(backend: backend, mobile: true)
+        ..settings = const AppSettings(backgroundDownloads: true);
+      final detail = await runtime.catalog.detail('123');
+      await runtime.downloads.enqueue(detail, [0, 1], 'best');
+      await queueTick();
+      runtime.downloads.pause('12_best');
+      await queueTick();
+      await runtime.downloads.shutdown();
+
+      final restored = reopen(backend);
+      addTearDown(restored.dispose);
+      await restored.downloads.reconcile();
+      await queueTick();
+
+      expect(restored.calls, ['11_best']);
+      expect(
+        restored.downloads.taskFor('12', 'best')!.phase,
+        DownloadPhase.paused,
+      );
+      expect(restored.downloads.resumableCount, 1);
+
+      // 队列只有一个传输槽：先让 11 真的下完，才看得出 12 是被观众按下、
+      // 不是被队列排满。
+      await restored.complete('11_best');
+      await queueTick();
+      expect(
+        restored.downloads.taskFor('11', 'best')!.phase,
+        DownloadPhase.ready,
+      );
+      expect(restored.calls, ['11_best']);
+
+      expect(restored.downloads.resumeAll(), 1);
+      await queueTick();
+      expect(restored.calls, ['11_best', '12_best']);
+    });
+    test('TV keeps its transfers in the foreground', () async {
+      final backend = await leaveUnfinished();
+      final restored = reopen(backend, tv: true);
+      addTearDown(restored.dispose);
+
+      await restored.downloads.reconcile();
+      await queueTick();
+
+      expect(restored.calls, isEmpty);
+      expect(
+        restored.downloads.taskFor('11', 'best')!.phase,
+        DownloadPhase.paused,
+      );
+    });
+  });
 }

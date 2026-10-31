@@ -43,11 +43,27 @@ class FakeCatalog implements CatalogRepository {
   }
 
   @override
-  Future<DramaDetail> detail(String id) async => const DramaDetail(demo, [
+  Future<DramaDetail> detail(String id) async {
+    if (detailFail) throw const CatalogError('上游暂时不可用');
+    return DramaDetail(
+      Drama(
+        id: demo.id,
+        title: demo.title,
+        intro: demo.intro,
+        episodeCount: episodes.length,
+      ),
+      episodes,
+    );
+  }
+
+  /// Tests that ask 「what does this series have online now」 replace this list;
+  /// the default is the three-episode demo shelf every other suite reads.
+  List<Episode> episodes = const [
     Episode(vid: '11', index: 1),
     Episode(vid: '12', index: 2),
     Episode(vid: '13', index: 3),
-  ]);
+  ];
+  bool detailFail = false;
   @override
   Future<List<CatalogFilter>> themes(String genre) async => const [
     CatalogFilter('玄幻', 'cate_7'),
