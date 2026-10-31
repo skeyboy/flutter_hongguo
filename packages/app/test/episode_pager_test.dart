@@ -28,6 +28,8 @@ Widget _host({
   EpisodePagerController? controller,
   bool tv = false,
   int rows = 3,
+  double numberFontSize = 16,
+  double pageFontSize = 14,
 }) {
   final pager = EpisodePager(
     episodes: episodes,
@@ -36,6 +38,8 @@ Widget _host({
     rows: rows,
     cellExtent: 100,
     controller: controller,
+    numberFontSize: numberFontSize,
+    pageFontSize: pageFontSize,
   );
   return MaterialApp(
     theme: ThemeData(colorScheme: const ColorScheme.dark()),
@@ -300,5 +304,25 @@ void main() {
     // The merged cell label also carries the cell's own number text.
     expect(find.bySemanticsLabel(RegExp('第 3 集')), findsOneWidget);
     semantics.dispose();
+  });
+
+  testWidgets('the host sets the type scale; the defaults stay the phone read', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_host(episodes: _episodes(100)));
+    await tester.pumpAndSettle();
+    // 16/14 is what every non-TV build has always shown; a change here would be
+    // a silent restyle of the phone and desktop pages.
+    expect(tester.widget<Text>(find.text('1')).style?.fontSize, 16);
+    expect(tester.widget<Text>(find.byKey(_indicatorKey)).style?.fontSize, 14);
+
+    await tester.pumpWidget(
+      _host(episodes: _episodes(100), numberFontSize: 26, pageFontSize: 18),
+    );
+    await tester.pumpAndSettle();
+    // The remote page passes this pair: the pager's own arrows are 26 and the
+    // page title 32, so 16 on a 1920-wide screen read as a different scale.
+    expect(tester.widget<Text>(find.text('1')).style?.fontSize, 26);
+    expect(tester.widget<Text>(find.byKey(_indicatorKey)).style?.fontSize, 18);
   });
 }

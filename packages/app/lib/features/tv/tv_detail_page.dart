@@ -27,6 +27,10 @@ class _TvDetailPageState extends State<TvDetailPage> {
   final EpisodePagerController pager = EpisodePagerController();
   late final PersonalLibrary library;
 
+  /// The page is showing the offline snapshot rather than a live read, so the
+  /// remote needs a reachable way to ask for the live one again.
+  bool offlineSnapshot = false;
+
   /// Global index of the episode this device left off on, or -1 with no record.
   /// The pager marks and reveals it so the remote lands on the watch-again
   /// episode instead of page one.
@@ -40,10 +44,24 @@ class _TvDetailPageState extends State<TvDetailPage> {
   }
 
   Future<DramaDetail> _open() async {
-    final detail = mergeDetailFallbacks(
-      await widget.runtime.catalog.detail(widget.initial.id),
-      widget.initial,
-    );
+    DramaDetail detail;
+    try {
+      detail = mergeDetailFallbacks(
+        await widget.runtime.catalog.detail(widget.initial.id),
+        widget.initial,
+      );
+      offlineSnapshot = false;
+    } catch (_) {
+      // Same fallback as the touch page: a saved snapshot beats a dead screen,
+      // but only the banner below admits it is not a live read.
+      final runtime = widget.runtime;
+      final cached = runtime is LibraryCacheRuntime
+          ? await runtime.libraryCache.readDetail(widget.initial.id)
+          : null;
+      if (cached == null) rethrow;
+      detail = mergeDetailFallbacks(cached, widget.initial);
+      offlineSnapshot = true;
+    }
     await _syncCurrent(detail);
     return detail;
   }
@@ -111,7 +129,9 @@ class _TvDetailPageState extends State<TvDetailPage> {
               child: TvFocusable(
                 label: '重试',
                 autofocus: true,
-                onActivate: () => setState(() => future = _open()),
+                onActivate: () => setState(() {
+                  future = _open();
+                }),
                 child: Text(
                   '加载失败：${snapshot.error}\n重试',
                   style: const TextStyle(fontSize: 22),
@@ -136,6 +156,33 @@ class _TvDetailPageState extends State<TvDetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (offlineSnapshot) ...[
+                  // A snapshot is not a live read, and the page that admits it
+                  // must also give the remote the one target that asks again:
+                  // a banner with no reachable retry is a dead end but Back.
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          '网络加载失败，正在显示已保存的剧集信息',
+                          style: TextStyle(fontSize: 20),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      TvFocusable(
+                        label: '重试刷新',
+                        onActivate: () => setState(() {
+                          future = _open();
+                        }),
+                        child: const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: Text('重试刷新', style: TextStyle(fontSize: 20)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -164,6 +211,30 @@ class _TvDetailPageState extends State<TvDetailPage> {
                     ),
                   ],
                 ),
+                if (d.drama.tagNames.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  // 题材词 as words only. The remote family has no 发现页 that
+                  // consumes a theme hand-off yet, so a focusable chip that
+                  // goes nowhere would be the fake control the design forbids;
+                  // plain text adds no target, so the documented focus order of
+                  // this page (video-detail-redesign.md §8) is unchanged.
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    children: [
+                      for (final name in d.drama.tagNames)
+                        Text(
+                          name,
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 16),
                 Text(
                   d.drama.intro,
@@ -182,7 +253,9 @@ class _TvDetailPageState extends State<TvDetailPage> {
                       TvFocusable(
                         label: '刷新分集',
                         autofocus: true,
-                        onActivate: () => setState(() => future = _open()),
+                        onActivate: () => setState(() {
+                          future = _open();
+                        }),
                         child: const Padding(
                           padding: EdgeInsets.all(14),
                           child: Text(
@@ -255,6 +328,11 @@ class _TvDetailPageState extends State<TvDetailPage> {
                     controller: pager,
                     rows: 4,
                     cellExtent: 170,
+                    // The default 16/14 is a phone reading; on a 1920-wide
+                    // screen it sat two steps below this page's own 32 title
+                    // and the pager's 26 arrows (design §8, second option).
+                    numberFontSize: 26,
+                    pageFontSize: 18,
                   ),
                   if (currentEpisode >= 0) ...[
                     const SizedBox(height: 12),

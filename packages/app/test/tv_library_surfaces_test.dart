@@ -42,6 +42,27 @@ class _BareDetailCatalog extends FakeCatalog {
   );
 }
 
+/// 题材词 straight off the detail row -- the only form the remote family can
+/// honestly show until 发现页 grows a hand-off consumer.
+class _WordsDetailCatalog extends FakeCatalog {
+  @override
+  Future<DramaDetail> detail(String id) async => const DramaDetail(
+    Drama(id: '123', title: '山海之间', tagNames: ['玄幻', '爱情']),
+    [Episode(vid: '11', index: 1), Episode(vid: '12', index: 2)],
+  );
+}
+
+/// The detail call fails until the test flips [dead] back off, which is the
+/// only way to land on the offline snapshot without a real network.
+class _FlakyDetailCatalog extends FakeCatalog {
+  bool dead = true;
+  @override
+  Future<DramaDetail> detail(String id) async {
+    if (dead) throw const CatalogError('网络不可达');
+    return super.detail(id);
+  }
+}
+
 /// Cached files the cache page can list and delete, so the TV branch is tested
 /// against the runtime shape the tv flavor actually hands it.
 class _CacheRuntime extends FakeRuntime
@@ -454,6 +475,55 @@ void main() {
 
       await _activate(tester, '下载管理');
       expect(find.byType(DownloadsPage), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('题材词 renders as words and earns no focus target', (
+      tester,
+    ) async {
+      await _useTvView(tester);
+      await tester.pumpWidget(
+        _tv(
+          TvDetailPage(
+            runtime: FakeRuntime(_WordsDetailCatalog()),
+            initial: FakeCatalog.demo,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('玄幻'), findsOneWidget);
+      expect(find.text('爱情'), findsOneWidget);
+      // 发现页 has no remote consumer for a theme hand-off yet, so a chip here
+      // would be a target the D-pad lands on and nothing answers.
+      expect(_targets(tester), isNot(contains('玄幻')));
+      expect(_targets(tester), isNot(contains('爱情')));
+    });
+
+    testWidgets('离线快照 comes with a reachable 重试刷新 on the remote page', (
+      tester,
+    ) async {
+      await _useTvView(tester);
+      final catalog = _FlakyDetailCatalog();
+      final runtime = _CacheRuntime()..catalog = catalog;
+      await runtime.libraryCache.rememberDetail(
+        const DramaDetail(Drama(id: '123', title: '山海之间', tagNames: ['玄幻']), [
+          Episode(vid: '11', index: 1),
+          Episode(vid: '12', index: 2),
+        ]),
+      );
+      await tester.pumpWidget(
+        _tv(TvDetailPage(runtime: runtime, initial: FakeCatalog.demo)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('网络加载失败，正在显示已保存的剧集信息'), findsOneWidget);
+      expect(_nodeByLabel(tester, '重试刷新'), isNotNull);
+
+      catalog.dead = false;
+      await _activate(tester, '重试刷新');
+      expect(find.text('网络加载失败，正在显示已保存的剧集信息'), findsNothing);
+      expect(find.text('▶ 开始观看'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

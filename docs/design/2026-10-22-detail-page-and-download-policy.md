@@ -159,7 +159,7 @@ EpisodePager({
 | --- | --- | --- |
 | 详情页的兜底合并从"每页各写一遍"变成一条规则 | `catalog/detail_fallback.dart`（新，24 行）；调用方 `features/detail_page.dart:76`、`features/tv/tv_detail_page.dart:43` | 不是整理代码，是修 bug：TV 那一支以前直接用详情响应，`tagNames`/标题/封面/简介全没兜底，所以遥控族的推荐块**永远**落「平台热门」——上一轮在手机侧修掉的正是同一条。用例「详情没回题材词时用列表行兜底，块名才不是「平台热门」」：详情只回 id 与两集，列表行带 `玄幻` → 块名读得出、标题与简介读得出。把 `tv_detail_page.dart:43` 那句合并删掉，只有这一条用例红（已验，不是推测） |
 | 推荐块与标签行读**同一张面板** | `recommendations/related_dramas_section.dart:57-61`（传 `catalogThemeHandoff.genre`）、`recommendations/related_dramas.dart:132-136`（`loadRelated` 收 `genre`；loader 的缓存键本来就含类型） | 块名「同题材 · X」声称的是"这次 browse 按该题材筛"，那么 id 与 genre 必须同源。以前恒用 `short_play`：在漫剧那一型里进详情，标签行是拿 `comic_series` 面板判「面板有/面板无」的，块却是拿另一张面板判、拿另一型的列表筛——同一页可以同时撒谎。用例「换了一型之后，标签和推荐块读的是同一张面板」读 `(genre, theme)` 这一对：`contains((comic_series, cate_7))`，并反向断言没有任何一个 `cate_7` 请求配着别的类型发出去 |
-| **§6 TV 待办裁定：动作行加一枚 `下载管理`** | `features/tv/tv_detail_page.dart:219-240`（`TvFocusable(label: '下载管理')` → `MaterialPageRoute('/tv/downloads')` → `features/downloads_page.dart`，那一页早有 TV 版面 `:303-332`） | 二选一里选了"第三枚按钮"而不是"提示 + 焦点留在原动作"，因为后者要改 `downloads/download_selection.dart`（本轮另有会话在改那个文件），前者只在 TV 这一页里补一个可达焦点项，代价与收益都当场可读。**注意这条没"修好" snackbar**：`download_selection.dart:46-62` 那枚「查看」在遥控族仍然按不动，只是多了一条走得通的路；等那个文件空闲再决定摘不摘 |
+| **§6 TV 待办裁定：动作行加一枚 `下载管理`** | `features/tv/tv_detail_page.dart:292-312`（`TvFocusable(label: '下载管理')` → `MaterialPageRoute('/tv/downloads')` → `features/downloads_page.dart`，那一页早有 TV 版面 `:303-332`；这个行号是 §9 之后重量的，本轮在它上面插了横幅与词行） | 二选一里选了"第三枚按钮"而不是"提示 + 焦点留在原动作"，因为后者要改 `downloads/download_selection.dart`（本轮另有会话在改那个文件），前者只在 TV 这一页里补一个可达焦点项，代价与收益都当场可读。**注意这条没"修好" snackbar**：`download_selection.dart:46-62` 那枚「查看」在遥控族仍然按不动，只是多了一条走得通的路；等那个文件空闲再决定摘不摘 |
 | 用例收尾的一个坑（写下来免得下一轮重踩） | `test/tv_library_surfaces_test.dart:440-448` | `DownloadFakeRuntime` 的 `dispose()` 里 manager 的保存是防抖计时器，`addTearDown(runtime.dispose)` 会在 teardown 里干等 10 分钟；必须按 `download_ui_test.dart:24-28` 那套「先起 dispose、`await tester.pump()`、再 await」收尾 |
 
 仍没做、也不许当成做了的：
@@ -170,3 +170,27 @@ EpisodePager({
 - **验收口径不变**：本轮只跑到组件与用例层。§10 那条「浏览器带窗口逐视图截图」是**原型**的验收方式，不能当设备验证；详情页三端真机截图、「点标签 → 发现页被收窄」的实机读数依旧挂着。
 
 验证读数（2026-10-31 第二轮，同一台 Windows 克隆树）：`dart format --set-exit-if-changed` 本轮 7 个文件 0 变更；`flutter analyze`（`packages/app`）No issues found；`flutter test`（`packages/app`）**+367 ~1 全过**（上一轮 364，本轮新增 3 例：`test/detail_tag_row_test.dart` 1 例、`test/tv_library_surfaces_test.dart` 2 例）；`flutter test --dart-define=HONGGUO_TV=true test/tv_settings_test.dart` +1；两个 flavor 各出一包：√ `app-tv-debug.apk`、√ `app-mobile-debug.apk`。反向验：在克隆树里分别撤掉本轮两条修复，`flutter test test/tv_library_surfaces_test.dart test/detail_tag_row_test.dart` 得到 **+20 −2**，红的正是「详情没回题材词时用列表行兜底」与「换了一型之后，标签和推荐块读的是同一张面板」这两条，其余不动；恢复后 7 个文件与共享盘逐字节一致。
+
+## 9. 2026-10-31 第三轮：关掉 §8 的三条待办，并把两条「待议」按读数结案
+
+这一轮的验证树换成**从共享盘 HEAD 新建的 linked worktree**（`C:\Users\lee\Documents\Codes\hg-verify`，起点 `5419583`）：那台克隆的 HEAD 还停在 v0.3.15 期（`184fbfd`）且带着一堆本地改动，跑出来的数不能当发布门。做法是 `git fetch '//Mac/PSSD/own/flutter_hongguo' main` → `git worktree add` 到该提交 → 只把本轮改动的文件拷进去（另一会话在改的 `tv_library_page.dart`、`download_selection.dart` 因此**不在**验证树里，测的正是即将提交的那棵树）。
+
+§8「仍没做」三条里，第 2 条（TV 没有离线兜底）与第 3 条（两条待议）本轮关闭；第 1 条（TV 标签行入口）仍开着，原因没变——消费方在 `features/tv/tv_library_page.dart`，那个文件此刻另有会话在改。
+
+| 做了什么 | 在哪 | 判据与读数 |
+| --- | --- | --- |
+| TV 详情页读离线快照，且与一枚可达的「重试刷新」**成对**出现 | `features/tv/tv_detail_page.dart:46-67`（详情失败 → `LibraryCacheRuntime.readDetail`，读不到才 rethrow）、`:159-184`（正文第 0 项：横幅 + `TvFocusable(label: '重试刷新')`）、`:32` `offlineSnapshot` | 上一轮没敢只做一半，就是这条：只把快照读出来、正文里没有一个走得到的刷新钮，等于把陈旧数据静默当最新数据画。现在横幅与刷新钮一起出现，网络回来后按下去横幅消失、动作行回来。用例「离线快照 comes with a reachable 重试刷新 on the remote page」用 `_FlakyDetailCatalog`（详情先抛、测试翻回可用）验这两步 |
+| **顺手修**：这一页三处重试路径全是 `setState(() => future = _open())` | `:132`（失败页「重试」）、`:174`（离线横幅「重试刷新」）、`:256`（空分集「刷新分集」）→ 改成块体回调 | 这是本轮第一条真的**按下**重试的测试暴露出来的：`setState` 的回调返回 Future 会被 Flutter 断言拒绝（`setState() callback argument returned a Future`），此前 `an empty episode list offers a retry, not a dead button` 只验"这枚项在不在"，从没激活过它，所以这条断言一直没响。手机那一侧 `features/detail_page.dart` 早就是块体写法。反向证据是同一条：修之前的验证树只有这一条用例红，其余 369 条不动 |
+| TV 详情页把题材词画成**纯文本**，不给假入口 | `:214-236`（`Wrap`，位置在标题行与简介之间；词按 `mergeDetailFallbacks` 兜过底，所以详情不回也能从列表行读到） | §3 的判据是「面板有同名词才是入口」，但入口要点下去真能落到那一行的主题轨上；TV 的主题轨在另一会话手上的 `tv_library_page.dart` 里，所以现在画 chip = 一枚遥控能亮、按了什么都不发生的控件。这一条不新增焦点项，那份文档 §8 的焦点序一个字没动（用例「题材词 renders as words and earns no focus target」正向断言两枚词都在，反向断言 `_targets()` 里没有它们） |
+| 选集格子的字档交给宿主，关闭上一轮「仍没做」第 3 条的后半 | `playback/episode_pager.dart:42-43`（`numberFontSize = 16`、`pageFontSize = 14` 默认值）、`:71`、`:329`、`:367`；TV 传 26/18（`features/tv/tv_detail_page.dart:334-335`） | 那份文档 §8 给待议的是两条路：给 TV 一族传 `textScaler`（那是全站的事，不是这一页能定的）或让 `EpisodePager` 收字号参数。选后者：分页器自己的两枚箭头本来就是 26（`_arrow` 的 `Icon(size: 26)`），同一页标题 32，而格子数字恒 16、页码 14，在 1920 宽的电视上跟它们差一档。非 TV 族拿到的仍是 16/14 —— 用例「the host sets the type scale; the defaults stay the phone read」把默认值与宿主覆盖两头都钉住，防止这变成一次悄悄的手机版重排 |
+| §3.2 窄屏那条待议按读数结案：**不改**（同一条的前半） | 临时探针 `test/probe_narrow_header_test.dart`（只在验证树里跑过，未入库）390×844 挂手机版 `DetailPage`，旧克隆与本轮验证树各跑一次，读数一致 | 读数：正文 342、封面 130×180、右列 `390−48−130−24 = 188`；两枚主操作 `122.4×48` 与 `94.2×48`，同一行需要 `122.4+8+94.2 = 224.6 > 188`，`sameRun=false`（确实竖排）。提案里的「封面降到 110」把右列抬到 208，**仍小于 224.6**；「标题降到 22」对这件事毫无帮助——右列宽度由封面决定，不由标题字号决定。所以这一条按原样记录为"提案达不到它声称的目的"，窄屏两枚按钮竖排是设计现状而不是待修 bug |
+
+仍没做、也不许当成做了的：
+
+- **TV 的标签行入口**：词已经画出来了，「点它 = 回到发现页并带上这个筛选」这一句在遥控族还没有兑现，等 `tv_library_page.dart` 空闲 + 那份文档 §8 的焦点序补一条落点。
+- **下载 snackbar 的「查看」在遥控族仍按不动**：上一轮的动作行另给了 `下载管理` 这一枚可达按钮（`:292-312`），`downloads/download_selection.dart:46-62` 那句没动（那个文件另有会话在改）。
+- **偏差写回 `docs/design/video-detail-redesign.md`**：本轮三条（离线横幅在 TV 的落点、题材词上 TV 但只当文本、`EpisodePager` 收字号）都改了那份文档 §8 与 §3.2 的口径，那份文档此刻是另一会话的未跟踪文件，等它空闲再写，不能由这边替它定稿。
+- **验收口径不变**：仍只到组件与用例层。详情页三端真机截图、TV 上按遥控的实际读数（本轮字号改动**没有**电视实机帧）、「点标签 → 发现页被收窄」的实机验证都挂着。
+
+验证读数（2026-10-31 第三轮，验证树 `C:\Users\lee\Documents\Codes\hg-verify` = `5419583` + 本轮 5 个文件）：`dart format --set-exit-if-changed` 4 个 Dart 文件 0 变更；`flutter analyze`（`packages/app`）No issues found；`flutter test`（`packages/app`）**+370 ~1 全过**（上一轮 367，本轮 +3：`test/tv_library_surfaces_test.dart` 2 例、`test/episode_pager_test.dart` 1 例；跳过的那 1 例仍是 flavor 专项）；针对性复跑 `test/tv_library_surfaces_test.dart test/episode_pager_test.dart test/detail_tag_row_test.dart` +39 全过；`flutter test --dart-define=HONGGUO_TV=true test/tv_settings_test.dart` +1；两个 flavor 各出一包：√ `app-tv-debug.apk`（首跑 Gradle 899.7s）、√ `app-mobile-debug.apk`（38.6s）。反向证据：本轮第一条新用例第一次真的按下这一页的重试钮，当场跑出 `setState() callback argument returned a Future`，且验证树里只有它红（其余 369 条不动）——改成块体回调后全绿。
+

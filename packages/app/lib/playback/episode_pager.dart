@@ -39,6 +39,8 @@ class EpisodePager extends StatefulWidget {
     this.controller,
     this.aspectRatio = 1.5,
     this.spacing = 10,
+    this.numberFontSize = 16,
+    this.pageFontSize = 14,
   });
 
   final List<Episode> episodes;
@@ -60,6 +62,13 @@ class EpisodePager extends StatefulWidget {
   /// Cell width/height. The replaced detail-page grid used 100x66, i.e. 1.5.
   final double aspectRatio;
   final double spacing;
+
+  /// Text sizes for the cell number and the「第 a/b 页」line. They stay at the
+  /// 16/14 every non-TV build has always read; a TV host raises them onto the
+  /// scale its own page already uses (docs/design/video-detail-redesign.md §8:
+  /// 16/14 physical pixels on a 1920-wide screen, next to this widget's own 26
+  /// arrows and the page's 32 title).
+  final double numberFontSize, pageFontSize;
 
   @override
   State<EpisodePager> createState() => _EpisodePagerState();
@@ -317,7 +326,7 @@ class _EpisodePagerState extends State<EpisodePager> {
       child: Text(
         '${episode.index}',
         style: TextStyle(
-          fontSize: 16,
+          fontSize: widget.numberFontSize,
           fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
           color: selected ? scheme.primary : null,
         ),
@@ -355,7 +364,7 @@ class _EpisodePagerState extends State<EpisodePager> {
           child: Text(
             '第 ${_shownPage + 1}/$_pageCount 页',
             key: const ValueKey('episode-pager-page-indicator'),
-            style: const TextStyle(fontSize: 14),
+            style: TextStyle(fontSize: widget.pageFontSize),
           ),
         ),
       ),
