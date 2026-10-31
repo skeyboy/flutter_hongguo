@@ -8,6 +8,12 @@ Map<String, dynamic> dramaJson(Drama d) => {
   'series_cover': d.cover,
   'series_intro': d.intro,
   'episode_cnt': d.episodeCount,
+  // 题材词是这一行留给离线的唯一关联线索（详情页的标签行、「同题材 · X」都读它），
+  // 所以按上游的写法存：`Drama.fromJson` 认得一个 `{"name": …}` 数组。
+  if (d.tagNames.isNotEmpty)
+    'category_schema': [
+      for (final name in d.tagNames) {'name': name},
+    ],
 };
 
 class FeedSnapshot {
@@ -106,11 +112,22 @@ class LibraryCache {
         : b?.trim().isNotEmpty == true
         ? b!
         : c ?? '';
+    List<String> firstTags(List<String> a, List<String>? b, List<String>? c) =>
+        a.isNotEmpty
+        ? a
+        : b != null && b.isNotEmpty
+        ? b
+        : c ?? const [];
     return Drama(
       id: value.id,
       title: first(value.title, previous?.title, fromFeed?.title),
       cover: first(value.cover, previous?.cover, fromFeed?.cover),
       intro: first(value.intro, previous?.intro, fromFeed?.intro),
+      tagNames: firstTags(
+        value.tagNames,
+        previous?.tagNames,
+        fromFeed?.tagNames,
+      ),
       episodeCount: [
         value.episodeCount,
         previous?.episodeCount ?? 0,
@@ -201,6 +218,7 @@ class LibraryCache {
           title: enriched.title,
           cover: enriched.cover,
           intro: enriched.intro,
+          tagNames: enriched.tagNames,
           episodeCount: total > ordered.length ? total : ordered.length,
         ),
       ),

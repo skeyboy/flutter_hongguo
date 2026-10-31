@@ -1,4 +1,5 @@
 import '../navigation/app_navigation.dart';
+import '../navigation/catalog_theme_handoff.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -712,6 +713,8 @@ class _LibraryPageState extends LibraryPageStateBase {
       paneFocus[pane]!.addListener(() => _onSearchFocus(pane));
       paneSearch[pane]!.addListener(() => _onSearchText(pane));
     }
+    catalogThemeHandoff.genre = genre;
+    catalogThemeHandoff.addListener(_applyThemeAsk);
     unawaited(router.replaceAll([const NamedRoute('CatalogShell')]));
     _reload(feed);
   }
@@ -740,6 +743,7 @@ class _LibraryPageState extends LibraryPageStateBase {
       bucket.scope.cancel();
     }
     unawaited(sortEvents?.cancel());
+    catalogThemeHandoff.removeListener(_applyThemeAsk);
     _ranking?.removeListener(_applyRankDrill);
     _ranking?.removeListener(_onRankingFeed);
     _ranking?.dispose();
@@ -1991,6 +1995,20 @@ class _LibraryPageState extends LibraryPageStateBase {
           : '「$label」不在${_genreNames[genre] ?? genre}的主题词表里'
                 '（本类型只有 ${themes.length} 个主题）→ 只退回全部主题，不硬凑一个相近的词。',
     );
+  }
+
+  /// 详情页标签行的一枚 chip 点下去的词。它和 `找同题材 ›` 走的是同一条路：写
+  /// L2 的同一个值、由同一套 feed 语义换列表，其余层一个字都不动。词和 id 都来自
+  /// 这一型的这张词表（`catalogThemeHandoff.genre` 就是本页 publish 出去的），所以
+  /// 这里不需要再判一次它在不在表里。
+  void _applyThemeAsk() {
+    final theme = catalogThemeHandoff.take();
+    if (theme == null || !mounted) return;
+    // 这一页也可能是在「我的」或榜单那一层里点进来的：它们不是路由，pop 掉详情页
+    // 不会把它们一起带下来，而这条承诺要观众看见的是被收窄的那一列。
+    if (mineOpen || rankOpen) _selectTab(destination);
+    _selectFilter('theme', theme.id, destination);
+    _explain('带着「${theme.name}」回到主题行；排序与滚动位置都不动。');
   }
 
   /// `看它所在的榜 ›`：赛道 id 就是类型域的另一种写法（`human` 是真人剧、
@@ -3366,6 +3384,9 @@ class _LibraryPageState extends LibraryPageStateBase {
   /// nobody has fetched them yet -- a type already walked keeps its own rail.
   void _writeSlot(String slot) {
     genre = slot;
+    // 详情页的标签 chip 要把这部剧的题材词映射成 id，只能对着这一页正在用的那张
+    // 词表映射：词表按类型发布，换一型就是另一张表。
+    catalogThemeHandoff.genre = slot;
     theme = null;
     // L2′ 和 题材 同一个父亲：换了类型，那些 `cate_*` 就不再指这一页的东西了，
     // 所以跟着归零——规格要的是同一条语义，不是第二套重置规则。

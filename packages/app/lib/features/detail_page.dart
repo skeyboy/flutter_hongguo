@@ -1,5 +1,6 @@
 import '../downloads/download_selection.dart';
 import '../navigation/app_navigation.dart';
+import '../navigation/catalog_theme_handoff.dart';
 
 import 'dart:async';
 
@@ -24,6 +25,9 @@ class DetailPage extends StatefulWidget {
 class _DetailPageState extends State<DetailPage> {
   late Future<DramaDetail> detail;
   bool offlineSnapshot = false;
+
+  /// The 主题 row of the discover page, read so a 标签 can be judged against it.
+  List<CatalogFilter> _panel = const [];
   final _requestScope = CatalogRequestScope();
   @override
   void dispose() {
@@ -35,6 +39,21 @@ class _DetailPageState extends State<DetailPage> {
   void initState() {
     super.initState();
     detail = _load();
+    unawaited(_loadPanel());
+  }
+
+  /// 「面板有 / 面板无」这条判据读的是发现页那一张表，所以对着它正在用的那一型去
+  /// 映射：词表按类型发布，换一型就是一张新表。没来回的东西一律当「面板无」处理——
+  /// 这一页不许画一枚点下去什么都不发生的标签。
+  Future<void> _loadPanel() async {
+    try {
+      final panel = await _requestScope.run(
+        () => widget.runtime.catalog.themes(catalogThemeHandoff.genre),
+      );
+      if (mounted) setState(() => _panel = panel);
+    } on Object catch (_) {
+      // No panel: every word stays a word.
+    }
   }
 
   Future<DramaDetail> _load() async {
@@ -63,6 +82,10 @@ class _DetailPageState extends State<DetailPage> {
         episodeCount: drama.episodeCount > 0
             ? drama.episodeCount
             : result.episodes.length,
+        // 题材 words are what both the 标签 row and 「同题材 · X」 read. Merging
+        // without them would silently downgrade every recommendation block to
+        // the hot board.
+        tagNames: drama.tagNames.isNotEmpty ? drama.tagNames : initial.tagNames,
       ),
       result.episodes,
     );
@@ -75,6 +98,41 @@ class _DetailPageState extends State<DetailPage> {
       rememberDramaMetadata(widget.runtime, merged).catchError((Object _) {}),
     );
     return merged;
+  }
+
+  /// 这部剧自己的题材词，一枚词一个位置：只有发现页的主题行也发过同一个词的那枚
+  /// 才是入口，其余的只当文本读——「点它 = 回到发现页并带上这个筛选」这条承诺，
+  /// 只有词表里真有其 id 才兑得了现。
+  List<Widget> _tags(List<String> names) {
+    final muted = TextStyle(
+      fontSize: 13,
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    );
+    return [for (final name in names) _tag(name, _entryOf(name), muted)];
+  }
+
+  Widget _tag(String name, CatalogFilter? theme, TextStyle muted) =>
+      theme == null
+      ? Text(name, key: ValueKey('detail-tag-plain-$name'), style: muted)
+      : ActionChip(
+          key: ValueKey('detail-tag-entry-${theme.id}'),
+          label: Text(name, style: const TextStyle(fontSize: 13)),
+          onPressed: () => _openTheme(theme),
+        );
+
+  /// The same-word rule 「同题材 · X」 uses (`related_dramas.dart:94`): the
+  /// panel's own name, trimmed, or nothing.
+  CatalogFilter? _entryOf(String name) {
+    for (final option in _panel) {
+      if (option.name.trim() == name) return option;
+    }
+    return null;
+  }
+
+  void _openTheme(CatalogFilter theme) {
+    catalogThemeHandoff.ask(theme);
+    // 主题行是发现页自己的状态，而它在栈底：收掉这一层以上，它才看得见这一次 ask。
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
@@ -118,6 +176,7 @@ class _DetailPageState extends State<DetailPage> {
           cover: drama.cover.isEmpty ? widget.initial.cover : drama.cover,
           intro: drama.intro,
           episodeCount: data.episodes.length,
+          tagNames: drama.tagNames,
         );
         final saved = personalLibraryFor(widget.runtime).latestFor(drama.id);
         final resumable =
@@ -251,6 +310,14 @@ class _DetailPageState extends State<DetailPage> {
                             ),
                           ],
                         ),
+                        if (display.tagNames.isNotEmpty) ...[
+                          const SizedBox(height: 20),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: _tags(display.tagNames),
+                          ),
+                        ],
                         if (display.intro.isNotEmpty) ...[
                           const SizedBox(height: 24),
                           Text(

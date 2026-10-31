@@ -129,3 +129,24 @@ EpisodePager({
 真实上游留样（§5.4）：`packages/api/tool/related_sample.dart --dump-schema` → `docs/evidence/related-dramas/live-sample.json`（面板 29 项 / `cate_N`、首页 12 行仅 1 行名称命中面板、`category_schema` 出现 18 次且窗口内无 `cate_` id、未命中剧走 `hot_score` 拿到 12 条且不含当前剧）。重跑该探针只读列表与详情接口，不打印 URL、请求头、请求体或任何签名。
 
 仍未验收，不得当作已完成：三端详情页截图（§5.2）、并发 3 + 超 512MB 的真实下载场景（§5.3）。v0.3.2 是在这两项未完成的情况下按决定先发的大包，发布说明里对应的两条只声明到组件与用例层，设备验证仍挂在验收清单上。
+
+## 7. 2026-10-31 实施补记：标签行与 `tagNames` 链路
+
+出处：`docs/design/video-detail-redesign.md` §3.3（标签行）与 §7（推荐块名）。那份文档的 §0 表里 25 条，读完代码后只有 §3.3 是**客户端要补**的一条，其余 24 条都是原型向已有代码对齐（头部尺寸、无 hero、无侧栏、`Text(intro)` 不截断、分页器无外壳、AppBar 56/22、下载弹层高度、推荐卡尺寸……代码本来就是这样），所以本轮只动这一条，外加顺手在它上面修掉一条真 bug。
+
+| 做了什么 | 在哪 | 判据与读数 |
+| --- | --- | --- |
+| 头部下方渲染 `tagNames`，面板有同名词的那枚才是入口 | `features/detail_page.dart:313-319`（`Wrap`，位置在头部 `Row` 与简介之间，就是 §3 的那条块序）、`:106` `_tags`、`:114` `_tag` | 入口 = `ActionChip(key: detail-tag-entry-<cate_id>)`；面板无 = `Text(key: detail-tag-plain-<词>)`。同名判据与「同题材 · X」共用一条：`option.name.trim() == name`（`recommendations/related_dramas.dart:94`），不就近找一个相近的词 |
+| 词表取的是发现页**正在用的那一型** | `:48` `_loadPanel`，取 `catalogThemeHandoff.genre`；发现页在 `library_page.dart:716` 挂上、`:3389` `_writeSlot` 里 publish | 用例「标签映射的是发现页正在用的那一型的词表」：先切到漫剧再进详情，`themes()` 收到的参数就是 `comic_series`。词表没回 = 一枚入口都不画（用例「词表没回 = 这一页一个入口都不画」） |
+| 点入口 = pop 回发现页并带上该筛选 | `:132` `_openTheme` → `navigation/catalog_theme_handoff.dart`（新，40 行）→ `Navigator.popUntil(isFirst)`；发现页 `library_page.dart:2004` `_applyThemeAsk` 消费 | 消费走的是它自己 `找同题材 ›` 那条 `_selectFilter('theme', id, destination)` + `_explain`，所以排序、滚动位置、L2′ 其余维度一个字都不动；从「我的」/榜单那一层点进来的先 `_selectTab(destination)` 把层摘掉。用例「点入口 pop 回发现页，主题行当场选上这一个」验到 `theme-rail-cate_7` 亮、请求带 `cate_7` |
+| **修**：`_load()` 合并出的 Drama 一直丢 `tagNames` | `:88`（`tagNames: drama.tagNames.isNotEmpty ? drama.tagNames : initial.tagNames`） | 丢的那个后果不是标签行画不出，是 `loadRelated` 永远读不到题材词 → 推荐块永远落「平台热门」。把这一行删掉，本轮 4 条用例一起红（含「详情合并后仍带着题材词，推荐块才敢叫「同题材 · X」」）——这条是已验的，不是推测 |
+| **修**：离线快照不存题材词 | `catalog/library_cache.dart:7-16`（`dramaJson` 按上游写法存 `category_schema`）、`:112-135`（`_enrich` 三个来源取第一个非空）、`:218` | 用例「离线快照把题材词一起存下来」。以前断网进详情，标签行与「同题材」都无从读起 |
+
+本轮没做、也不许当成做了的：
+
+- **TV 这一页不加标签行。** 那份文档 §8 的焦点序（`:128-251`）里没有它，`features/tv/tv_detail_page.dart` 是另一套版面；要给遥控族加，得先把「标签行落在动作行之前还是之后、跨行焦点怎么交接」写进 §8，而不是先画了再说。
+- **§6 那条 TV 待办仍未定**：下载 snackbar 的「查看」在遥控族按不动（焦点不会自己跳到 snackbar）。二选一（提示 + 焦点留在原动作 / 动作行第三枚按钮）没定，就没动 `downloads/download_selection.dart`——那个文件此刻另有会话在改。
+- **§3.2 窄屏封面与标题降档、§8 选集格子 16/14 字号**：两份文档都明写「待议，不由原型擅自拔高」，本轮一行没改。
+- **验收口径**：本轮只跑到组件与用例层（下表）。§5.2 的三端详情页真机截图、「点标签 → 发现页被收窄」的实机读数仍未做，不得写成已完成。
+
+验证读数（2026-10-31，Windows 克隆树 `C:\Users\lee\Documents\Codes\flutter_hongguo`；Dart 套件只能在 NTFS 克隆里跑，`\\Mac` 共享目录跑不了）：`dart format --set-exit-if-changed` 本轮 5 个文件 0 变更；`flutter analyze`（`packages/app`）No issues found；`flutter test`（`packages/app`）+364 ~1 全过（新增 `test/detail_tag_row_test.dart` 6 例，跳过的那 1 例是 flavor 专项）；`flutter test --dart-define=HONGGUO_TV=true test/tv_settings_test.dart` +1。两个 flavor 各出一包：`flutter build apk --debug --flavor tv --target-platform android-arm64` → √ `app-tv-debug.apk`，`--flavor mobile` → √ `app-mobile-debug.apk`。
