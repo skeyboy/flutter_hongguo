@@ -39,6 +39,11 @@ class TaggedDetailCatalog extends FakeCatalog {
   /// of the two asked for `cate_7`.
   final themeRequests = <String?>[];
 
+  /// Every browse request as (类型, 主题). 「同题材 · X」 claims the request was
+  /// filtered by that 题材, so the pair has to be one the upstream actually
+  /// publishes: an id from this 类型's panel, sent with this 类型.
+  final browseRequests = <({String genre, String? theme})>[];
+
   @override
   Future<CatalogPage> browse({
     String genre = 'short_play',
@@ -48,6 +53,7 @@ class TaggedDetailCatalog extends FakeCatalog {
     List<String> seen = const [],
   }) async {
     themeRequests.add(theme);
+    browseRequests.add((genre: genre, theme: theme));
     return super.browse(
       genre: genre,
       sort: sort,
@@ -120,6 +126,21 @@ Finder _chipsInDetail = find.descendant(
   matching: find.byType(ActionChip),
 );
 
+/// 推荐块排在折叠线以下时根本还没建，所以先滚到那一行标题，读数才算验过它。
+Future<void> _revealBlock(WidgetTester tester, String title) async {
+  await tester.scrollUntilVisible(
+    find.text(title),
+    300,
+    scrollable: find
+        .descendant(
+          of: find.byType(DetailPage),
+          matching: find.byType(Scrollable),
+        )
+        .first,
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
   tearDown(_resetHandoff);
 
@@ -190,20 +211,35 @@ void main() {
       TaggedDetailCatalog(detailId: 'tag-row-5'),
     );
     await _openDetail(tester);
-    // 这一列是 sliver，块在折叠线以下时根本还没建；滚到它，才算验过它。
-    await tester.scrollUntilVisible(
-      find.text('同题材 · 玄幻'),
-      300,
-      scrollable: find
-          .descendant(
-            of: find.byType(DetailPage),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
-    await tester.pumpAndSettle();
+    await _revealBlock(tester, '同题材 · 玄幻');
     expect(catalog.themeRequests, contains('cate_7'));
     expect(find.text('同题材 · 玄幻'), findsOneWidget);
+  });
+
+  testWidgets('换了一型之后，标签和推荐块读的是同一张面板', (tester) async {
+    final catalog = await _mount(
+      tester,
+      TaggedDetailCatalog(detailId: 'tag-row-6'),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('filter-genre-discover-comic_series')),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    await _openDetail(tester);
+    await _revealBlock(tester, '同题材 · 玄幻');
+    // 块名说「这次 browse 按该题材筛」，那一次请求就得带着这一型和这一行的 id：
+    // 拿 comic_series 面板查到的 id 去筛 short_play 的列表，名字与请求对不上。
+    expect(
+      catalog.browseRequests,
+      contains((genre: 'comic_series', theme: 'cate_7')),
+    );
+    expect(
+      catalog.browseRequests.any(
+        (r) => r.theme == 'cate_7' && r.genre != 'comic_series',
+      ),
+      isFalse,
+    );
   });
 
   test('离线快照把题材词一起存下来', () async {

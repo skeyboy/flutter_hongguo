@@ -1,3 +1,4 @@
+import '../../catalog/detail_fallback.dart';
 import '../../downloads/download_selection.dart';
 
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import '../../platform/runtime.dart';
 import '../../playback/episode_pager.dart';
 import '../../personal/personal_library.dart';
 import '../../recommendations/related_dramas_section.dart';
+import '../downloads_page.dart';
 import '../player_page.dart';
 import '../../personal/favorite_button.dart';
 
@@ -38,7 +40,10 @@ class _TvDetailPageState extends State<TvDetailPage> {
   }
 
   Future<DramaDetail> _open() async {
-    final detail = await widget.runtime.catalog.detail(widget.initial.id);
+    final detail = mergeDetailFallbacks(
+      await widget.runtime.catalog.detail(widget.initial.id),
+      widget.initial,
+    );
     await _syncCurrent(detail);
     return detail;
   }
@@ -125,6 +130,7 @@ class _TvDetailPageState extends State<TvDetailPage> {
             );
           }
           final d = snapshot.data!;
+          final downloads = widget.runtime;
           return SingleChildScrollView(
             padding: const EdgeInsets.all(36),
             child: Column(
@@ -207,6 +213,28 @@ class _TvDetailPageState extends State<TvDetailPage> {
                         child: const Padding(
                           padding: EdgeInsets.all(14),
                           child: Text('下载剧集', style: TextStyle(fontSize: 20)),
+                        ),
+                      ),
+                    ],
+                    // 下载管理 gets its own target because the snackbar a phone
+                    // gets after 下载剧集 is not one the remote can reach: its
+                    // 「查看」 action never takes the focus ring, so the queue
+                    // would only be readable through 我的.
+                    if (downloads is DownloadRuntime) ...[
+                      const SizedBox(width: 16),
+                      TvFocusable(
+                        label: '下载管理',
+                        onActivate: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            settings: const RouteSettings(
+                              name: '/tv/downloads',
+                            ),
+                            builder: (_) => DownloadsPage(runtime: downloads),
+                          ),
+                        ),
+                        child: const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: Text('下载管理', style: TextStyle(fontSize: 20)),
                         ),
                       ),
                     ],

@@ -1,3 +1,4 @@
+import '../catalog/detail_fallback.dart';
 import '../downloads/download_selection.dart';
 import '../navigation/app_navigation.dart';
 import '../navigation/catalog_theme_handoff.dart';
@@ -72,23 +73,7 @@ class _DetailPageState extends State<DetailPage> {
       result = cached;
       offlineSnapshot = true;
     }
-    final initial = widget.initial, drama = result.drama;
-    final merged = DramaDetail(
-      Drama(
-        id: drama.id.isEmpty ? initial.id : drama.id,
-        title: drama.title.trim().isEmpty ? initial.title : drama.title,
-        cover: drama.cover.isEmpty ? initial.cover : drama.cover,
-        intro: drama.intro.isEmpty ? initial.intro : drama.intro,
-        episodeCount: drama.episodeCount > 0
-            ? drama.episodeCount
-            : result.episodes.length,
-        // 题材 words are what both the 标签 row and 「同题材 · X」 read. Merging
-        // without them would silently downgrade every recommendation block to
-        // the hot board.
-        tagNames: drama.tagNames.isNotEmpty ? drama.tagNames : initial.tagNames,
-      ),
-      result.episodes,
-    );
+    final merged = mergeDetailFallbacks(result, widget.initial);
     try {
       await personalLibraryFor(widget.runtime).load();
     } catch (_) {

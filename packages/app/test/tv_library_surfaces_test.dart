@@ -14,6 +14,7 @@ import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_tv/hongguo_tv.dart';
 import 'package:hongguo_app/catalog/library_cache.dart';
 import 'package:hongguo_app/features/detail_page.dart';
+import 'package:hongguo_app/features/downloads_page.dart';
 import 'package:hongguo_app/features/local_cache_page.dart';
 import 'package:hongguo_app/features/my_page.dart';
 import 'package:hongguo_app/features/tv/tv_detail_page.dart';
@@ -21,12 +22,24 @@ import 'package:hongguo_app/platform/runtime.dart';
 import 'package:hongguo_app/personal/personal_library.dart';
 import 'package:hongguo_app/widgets/drama_card.dart';
 
+import 'download_fakes.dart';
 import 'fakes.dart';
 
 class _EmptyCatalog extends FakeCatalog {
   @override
   Future<DramaDetail> detail(String id) async =>
       const DramaDetail(FakeCatalog.demo, []);
+}
+
+/// The detail endpoint answering with barely more than an id and the episode
+/// list -- which is what the live sample of 2026-10-30 looked like for the
+/// words. Whatever the row already knew has to survive the merge.
+class _BareDetailCatalog extends FakeCatalog {
+  @override
+  Future<DramaDetail> detail(String id) async => const DramaDetail(
+    Drama(id: 'tv-words', title: ''),
+    [Episode(vid: '11', index: 1), Episode(vid: '12', index: 2)],
+  );
 }
 
 /// Cached files the cache page can list and delete, so the TV branch is tested
@@ -385,6 +398,63 @@ void main() {
       // The node ids are the pager's own (`episode-cell-N`), which is what
       // `episode_pager_tv_page_test` reads too; the ring's label is `第 1 集`.
       expect(_focus(), 'episode-cell-0');
+    });
+
+    testWidgets('详情没回题材词时用列表行兜底，块名才不是「平台热门」', (tester) async {
+      await _useTvView(tester);
+      const row = Drama(
+        id: 'tv-words',
+        title: '兜底标题',
+        intro: '兜底简介',
+        tagNames: ['玄幻'],
+      );
+      await tester.pumpWidget(
+        _tv(
+          TvDetailPage(
+            runtime: FakeRuntime(_BareDetailCatalog()),
+            initial: row,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The remote family has no hover peek, so the words are the only thing
+      // that can earn 「同题材」 here; an unmerged page would read the hot board.
+      expect(find.text('同题材 · 玄幻'), findsOneWidget);
+      expect(find.text('平台热门'), findsNothing);
+      expect(find.text('兜底标题'), findsOneWidget);
+      expect(find.text('兜底简介'), findsOneWidget);
+    });
+
+    testWidgets('下载管理 is a remote target, not a snackbar action', (
+      tester,
+    ) async {
+      await _useTvView(tester);
+      // No download manager on this runtime, so the row offers no queue to open.
+      await tester.pumpWidget(
+        _tv(TvDetailPage(runtime: FakeRuntime(), initial: FakeCatalog.demo)),
+      );
+      await tester.pumpAndSettle();
+      expect(_nodeByLabel(tester, '下载管理'), isNull);
+
+      final runtime = DownloadFakeRuntime(television: true);
+      // The manager saves on a debounce, so closing it needs a pump inside the
+      // test binding -- `addTearDown(runtime.dispose)` alone waits on a timer
+      // that only `pump` can fire.
+      addTearDown(() async {
+        final closing = runtime.dispose();
+        await tester.pump();
+        await closing;
+      });
+      await tester.pumpWidget(
+        _tv(TvDetailPage(runtime: runtime, initial: FakeCatalog.demo)),
+      );
+      await tester.pumpAndSettle();
+      expect(_nodeByLabel(tester, '下载管理'), isNotNull);
+
+      await _activate(tester, '下载管理');
+      expect(find.byType(DownloadsPage), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

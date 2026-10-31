@@ -125,7 +125,12 @@ final relatedDramaLoader = RelatedDramaLoader();
 
 /// Entry point used by detail pages: same-theme dramas for [current], or the
 /// hot board when none of the upstream genre names is on the theme panel.
-/// Empty [RelatedDramas/items] means "do not render the block"; this never
-/// throws.
-Future<RelatedDramas> loadRelated(AppRuntime runtime, DramaDetail current) =>
-    relatedDramaLoader.load(runtime, current);
+/// [genre] is the 类型 whose panel the caller maps the words against -- the
+/// detail page reads that from the discover page, so the block and the 标签 row
+/// cannot claim different things. Empty [RelatedDramas.items] means "do not
+/// render the block"; this never throws.
+Future<RelatedDramas> loadRelated(
+  AppRuntime runtime,
+  DramaDetail current, {
+  String genre = 'short_play',
+}) => relatedDramaLoader.load(runtime, current, genre: genre);

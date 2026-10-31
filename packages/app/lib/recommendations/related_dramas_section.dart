@@ -3,6 +3,7 @@ import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_tv/hongguo_tv.dart' show TvFocusable;
 
 import '../features/library_page.dart' show DramaCard;
+import '../navigation/catalog_theme_handoff.dart';
 import '../platform/runtime.dart';
 import '../widgets/drama_cover.dart';
 import 'related_dramas.dart';
@@ -50,7 +51,14 @@ class _RelatedDramasSectionState extends State<RelatedDramasSection> {
   }
 
   Future<void> _load() async {
-    final value = await loadRelated(widget.runtime, widget.current);
+    // 面板词是按类型发布的，而块名声称的是「这次 browse 按该题材筛」——所以取数
+    // 必须用详情页那行标签所映射的同一张面板，否则拿着 A 类型查到的 id 去筛 B
+    // 类型的列表，名字与请求就对不上了。
+    final value = await loadRelated(
+      widget.runtime,
+      widget.current,
+      genre: catalogThemeHandoff.genre,
+    );
     if (mounted) setState(() => _result = value);
   }
 
