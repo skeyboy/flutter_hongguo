@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:hongguo_tv/hongguo_tv.dart' show TvEnvironment, TvFocusable;
 
 import '../downloads/download_manager.dart';
 import '../platform/runtime.dart';
 import '../navigation/app_navigation.dart';
 import '../catalog/local_library.dart';
 import '../playback/local_playlist.dart';
+import '../widgets/tv_confirm.dart';
 import 'local_cache_page.dart';
 import 'player_page.dart';
 
@@ -105,31 +107,121 @@ class _DownloadsPageState extends State<DownloadsPage> {
 
   Future<void> _remove(EpisodeDownload task) async {
     if (task.phase == DownloadPhase.ready) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('删除已下载视频？'),
-          content: Text(
+      final confirmed = await showTvConfirm(
+        context,
+        title: '删除已下载视频？',
+        body:
             '${task.drama.title} · 第 ${task.episode.index} 集\n删除后需重新下载才能离线观看。',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('删除'),
-            ),
-          ],
-        ),
+        confirmLabel: '删除',
       );
       if (confirmed != true || !mounted) return;
     }
     await _action(() => manager.remove(task.key));
   }
 
-  Widget _task(EpisodeDownload task) => Card(
+  String _episodeLine(EpisodeDownload task) =>
+      '第 ${task.episode.index} 集 · ${task.quality == 'best' || task.quality == 'auto' ? '自动画质' : task.quality}';
+
+  String _messageLine(EpisodeDownload task) =>
+      '${task.message}${task.phase == DownloadPhase.running && task.fraction != null ? " · ${(task.fraction!.clamp(0, 1) * 100).floor()}%" : ""}';
+
+  Widget _task(EpisodeDownload task, {required bool tv}) =>
+      tv ? _tvTask(task) : _touchTask(task);
+
+  bool _inFlight(DownloadPhase phase) =>
+      phase == DownloadPhase.queued || phase == DownloadPhase.running;
+
+  // One task as two remote targets, like the cache page's file row: a row-wide
+  // target would swallow the destructive action at its end.
+  Widget _tvTask(EpisodeDownload task) {
+    final inFlight = _inFlight(task.phase);
+    final ready = task.phase == DownloadPhase.ready;
+    // Title plus index keeps the label unique per row, so the viewer knows
+    // which episode the confirm key acts on.
+    final name = '${task.drama.title} 第 ${task.episode.index} 集';
+    final primaryLabel = inFlight
+        ? '暂停下载'
+        : ready
+        ? '离线观看'
+        : '继续下载';
+    final primaryIcon = inFlight
+        ? Icons.pause
+        : ready
+        ? Icons.play_arrow
+        : Icons.refresh;
+    final VoidCallback primaryAction = inFlight
+        ? () => manager.pause(task.key)
+        : ready
+        ? () => _action(() => _watch(task))
+        : () => manager.resume(task.key);
+    final secondaryLabel = inFlight ? '取消下载' : '删除下载记录';
+    final secondaryIcon = inFlight ? Icons.close : Icons.delete_outline;
+    final VoidCallback secondaryAction = inFlight
+        ? () => manager.cancel(task.key)
+        : () => _remove(task);
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: TvFocusable(
+              label: '$name $primaryLabel',
+              onActivate: working ? null : primaryAction,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 14,
+                ),
+                child: Row(
+                  children: [
+                    Icon(primaryIcon, size: 26),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _episodeLine(task),
+                            style: const TextStyle(fontSize: 22),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _messageLine(task),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 17),
+                          ),
+                          if (task.phase == DownloadPhase.running)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: LinearProgressIndicator(
+                                value: task.fraction?.clamp(0, 1),
+                                minHeight: 2,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          TvFocusable(
+            label: '$name $secondaryLabel',
+            onActivate: working ? null : secondaryAction,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              child: Icon(secondaryIcon, size: 26),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _touchTask(EpisodeDownload task) => Card(
     elevation: 0,
     margin: const EdgeInsets.symmetric(vertical: 4),
     child: Padding(
@@ -147,12 +239,10 @@ class _DownloadsPageState extends State<DownloadsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '第 ${task.episode.index} 集 · ${task.quality == 'best' || task.quality == 'auto' ? '自动画质' : task.quality}',
-                ),
+                Text(_episodeLine(task)),
                 const SizedBox(height: 4),
                 Text(
-                  '${task.message}${task.phase == DownloadPhase.running && task.fraction != null ? " · ${(task.fraction!.clamp(0, 1) * 100).floor()}%" : ""}',
+                  _messageLine(task),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall,
@@ -210,6 +300,9 @@ class _DownloadsPageState extends State<DownloadsPage> {
   );
   @override
   Widget build(BuildContext context) {
+    // The flag comes from `build`, because `TvEnvironment.of` registers a
+    // dependency and an async callback cannot ask again after an await.
+    final tv = TvEnvironment.of(context);
     final groups = <String, List<EpisodeDownload>>{};
     for (final task in manager.tasks) {
       if (filter == 1 &&
@@ -226,21 +319,63 @@ class _DownloadsPageState extends State<DownloadsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('下载管理'),
+        // On TV the remote's Back key pops this route, exactly as it does on the
+        // detail page; an arrow the ring cannot reach is decoration the viewer
+        // can see but not press.
+        automaticallyImplyLeading: !tv,
         actions: [
-          IconButton(
-            tooltip: '查看离线剧集',
-            onPressed: () => pushAppPage<void>(
-              context,
-              AppScreen.cache,
-              (_) => LocalCachePage(runtime: widget.runtime),
+          if (tv)
+            TvFocusable(
+              label: '查看离线剧集',
+              onActivate: () => pushAppPage<void>(
+                context,
+                AppScreen.cache,
+                (_) => LocalCachePage(runtime: widget.runtime),
+              ),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.video_library_outlined, size: 20),
+                    SizedBox(width: 8),
+                    Text('离线剧集', style: TextStyle(fontSize: 18)),
+                  ],
+                ),
+              ),
+            )
+          else
+            IconButton(
+              tooltip: '查看离线剧集',
+              onPressed: () => pushAppPage<void>(
+                context,
+                AppScreen.cache,
+                (_) => LocalCachePage(runtime: widget.runtime),
+              ),
+              icon: const Icon(Icons.video_library_outlined),
             ),
-            icon: const Icon(Icons.video_library_outlined),
-          ),
-          IconButton(
-            tooltip: '刷新下载',
-            onPressed: working ? null : _load,
-            icon: const Icon(Icons.refresh),
-          ),
+          if (tv)
+            TvFocusable(
+              label: '刷新下载',
+              onActivate: working ? null : _load,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.refresh, size: 20),
+                    SizedBox(width: 8),
+                    Text('刷新', style: TextStyle(fontSize: 18)),
+                  ],
+                ),
+              ),
+            )
+          else
+            IconButton(
+              tooltip: '刷新下载',
+              onPressed: working ? null : _load,
+              icon: const Icon(Icons.refresh),
+            ),
         ],
       ),
       body: loading
@@ -250,8 +385,19 @@ class _DownloadsPageState extends State<DownloadsPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(error!),
-                  TextButton(onPressed: _load, child: const Text('重试')),
+                  Text(error!, style: TextStyle(fontSize: tv ? 22 : null)),
+                  if (tv)
+                    TvFocusable(
+                      label: '重试',
+                      autofocus: true,
+                      onActivate: _load,
+                      child: const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: Text('重试', style: TextStyle(fontSize: 22)),
+                      ),
+                    )
+                  else
+                    TextButton(onPressed: _load, child: const Text('重试')),
                 ],
               ),
             )
@@ -261,16 +407,36 @@ class _DownloadsPageState extends State<DownloadsPage> {
                 child: Column(
                   children: [
                     Padding(
-                      padding: const EdgeInsets.all(12),
+                      padding: EdgeInsets.all(tv ? 20 : 12),
                       child: Wrap(
                         spacing: 8,
                         children: [
                           for (var i = 0; i < 3; i++)
-                            ChoiceChip(
-                              label: Text(['全部', '下载中', '已完成'][i]),
-                              selected: filter == i,
-                              onSelected: (_) => setState(() => filter = i),
-                            ),
+                            if (tv)
+                              // `selected` fills the chip: the ring alone only
+                              // tells where the remote is, not which filter runs.
+                              TvFocusable(
+                                key: ValueKey('downloads-filter-tv-$i'),
+                                label: ['全部', '下载中', '已完成'][i],
+                                selected: filter == i,
+                                onActivate: () => setState(() => filter = i),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
+                                  child: Text(
+                                    ['全部', '下载中', '已完成'][i],
+                                    style: const TextStyle(fontSize: 20),
+                                  ),
+                                ),
+                              )
+                            else
+                              ChoiceChip(
+                                label: Text(['全部', '下载中', '已完成'][i]),
+                                selected: filter == i,
+                                onSelected: (_) => setState(() => filter = i),
+                              ),
                         ],
                       ),
                     ),
@@ -281,28 +447,30 @@ class _DownloadsPageState extends State<DownloadsPage> {
                           manager.warning!,
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.error,
+                            fontSize: tv ? 18 : null,
                           ),
                         ),
                       ),
                     if (working) const LinearProgressIndicator(minHeight: 2),
                     Expanded(
                       child: groups.isEmpty
-                          ? const Center(
+                          ? Center(
                               child: Padding(
-                                padding: EdgeInsets.all(24),
+                                padding: const EdgeInsets.all(24),
                                 child: Text(
                                   '暂无下载\n去剧集详情页选择想离线观看的集数',
                                   textAlign: TextAlign.center,
+                                  style: TextStyle(fontSize: tv ? 20 : null),
                                 ),
                               ),
                             )
                           : RefreshIndicator(
                               onRefresh: _load,
                               child: ListView(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
+                                padding: EdgeInsets.fromLTRB(
+                                  tv ? 32 : 16,
                                   0,
-                                  16,
+                                  tv ? 32 : 16,
                                   24,
                                 ),
                                 physics: const AlwaysScrollableScrollPhysics(),
@@ -315,9 +483,11 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                       ),
                                       child: Text(
                                         group.first.drama.title,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleMedium,
+                                        style: tv
+                                            ? const TextStyle(fontSize: 24)
+                                            : Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium,
                                       ),
                                     ),
                                     for (final task
@@ -326,7 +496,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                             b.episode.index,
                                           ),
                                         ))
-                                      _task(task),
+                                      _task(task, tv: tv),
                                   ],
                                 ],
                               ),
