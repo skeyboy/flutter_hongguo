@@ -249,3 +249,30 @@ L1′ 榜单 = 该赛道 items[] 的 show_name + selector_item_id；换榜单不
 - widget 单测：§5 重谈清单逐条改写 + 新增「榜单目的地不吃类型/题材」「排序改请求不换页」「桌面溢出不横滑」「**词表缺行时主题行整行不出现且类型行仍可点**」「**抽屉里选多维不收弹层**」「**下钻未命中时不硬凑相近题材**」六组用例（后三条就是 §6.1 新增规格的回执）。
 - 实机窗口取证：macOS 真窗口跑 PC 视图（rail/下拉/hover 焦点序）与 iPhone 模拟器跑移动视图（折叠吸顶、排序弹层、多维抽屉），帧进 `docs/evidence/discover-ranking/`；本轮**没有**任何实机帧，设计文档不声称验证过。
 - 门禁全量 + 分离 worktree 验提交树。
+
+## 11. 补记（2026-11-01）：一页一榜，再问一次只有下拉
+
+用户诉求（原话）：「榜单列表移除加载更多功能保留下拉刷新即可」。实施时页面尾部确实长着一枚「加载更多」，它买回来的是把第二块钉在第一块下面的那一次追加。
+
+- **删掉的**：`ranking_page.dart` 尾部那枚按钮与其 key，`RankingController.more()`、`_BoardFeed.cursor` / `loadingMore`、`_load()` 的 `{bool more}` 分支，以及请求里传给 `rankBoard(cursor:)` 的那颗游标。一条记录现在只装这一榜当前答的那一页，`open()`（已读过的榜不重问）、`retry()`（同一 `track|board`、`cursor` 为空）是仅有的两次提问。
+- **留下的再问方式**：`RefreshIndicator` 包住列表，`onRefresh` 走 `retry()`——替换行，不是追加行，`updatedAt` 与 `unrecognizedCards` 跟着这次答案重写。错误条挂在行上方那层也一起可下拉。
+- **一条实现约束，不写就会静默失效**：列表必须是 `AlwaysScrollableScrollPhysics()`。比屏幕短的榜（实测有的榜只有十来行）本来不可滚，而 `RefreshIndicator` 只在肯接受这次拖拽的可滚动件上触发——没有这行物理参数，短榜的下拉刷新根本不存在。
+- **为什么不追加**：这条链上位次是 `cell_data` 的数组下标（§8 第 3 条），页头的「更新于 HH:MM」读的是这一次的 `rank_version`（§8 第 4 条）。把第二块钉在后面，界面上就出现一份上游从未作为一张榜发布过的长列表，而且尾部的行与页头那句时刻不同源。移除续页没有损失可达性：想看更多名次的路是换赛道/换榜块，那两层本来就在页面顶部。
+- **上游词汇没动**：`RankPage.nextCursor` 仍按响应解析（`packages/api/lib/src/ranking.dart`），只是 app 侧不再消费。`榜单 draws no 加载更多, even when upstream sends a cursor` 这条用例钉的就是这个区别——答案给了游标，界面也不许因此多出一枚按钮。
+
+验证读数（2026-11-01，本地 NTFS 克隆 `hg-verify-dl`；与 \\Mac 副本逐字节一致）：`flutter analyze`（`packages/app`）`No issues found!`；新增 `test/ranking_pull_test.dart` **+2** 全过（一条夹具榜**总是**说它还有下一页：① 界面画不出「加载更多」，且只发过一次 `cursor: null`；② 下拉之后重新问的还是这一块榜，`cursor` 依旧全为 `null`，行留在原地）；`packages/app` 全量 **+396 ~1** 全过。
+
+未验证：这轮的读数全部来自 widget 测试与固定答案的假 catalog，没有 macOS 窗口帧、没有 iPhone 帧，也没有真实榜块的响应观察——「上游确实会发 `nextCursor`」沿用 `docs/evidence/ranking-fields/README.md` 那四次取样，本轮没有重新取样。
+
+### 11.1 同日补记：指针族不必拖也能再问一次
+
+「只保留下拉刷新」这句在手机上成立，在桌面上不成立：握鼠标或触控板的手不会自然去做出「按住列表顶部向下拖」这个手势，滚轮与触控板的两指滚动都不触发 `RefreshIndicator`。用户选择（原话）：「页头「刷新」按钮（推荐）」。
+
+- **给的是一枚目标，不是第二种语义**：`ranking_page.dart` 的 `_Heading` 由单个 `Text.rich` 改成一枚 `Row`（标题 `Expanded`，右侧 `IconButton(key: ValueKey('rank-refresh'), tooltip: '刷新本榜', icon: Icons.refresh)`），`onPressed` 调的仍是 `controller.retry()`——与下拉刷新、错误条重试同一个方法，同一个 `track|board`、`cursor` 为空。因此它不会带回上一轮删掉的那件事：追加续页仍然没有路径。
+- **各族都给，不按输入族分岔**：这枚按钮在触屏与桌面都出现。它是页头的一部分，不是桌面专属浮层；触屏多一个可点目标没有代价，而按 `desktopHost` 藏起来会让「同一榜再问一次」在两种设备上长得不同。
+- **改形的连带影响已核对**：`_Heading` 换结构前确认过没有用例断言 `rank-heading` 或「更新于」那行的 widget 形状。那行标题本来不带省略号（`Text.rich` 没设 `overflow` / `maxLines`，长了就换行），这轮也没改变这一点——变的只是它能拿到的宽度少了一枚按钮的量，页头左右内边距相应从 `16/16` 调成 `16/8`，让按钮不至于贴着标题。
+
+验证读数（同一批克隆、同样逐字节一致）：`test/ranking_pull_test.dart` 由 2 条增至 **3** 条全过（新增「页头那枚 刷新 让指针族不用拖也能再问一次」：断言 `刷新本榜` 的 tooltip 存在，点击后请求次数增加而 `cursor` 依旧全为 `null`，赛道名与行都留在原地）；`flutter analyze`（`packages/app`）`No issues found!`；`packages/app` 全量 **398 项通过、1 项按条件跳过、0 项失败**。
+
+仍未验证：没有 macOS 窗口帧。按钮的命中与点击后的重新提问都跑在合成指针上；「触控板两指滚动不触发下拉」是按 `RefreshIndicator` 的手势前提推断的，本轮没有实测滚轮行为。
+

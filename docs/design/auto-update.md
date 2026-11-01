@@ -55,7 +55,7 @@
 | --- | --- | --- | --- |
 | Windows | `Hongguo-<v>-windows-x64-setup.exe` | 下载 → sha256 → 写一条 `start "" "<setup>" /VERYSILENT /NORESTART /SUPPRESSMSGBOXES` 的临时 cmd 并 detached 起 → `exit(0)` 让正在运行的 exe 解锁。`tool/ci/windows-installer.iss` 是 `PrivilegesRequired=lowest` + `DefaultDirName={localappdata}\Programs\Hongguo` + 固定 `AppId`，所以原地升级不要 UAC、也不会开出第二份安装 | 单测覆盖选件/校验；**没有 Windows 设备**，静默装成功与否不做实机断言 |
 | macOS | `Hongguo-<v>-macos-arm64.dmg`（v0.3.13 实测 22,547,501 字节 ≈ 21.5 MB） | 下载（沙箱内 app support 的 `updates/`）→ sha256 → `open <dmg>`；`open` 失败再退到 `open -R` 并在弹窗里给出可选中的完整路径 | macOS 真窗口跑通「检查 → 下载 21.5 MB dmg → 校验 → 弹出 dmg」，见 §9；本轮取不到窗口像素，所以只有运行期结论、没有画面结论 |
-| Android（mobile flavor） | `Hongguo-<v>-android-<abi>.apk`，`abi` 取 `Build.SUPPORTED_ABIS` 首个，回落 `arm64-v8a` | 下载 → sha256 → **先问 `canRequestPackageInstalls()`**：没开就 `startActivity(ACTION_MANAGE_UNKNOWN_APP_SOURCES, package:…)` 并把已校验的 APK 停在 `AndroidInstaller` 里，回前台（`WidgetsBindingObserver` resumed）再问一次，开了才开 `PackageInstaller` 会话；`commit` 的 `PendingIntent` 回到 `onNewIntent`，`STATUS_PENDING_USER_ACTION` 就把 `Intent.EXTRA_INTENT` 拉起（系统确认弹窗由此出现），`SUCCESS`/`FAILED` 与 `EXTRA_STATUS_MESSAGE` 原样回话给 `install` 那一次调用 | 逻辑与选件走单测（`test/android_install_test.dart` 覆盖四种先后：已授权直接开会话、未授权只跳设置不开会话、回来仍没开就继续等、回来开了就补装）＋ Kotlin 在本机 `flutter build apk --debug --flavor mobile` 编过；**不做真机安装**，装机成功与否仍不声称 |
+| Android（mobile flavor） | `Hongguo-<v>-android-<abi>.apk`，`abi` 取 `Build.SUPPORTED_ABIS` 首个，回落 `arm64-v8a` | 下载 → sha256 → **先问 `canRequestPackageInstalls()`**：没开就 `startActivity(ACTION_MANAGE_UNKNOWN_APP_SOURCES, package:…)`，并把已校验 APK 的**路径与字节数写进下载目录里的欠装记录**（`hongguo-pending-install.json`），此后任何一次回到应用（`resumed` 或冷启动 `start()`）都会先核身再补开 `PackageInstaller` 会话，观众不需要再点一次；开了就直接开会话。`commit` 的 `PendingIntent` 回到 `onNewIntent`，`STATUS_PENDING_USER_ACTION` 就把 `Intent.EXTRA_INTENT` 拉起（系统确认弹窗由此出现），`SUCCESS`/`FAILED` 与 `EXTRA_STATUS_MESSAGE` 原样回话给 `install` 那一次调用 | 逻辑与选件走单测（`test/android_install_test.dart` 十例，含「去设置那一趟之后冷启动也算数」「记录一旦开会话立刻作废」「被系统清理过的包不再开会话」）＋ Kotlin 在本机 `flutter build apk --debug --flavor mobile` 编过；**不做真机安装**，装机成功与否仍不声称 |
 | Linux | `Hongguo-<v>-linux-x64.deb`，无 deb 时 `linux-x64.tar.gz` | 下载 → sha256 → `xdg-open <deb>` 交给系统包管理器；tar.gz 只落到「文件已备好，请按现有方式替换」 | 无 Linux 设备，只有单测 |
 | iOS | 无（不选附件） | 只提示，弹窗给出发布页 `html_url` 供复制 | 不发版本，无验证 |
 | Android TV | 不参与 | `tvBuild` 全部跳过 | — |
@@ -156,3 +156,34 @@
 - shipped kernel 的线上读数（`cd packages/update && dart run tool/live_feed_check.dart 0.3.16 0.3.17`）：`status=available tag=v0.3.17 assets=15 etag=W/"e9fe7669…"`；`viewer on v0.3.16 -> available`、同一人忽略该 tag 后 `-> ignored`、`v0.3.17 -> upToDate`；选件按平台各自命中 macos / windows / linux / android 四条（digest 与上表逐字节同源），`ios -> NONE`，全部 `host=github.com`，`SHA256SUMS.txt` 与 `release-manifest.json` 都在。
 - **同一笔不对称**：这份补记排在 `2e2d5c5` 之后，所以 `v0.3.17` 这棵树里没有它；要看读数取 `main`。
 - 仍未闭环的：本轮三条能力没有手机与电视的真机读数——自动续排、继续全部、归类删除与在线拉取都跑在单槽、按微任务推进的假传输通道与内存文件清单上，真实的系统下载交接、通知授权、仅 Wi-Fi 约束与播放中删除均未实测；历轮那几项（详情页三端截图、TV 遥控实际读数、`点标签 → 发现页被收窄`、snackbar「查看」在遥控族按不动、TV 主题轨标签行入口消费方）继续挂着。
+
+### 9.6 授权之后自动把 APK 装完（2026-11-01）
+
+用户诉求（原话）：「未知应用安装开启后apk下载完成后需要自动能打开并执行安装」。
+
+§9.3 那一版把链接通了，但「等着装」的那半个 APK 停在 `AndroidInstaller` 的内存字段里，只在 `AppLifecycleState.resumed` 补问一次权限。真机上这一趟有两个洞：
+
+1. **去「安装未知应用」那一页时应用就在后台**，Android 随时可以回收这个进程；进程被拿走，内存里的停靠就没了。重开应用只会重新读到那句「请打开该权限」，欠着的那一包再也不会自己装上——而「开好权限再重开」正是这条路最常见的走法。
+2. **冷启动不问欠装**。`start()` 只注册观察者，所以任何不是「同一进程里 resumed」的回来方式都不兑付。
+
+修法是把欠装写成磁盘上的一条记录，而不是内存里的一个字段：`hongguo-pending-install.json` 落在**下载器写 APK 的同一个 stage 目录**（`stageDirectoryFor()`），内容只有 `path` 与 `bytes`——同目录才能在下一次启动用同名找到同一个文件。三条规矩：
+
+- **任何一次回到应用都试着兑付**：`start()` 注册观察者后立刻跑一次，`resumed` 再各跑一次，两处都走 `_returnToForeground()`（`update_controller.dart:92,105,114`）。
+- **兑付前先核身**：`File(path).stat()` 必须是普通文件且字节数与记录一致，否则删掉记录并回答「安装包已经不完整或被系统清理，请重新点「立即更新」下载。」——不在一个被系统回收或截断过的文件上开系统会话。
+- **会话一开记录就作废**：`_forget()` 排在 `installApk` 之前。系统确认框可以一直挂在屏上等观众决定，这一段时间里发生的一次冷启动不能为同一个 APK 再开第二个会话。
+
+读不出来（目录访问不到、进程被杀时留下半份 JSON）都按「没有欠装」处理：APK 还在盘上，下一次「立即更新」会重写一条新的。**权限闸门仍只留在 `handOff()` 的平台分派里**，`AndroidInstaller` 自己不判平台——否则桌面宿主跑同一套 Dart 测试会整段跳过；换由 `_returnToForeground()` 在 `currentUpdateTarget().platform != android` 早退。两条未授权文案与 `updateHandoffDescription` 的 android 一句一起改成「回到应用后会自动继续安装」，因为这句话现在是这个类真的能兑现的行为。
+
+验证读数（2026-11-01，本地 NTFS 克隆 `hg-verify-dl`，与 \\Mac 副本逐字节核对一致）：
+
+| 范围 | 结果 |
+| --- | --- |
+| `flutter analyze`（`packages/app`） | `No issues found!` |
+| `test/android_install_test.dart` | **+10** 全过。新增的五例：去设置那一趟之后**冷启动**把欠着的 APK 装上；开过会话的欠装记录不留到下次启动；被系统清理过的包不开会话并说明原因；回来还没开权限时只问一次、记录原样留着；桌面宿主不被这道新闸门挡住 |
+| `packages/app` 全量 | **+396 ~1** 全过 |
+| `packages/core` / `packages/tv` | +117 / +36 全过 |
+| `packages/update` | +32 -1：仍是 `release_downloader_test.dart` 那条 Windows 路径分隔符断言（§9.5 已记为宿主脆弱断言，本轮未碰该包） |
+| `packages/api` | +100 -9：九条全落在 `media_cache_test.dart` / `prefetch_scheduler_test.dart`，头一条读得到 `PathAccessException … 另一个程序正在使用此文件 (errno = 32)`，即 temp 目录被宿主占用；同一条口径在 `docs/evidence/discover-ranking-2026-10-30/findings.md` 已记为 Windows 侧既有（CI 在 ubuntu-24.04 跑 api），本轮没有改过这个包 |
+
+未验证的部分要说清：**没有 Android 真机读数**。整条链跑在 mock 的 `hongguo/update` 通道与真临时目录里的真字节数上——`PackageInstaller` 会话、系统确认弹窗、`onNewIntent` 的状态回话、以及「系统在设置那一趟到底有没有杀进程」都是语义断言，不是设备观察。这台 ARM64 宿主无法构建原生包（media_kit 只有 x64），且本轮 Kotlin 一行未改（`canInstall` / `askPermission` / `install` 三个方法是 §9.3 那版已有的），所以也没有重新出 APK。
+

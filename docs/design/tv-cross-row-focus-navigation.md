@@ -187,3 +187,30 @@
 
 
 实施验收：TV 模块 20 项、App 102 项、静态分析通过。模拟器硬件遥控完成双向跨行，实际断言焦点依次为 Index 3→4 和 4→3，题材保持不变；同时回归全列表首项向左回当前 sidebar 和向右恢复原焦点。证据位于 `build/verification/tv-index-device/`。
+
+## 9. 补记（2026-11-01）：输入框必须把上下键交还遥控
+
+用户诉求（原话）：「针对 Android TV 中关于输入框焦点不能正常切换执行 bug 修复」。现象是遥控能走进一个输入框，却走不出来。
+
+根因在 `packages/tv/lib/src/environment.dart` 的 `TvNavigation`。Flutter 的按键派发从主焦点节点往上走：输入框自己的节点 → `TvNavigation` 那层 `Focus` → 更上层的 `DefaultTextEditingShortcuts`（移动光标的那些动作）。`TvNavigation` 原先只要发现主焦点落在编辑器里，就对**所有**按键回答「不是我的」——于是光标动不了的地方（单行框没有上下）也没人管上下。框因此成了这页行走路线的终点：底下的剧集网格、页头动作全都够不着。触屏页原样挂进 TV 分栏的那些框尤其明显，比如 `LocalCachePage` 的「搜索已缓存的剧名或视频 ID」——它由 `tv_library_page.dart` 的 `_sidebarRoutes[3]` 直接mount 进 TV 侧栏，没有任何 TV 特化。同一类受害者还有 `CacheMetadataPage`（TV 侧栏的「补全剧目信息」推进去的那页）。
+
+采用的规则（写在 `TvNavigation._editorGivesVerticalArrows`）：
+
+- **单行框把上下交还遥控**——单行正是光标无处可去的场合，这两个键在 TV 上唯一的用途就是走出这个框。
+- **多行框留下上下**——那是它换行的方式，交出去就是把一个能用的键改坏。
+- **左右永远归光标**，改错一个字不该把人弹出输入框；**确认键也归编辑器**（TV 上它唤起输入法，不是按下框后面那枚按钮），这条由既有的 `text editor retains input without invoking a button` 钉住，本轮未动。
+- 修在 `TvNavigation` 而不是每页各修一次：任何把框放进焦点环的页面自动受益。同日搜索弹层自己给的 `field.onKeyEvent`（节点级监听先于祖先层）**不受影响也不会重复移动**——它在 `TvNavigation` 之前就把上下截走了，两条规则叠在同一框上的净效果仍是一次移动。
+
+验证读数（2026-11-01，本地 NTFS 克隆 `hg-verify-dl`，与 \\Mac 副本逐字节一致；改前后各跑一次，先红后绿）：
+
+| 检查 | 结果 |
+|---|---|
+| `packages/tv` `flutter test` | 36 → **38** 全过（新增「a single-line box gives 上下 back to the remote」与「a multi-line box keeps the vertical arrows for its caret」；修复前第一条按 `node.hasFocus` 为假而失败，即现象复现） |
+| `packages/app` `flutter test` 全量 | **399 项通过、1 项按条件跳过、0 项失败**（新增「本地缓存 遥控从搜索框里走得出去，左右键仍归光标」：修复前断言「按下后焦点仍在框里」失败；修复后实测落在 `山海之间，已缓存 2 / 3 集` 这枚卡片目标上） |
+| `flutter analyze`（`packages/tv`、`packages/app`） | 均 `No issues found!` |
+| `dart format`（`packages/tv` 21 文件、`packages/app` 178 文件） | 0 变更（格式化后复跑测试仍全绿） |
+
+未验证：本轮没有 Android TV 模拟器或真机读数（本机 ARM64 无法产出原生包）。上面全部是 widget 测试里的合成遥控键；真机上输入法窗口接管按键后的行为、以及软键盘弹出时上下键归属，均未实测。既有可复核的设备焦点证据仍只有 `docs/evidence/tv-focus-fix/` 那一批，本轮未新增。
+
+同一批代码在 Windows 侧的全仓门禁读数（含 `dart analyze --fatal-infos`、两份可移植 oracle 与既有失败项的归属）记在 `docs/evidence/windows-verify-2026-11-01/findings.md`。
+

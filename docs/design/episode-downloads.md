@@ -40,6 +40,14 @@
 
 两者都以删除后的实际文件读回结果为准，而不是任务状态。待识别视频没有剧目标识，不显示“拉取最新剧集”；只有能提供剧目归组的本地缓存页与下载管理有这些入口，榜单页没有剧目归组概念，因此不出现“下载更多”类控件。
 
+### 触屏族从剧目卡片直接进入
+
+本地缓存剧集的网格卡片有两个手势：点开进分集页，**长按弹出这一部的动作面板**（`拉取最新剧集` / `删除本剧缓存`，标题行写文件数与体积），于是不用先走进分集页再回到页头就能整部刷新或整部删掉。面板里仍是那两个已存在的入口，删除照旧先确认（`删除本剧全部缓存？`），长按不是第三条删除路径。
+
+一次只让一个手势办一件事：面板打开期间卡片不再响应第二次长按，因为拉取与删除改写的正是弹出它的那一层，第二个面板会读到第一个面板已经改过的归组。
+
+遥控族不动这一层——遥控器没有长按，卡片按住就等于普通按下（进分集页），它需要的两个动作在分集页页头本来就是可聚焦、有文字的两枚目标。给 TV 卡片加长按只会造出一个按不到的手势，所以 `DramaCard.onLongPress` 为空时卡片保持原样，目录网格那些没有整体动作的卡因此还是一枚单一目标。
+
 ## 状态与持久化
 
 任务状态：排队 → 下载/处理 → 已完成；可暂停、取消、失败后重试。暂停基于取消当前管道，继续时重新解析片源并可能从头传输，不宣称断点字节续传。
@@ -121,3 +129,45 @@ macOS 验证在临时独立源码副本进行，避免并行 TV 工作清理编�
 未验证的部分要说清：本轮没有手机与 TV 真机验收。自动续排、继续全部、归类删除与在线拉取都在假传输通道（单并行槽、按微任务推进）与内存文件清单上验证语义；真实的 Android 系统下载交接、后台通知授权、仅 Wi-Fi 约束、以及播放中删除在设备上的表现均未实测（本机 ARM64 无法构建原生包，media_kit 只有 x64 版本）。窄屏与 TV 的排版只由 widget 测试的尺寸断言得出，不等于设备实测。
 
 另记一条测试约束，后来人会撞上：widget 测试跑在 fake-async 区，队列推进依赖的 `Future.delayed(Duration.zero)` 计时器不会因 `await` 触发，只能由 `pump` 流逝时间——下载队列在 widget 测试里不能用 `queueTick()`，改用“pump + pump(400ms) + pump”；而下载管理页在有任务传输时渲染不定进度条，`pumpAndSettle` 永不收敛，只能按已知帧数推进。
+
+### 2026-11-01 第二轮：从剧目卡片长按落到这两个动作
+
+用户诉求（原话）：「本地缓存剧集可以长按整体删除 本地缓存剧集可以更新增加新的缓存集数」。上一轮把 `removeLocalDrama` 与 `pullLatestEpisodes` 接在分集页页头，路径是「点卡片 → 进分集页 → 页头两个动作」；这轮把同一对动作提到卡片本身，长按即达，规则与措辞见上一节。
+
+改动面：`packages/app/lib/widgets/drama_card.dart` 多一个可空的 `onLongPress`（`InkWell` 的第二枚手势，为空时卡片行为不变）；`packages/app/lib/features/local_cache_page.dart` 的网格态多一枚 `showModalBottomSheet` 动作面板、一个 `busy` 闸门（一次只跑一个手势），页头那句说明在触控族补上「长按一部剧可拉取最新剧集或整体删除缓存」，TV 那句不变；动作面板里两行复用 `packages/app/lib/catalog/local_group_delete.dart` 与 `packages/app/lib/downloads/latest_episode_pull.dart`，没有新的删除语义。待识别归组照旧只给删除。
+
+验证读数（2026-11-01，本地 NTFS 克隆 `hg-verify-dl`；与 \\Mac 副本逐字节一致；同一批读数也覆盖 `docs/design/auto-update.md` §9.6 那一条）：
+
+| 范围 | 结果 |
+| --- | --- |
+| `flutter analyze`（`packages/app`） | `No issues found!` |
+| `test/local_cache_management_test.dart` | **+9** 全过（上一轮 6 条 + 本轮 3 条：长按卡片拉最新并入队两集、长按卡片删除先确认再整部删、遥控族按住等于普通按下——不开面板、不动文件，页头那枚可聚焦的删除目标仍在原处） |
+| `packages/app` 全量 | **+396 ~1** 全过 |
+
+未验证的部分：没有手机真机读数。长按面板的命中与两枚动作都跑在 widget 测试的合成指针上，「一次只让一个手势办一件事」由 `busy` 标志的单元行为断言，不是手指连点的实测；窄屏上面板两行的排版只由测试的尺寸断言得出。TV 侧本轮是**证明没有变化**：遥控卡片长按被识别成普通按下，所以那条用例钉的是「没有面板、没有确认框、文件一个没少」，而不是新的遥控交互。
+
+### 2026-11-01 第三轮：把这两个动作也交给指针族
+
+用户诉求（原话）：「分析一下将最近两个版本及当前修改与pc和mobile同步，缺失功能补全」，随后的三个选择分别是「右键 + Dialog 形态（推荐）」「页头「刷新」按钮（推荐）」「只补 PC（与手机对齐）」——TV 保持原样。
+
+盘点结论先记一条，免得后来人重复查：手机族没有结构性缺口，上一轮那两个动作本来就是照着触屏写的；真正的缺口全在 PC 一侧——弹层用的是手机上那种底部抽屉、右键没有任何反应、页头那句提示在桌面上写着「长按」、榜单只有下拉可点。Web 运行时（`packages/app/lib/platform/runtime_web.dart` 的 `_RemoteRuntime`）不是 `DownloadRuntime`，所以下载与缓存这几面墙在网页版按构造就不存在，这轮不动它。
+
+- **一张卡两枚指针手势**：`packages/app/lib/widgets/drama_card.dart` 多一个可空的 `onSecondaryTap`，`InkWell` 自带的第二枚指针识别器，为空时卡片行为与之前完全一致。它开的必须是 `onLongPress` 开的同一个面板——一张卡只有一个「整体动作」目标，只是抵达方式按输入族分岔。理由写在字段注释里：鼠标不会把手指压在卡片上等材料。
+- **面板跟仓库已有的形态规则走**：`local_cache_page.dart` 的 `_groupActions` 现在读 `MediaQuery.sizeOf`，`宽 ≥ 720 且 高 ≥ 400` 时 `showDialog(Dialog(ConstrainedBox(maxWidth: 420)))`，否则仍是底部抽屉。这不是新定的口径，是 `packages/app/lib/downloads/download_selection.dart` 与 `packages/app/lib/cast/cast_device_sheet.dart` 已经在用的那一条；两处先例加一处新用，才谈得上是规则。两行的内容与 key（`local-sheet-pull` / `local-sheet-remove`）在两种形态下同一个 `_GroupActions` 私有 widget 产出，删除仍然只有一份、仍然先问。
+- **提示语按宿主分岔**：同一句尾部的动词由 `desktopHost`（`packages/app/lib/platform/background/host_policy.dart`）决定——桌面写「右键一部剧」，触屏写「长按一部剧」；TV 那句独立文本一字未动，TV 的说明早就在分集页用焦点目标表达。
+- **一条测试约束，不写就会静默失效**：`tester.binding.setSurfaceSize(size)` 只收紧 RenderView 的布局约束，**不改 `view.physicalSize`**，所以 `MediaQuery.sizeOf` 依旧报默认的 800×600。用它的用例看着像在给手机尺寸，其实在给一个 ≥720×400 的窗口，于是形态分岔永远走 Dialog 那支，底部抽屉那支没人验过。改成像 `episode_pager_tv_page_test.dart` 那样设 `tester.view.physicalSize` / `devicePixelRatio = 1.0` 并在 teardown 里 `tester.view.reset`，`_openGrid` 再把「这个尺寸确实落进了 MediaQuery」断言出来，两支才算各自被跑过。
+
+验证读数（2026-11-01，本地 NTFS 克隆 `hg-verify-dl`；与 \\Mac 副本逐字节一致）：
+
+| 范围 | 结果 |
+| --- | --- |
+| `dart format --set-exit-if-changed`（`packages/app`） | 178 个文件，0 变更 |
+| `flutter analyze packages/app` | `No issues found!` |
+| `test/ranking_pull_test.dart` | **3** 项通过（新增「页头那枚 刷新」，见 `docs/design/discover-filters-and-ranking.md` §11） |
+| `test/local_cache_management_test.dart` | **10** 项通过（新增「右键剧目卡片 opens the same panel, in a dialog the window can host」；原长按那条补上「400×780 里出现底部抽屉、没有 Dialog」的断言） |
+| `packages/app` 全量 | **398** 项通过、1 项按条件跳过、0 项失败（上一轮 396，本轮 +2 条用例） |
+
+未验证的部分要说清：本机 ARM64 建不了原生包（media_kit 只有 x64），所以**没有 macOS 真窗口帧、没有 Windows 帧、没有 iPhone 帧**。右键命中、Dialog 与抽屉的各自形态、以及页头那枚刷新，全部跑在 widget 测试的合成指针与 `tester.view` 的人工尺寸上；`kSecondaryButton` 在真实触控板/两键鼠标上的行为未实测。这轮也不涉及任何新的下载或删除语义，`removeLocalDrama` 与 `pullLatestEpisodes` 一个字节没改。
+
+同一次改动在 Windows 侧的全仓门禁读数（`dart analyze --fatal-infos`、api/update 两项旧失败的归属、两份可移植 oracle、以及本机跑不了的 python3 / ffprobe / `-d windows` 三步）记在 `docs/evidence/windows-verify-2026-11-01/findings.md`。
+
