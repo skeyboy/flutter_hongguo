@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart'
     show debugDefaultTargetPlatformOverride;
+import 'package:flutter/gestures.dart' show PointerDeviceKind, kSecondaryButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -114,6 +115,33 @@ Future<void> _openShelf(
   final page = LocalEpisodesPage(runtime: runtime, initial: group);
   await tester.pumpWidget(tv ? _tv(page) : MaterialApp(home: page));
   await tester.pumpAndSettle();
+}
+
+/// The 本地缓存剧集 grid itself -- the surface the card's second gesture is read
+/// against, since that is where a cached drama is one card.
+///
+/// The default surface is a phone, which is also what picks the container the
+/// gesture opens: 400 wide hosts the bottom sheet, not the dialog.
+///
+/// The size goes on the view, not through `setSurfaceSize`: the panel reads
+/// `MediaQuery.sizeOf`, and `setSurfaceSize` only tightens the RenderView's
+/// constraints -- the view's own metrics, and so the MediaQuery under them,
+/// would stay 800x600 and every phone-shaped case here would open a dialog.
+Future<void> _openGrid(
+  WidgetTester tester,
+  DownloadFakeRuntime runtime, {
+  Size surface = const Size(400, 780),
+}) async {
+  tester.view.physicalSize = surface;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(MaterialApp(home: LocalCachePage(runtime: runtime)));
+  await tester.pumpAndSettle();
+  expect(
+    MediaQuery.sizeOf(tester.element(find.byType(LocalCachePage))),
+    surface,
+    reason: 'the panel shape is read off MediaQuery, so the surface must land there',
+  );
 }
 
 void main() {
@@ -264,6 +292,140 @@ void main() {
     expect(runtime.downloads.tasks, isEmpty);
     expect(runtime.jobs['12_720p']!.cancelled, isTrue);
     expect(find.textContaining('暂无下载'), findsOneWidget);
+  });
+
+  testWidgets('长按剧目卡片 replaces the whole trip into the shelf', (tester) async {
+    final runtime = await _shelf(tester, '1080p');
+    addTearDown(() async {
+      final closing = runtime.dispose();
+      await tester.pump();
+      await closing;
+    });
+    await _openGrid(tester, runtime);
+
+    await tester.longPress(find.byKey(const ValueKey('local-drama-123')));
+    await drain(tester);
+    // A phone-sized window gets the bottom sheet, and the page names the gesture
+    // a finger actually has.
+    expect(find.textContaining('长按一部剧'), findsOneWidget);
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.text('拉取最新剧集'), findsOneWidget);
+    expect(find.text('删除本剧缓存'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('local-sheet-pull')));
+    await drain(tester);
+    await tester.pumpAndSettle();
+
+    // The card's own press did what the shelf page's button did: ask the catalog
+    // for the newest 集 and queue only what the shelf is missing.
+    expect(runtime.calls, ['11_1080p', '12_1080p']);
+    expect(find.textContaining('新加入 2 集下载（1080p）'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('右键剧目卡片 opens the same panel, in a dialog the window can host', (
+    tester,
+  ) async {
+    final runtime = await _shelf(tester, '1080p');
+    addTearDown(() async {
+      final closing = runtime.dispose();
+      await tester.pump();
+      await closing;
+    });
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    await _openGrid(tester, runtime, surface: const Size(1440, 960));
+
+    // A pointer is told 右键, because holding a card down is not what a hand on a
+    // mouse does to reach a menu.
+    expect(find.textContaining('右键一部剧'), findsOneWidget);
+    expect(find.textContaining('长按一部剧'), findsNothing);
+
+    await tester.tap(
+      find.byKey(const ValueKey('local-drama-123')),
+      buttons: kSecondaryButton,
+      kind: PointerDeviceKind.mouse,
+    );
+    await drain(tester);
+
+    // The same two rows and the same keys as the phone's sheet, only in a dialog:
+    // one gesture per family, one copy of the delete behind one confirmation.
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byType(Dialog),
+        matching: find.byKey(const ValueKey('local-sheet-pull')),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('local-sheet-pull')));
+    await drain(tester);
+    await tester.pumpAndSettle();
+
+    expect(runtime.calls, ['11_1080p', '12_1080p']);
+    expect(find.textContaining('新加入 2 集下载（1080p）'), findsOneWidget);
+    debugDefaultTargetPlatformOverride = null;
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('长按剧目卡片 删除本剧缓存 still asks first, then takes the drama', (
+    tester,
+  ) async {
+    final runtime = await _shelf(tester, 'best');
+    addTearDown(() async {
+      final closing = runtime.dispose();
+      await tester.pump();
+      await closing;
+    });
+    await _openGrid(tester, runtime);
+
+    await tester.longPress(find.byKey(const ValueKey('local-drama-123')));
+    await drain(tester);
+    await tester.tap(find.byKey(const ValueKey('local-sheet-remove')));
+    await drain(tester);
+    expect(find.text('删除本剧全部缓存？'), findsOneWidget);
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(runtime.files, hasLength(1));
+
+    await tester.longPress(find.byKey(const ValueKey('local-drama-123')));
+    await drain(tester);
+    await tester.tap(find.byKey(const ValueKey('local-sheet-remove')));
+    await drain(tester);
+    await tester.tap(find.text('删除全部'));
+    await drain(tester);
+    await tester.pumpAndSettle();
+
+    expect(runtime.files, isEmpty);
+    expect(runtime.downloads.tasks, isEmpty);
+    expect(find.byKey(const ValueKey('local-drama-123')), findsNothing);
+    expect(find.textContaining('已删除 1 个文件'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('遥控 holds a card as a plain press: the shelf opens, no sheet', (
+    tester,
+  ) async {
+    final runtime = await _shelf(tester, '720p');
+    addTearDown(() async {
+      final closing = runtime.dispose();
+      await tester.pump();
+      await closing;
+    });
+    await tester.binding.setSurfaceSize(const Size(1920, 1080));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(_tv(LocalCachePage(runtime: runtime)));
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.byKey(const ValueKey('local-drama-tv-123')));
+    await drain(tester);
+    // A remote has no long press, so holding the card is the activation it already
+    // had: the viewer lands inside the drama, where both actions are labelled
+    // targets, and the touch family's sheet -- with its delete -- never opens.
+    expect(find.byKey(const ValueKey('local-sheet-remove')), findsNothing);
+    expect(find.text('删除本剧全部缓存？'), findsNothing);
+    expect(_nodeByLabel(tester, '删除本剧缓存'), isNotNull);
+    expect(runtime.files, hasLength(1));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('榜单 grows no 下载更多: the board has no shelf to update', (

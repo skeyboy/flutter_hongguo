@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../navigation/app_navigation.dart';
 
 import 'package:flutter/material.dart';
@@ -7,6 +9,7 @@ import '../catalog/local_artwork.dart';
 import '../catalog/local_group_delete.dart';
 import '../catalog/local_library.dart';
 import '../downloads/latest_episode_pull.dart';
+import '../platform/background/host_policy.dart';
 import '../platform/runtime.dart';
 import '../playback/local_playlist.dart';
 import '../widgets/tv_confirm.dart';
@@ -28,6 +31,11 @@ class _LocalCachePageState extends State<LocalCachePage> {
   List<LocalEpisode>? entries;
   String? error;
   String query = '';
+
+  /// One press at a time: a pull and a delete both rewrite the shelf they were
+  /// opened from, and a second sheet on the same drama would read a group the
+  /// first one already changed.
+  bool busy = false;
   @override
   void initState() {
     super.initState();
@@ -67,6 +75,96 @@ class _LocalCachePageState extends State<LocalCachePage> {
       (_) => LocalEpisodesPage(runtime: widget.runtime, initial: group),
     );
     await _load();
+  }
+
+  void _notice(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  /// The card's two whole-shelf actions, opened by whichever second gesture the
+  /// family has: 长按 for a finger, 右键 for a pointer. Both land in the same panel
+  /// with the same rows, so neither family gets its own copy of 删除 semantics.
+  ///
+  /// A remote has neither gesture, and its cards already walk into a page whose
+  /// actions are focus targets -- so this panel is only ever the touch/pointer
+  /// branch, and the TV card stays as it was.
+  ///
+  /// The shape follows the rule this app already uses for 下载选集 and the 投屏
+  /// device list: a window with room hosts a centered dialog, a phone hosts the
+  /// bottom sheet. Only the container changes -- keys, labels and the
+  /// confirm-first delete are the same widget either way.
+  Future<void> _groupActions(LocalDramaGroup group) async {
+    if (busy) return;
+    final canPull = widget.runtime is DownloadRuntime && !group.unidentified;
+    final actions = _GroupActions(group: group, canPull: canPull);
+    final size = MediaQuery.sizeOf(context);
+    final picked = size.width >= 720 && size.height >= 400
+        ? await showDialog<String>(
+            context: context,
+            builder: (_) => Dialog(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: actions,
+              ),
+            ),
+          )
+        : await showModalBottomSheet<String>(
+            context: context,
+            showDragHandle: true,
+            builder: (_) => SafeArea(top: false, child: actions),
+          );
+    if (!mounted || picked == null) return;
+    if (picked == 'pull') {
+      await _pull(group);
+    } else {
+      await _remove(group);
+    }
+  }
+
+  Future<void> _pull(LocalDramaGroup group) async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      final result = await pullLatestEpisodes(widget.runtime, group);
+      await _load();
+      _notice(result.caption);
+    } on StateError catch (e) {
+      _notice(e.message);
+    } catch (_) {
+      await _load();
+      _notice('在线拉取最新剧集失败，本地缓存仍可播放，请稍后重试。');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  /// The whole drama at once, and still behind the same confirmation the shelf
+  /// page uses: a long press that deleted on contact would take an offline show
+  /// away from the viewer who only meant to open it.
+  Future<void> _remove(LocalDramaGroup group) async {
+    if (busy) return;
+    final confirmed = await showTvConfirm(
+      context,
+      title: '删除本剧全部缓存？',
+      body:
+          '${group.drama.title}\n${group.files.length} 个文件 · ${localBytesLabel(group.bytes)}\n删除后需重新下载才能离线观看。',
+      confirmLabel: '删除全部',
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => busy = true);
+    try {
+      final result = await removeLocalDrama(widget.runtime, group);
+      await _load();
+      _notice(result.caption);
+    } on StateError catch (e) {
+      _notice(e.message);
+    } catch (_) {
+      await _load();
+      _notice('删除未完成，请检查存储空间后重试。');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
   }
 
   /// Cached-drama card for a 10-foot grid. `DramaCard`'s 15/12 px text is
@@ -252,7 +350,12 @@ class _LocalCachePageState extends State<LocalCachePage> {
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    '按剧目整理，可直接离线播放已缓存分集。',
+                                    // 长按 is a finger's second gesture, 右键 a pointer's; telling a
+                                    // desktop hand to hold a card down would describe a gesture
+                                    // nobody there uses.
+                                    tv
+                                        ? '按剧目整理，可直接离线播放已缓存分集。'
+                                        : '按剧目整理，可直接离线播放已缓存分集；${desktopHost ? '右键' : '长按'}一部剧可拉取最新剧集或整体删除缓存。',
                                     style: TextStyle(fontSize: tv ? 18 : null),
                                   ),
                                   const SizedBox(height: 18),
@@ -306,6 +409,12 @@ class _LocalCachePageState extends State<LocalCachePage> {
                                   coverImage: localArtwork(group.coverPath),
                                   allowNetworkCover: false,
                                   onTap: () => _open(group),
+                                  onLongPress: busy
+                                      ? null
+                                      : () => unawaited(_groupActions(group)),
+                                  onSecondaryTap: busy
+                                      ? null
+                                      : () => unawaited(_groupActions(group)),
                                 );
                               }, childCount: visible.length),
                             ),
@@ -319,6 +428,43 @@ class _LocalCachePageState extends State<LocalCachePage> {
       ),
     );
   }
+}
+
+/// The two whole-shelf actions of one cached drama, in whichever container the
+/// window can host: the rows, keys and labels are the same, so the delete still
+/// goes through exactly one confirmation path however it was reached.
+class _GroupActions extends StatelessWidget {
+  final LocalDramaGroup group;
+  final bool canPull;
+  const _GroupActions({required this.group, required this.canPull});
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      ListTile(
+        title: Text(group.drama.title.isEmpty ? '未命名短剧' : group.drama.title),
+        subtitle: Text(
+          '${group.files.length} 个文件 · ${localBytesLabel(group.bytes)}',
+        ),
+      ),
+      const Divider(height: 1),
+      if (canPull)
+        ListTile(
+          key: const ValueKey('local-sheet-pull'),
+          leading: const Icon(Icons.sync),
+          title: const Text('拉取最新剧集'),
+          onTap: () => Navigator.pop(context, 'pull'),
+        ),
+      ListTile(
+        key: const ValueKey('local-sheet-remove'),
+        leading: const Icon(Icons.delete_sweep_outlined),
+        title: const Text('删除本剧缓存'),
+        onTap: () => Navigator.pop(context, 'remove'),
+      ),
+    ],
+  );
 }
 
 class LocalEpisodesPage extends StatefulWidget {

@@ -6,6 +6,16 @@ import 'drama_cover.dart';
 class DramaCard extends StatelessWidget {
   final Drama drama;
   final VoidCallback onTap;
+
+  /// The touch family's second gesture on a card: 长按 opens what the card owns
+  /// rather than what it shows. Null leaves the card as it was, so the catalog
+  /// grids that have no whole-item action stay one-target tiles.
+  final VoidCallback? onLongPress;
+
+  /// The pointer family's answer to the same gesture: a mouse holds no card long
+  /// enough to trust, so 右键 is what a hand on a desktop actually reaches for. It
+  /// opens exactly what [onLongPress] opens -- one target per card, either way.
+  final VoidCallback? onSecondaryTap;
   final String? badge, subtitle;
   final ImageProvider? coverImage;
   final bool allowNetworkCover;
@@ -13,6 +23,8 @@ class DramaCard extends StatelessWidget {
     super.key,
     required this.drama,
     required this.onTap,
+    this.onLongPress,
+    this.onSecondaryTap,
     this.badge,
     this.subtitle,
     this.coverImage,
@@ -21,6 +33,8 @@ class DramaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => InkWell(
     onTap: onTap,
+    onLongPress: onLongPress,
+    onSecondaryTap: onSecondaryTap,
     borderRadius: BorderRadius.circular(12),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
