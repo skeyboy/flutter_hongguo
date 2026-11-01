@@ -9,9 +9,11 @@ import 'package:hongguo_api/hongguo_api.dart';
 /// back -- which is exactly what the old 模式 chip did to its own page.
 ///
 /// One 榜 block is one record, keyed by `track|board`, and a block the viewer
-/// already read keeps its rows, its cursor and where its list stood. Neither row
-/// is pinned here: upstream publishes both vocabularies in the same response as
-/// the cards, and four samples disagreed about how many of each there were.
+/// already read keeps its rows and where its list stood. A record holds one page:
+/// 下拉刷新 asks the same 榜 again and replaces those rows, and nothing follows a
+/// continuation cursor. Neither row is pinned here: upstream publishes both
+/// vocabularies in the same response as the cards, and four samples disagreed
+/// about how many of each there were.
 class RankingController extends ChangeNotifier {
   RankingController({required this.catalog});
 
@@ -33,7 +35,6 @@ class RankingController extends ChangeNotifier {
 
   _BoardFeed get _current => _feedFor(track, board);
   List<RankEntry> get entries => _current.entries;
-  String? get cursor => _current.cursor;
   Object? get error => _current.error;
 
   /// The record's own identity, so a page can name the list it is scrolling
@@ -44,7 +45,6 @@ class RankingController extends ChangeNotifier {
   /// a time on screen is only ever a claim the answer already made.
   DateTime? get updatedAt => _current.updatedAt;
   bool get loading => _current.loading;
-  bool get loadingMore => _current.loadingMore;
 
   /// Cards this board sent that are not dramas (the 演员 track ranks people) --
   /// counted so the page can say so rather than calling a full board empty.
@@ -91,19 +91,6 @@ class RankingController extends ChangeNotifier {
 
   Future<void> retry() => _load(_current);
 
-  /// The next page of the 榜 on screen, asked of its own record: a board switched
-  /// mid-flight must not have that answer filed under what is named now.
-  Future<void> more() async {
-    final feed = _current;
-    if (feed.cursor == null ||
-        feed.loading ||
-        feed.loadingMore ||
-        feed.error != null) {
-      return;
-    }
-    await _load(feed, more: true);
-  }
-
   void selectTrack(String id) {
     if (id == track) return;
     _captureScroll();
@@ -140,7 +127,7 @@ class RankingController extends ChangeNotifier {
     return track.boards.first.id;
   }
 
-  Future<void> _load(_BoardFeed feed, {bool more = false}) async {
+  Future<void> _load(_BoardFeed feed) async {
     final rank = catalog;
     if (rank is! RankCatalogRepository) {
       _fail(feed, '这个运行时没有接榜单接口');
@@ -151,17 +138,12 @@ class RankingController extends ChangeNotifier {
     final ticket = ++feed.revision;
     feed
       ..inFlight = true
-      ..loading = !more
-      ..loadingMore = more
+      ..loading = true
       ..error = null;
     _emit();
     try {
       final page = await scope.run(
-        () => rank.rankBoard(
-          track: feed.track,
-          board: feed.board,
-          cursor: more ? feed.cursor : null,
-        ),
+        () => rank.rankBoard(track: feed.track, board: feed.board),
       );
       if (ticket != feed.revision) return;
       if (page.tracks.isNotEmpty) tracks = page.tracks;
@@ -181,19 +163,13 @@ class RankingController extends ChangeNotifier {
           if (feed.track == track) board = named;
         }
       }
-      if (more) {
-        feed.entries.addAll(page.entries);
-      } else {
-        feed.entries
-          ..clear()
-          ..addAll(page.entries);
-        feed.updatedAt = page.updatedAt;
-        feed.unrecognizedCards = page.unrecognizedCards;
-      }
+      feed.entries
+        ..clear()
+        ..addAll(page.entries);
+      feed.updatedAt = page.updatedAt;
+      feed.unrecognizedCards = page.unrecognizedCards;
       feed
-        ..cursor = page.nextCursor
         ..loading = false
-        ..loadingMore = false
         ..visited = true;
     } catch (failure) {
       if (ticket != feed.revision) return;
@@ -211,7 +187,6 @@ class RankingController extends ChangeNotifier {
   void _fail(_BoardFeed feed, Object failure) {
     feed
       ..loading = false
-      ..loadingMore = false
       ..error = failure;
     _emit();
   }
@@ -254,11 +229,10 @@ class _BoardFeed {
 
   final List<RankEntry> entries = [];
   int unrecognizedCards = 0;
-  String? cursor;
   Object? error;
   DateTime? updatedAt;
   double scroll;
   CatalogRequestScope scope = CatalogRequestScope();
   int revision = 0;
-  bool loading = true, loadingMore = false, visited = false, inFlight = false;
+  bool loading = true, visited = false, inFlight = false;
 }

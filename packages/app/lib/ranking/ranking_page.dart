@@ -130,8 +130,15 @@ class _RankingPageState extends State<RankingPage> {
   );
 }
 
-/// The page's own line: which 榜 this is, and the one time claim upstream
-/// allowed. 「实时」 is never written -- 推荐榜 answers `rank_version` empty.
+/// The page's own line: which 榜 this is, the one time claim upstream
+/// allowed, and the 刷新 target.
+///
+/// 「实时」 is never written -- 推荐榜 answers `rank_version` empty. The refresh
+/// button sits here rather than only in the error strip because 下拉刷新, the other
+/// way to ask again, is a gesture a hand on a trackpad or a wheel does not
+/// naturally make: the panel stays re-askable without scrolling to the list at
+/// all. Both routes call the same `retry()`, which re-asks this 榜 and replaces
+/// these rows.
 class _Heading extends StatelessWidget {
   final RankingController controller;
   const _Heading({required this.controller});
@@ -154,17 +161,32 @@ class _Heading extends StatelessWidget {
           );
     return Padding(
       key: const ValueKey('rank-heading'),
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      child: Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(
-              text: name,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+      padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: name,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  ?stamped,
+                ],
+              ),
             ),
-            ?stamped,
-          ],
-        ),
+          ),
+          IconButton(
+            key: const ValueKey('rank-refresh'),
+            tooltip: '刷新本榜',
+            onPressed: () => unawaited(controller.retry()),
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
     );
   }
@@ -219,9 +241,7 @@ class _List extends StatelessWidget {
           if (entries.isEmpty)
             const Expanded(child: _Message(text: '这一榜还没有内容，重试可以再看一次'))
           else
-            Expanded(
-              child: _Rows(controller: controller, onOpen: onOpen),
-            ),
+            Expanded(child: _pullToRefresh()),
         ],
       );
     }
@@ -240,12 +260,19 @@ class _List extends StatelessWidget {
         action: () => unawaited(controller.retry()),
       );
     }
-    return _Rows(
-      controller: controller,
-      onOpen: onOpen,
-      footer: controller.cursor != null,
-    );
+    return _pullToRefresh();
   }
+
+  /// Pulling the board is the only way to ask it again.
+  ///
+  /// There is no 加载更多 at the foot of the list any more: a hand has to reach
+  /// the bottom to press it, and the answer it bought was a second block stapled
+  /// under the first. 下拉刷新 asks the same 榜 for its current rows instead,
+  /// which is also what the 我的 and 发现 pages do.
+  Widget _pullToRefresh() => RefreshIndicator(
+    onRefresh: () => controller.retry(),
+    child: _Rows(controller: controller, onOpen: onOpen),
+  );
 
   static String _why(Object failure) =>
       failure is CatalogError ? failure.message : '榜单暂时读不出来，请重试';
@@ -254,37 +281,22 @@ class _List extends StatelessWidget {
 class _Rows extends StatelessWidget {
   final RankingController controller;
   final ValueChanged<Drama> onOpen;
-  final bool footer;
-  const _Rows({
-    required this.controller,
-    required this.onOpen,
-    this.footer = false,
-  });
+  const _Rows({required this.controller, required this.onOpen});
 
   @override
   Widget build(BuildContext context) => CustomScrollView(
     key: const ValueKey('rank-list'),
     controller: controller.scrollOf(controller.currentKey),
+    // Without this the short board -- a 榜 with fewer rows than the screen --
+    // cannot be pulled at all, and RefreshIndicator only ever fires from a
+    // scrollable that will accept the drag.
+    physics: const AlwaysScrollableScrollPhysics(),
     slivers: [
       SliverList(
         delegate: SliverChildBuilderDelegate((context, index) {
-          if (footer && index == controller.entries.length) {
-            return Padding(
-              padding: const EdgeInsets.all(16),
-              child: Center(
-                child: controller.loadingMore
-                    ? const CircularProgressIndicator()
-                    : TextButton(
-                        key: const ValueKey('rank-more'),
-                        onPressed: () => unawaited(controller.more()),
-                        child: const Text('加载更多'),
-                      ),
-              ),
-            );
-          }
           final entry = controller.entries[index];
           return RankCard(entry: entry, onTap: () => onOpen(entry.drama));
-        }, childCount: controller.entries.length + (footer ? 1 : 0)),
+        }, childCount: controller.entries.length),
       ),
       const SliverToBoxAdapter(child: SizedBox(height: 24)),
     ],
