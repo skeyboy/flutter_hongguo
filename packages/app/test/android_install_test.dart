@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -53,72 +55,139 @@ class _FakeAndroid {
   }
 }
 
-final _apk = DownloadedRelease(
-  path: '/data/user/0/com.example.hongguo_app/files/updates/Hongguo-9.9.9-android-arm64-v8a.apk',
-  bytes: 36447668,
-  sha256: 'ab' * 32,
-);
+/// A staged APK whose bytes were already checked, written for real: paying an
+/// install that was owed is a claim about the file on the device, so the suite
+/// puts one there rather than trusting a path nobody can open.
+DownloadedRelease _stageApk(Directory stage, {int bytes = 4096}) {
+  final file = File(
+    '${stage.path}${Platform.pathSeparator}Hongguo-9.9.9-android-arm64-v8a.apk',
+  );
+  file.writeAsBytesSync(List.filled(bytes, 7));
+  return DownloadedRelease(path: file.path, bytes: bytes, sha256: 'ab' * 32);
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late _FakeAndroid android;
+  late Directory stage;
   late AndroidInstaller installer;
-  setUp(() {
+  late DownloadedRelease apk;
+  late File note;
+  setUp(() async {
     android = _FakeAndroid();
-    installer = AndroidInstaller();
+    stage = await Directory.systemTemp.createTemp('hongguo-update-stage');
+    apk = _stageApk(stage);
+    note = File(
+      '${stage.path}${Platform.pathSeparator}hongguo-pending-install.json',
+    );
+    installer = AndroidInstaller(stageDirectory: () async => stage.path);
   });
-  tearDown(() => android.dispose());
+  tearDown(() async {
+    android.dispose();
+    if (stage.existsSync()) await stage.delete(recursive: true);
+  });
+
+  /// A launch is a new object over the same folder, which is the whole point of
+  /// writing an owed install down.
+  AndroidInstaller relaunched() =>
+      AndroidInstaller(stageDirectory: () async => stage.path);
 
   test('granted means the APK goes straight to a session', () async {
     android.granted = true;
-    final plan = await installer.install(_apk);
+    final plan = await installer.install(apk);
     expect(android.calls, ['canInstall', 'install']);
-    expect(android.sessions, [_apk.path]);
+    expect(android.sessions, [apk.path]);
     expect(plan.message, android.sessionAnswer);
+    expect(note.existsSync(), isFalse);
   });
 
   test('without the permission no session is opened, and settings is shown', () async {
     android.granted = false;
-    final plan = await installer.install(_apk);
+    final plan = await installer.install(apk);
     // The bug this guards: a session committed without the switch never reaches
     // the installer, so the old code reported a handoff that opened nothing.
     expect(android.sessions, isEmpty);
     expect(android.calls, ['canInstall', 'askPermission']);
     expect(plan.message, contains('安装未知应用'));
-    expect(plan.message, contains('回到应用后会继续安装'));
+    expect(plan.message, contains('自动继续安装'));
+    expect(note.existsSync(), isTrue);
   });
 
   test('a device with no settings row says which switch to turn on', () async {
     android.granted = false;
     android.hasSettingsScreen = false;
-    final plan = await installer.install(_apk);
+    final plan = await installer.install(apk);
     expect(plan.message, contains('系统设置'));
-    expect(plan.message, contains('立即更新'));
+    expect(plan.message, contains('自动继续安装'));
   });
 
   test(
-    'coming back still ungranted keeps the APK parked, not installed',
+    'coming back still ungranted keeps the APK owed, not installed',
     () async {
-      await installer.install(_apk);
+      await installer.install(apk);
       android.calls.clear();
       expect(await installer.resume(), isNull);
       expect(android.calls, ['canInstall']);
       expect(android.sessions, isEmpty);
+      expect(note.existsSync(), isTrue);
     },
   );
 
-  test('coming back granted installs the parked APK', () async {
-    await installer.install(_apk);
+  test('coming back granted installs the owed APK', () async {
+    await installer.install(apk);
     android.granted = true;
     android.calls.clear();
     expect(await installer.resume(), android.sessionAnswer);
     expect(android.calls, ['canInstall', 'install']);
-    expect(android.sessions, [_apk.path]);
+    expect(android.sessions, [apk.path]);
     // And it is spent: a second return must not open a second session.
     expect(await installer.resume(), isNull);
-    expect(android.sessions, [_apk.path]);
+    expect(android.sessions, [apk.path]);
   });
+
+  test(
+    'a launch after the settings screen installs without a second press',
+    () async {
+      // The trip to 「安装未知应用」 leaves this app behind, and Android takes the process
+      // while it is gone: the handover has to survive a cold start, not only a
+      // resumed one.
+      await installer.install(apk);
+      android.granted = true;
+      android.calls.clear();
+      expect(await relaunched().resume(), android.sessionAnswer);
+      expect(android.sessions, [apk.path]);
+      expect(note.existsSync(), isFalse);
+    },
+  );
+
+  test('an APK the system cleaned up is not installed, and says so', () async {
+    await installer.install(apk);
+    File(apk.path).deleteSync();
+    android.granted = true;
+    android.calls.clear();
+    final word = await relaunched().resume();
+    expect(android.sessions, isEmpty);
+    expect(word, contains('立即更新'));
+    expect(note.existsSync(), isFalse);
+  });
+
+  test(
+    'a handoff that opened a session leaves nothing for the next launch',
+    () async {
+      // The note is a promise about one file, so a device that has already been
+      // handed its APK must not be asked to install it again on a later return.
+      note.writeAsStringSync(
+        jsonEncode({'path': apk.path, 'bytes': apk.bytes}),
+      );
+      android.granted = true;
+      final plan = await installer.install(apk);
+      expect(plan.message, android.sessionAnswer);
+      expect(android.sessions, [apk.path]);
+      expect(note.existsSync(), isFalse);
+      expect(await relaunched().resume(), isNull);
+    },
+  );
 
   test('a desktop with no handler is not blocked by the gate', () async {
     // `hongguo/update` exists only on Android; every other build answers the gate

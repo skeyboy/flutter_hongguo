@@ -45,9 +45,12 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
 
   bool _watchingLifecycle = false;
 
-  /// Android's install is the one handoff that can only finish across a trip to
-  /// the settings screen, so the verified APK parks here until a return.
-  final AndroidInstaller _android = AndroidInstaller();
+  /// Android's install is the one handoff that can outlive the app: the verified
+  /// APK is written down as owed and paid on a later return, so the note lives in
+  /// the same stage directory the downloader wrote into.
+  late final AndroidInstaller _android = AndroidInstaller(
+    stageDirectory: stageDirectory,
+  );
 
   UpdateController({
     required Dio dio,
@@ -76,7 +79,9 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
       offer != null && currentUpdateTarget().hasInstallableAsset;
 
   /// Startup check. The resumed observer is registered here, so a background
-  /// return re-checks through the same throttled path.
+  /// return re-checks through the same throttled path -- and a launch the system
+  /// started after it took the app during the settings trip pays the install that
+  /// trip was blocking, without a second press.
   ///
   /// Safe to call again: the controller outlives the pages that use it, and a
   /// second mount must not register a second observer or a second startup check.
@@ -84,7 +89,7 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
     if (_watchingLifecycle) return;
     _watchingLifecycle = true;
     WidgetsBinding.instance.addObserver(this);
-    unawaited(runQuietly());
+    unawaited(_returnToForeground());
   }
 
   @override
@@ -100,11 +105,15 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(_returnToForeground());
   }
 
-  /// Coming back from the settings screen answers two things, in this order: the
-  /// daily check first, then the install it was blocking -- last, so that the
+  /// Coming back to the app answers two things, in this order: the daily check
+  /// first, then the install the settings screen was blocking -- last, so that the
   /// system's own words about the session are what the viewer reads.
+  ///
+  /// Only Android owes one. Every other platform finishes its handoff inside
+  /// [install], and the desktop builds have no `hongguo/update` handler to ask.
   Future<void> _returnToForeground() async {
     await runQuietly();
+    if (currentUpdateTarget().platform != ReleasePlatform.android) return;
     final word = await _android.resume();
     if (word == null) return;
     error = null;

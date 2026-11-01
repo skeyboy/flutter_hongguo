@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:hongguo_update/hongguo_update.dart';
@@ -23,35 +24,109 @@ class InstallPlan {
   });
 }
 
-/// Android cannot finish an install inside one call: 「安装未知应用」 is a per-app
-/// switch that lives in a settings screen the viewer has to leave the app for.
-/// So the verified APK is parked here and [resume] installs it when the app comes
-/// back -- which is the only moment the permission can have changed.
+/// The note that a verified APK is still owed an install, written in the stage
+/// directory beside the file it names.
+class _PendingApk {
+  const _PendingApk({required this.path, required this.bytes});
+
+  final String path;
+  final int bytes;
+
+  Map<String, Object> toJson() => {'path': path, 'bytes': bytes};
+
+  static _PendingApk? fromJson(Object? value) {
+    if (value is! Map) return null;
+    final path = value['path'], bytes = value['bytes'];
+    if (path is! String || path.isEmpty || bytes is! int) return null;
+    return _PendingApk(path: path, bytes: bytes);
+  }
+}
+
+/// Android cannot finish an install inside one call: 「安装未知应用」 is a switch that
+/// lives in a settings screen the viewer has to leave the app for -- and leaving
+/// it is exactly when Android takes this process away. So the verified APK is
+/// written down as owed, and [resume] pays it on the next return, whichever
+/// return that is: from the settings screen, or a launch the system started.
 class AndroidInstaller {
-  String? _parkedApk;
+  AndroidInstaller({required this.stageDirectory});
+
+  /// The directory the release downloader wrote into, so a later launch finds the
+  /// APK and its note under the same names.
+  final Future<String> Function() stageDirectory;
+
+  Future<File> _markerFile() async => File(
+    '${await stageDirectory()}${Platform.pathSeparator}hongguo-pending-install.json',
+  );
 
   Future<InstallPlan> install(DownloadedRelease file) async {
     if (await AndroidUpdate.canInstallPackages()) {
-      _parkedApk = null;
+      await _forget();
       return InstallPlan(message: await AndroidUpdate.installApk(file.path));
     }
     final opened = await AndroidUpdate.openInstallPermissionSettings();
-    _parkedApk = file.path;
+    final marker = await _markerFile();
+    await marker.writeAsString(
+      jsonEncode(_PendingApk(path: file.path, bytes: file.bytes).toJson()),
+    );
     return InstallPlan(
       message: opened
-          ? '需要先允许本应用安装未知应用：请在设置中打开该权限，回到应用后会继续安装。'
-          : '请先在系统设置的应用权限里允许本应用安装未知应用，再回到应用点「立即更新」。',
+          ? '需要先允许本应用安装未知应用：请在设置中打开该权限，回到应用后会自动继续安装。'
+          : '请先在系统设置的应用权限里允许本应用安装未知应用，回到应用后会自动继续安装。',
     );
   }
 
-  /// A return from the settings screen. Null means nothing was installed -- the
-  /// switch is still off, so the APK stays parked and the next return asks again.
+  /// A return to the app. Null means nothing was installed -- the switch is still
+  /// off, so the APK stays owed and the next return asks again.
   Future<String?> resume() async {
-    final path = _parkedApk;
-    if (path == null) return null;
+    final pending = await _read();
+    if (pending == null) return null;
     if (!await AndroidUpdate.canInstallPackages()) return null;
-    _parkedApk = null;
-    return AndroidUpdate.installApk(path);
+    if (!await _intact(pending)) {
+      await _forget();
+      return '安装包已经不完整或被系统清理，请重新点「立即更新」下载。';
+    }
+    // Spent before the session opens: the system dialog that follows can sit on
+    // the screen while the viewer decides, and a launch inside that window must
+    // not commit a second session for the same APK.
+    await _forget();
+    return AndroidUpdate.installApk(pending.path);
+  }
+
+  /// A folder this app cannot read, and a note a killed process left half-written,
+  /// both answer as nothing owed: the APK stays on disk and the next 立即更新 writes
+  /// a fresh note.
+  Future<_PendingApk?> _read() async {
+    try {
+      final marker = await _markerFile();
+      if (!await marker.exists()) return null;
+      return _PendingApk.fromJson(jsonDecode(await marker.readAsString()));
+    } on FileSystemException {
+      return null;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  Future<void> _forget() async {
+    try {
+      final marker = await _markerFile();
+      await marker.delete();
+    } on FileSystemException {
+      // No note there means nothing was owed.
+    }
+  }
+
+  /// Whether the APK is still the file the downloader verified. Storage cleanup
+  /// can take it between the handoff and the return, and a session must not be
+  /// opened on something that no longer has the size its own note recorded.
+  Future<bool> _intact(_PendingApk pending) async {
+    try {
+      final stat = await File(pending.path).stat();
+      return stat.type == FileSystemEntityType.file &&
+          stat.size == pending.bytes;
+    } on FileSystemException {
+      return false;
+    }
   }
 }
 
@@ -89,7 +164,8 @@ String get updateHandoffDescription => switch (Platform.operatingSystem) {
   'windows' => '下载并校验后静默运行安装程序替换本应用，随后自动退出。',
   'macos' => '下载并校验后打开磁盘映像，把新的 Hongguo 拖进「应用程序」替换旧版本。',
   'linux' => '下载并校验后交给系统打开安装包。',
-  'android' => '下载并校验后交给系统安装器；若还没允许本应用安装未知应用，会先带你到系统设置开启，回来后继续安装。',
+  'android' =>
+    '下载并校验后交给系统安装器；若还没允许本应用安装未知应用，会先带你到系统设置开启，权限一开回到应用就自动继续安装，不需要再点一次。',
   'ios' => 'iOS 不允许应用自行安装，检查到新版本只会给出发布页地址。',
   _ => '下载并校验后按本机方式安装。',
 };
