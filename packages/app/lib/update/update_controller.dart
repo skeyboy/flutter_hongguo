@@ -43,6 +43,11 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
   /// An offer the root page has not shown yet.
   ReleaseInfo? unseenOffer;
 
+  /// An Android handoff left a verified APK owed an install, and the debt is
+  /// still unpaid. Read off the note beside the APK -- not off a field set on the
+  /// way out -- so a payment made after the process was taken away clears it too.
+  bool installOwed = false;
+
   bool _watchingLifecycle = false;
 
   /// Android's install is the one handoff that can outlive the app: the verified
@@ -115,6 +120,7 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
     await runQuietly();
     if (currentUpdateTarget().platform != ReleasePlatform.android) return;
     final word = await _android.resume();
+    installOwed = await _android.hasOwedInstall();
     if (word == null) return;
     error = null;
     message = word;
@@ -285,6 +291,7 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
       );
       final plan = await handOff(file, release, android: _android);
       message = plan.message;
+      installOwed = plan.owesInstall;
       // The prompt was answered: a transfer this device just handed to the system
       // must not come back as a new interruption later in the same session.
       unseenOffer = null;

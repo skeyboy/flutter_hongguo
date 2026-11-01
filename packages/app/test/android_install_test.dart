@@ -99,7 +99,9 @@ void main() {
     expect(android.calls, ['canInstall', 'install']);
     expect(android.sessions, [apk.path]);
     expect(plan.message, android.sessionAnswer);
+    expect(plan.owesInstall, isFalse);
     expect(note.existsSync(), isFalse);
+    expect(await installer.hasOwedInstall(), isFalse);
   });
 
   test('without the permission no session is opened, and settings is shown', () async {
@@ -111,6 +113,9 @@ void main() {
     expect(android.calls, ['canInstall', 'askPermission']);
     expect(plan.message, contains('安装未知应用'));
     expect(plan.message, contains('自动继续安装'));
+    // And the prompt may not treat that as a finished handoff.
+    expect(plan.owesInstall, isTrue);
+    expect(await installer.hasOwedInstall(), isTrue);
     expect(note.existsSync(), isTrue);
   });
 
@@ -120,27 +125,35 @@ void main() {
     final plan = await installer.install(apk);
     expect(plan.message, contains('系统设置'));
     expect(plan.message, contains('自动继续安装'));
+    expect(plan.owesInstall, isTrue);
   });
 
-  test(
-    'coming back still ungranted keeps the APK owed, not installed',
-    () async {
-      await installer.install(apk);
-      android.calls.clear();
-      expect(await installer.resume(), isNull);
-      expect(android.calls, ['canInstall']);
-      expect(android.sessions, isEmpty);
-      expect(note.existsSync(), isTrue);
-    },
-  );
+  test('coming back still ungranted keeps the APK owed, and says so', () async {
+    await installer.install(apk);
+    android.calls.clear();
+    // Silence was the defect: the viewer comes back from 系统设置 without having
+    // turned the switch and had nothing on screen telling them the update is
+    // still waiting -- the prompt had already closed on the way out.
+    final word = await installer.resume();
+    expect(word, contains('还欠着一次更新安装'));
+    expect(word, contains('安装未知应用'));
+    expect(android.calls, ['canInstall']);
+    expect(android.sessions, isEmpty);
+    expect(note.existsSync(), isTrue);
+    expect(await installer.hasOwedInstall(), isTrue);
+  });
 
   test('coming back granted installs the owed APK', () async {
     await installer.install(apk);
+    expect(await installer.hasOwedInstall(), isTrue);
     android.granted = true;
     android.calls.clear();
     expect(await installer.resume(), android.sessionAnswer);
     expect(android.calls, ['canInstall', 'install']);
     expect(android.sessions, [apk.path]);
+    // Paying is what settles the debt, so nothing is still owed afterwards --
+    // this is the answer `UpdateController.installOwed` reads on the next return.
+    expect(await installer.hasOwedInstall(), isFalse);
     // And it is spent: a second return must not open a second session.
     expect(await installer.resume(), isNull);
     expect(android.sessions, [apk.path]);

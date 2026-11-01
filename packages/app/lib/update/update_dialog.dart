@@ -125,7 +125,12 @@ class _UpdateDialogState extends State<UpdateDialog> {
                     ],
                   );
                 }
-                if (controller.message != null && controller.downloading) {
+                // The owed branch has to be readable too: on Android the handoff
+                // says 「去系统设置开权限」 while `downloading` is already false, and a
+                // prompt that swallows that sentence is what the viewer is left
+                // staring at after the settings screen sends them back.
+                if (controller.message != null &&
+                    (controller.downloading || controller.installOwed)) {
                   return Text(controller.message!);
                 }
                 return const SizedBox.shrink();
@@ -160,11 +165,13 @@ class _UpdateDialogState extends State<UpdateDialog> {
                   ? null
                   : () async {
                       // A failed transfer leaves the dialog up: the reason is
-                      // shown inside it, and closing would hide it.
+                      // shown inside it, and closing would hide it. An Android
+                      // handoff that could only write the APK down as owed does
+                      // the same -- the install has not happened, so there is
+                      // nothing for this prompt to have finished saying.
                       final plan = await controller.install();
-                      if (plan != null && context.mounted) {
-                        Navigator.pop(context);
-                      }
+                      if (plan == null || !context.mounted) return;
+                      if (!plan.owesInstall) Navigator.pop(context);
                     },
               child: Text(controller.downloading ? '正在下载…' : '立即更新'),
             ),

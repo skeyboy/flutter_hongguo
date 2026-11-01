@@ -17,10 +17,17 @@ class InstallPlan {
   /// Nothing this platform can install -- show the release page instead.
   final String? releaseUrl;
 
+  /// The handoff installed nothing and left a verified APK owed to a later
+  /// return, so the trip to 系统设置 is still ahead of the viewer. The prompt keeps
+  /// itself open on this plan: closing it on a handoff that installed nothing is
+  /// how 「按下 立即更新 后什么都没有」 reads from the outside.
+  final bool owesInstall;
+
   const InstallPlan({
     required this.message,
     this.appWillExit = false,
     this.releaseUrl,
+    this.owesInstall = false,
   });
 }
 
@@ -72,15 +79,25 @@ class AndroidInstaller {
       message: opened
           ? '需要先允许本应用安装未知应用：请在设置中打开该权限，回到应用后会自动继续安装。'
           : '请先在系统设置的应用权限里允许本应用安装未知应用，回到应用后会自动继续安装。',
+      owesInstall: true,
     );
   }
 
-  /// A return to the app. Null means nothing was installed -- the switch is still
-  /// off, so the APK stays owed and the next return asks again.
+  /// A return to the app, and what it has to say about the install it found
+  /// owed. Null means this app owed nothing -- the common case on every platform
+  /// without an installer path, and on Android once the note has been paid.
+  ///
+  /// A debt that is still unpaid answers in words. Staying silent here was the
+  /// hole a viewer lands in most often: they press 立即更新, Android takes the app to
+  /// the settings screen, they come back without turning the switch -- and
+  /// nothing on screen says the update is still waiting, because the prompt
+  /// closed on the way out and the only trace was a file nobody reads.
   Future<String?> resume() async {
     final pending = await _read();
     if (pending == null) return null;
-    if (!await AndroidUpdate.canInstallPackages()) return null;
+    if (!await AndroidUpdate.canInstallPackages()) {
+      return '还欠着一次更新安装：本应用仍未被允许安装未知应用。在系统设置里打开该权限后回到应用会自动继续，不需要再点一次。';
+    }
     if (!await _intact(pending)) {
       await _forget();
       return '安装包已经不完整或被系统清理，请重新点「立即更新」下载。';
@@ -91,6 +108,11 @@ class AndroidInstaller {
     await _forget();
     return AndroidUpdate.installApk(pending.path);
   }
+
+  /// Whether an install is owed right now, which is the note's existence rather
+  /// than anything held in memory: paying it deletes the note, so this is also
+  /// how the app knows a debt was settled while its process was gone.
+  Future<bool> hasOwedInstall() async => await _read() != null;
 
   /// A folder this app cannot read, and a note a killed process left half-written,
   /// both answer as nothing owed: the APK stays on disk and the next 立即更新 writes

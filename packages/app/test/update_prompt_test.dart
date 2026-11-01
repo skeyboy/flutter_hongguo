@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hongguo_app/platform/macos_window.dart';
 import 'package:hongguo_app/update/app_release.dart';
+import 'package:hongguo_app/update/install_strategy.dart';
 import 'package:hongguo_app/update/update_controller.dart';
 import 'package:hongguo_app/update/update_dialog.dart';
 import 'package:hongguo_app/update/update_host.dart';
@@ -98,6 +99,66 @@ const _allFiles = [
     transport: Dio()..httpClientAdapter = feed,
   );
   return (controller: controller, feed: feed);
+}
+
+/// A handoff that wrote the APK down as owed instead of installing it.
+///
+/// `handOff` branches on the platform the suite is actually running on, so an
+/// Android phone is out of reach from a desktop host; the plan is supplied here
+/// because what is under test is the prompt's own two promises -- stay open, and
+/// say the sentence that tells the viewer where they are.
+class _OwedHandoff extends UpdateController {
+  _OwedHandoff()
+    : super(
+        dio: Dio(),
+        readSettings: () => const AppSettings(),
+        writeSettings: (_) async {},
+        stageDirectory: () async => '.',
+      );
+
+  @override
+  Future<InstallPlan?> install() async {
+    message = '需要先允许本应用安装未知应用：请在设置中打开该权限，回到应用后会自动继续安装。';
+    installOwed = true;
+    notifyListeners();
+    return InstallPlan(message: message!, owesInstall: true);
+  }
+}
+
+/// The same button on a handoff that did finish, so the two are told apart by the
+/// plan rather than by the button never closing.
+class _SettledHandoff extends _OwedHandoff {
+  @override
+  Future<InstallPlan?> install() async {
+    message = '已交给系统安装器，请在弹窗中确认安装。';
+    installOwed = false;
+    notifyListeners();
+    return InstallPlan(message: message!);
+  }
+}
+
+/// Mounts the product entry point over a root page, so the prompt is a real route
+/// and closing it is observable.
+Future<void> _openPrompt(
+  WidgetTester tester,
+  UpdateController controller,
+) async {
+  await tester.binding.setSurfaceSize(const Size(900, 700));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => unawaited(showUpdateDialog(context, controller)),
+            child: const Text('打开更新提示'),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.tap(find.text('打开更新提示'));
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -302,6 +363,48 @@ void main() {
     // The number is the file this device would fetch, and the fixture gives
     // every platform the same size so the assertion holds on any host.
     expect(find.text('本机安装包约 34.8 MB'), findsOneWidget);
+  });
+
+  testWidgets(
+    'an owed install keeps the prompt open and says where the viewer is',
+    (tester) async {
+      // The defect this pins: 立即更新 used to close the prompt on a handoff that
+      // installed nothing, so the Android permission sentence was written to a
+      // field nobody could see, and coming back from 系统设置 left the viewer with a
+      // silent app and no way to tell a finished update from one still owed.
+      final release = ReleaseInfo.fromJson(
+        jsonDecode(_releaseJson(files: _allFiles)) as Map<String, dynamic>,
+      );
+      final controller = _OwedHandoff()..offer = release;
+      await _openPrompt(tester, controller);
+      await tester.tap(find.byKey(const Key('立即更新')));
+      await tester.pumpAndSettle();
+      expect(controller.installOwed, isTrue);
+      expect(
+        find.textContaining('请在设置中打开该权限'),
+        findsOneWidget,
+        reason:
+            'the sentence has to be readable inside the prompt it belongs to',
+      );
+      expect(
+        find.byKey(const Key('以后再说')),
+        findsOneWidget,
+        reason: 'nothing was installed, so the prompt has not finished its job',
+      );
+    },
+  );
+
+  testWidgets('a handoff the system took closes the prompt', (tester) async {
+    // The other half of the same decision, so the fix cannot be "never close".
+    final release = ReleaseInfo.fromJson(
+      jsonDecode(_releaseJson(files: _allFiles)) as Map<String, dynamic>,
+    );
+    final controller = _SettledHandoff()..offer = release;
+    await _openPrompt(tester, controller);
+    await tester.tap(find.byKey(const Key('立即更新')));
+    await tester.pumpAndSettle();
+    expect(controller.installOwed, isFalse);
+    expect(find.byKey(const Key('以后再说')), findsNothing);
   });
 
   testWidgets('settings checks on demand, keeps the switch its own', (
