@@ -201,4 +201,43 @@
 - **同一笔不对称**：这份补记排在 `b254fab` 之后，所以 `v0.3.18` 这棵树里没有它；要看读数取 `main`。
 - 仍未闭环的（不因为发了版就当作完成）：本轮四条能力**没有手机、电视或桌面窗口帧**——榜单再问一次、卡片长按/右键与 Dialog-抽屉分形态、TV 单行框交还上下、Android 授权后自动兑付欠装，全部跑在 widget 测试的合成指针/遥控键与 mock 通道上，`PackageInstaller` 会话与系统确认框在真机上是否真按这条序走仍未观察；§9.6 那轮的既有缺口（详情页三端截图、TV 遥控实际读数、`点标签 → 发现页被收窄`、snackbar「查看」在遥控族按不动、TV 主题轨标签行入口消费方）继续挂着。
 
+### 9.8 未授权那条支路的两个静默失败（2026-11-01）
+
+用户诉求（原话）：「Android端未开启 未知应用安装权限 怎么验证处理将此问题进行修复」。
+
+「未开启未知应用安装权限」是这条链最常见的那一趟，而 `v0.3.18` 的树上有两个洞让它看起来像「按了没反应」。两个都是 §9.6 把欠装写成磁盘记录之后新增的那一面的后果——记录写对了，但屏幕没有说它：
+
+1. **提示框替一次没有装成任何东西的交接自己关掉了。** `update_dialog.dart` 的 `立即更新` 回调当时是「拿到 plan 就 `Navigator.pop`」，而 §9.6 之后 Android 未授权那条 `install()` 也会返回一个 plan（只写了记录、只把人送到设置页）。于是那句「请在设置中打开该权限，回到应用后会自动继续安装」被写进 `controller.message`，而展示它的弹窗恰好在同一帧被关掉——观众看到的是一次凭空消失的更新提示。
+2. **回来时权限还是没开，屏幕什么都不说。** `resume()` 的未授权分支直接 `return null`，和「本来就没有欠装」用同一个答案；而 `message` 的渲染条件是 `controller.downloading`，那一刻它已经是 `false`，所以就算弹窗还开着那句话也显示不出来。两处合起来：既没有话，也没有状态，「更新还欠着一次」和「已经装完」在屏幕上完全一样。设置页那一行同样读 `controller.message`，因此也读不到东西。
+
+修法全在 Dart 层，Kotlin 一字未改（`canInstall` / `askPermission` / `install` 三个方法是 §9.3 那版已有的）：
+
+- `InstallPlan` 多一个 `owesInstall`（`install_strategy.dart:24`），语义写在字段注释里：这次交接什么都没装，欠一次，去系统设置那一趟还在前面。未授权那条 `install()` 返回它（`:82`）。
+- `resume()` 的未授权分支改成一句话说清「还欠着一次更新安装…不需要再点一次」（`:98-100`），并新增 `hasOwedInstall()`（`:115`）——**用记录是否存在回答，而不是退出时设的内存字段**，所以进程被拿走期间兑付掉的债，回来也读得出「已经不欠了」。
+- `UpdateController.installOwed`（`update_controller.dart:49`）是这两条支路共用的状态：`install()` 里取计划的 `owesInstall`（`:294`），`_returnToForeground()` 在 `resume()` 之后按磁盘记录重读（`:122-123`）。
+- 弹窗两处对上（`update_dialog.dart`）：`立即更新` 只在 `!plan.owesInstall` 时才 `pop`（`:174`），消息渲染条件从 `downloading` 改成 `downloading || installOwed`（`:132-134`）。这两条一起，才是「未授权 → 留在原地并说清楚」与「系统真的接下了 → 关掉」两种结局第一次能被区分。
+- 设置页那一行不需要额外接线：`settings_page.dart:335` 本来就无条件渲染 `controller.message`，所以兑付失败那句在「设置 → 检查更新」下面同样读得到。
+
+明确没做的：不加「再去设置一次」按钮（欠装记录已在，权限一开回到应用就自动兑付，再点一次反而是第二条会话的入口）；兑付路径不跳过重新下载（`立即更新` 保持 §9.6 的「重新下载并校验」语义，那句文案负责告诉观众他其实不需要再点）。
+
+验证读数（2026-11-01，本地 NTFS 克隆 `hg-verify-dl`；本轮 5 份代码与测试文件与 \\Mac 副本逐份 `cmp` 全 `same`，格式化后把改动的两份再拷回来又逐份 `cmp` 一次仍一致）：
+
+| 范围 | 结果 |
+| --- | --- |
+| `dart format --output=none --set-exit-if-changed packages tool` | 首跑 **272 文件 2 变更**（正是本轮两份测试文件），`dart format` 过后复跑 **0 变更**，退出码 0 |
+| `dart analyze --fatal-infos packages tool` | `No issues found!`，退出码 0 |
+| `test/android_install_test.dart` + `test/update_prompt_test.dart` | **+20 全过**（10 + 10）。前者例数不变：4 例加了断言（`owesInstall` 真/假按支路各自钉住、`hasOwedInstall()` 的「写下 → 兑付 → 不再欠」三段转换），另 1 例 `coming back still ungranted keeps the APK owed, not installed` 改名并重写成现在真正要钉的东西——`resume()` 的那句话里有「还欠着一次更新安装」与「安装未知应用」，同时记录原样留着、没开会话；后者**+2 例**是弹窗侧的：`an owed install keeps the prompt open and says where the viewer is`（点 `立即更新` 后 `以后再说` 仍在、句子在弹窗里读得到）与 `a handoff the system took closes the prompt`（另一半，防把修法写成「永远不关」） |
+| `packages/app` 全量 | **+401 ~1 全过**（改动前 +399 ~1；净增的 2 例即上面弹窗两例）。那 `~1` 是 `test/tv_settings_test.dart:42` 的 `skip: !tvBuild`，与 §9.5 起每一轮同一处，不是本轮新增 |
+| `packages/tv` 全量 | **+38 全过**，一字未动 |
+
+未验证的部分要说清，**这一轮同样没有 Android 真机读数**：本机 `adb` 在（`C:/Users/lee/Documents/developments/android-sdk/platform-tools`）但 `adb devices` 零台、SDK 目录里没有 `emulator` 也没有 `system-images`、`~/.android/avd` 不存在（本轮现读确认），而这轮修的两处恰好是「弹窗在真机上会不会自己关掉」这类只有帧才能证的事。测试跑的是 mock 的 `hongguo/update` 通道 + 真临时目录里的真记录 + widget 测试的合成指针。
+
+在真机上复核这一支路只需三步，比手动去设置里关掉一个特殊访问权限更省——`REQUEST_INSTALL_PACKAGES` 是设置页里的特殊访问权限，声明它（`android/app/src/mobile/AndroidManifest.xml:4`）不等于授予它，所以可以直接用 `appops` 拨这个开关（mobile 包名读实为 `com.example.hongguo_app`，见 `android/app/build.gradle.kts:41`；TV 那套不参与更新，`updateSupported` 里就被排掉了，见 `update_host.dart:17`）：
+
+1. 装一个比线上 tag **旧**的版本让 `v0.3.18` 真的成为一次 offer：`adb install -r Hongguo-0.3.17-android-arm64-v8a.apk`（该附件在 `v0.3.17` 的 Release 上），然后 `adb shell appops set com.example.hongguo_app REQUEST_INSTALL_PACKAGES deny` 复现「未开启」。
+2. 点 `立即更新`。修好后应看到：应用被送到「安装未知应用」那一行，**弹窗还在**，里面是那句「请在设置中打开该权限，回到应用后会自动继续安装」；`adb shell appops get com.example.hongguo_app REQUEST_INSTALL_PACKAGES` 此时仍应读实为 `deny`。
+3. 不回开关、直接把应用切回前台：应读到「还欠着一次更新安装…不需要再点一次」——这就是洞 2 的正面读数。然后 `adb shell appops set com.example.hongguo_app REQUEST_INSTALL_PACKAGES allow`，再切回一次：`adb logcat | grep -iE "PackageInstaller|installing session"` 应出现一次新会话，且这中间**没有第二次点击 `立即更新`**。欠装记录本身在 `run-as` 之外读不到（release 包不可调试），要核那个 JSON 就在 debug 包上做同样三步。
+
+顺带一条对上一轮的补充：§9.6 说「任何一次回到应用都试着兑付」是对的，但那句话只保证兑付发生，没保证兑付**没发生时屏幕上有任何东西**——本轮补的就是后半句。
+
 
