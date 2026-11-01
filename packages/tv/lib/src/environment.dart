@@ -29,7 +29,10 @@ class TvEnvironment extends InheritedWidget {
       enabled != oldWidget.enabled;
 }
 
-/// Routes unconsumed D-pad events only. Text editors retain their own key handling.
+/// Routes unconsumed D-pad events only. Text editors keep their own key
+/// handling, with one exception spelled out in [_editorGivesVerticalArrows]:
+/// 上下 on a single-line box belong to the remote, not to a caret that has
+/// nowhere to go.
 class TvNavigation extends StatelessWidget {
   final Widget child;
   const TvNavigation({super.key, required this.child});
@@ -115,6 +118,31 @@ class TvNavigation extends StatelessWidget {
     }
   }
 
+  /// Whether a focused text editor hands this vertical arrow back to the remote.
+  ///
+  /// An editor is asked for its keys before the traversal below -- and before the
+  /// root [DefaultTextEditingShortcuts] that moves the caret -- so while a box
+  /// holds focus, this handler was the last chance to move it, and the old answer
+  /// was always "not mine". That made every search box on a TV pane the end of
+  /// the walk: 上下 went nowhere, and the viewer had no key left that reached the
+  /// rows under the box.
+  ///
+  /// Only a single-line box gives 上下 up, because a single line is exactly the
+  /// case where those two arrows do nothing for the caret. A multi-line editor
+  /// keeps them -- they are how a remote user moves between its lines. 左右 stay
+  /// with the caret in every box, and so does 确认, which on a TV opens the
+  /// keyboard instead of pressing the button behind the field.
+  static bool _editorGivesVerticalArrows(
+    EditableTextState editor,
+    KeyEvent event,
+  ) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
+    final vertical =
+        event.logicalKey == LogicalKeyboardKey.arrowUp ||
+        event.logicalKey == LogicalKeyboardKey.arrowDown;
+    return vertical && (editor.widget.maxLines ?? 1) <= 1;
+  }
+
   @override
   Widget build(BuildContext context) => FocusTraversalGroup(
     policy: ReadingOrderTraversalPolicy(),
@@ -124,10 +152,11 @@ class TvNavigation extends StatelessWidget {
       onKeyEvent: (_, event) {
         if (event is KeyUpEvent) return KeyEventResult.ignored;
         final primary = FocusManager.instance.primaryFocus;
-        final editing =
-            primary?.context?.findAncestorStateOfType<EditableTextState>() !=
-            null;
-        if (editing) return KeyEventResult.ignored;
+        final editor = primary?.context
+            ?.findAncestorStateOfType<EditableTextState>();
+        if (editor != null && !_editorGivesVerticalArrows(editor, event)) {
+          return KeyEventResult.ignored;
+        }
         if (isRemoteBack(event.logicalKey) && primary?.context != null) {
           final dispatcher = event is KeyDownEvent
               ? TvBackDispatcher.dispatch(primary!.context!)

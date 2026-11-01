@@ -279,4 +279,79 @@ void main() {
     await t.pumpWidget(const SizedBox());
     node.dispose();
   });
+
+  /// The other half of the same convention: a box that cannot be left is not a
+  /// focusable target, it is a trap. 上下 are what the remote has to step out
+  /// with, and a single line has no use for them.
+  testWidgets('a single-line box gives 上下 back to the remote', (t) async {
+    final node = FocusNode(debugLabel: 'box');
+    var pressed = 0;
+    await t.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TvNavigation(
+            child: Column(
+              children: [
+                TextField(focusNode: node),
+                TvFocusable(
+                  label: 'go',
+                  onActivate: () => pressed++,
+                  child: const Text('go'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    node.requestFocus();
+    await t.pump();
+
+    await t.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await t.pump();
+    expect(node.hasFocus, isFalse, reason: 'down has to leave the box');
+    await t.sendKeyEvent(LogicalKeyboardKey.select);
+    await t.pump();
+    expect(pressed, 1);
+
+    // And 上 walks back in, so the box is on the ring rather than off it.
+    await t.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await t.pump();
+    expect(node.hasFocus, isTrue);
+    await t.pumpWidget(const SizedBox());
+    node.dispose();
+  });
+
+  /// A multi-line editor does use the vertical arrows -- they move the caret a
+  /// line up or down -- so it keeps them.
+  testWidgets('a multi-line box keeps the vertical arrows for its caret', (
+    t,
+  ) async {
+    final node = FocusNode(debugLabel: 'box');
+    await t.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TvNavigation(
+            child: Column(
+              children: [
+                TextField(focusNode: node, maxLines: 3),
+                TvFocusable(
+                  label: 'go',
+                  onActivate: () {},
+                  child: const Text('go'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    node.requestFocus();
+    await t.pump();
+    await t.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await t.pump();
+    expect(node.hasFocus, isTrue);
+    await t.pumpWidget(const SizedBox());
+    node.dispose();
+  });
 }

@@ -281,6 +281,45 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('遥控从搜索框里走得出去，左右键仍归光标', (tester) async {
+      final runtime = _CacheRuntime();
+      await _useTvView(tester);
+      runtime.files.addAll([_file('11', 1), _file('12', 2)]);
+      await tester.pumpWidget(_tv(LocalCachePage(runtime: runtime)));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      final box = tester.state<EditableTextState>(find.byType(EditableText));
+      expect(
+        FocusManager.instance.primaryFocus,
+        same(box.widget.focusNode),
+        reason: 'landing on the box with the remote must focus it',
+      );
+
+      // 左右 belong to the caret: fixing a typo must not drop the viewer out of
+      // the one place they were typing.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+      expect(FocusManager.instance.primaryFocus, same(box.widget.focusNode));
+
+      // 上下 have no caret job on a single line, and this pane has a whole grid
+      // under the box -- so they are the only way the remote has to reach it.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(
+        FocusManager.instance.primaryFocus,
+        isNot(same(box.widget.focusNode)),
+        reason: 'the box stranded the remote: nothing below it was reachable',
+      );
+      expect(
+        _nodeByLabel(tester, '山海之间')!.hasFocus,
+        isTrue,
+        reason: 'down from the box lands on the grid it was hiding',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('each cached file gets a play and a delete target', (
       tester,
     ) async {
