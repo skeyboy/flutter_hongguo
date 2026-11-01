@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<!--
+  iPhone Duo 折叠屏适配 · 交互原型
+  设备框的每一个尺寸、每一条折叠带、每一个档位结论都来自
+  ../iphone-duo-adaptation.md（§1 逐条官方原文、§2 设备事实、§5 设计、§6 原型说明）。
+  外屏 466×678pt 已坐实：Mac 上的 iOS 27.1 模拟器经探针实测 404 帧，scale=3、H=compact/V=regular、
+  safeAreaInsets=(0,0,34,84)，两块活动遮挡 37×37@(400,29) 与 84×170@(382,0)（文档 §2、§8）。
+  内屏 669×951pt 仍未坐实：设备定义像素÷实测倍率 3 折算，另有第三方 iOS 27.1 模拟器读数互证（flutter/flutter#193025 正文），
+  但本轮三次采样全部停在合上态，一条展开帧都没采到。折叠带 40pt 只有第三方读数，无一手帧。
+  框上对这两种来源的标注不同，不要混着看。
+  无网络依赖，双击即开。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>原型 · iPhone Duo 折叠屏适配（姿势 / 侧栏 / 折叠带 / 溢出）</title>
+<style>
+  :root{
+    --ink:#15171c; --ink2:#454a57; --ink3:#8b909e; --line:#e3e5ea;
+    --bg:#f6f7f9; --card:#fff; --brand:#ff2d55; --brand-soft:#fff0f3;
+    --fold:#7a4dff; --fold-soft:#efe8ff;
+    --cam:#c9740a; --cam-soft:#fff2e0;
+    --ok:#12855a; --warn:#c23b4e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+       color:var(--ink);background:#eceef2;}
+  button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+  /* ---------- 控制条 ---------- */
+  .meta{position:sticky;top:0;z-index:90;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;
+        padding:10px 16px;background:#15171c;color:#fff;font-size:13px}
+  .meta b{font-weight:600}
+  .meta .grp{display:flex;gap:8px;align-items:center}
+  .meta .grp>span{color:#9aa0ad;font-size:12px}
+  .meta .seg{display:flex;background:#2a2d36;border-radius:9px;overflow:hidden}
+  .meta .seg button{padding:6px 11px;font-size:12.5px;color:#c8ccd6;white-space:nowrap}
+  .meta .seg button[aria-pressed=true]{background:#fff;color:#15171c;font-weight:600}
+  .meta .seg button[data-warn=true]{box-shadow:inset 0 0 0 1.5px #ff9db1}
+  .meta .hint{color:#9aa0ad;font-size:12px;flex:1 1 240px;min-width:200px}
+  /* ---------- 读出窗 ---------- */
+  .readout{margin:14px 16px 0;background:#15171c;color:#dfe3ea;border-radius:10px;padding:10px 12px;
+           font:12px/1.75 ui-monospace,SFMono-Regular,Menlo,monospace;max-width:1280px}
+  .readout .k{color:#8b90a3}
+  .readout .v{color:#7ee0a0}
+  .readout .bad{color:#ff9db1}
+  .readout em{color:#ffd08a;font-style:normal}
+  .readout .row{display:block}
+  .readout hr{border:0;border-top:1px solid #2c2f38;margin:6px 0}
+  /* ---------- 图例与快捷键 ---------- */
+  .wrap{max-width:1280px;margin:0 auto;padding:0 16px}
+  .legend{margin:12px 0 0;display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;color:var(--ink2)}
+  .legend i{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:5px}
+  .kbd{margin:10px 0 8px;font-size:12px;color:#6b7180;line-height:2}
+  .kbd kbd{background:#fff;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;
+           padding:1px 6px;font:11px ui-monospace,Menlo,monospace}
+  /* ---------- 区块 ---------- */
+  section{max-width:1280px;margin:22px auto 0;padding:0 16px}
+  section>h2{font-size:16px;margin:0 0 3px}
+  section>p{font-size:12.5px;color:var(--ink2);margin:0 0 12px;line-height:1.7}
+  .stage{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+  .cell{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 12px 14px;
+        box-shadow:0 1px 3px rgba(20,22,28,.06)}
+  .cell>h3{font-size:13px;margin:0 0 2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .cell>h3 .tag{font-size:11px;font-weight:600;padding:1px 7px;border-radius:20px;background:#eef0f4;color:var(--ink2)}
+  .cell>h3 .tag.new{background:var(--brand-soft);color:var(--brand)}
+  .cell>.sub{font-size:11.5px;color:var(--ink3);margin:0 0 9px;line-height:1.6}
+  /* ---------- 设备框 ---------- */
+  .dev{position:relative;background:#0d0f13;border-radius:18px;padding:8px;box-shadow:0 3px 14px rgba(18,20,26,.16)}
+  .scr{min-height:0}
+  .scr *{min-height:0} /* 设备框是定高 flex 容器：任何一支都必须能被压回屏内 */
+  .dev .scr{position:relative;overflow:hidden;border-radius:12px;background:var(--bg);
+            font-size:10.5px;color:var(--ink2);display:flex}
+  .dev .cap{margin-top:7px;font-size:11px;color:var(--ink3);text-align:center;line-height:1.6}
+  .dev .cap b{color:var(--ink2);font-weight:600}
+  .pt{position:absolute;right:10px;top:10px;z-index:40;background:rgba(13,15,19,.72);color:#cfd4e0;
+      font:10px ui-monospace,Menlo,monospace;padding:2px 6px;border-radius:6px;pointer-events:none}
+  /* 折叠带 / 摄像头遮挡 */
+  .division{position:absolute;z-index:30;background:
+      repeating-linear-gradient(135deg,rgba(122,77,255,.26) 0 5px,rgba(122,77,255,.13) 5px 10px);
+      border-left:1px dashed var(--fold);border-right:1px dashed var(--fold)}
+  .division.h{border-left:0;border-right:0;border-top:1px dashed var(--fold);border-bottom:1px dashed var(--fold)}
+  .division>span{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-90deg);
+      white-space:nowrap;font-size:9px;color:var(--fold);font-weight:700;letter-spacing:.3px}
+  .division.h>span{transform:translate(-50%,-50%)}
+  .division.off{opacity:.34}
+  .occl{position:absolute;z-index:31;background:var(--cam-soft);border:1.4px dashed var(--cam);
+        border-radius:10px;display:flex;align-items:center;justify-content:center;
+        font-size:9px;color:var(--cam);font-weight:700}
+  .occl.dot{border-style:solid;border-radius:9px}
+  .occl.dot::after{content:'';width:7px;height:7px;border-radius:50%;background:var(--cam)}
+  /* ---------- 应用外壳的四种条形态 ---------- */
+  .band{flex:0 0 auto;background:#111318;color:#e7eaf2;display:flex;flex-direction:column;
+        align-items:stretch;gap:0}
+  .band .sys{flex:0 0 auto;background:#000;color:#7b8194;font-size:8.5px;text-align:center;
+             padding:6px 2px;position:relative;letter-spacing:.4px}
+  .band .sys .isl{display:block;width:38%;height:6px;border-radius:6px;background:#2a2d36;margin:0 auto 4px}
+  .band .grp-lab{font-size:8px;color:#6f7688;text-align:center;padding:4px 0 2px;letter-spacing:.5px}
+  .band .it{display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 2px 6px;position:relative}
+  .band .it .ic{width:19px;height:19px;border-radius:6px;background:#31364a;display:flex;
+                align-items:center;justify-content:center;font-size:9.5px;color:#cfd4e0;font-style:normal}
+  .band .it .tx{display:none}
+  .band .it.sel .ic{background:var(--brand)}
+  .band .it .bdg{position:absolute;top:5px;right:7px;min-width:12px;height:12px;border-radius:7px;
+                 background:var(--brand);color:#fff;font-size:8px;line-height:12px;text-align:center;padding:0 2px}
+  .band .it.rej{opacity:.32;background:repeating-linear-gradient(135deg,#1b1e26 0 5px,#22262f 5px 10px)}
+  .band .it.rej .ic{border:1px dashed #6b7180;background:none;border-radius:3px}
+  .band .ovf{margin-top:auto;display:flex;align-items:center;justify-content:center;height:26px;
+             background:#22262f;color:#c8ccd6;font-size:13px;letter-spacing:2px}
+  .tabbar{flex:0 0 auto;background:#fff;border-top:1px solid var(--line);display:flex}
+  .tabbar .it{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px 5px;position:relative}
+  .tabbar .it .ic{width:17px;height:17px;border-radius:5px;background:#c9cedb}
+  .tabbar .it .tx{font-size:8.5px;color:var(--ink3)}
+  .tabbar .it.sel .ic{background:var(--brand)}
+  .tabbar .it.sel .tx{color:var(--brand);font-weight:600}
+  .tabbar .it .bdg{position:absolute;top:3px;right:12px;min-width:11px;height:11px;border-radius:6px;
+                   background:var(--brand);color:#fff;font-size:8px;line-height:11px;padding:0 2px;text-align:center}
+  .rail{flex:0 0 auto;width:52px;background:#fff;border-right:1px solid var(--line);
+        display:flex;flex-direction:column;align-items:center;padding-top:8px;gap:4px}
+  .rail .it{width:40px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+            background:#e9ebf0;color:var(--ink3);font-size:9px;font-weight:600}
+  .rail .it.sel{background:var(--brand-soft);color:var(--brand)}
+  .topbar{flex:0 0 auto;height:26px;background:#fff;border-bottom:1px solid var(--line);
+          display:flex;align-items:center;gap:6px;padding:0 8px;font-size:10.5px;color:var(--ink2)}
+  .topbar .ttl{font-weight:600;color:var(--ink)}
+  .topbar .sp{margin-left:auto;display:flex;gap:5px}
+  .topbar .bt{padding:2px 7px;border-radius:20px;background:#eef0f4;font-size:9.5px;color:var(--ink2)}
+  .topbar .bt.on{background:var(--brand-soft);color:var(--brand);font-weight:600}
+  /* 内容 */
+  .pane{flex:1 1 auto;min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column;background:var(--bg)}
+  .panes{flex:1 1 auto;min-width:0;min-height:0;display:flex}
+  .gutter{flex:0 0 auto;background:var(--fold-soft);position:relative;min-height:0}
+  .gutter .lbl{position:absolute;top:2px;left:50%;transform:translateX(-50%);font-size:8px;
+               color:var(--fold);white-space:nowrap;font-weight:700}
+  .grid{display:grid;gap:5px;padding:7px}
+  .cd{background:#fff;border-radius:7px;overflow:hidden;box-shadow:0 1px 2px rgba(20,22,28,.08);position:relative;min-width:0}
+  .cd .cv{aspect-ratio:3/4;background:linear-gradient(160deg,#dfe3ec,#c8cfdc)}
+  .cd .cv.b{background:linear-gradient(200deg,#ffe2ea,#f3c9d5)}
+  .cd .cv.c{background:linear-gradient(180deg,#e4ecf7,#cdd9ec)}
+  .cd .tt{height:5px;background:#d5d9e2;margin:4px 4px 2px;border-radius:3px}
+  .cd .tt.s{width:56%}
+  .cd .ep{position:absolute;right:3px;bottom:27%;font-size:7.5px;color:#fff;background:rgba(0,0,0,.42);
+          padding:0 3px;border-radius:5px}
+  .cd .bdg{position:absolute;left:3px;top:3px;font-size:7px;color:#fff;background:rgba(250,119,5,.86);
+           padding:0 4px;border-radius:5px}
+  .cd.straddle{outline:2px dashed var(--fold);outline-offset:-2px}
+  .blk{background:#fff;border-radius:8px;padding:7px;margin:7px}
+  .blk .h{height:6px;background:#d5d9e2;border-radius:3px;width:40%;margin-bottom:5px}
+  .blk .l{height:4px;background:#e6e9f0;border-radius:3px;margin-bottom:4px}
+  .blk .l.w80{width:80%}.blk .l.w60{width:60%}
+  .det{flex:1 1 auto;min-width:0;background:#fff;border-left:1px solid var(--line);padding:8px}
+  .det .bh{font-size:11px;font-weight:600;color:var(--ink);margin-bottom:4px}
+  .det .row{display:flex;gap:5px;margin-bottom:6px}
+  .det .bt{padding:3px 8px;border-radius:7px;background:var(--brand);color:#fff;font-size:9.5px;font-weight:600}
+  .det .bt.g{background:#eef0f4;color:var(--ink2)}
+  /* 弹层 */
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:34;background:#fff;
+         border-radius:14px 14px 0 0;box-shadow:0 -6px 18px rgba(20,22,28,.16);padding:8px}
+  .sheet .grab{width:26px;height:3px;border-radius:3px;background:#d8dbe3;margin:0 auto 7px}
+  .dlg{position:absolute;z-index:34;background:#fff;border-radius:14px;box-shadow:0 8px 26px rgba(20,22,28,.22);padding:9px}
+  .dlg .hh{font-size:11px;font-weight:700;color:var(--ink);margin-bottom:6px}
+  .rowl{display:flex;align-items:center;gap:6px;font-size:9.5px;color:var(--ink2);padding:4px 0}
+  .rowl .bx{width:11px;height:11px;border-radius:3px;border:1.4px solid #c9cedb;flex:0 0 auto}
+  .rowl .bx.on{background:var(--brand);border-color:var(--brand)}
+  .rowl .q{margin-left:auto;font-size:8.5px;color:var(--ink3)}
+  .dlgfoot,.sheetfoot{display:flex;gap:6px;margin-top:7px;position:relative}
+  .bt2{flex:1;text-align:center;padding:5px 0;border-radius:8px;background:#eef0f4;color:var(--ink2);font-size:10px;font-weight:600}
+  .bt2.p{background:var(--brand);color:#fff}
+  /* 弹层的侧向头部（R11） */
+  .vhead{position:absolute;top:0;right:0;bottom:0;width:22px;background:#f2f4f8;border-left:1px solid var(--line);
+         display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:5px;padding-top:6px}
+  .vhead .x{width:13px;height:13px;border-radius:50%;background:#dfe3ec}
+  .vhead .d{width:13px;height:13px;border-radius:4px;background:var(--brand)}
+  /* ---------- 播放器 ---------- */
+  .player{flex:1 1 auto;min-width:0;background:#000;position:relative;display:flex;overflow:hidden}
+  .vid{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+       background:radial-gradient(circle at 50% 42%,#2b3242,#0a0c10 72%);color:#5b6376;font-size:10px}
+  /* max-height 是必需的：横屏/笔记本的画面盒比 9:16 按宽推出来的高度矮得多，
+     不限高时占位块会顶出设备框（本轮量到 692px vs 415px 的框），只靠 .scr 的
+     overflow:hidden 裁掉——那是隐藏问题，不是布局对。外屏窄，9:16 不受这条限制。 */
+  .vid .ph{width:66%;aspect-ratio:9/16;max-height:100%;background:linear-gradient(160deg,#3a4256,#22283a);
+           border-radius:8px;display:flex;align-items:center;justify-content:center;color:#8b93a8;font-size:9px}
+  .vid.lap .ph{aspect-ratio:16/9;width:86%}
+  .transport{position:absolute;left:0;right:0;bottom:0;z-index:33;background:linear-gradient(transparent,rgba(0,0,0,.82) 42%);
+             padding:16px 8px 8px;display:flex;align-items:center;gap:4px}
+  .transport .b{width:15px;height:15px;border-radius:4px;background:rgba(255,255,255,.86);flex:0 0 auto}
+  .transport .b.sm{width:11px;height:11px;background:rgba(255,255,255,.55)}
+  .transport .bar{flex:1 1 auto;height:3px;border-radius:3px;background:rgba(255,255,255,.28);position:relative}
+  .transport .bar>i{position:absolute;left:0;top:0;bottom:0;width:38%;background:var(--brand);border-radius:3px}
+  .transport .tx{font-size:8px;color:#fff;opacity:.8;flex:0 0 auto}
+  .tpband{position:absolute;top:0;bottom:0;right:0;z-index:34;width:34px;background:rgba(9,11,15,.92);
+          border-left:1px solid rgba(255,255,255,.14);display:flex;flex-direction:column;
+          align-items:center;gap:3px;padding:6px 0}
+  .tpband .b{width:15px;height:15px;border-radius:4px;background:rgba(255,255,255,.86);flex:0 0 auto;
+             display:flex;align-items:center;justify-content:center;font-size:7px;color:#0d0f13;font-style:normal}
+  .tpband .b.never{outline:1.5px solid rgba(126,224,160,.8)}
+  .tpband .b.d2{width:13px;height:13px;border-radius:50%;background:rgba(255,255,255,.5)}
+  .tpband .b.rej{background:none;border:1px dashed rgba(255,255,255,.45);border-radius:3px;color:rgba(255,255,255,.45)}
+  .tpband .b.gone{display:none}
+  .tpband .ovf{margin-top:auto;color:#c8ccd6;font-size:11px;letter-spacing:2px}
+  .infohalf{position:absolute;left:0;right:0;top:0;z-index:32;background:#f6f7f9;
+             display:flex;flex-direction:column;padding:6px;gap:5px;overflow:hidden}
+  .infohalf .t{font-size:10px;font-weight:700;color:var(--ink)}
+  .eps{display:grid;grid-template-columns:repeat(6,1fr);gap:3px}
+  .eps i{aspect-ratio:1;border-radius:4px;background:#e6e9f0;font-style:normal;font-size:7.5px;
+         color:var(--ink3);display:flex;align-items:center;justify-content:center}
+  .eps i.cur{background:var(--brand);color:#fff;font-weight:700}
+  .eps i.done{background:#dfe3ec;color:var(--ink2)}
+  /* ---------- 溢出实验台 ---------- */
+  .bench{display:flex;gap:18px;align-items:stretch;flex-wrap:wrap}
+  .bench .left{min-width:300px;flex:1 1 320px}
+  .bench .note{font-size:11.5px;color:var(--ink2);line-height:1.8}
+  .bench label{display:block;font-size:11.5px;color:var(--ink2);margin:10px 0 4px}
+  .bench input[type=range]{width:100%}
+  .tbl{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}
+  .tbl th{text-align:left;font-weight:600;color:var(--ink3);border-bottom:1px solid var(--line);padding:3px 4px}
+  .tbl td{border-bottom:1px solid #f1f2f6;padding:4px;vertical-align:top}
+  .pill{display:inline-block;padding:1px 6px;border-radius:20px;font-size:10px;font-weight:600}
+  .pill.keep{background:#e4f6ed;color:var(--ok)}
+  .pill.ovf{background:var(--fold-soft);color:var(--fold)}
+  .pill.rej{background:var(--cam-soft);color:var(--cam)}
+  .pill.never{background:#e9ebf0;color:var(--ink2)}
+  .fake-band{background:#111318;border-radius:12px;padding:6px;color:#e7eaf2;overflow:hidden}
+  .u{font-size:11.5px;color:var(--ink2);line-height:1.75}
+  .u code{background:#eef0f4;padding:1px 5px;border-radius:5px;font:11px ui-monospace,Menlo,monospace}
+  .flag{color:var(--warn);font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="meta">
+  <div class="grp"><span>姿势</span>
+    <div class="seg" id="seg-pose">
+      <button data-pose="cover" aria-pressed="true">外屏（合上）</button>
+      <button data-pose="innerPortrait" aria-pressed="false">内屏·竖</button>
+      <button data-pose="innerLandscape" aria-pressed="false">内屏·横</button>
+      <button data-pose="book" aria-pressed="false">半开·书立</button>
+      <button data-pose="laptop" aria-pressed="false">半开·笔记本</button>
+      <button data-pose="phone" aria-pressed="false">非 Duo 手机（对照）</button>
+    </div>
+  </div>
+  <div class="grp"><span>判据</span>
+    <div class="seg" id="seg-rule">
+      <button data-rule="both" aria-pressed="true">现状 / 设计后 并排</button>
+      <button data-rule="current" aria-pressed="false">只看现状（裸 720）</button>
+      <button data-rule="designed" aria-pressed="false">只看设计后（尺寸级）</button>
+    </div>
+  </div>
+  <div class="grp"><span>折叠带读数</span>
+    <div class="seg" id="seg-fold">
+      <button data-fold="auto" aria-pressed="true">按姿势</button>
+      <button data-fold="forceActive" aria-pressed="false">全开但带仍 active</button>
+      <button data-fold="forceInactive" aria-pressed="false">折起但带未 active</button>
+      <button data-fold="unreachable" aria-pressed="false">Flutter 层读不到（今天）</button>
+    </div>
+  </div>
+  <div class="hint">设计说明 <b>../iphone-duo-adaptation.md</b>：§5.1 姿势模型 · §5.2 阈值迁移 · §5.3 竖排控制条 · §5.4 预留区让位 · §5.5 arrangement · §5.6 逐界面 · §5.7 偶数列 · §5.10 手势与带 · §5.11 可达性 · §5.12 溢出落面。键盘 <kbd>1</kbd>–<kbd>6</kbd> 换姿势、<kbd>R</kbd> 换判据、<kbd>A</kbd>/<kbd>I</kbd>/<kbd>U</kbd> 换折叠带读数。</div>
+</div>
+
+<div class="readout wrap" id="readout" aria-live="polite"></div>
+
+<div class="wrap">
+  <div class="legend" id="legend">
+    <span><i style="background:var(--fold-soft);border:1px dashed var(--fold)"></i>折叠带（division，第三方读数 40pt，<b>无一手帧</b>）</span>
+    <span><i style="background:var(--cam-soft);border:1px dashed var(--cam)"></i>摄像头遮挡（occlusion，外屏两块本轮实测）</span>
+    <span><i style="background:#111318"></i>竖排控制条（自绘侧栏）</span>
+    <span><i style="background:#fff;border:1px solid var(--line)"></i>横排控制条（今天）</span>
+    <span><i style="background:repeating-linear-gradient(135deg,#1b1e26 0 4px,#22262f 4px 8px)"></i>被 R14 拒绝进侧栏的条目</span>
+  </div>
+  <div class="kbd">
+    框上标的是<b>真实逻辑点</b>（屏幕像素只是等比缩放）。「现状」列的每一个结论都按 <code>library_page.dart:3101</code> 等源码字面判据算出，不是画师发挥。
+    <span class="flag">已坐实</span>：外屏 466×678pt、scale=3、H=compact、右侧系统带 84pt 与两块遮挡矩形，本轮 Mac 探针 404 帧实测（文档 §2）。
+    <span class="flag">未坐实项</span>：内屏 669×951pt 是设备定义像素÷实测倍率 3 的折算，只有第三方模拟器读数互证；折叠带 40pt 同属第三方读数、无一手帧。两者都要等一次真的展开采样（文档 §8 第 1、4 项）。
+  </div>
+</div>
+
+<section>
+  <h2>1 · 发现页外壳：同一块内屏，两套判据</h2>
+  <p>官方把「外屏 compact / 内屏 regular」定为所有姿势的地基（§1 R2）。而 <code>size.maxWidth &lt; 720</code> 把 669pt 的内屏判成了 compact——于是内屏全开时观众拿到的是一块大号手机布局。这一条<b>不需要任何折叠感知就能修</b>，是本设计的第一期（§7 P0）。控制条形态按 §5.3 的分派表：外屏与内屏横屏走侧栏，<b>内屏竖屏保持横排</b>（§1 R8 是官方明文例外）。</p>
+  <div class="stage" id="stage-shell"></div>
+</section>
+
+<section>
+  <h2>2 · 分集网格与弹层：偶数列、以及「对话框还是抽屉」</h2>
+  <p>分集网格的列数今天<b>不是选出来的</b>：<code>episode_pager.dart:255-259</code> 用 <code>floor((约束宽+10)/(单元宽+10))</code> 推导，而调用方 <code>detail_page.dart:339-342</code> 按 <code>MediaQuery.sizeOf</code> 的<b>整块屏宽</b>只选「可见行数 3/4」和「目标单元宽 100/120」——读的是屏幕宽而不是所在栏的宽（R5），推出来的列数奇偶更没人管（R23 要求优先偶数，好让内容干净地分开）：669pt 的内屏全开得到 <b>5 列</b>，951pt 横屏得到 <b>7 列</b>。「对话框 vs 底部抽屉」今天由 <code>width&gt;=720 &amp;&amp; height&gt;=400</code> 决定，同一规则在仓库里抄了三份（§4.1），669pt 的内屏三条都不过。</p>
+  <div class="stage" id="stage-detail"></div>
+</section>
+
+<section>
+  <h2>3 · 播放页：overlay arrangement 把画面推到折叠带的近侧</h2>
+  <p>官方给的 overlay 规则是逐字的：半开时 primary 落在折叠带的 trailing/bottom 侧，secondary 落在 leading/top 侧（R26）。对短剧应用这就是「把手机支在桌上当小笔记本看」——画面占观众那一半，选集与控件占远那一半。<b>不新增页面</b>，只是把现有 <code>Stack</code> 的两个孩子按带的位置重排（R24 反对随姿势大改布局）。「现状」那一栏演示的是缺陷本身：画面横跨中缝，中缝正好切在演员脸上。</p>
+  <div class="stage" id="stage-player"></div>
+</section>
+
+<section>
+
+  <h2>4 · 侧栏装不下的时候：溢出顺序与 R14 的拒绝</h2>
+  <p>侧栏是官方给 Duo 的核心范式（R7），代价是可用高度大幅缩水，于是「谁先被收起」必须有声明。官方的答案是：默认从下往上溢出（R13）、带徽章的状态项更晚收（R15）、纯文字或纯自定义 view 的条目<b>根本进不了竖排</b>（R14）。仓库里已经有一份这样的名单——<code>playback_transport.dart:22</code> 的 <code>dropOrder</code>，注释写明了「播放、选集、倍速、全屏永不丢弃」，但全仓库对它的 grep 只有这一处命中：<b>被声明，从未被消费</b>（§4.3）。下面的实验台就是把它接上真实测量的样子。</p>
+  <div class="cell">
+    <h3><span id="bench-title">溢出实验台</span><span class="tag new">dropOrder 已接上</span></h3>
+    <div class="bench">
+      <div class="left">
+        <label for="h">侧栏可用高度：<b id="hval">560</b> pt（外屏约 500pt 会被系统带与工具栏段占掉一部分）</label>
+        <input id="h" type="range" min="90" max="620" step="10" value="560">
+        <table class="tbl" id="dropTbl"></table>
+      </div>
+      <div>
+        <div class="fake-band" id="fakeBand"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>5 · 这张原型刻意没有演示的东西</h2>
+  <p class="u">
+    ① <b>内屏摄像头遮挡</b>：本应用不采集影像，内屏摄像头永不激活，R21 的这条对我们不适用（§5.9）。<br>
+    ② <b>内屏 Split View 多任务</b>（R30）：需要 <code>UIApplicationSupportsMultipleScenes=true</code>，现状是 false，一期不动；侧栏贴哪一边在模型里是读主机上报的 band 边而不是写死常量，为的是将来不必重设计（§5.3）。<br>
+    ③ <b>详情栏的竖排条</b>（R10）：内屏竖屏双栏时官方把详情栏的条放在侧边，一期按 HIG 的例外保留横排，记为已知偏差（§5.3 末、§7 P3）。<br>
+    ④ <b>内屏与半开帧</b>：本轮 Mac 探针采到 404 帧，<b>全部是合上态</b>——模拟器窗口没在前台，手动展开没有落到系统，一条展开帧都没有。所以内屏 669×951、折叠带 40pt、division 的 margins、换屏时序在框上都只是示意，<b>不构成设备上的验收</b>（§8）。外屏那一列相反：尺寸、尺寸级、右边带 84pt 与两块遮挡几何都是本轮实测。<br>
+    ⑤ <b>手势让位与溢出落面</b>：§5.10 的六处手势点和 §5.12 的溢出弹层用哪条通道，都是按源码字面读出来的判定，本原型没有把它们做成可交互的帧——折叠带压住滑轨这件事，要等真展开帧才好实拍。
+  </p>
+</section>
+
+<div style="height:34px"></div>
+
+<script>
+/* =====================================================================
+   设备与判据的唯一口径，逐字对应设计文档 §5.1 的 DuoPose 与 §5.2 的档位表
+   ===================================================================== */
+const PT = 0.62;                     // 逻辑点 → 屏幕像素
+/* 侧栏条目宽：设计取 68pt，但主机在合上态报出的那条边本身就有 84pt（本轮 Mac 实测
+   safeAreaInsets.right）。§5.3 的规则是「padding 已 ≥ 条目宽就不再额外加宽」，
+   所以 68 只是设计值，84 才是系统值；两者谁生效要等 Flutter 侧透出多少（§8 第 2 项）。 */
+const BAND_ITEM = 68;                // 侧栏条目宽 pt（§5.3 设计值）
+const SYS_EDGE_COVER = 84;           // 合上态右边带实测 pt（§2「外屏系统侧边预留」行）
+const DIV = 40;                      // 折叠带宽 pt（仍是第三方 iOS 27.1 模拟器读数，无一手帧）
+
+/* 分集网格的真实算法：列数从来不是「选」出来的。episode_pager.dart:255-259 用
+   floor((约束宽 + spacing) / (cellExtent + spacing)) 推导，spacing 默认 10（:41）；
+   调用方只选 rows（可见行数）与 cellExtent（目标单元宽），而 detail_page.dart:339-342
+   选这两样时读的是 MediaQuery 整块屏宽——R5 的违例在这一处，网格自己反而是按所在约束宽算的。
+   外层左右各 24pt 内边距来自 detail_page.dart:332。DetailPage 是整屏路由
+   （library_page.dart:1402 push），所以今天的约束宽与外壳那条 bar 无关。 */
+const GRID_PAD = 48;
+const CELL_SPACING = 10;
+const INFO_BLOCK_PT = 89;    // 网格下方那块信息占位（.blk 41px + 上下 margin 14px）÷ 0.62
+const TABBAR_PT = 69;        // 横排底部条（本轮实测 .tabbar 43px ÷ 0.62）
+function derivedCols(availPt, cellExtent){
+  return Math.max(1, Math.floor((availPt + CELL_SPACING) / (cellExtent + CELL_SPACING)));
+}
+
+/* 外屏摄像头遮挡：本轮 Mac 探针经 UIView.reservedRegions(of: .occlusion) 实测两块，
+   坐标在根 view 的 466×678pt 空间里，都 isActive=true、margins 全 0（§2）。 */
+const OCCL_COVER = [
+  {x:399.7, y:29.3, w:37, h:37,  lab:'前摄'},
+  {x:382,   y:0,    w:84, h:170, lab:'右侧硬件带'}
+];
+
+/* 各屏的 safeAreaInsets（iOS 记法 t,l,b,r）。外屏那格是本轮 Mac 探针在合上态读的一手值
+   ——注意 top 是 0：系统没有从顶部留边，而是把 84pt 整条留在右边（两块遮挡都落在里面），
+   底部 34 是 home indicator。内屏三格没有一手帧，只能标待采。 */
+const SCREENS = {
+  cover:          {w:466, h:678, screen:'cover',   sizeClass:'compact', fold:'none',    posture:'flat',      label:'外屏（合上）',  px:'1398×2034', insets:'0 / 0 / 34 / 84（实测）', src:'Mac 探针实测 404 帧（合上态）'},
+  innerPortrait:  {w:669, h:951, screen:'inner',   sizeClass:'regular', fold:'present', posture:'flat',      label:'内屏·竖',       px:'2007×2853', insets:'未采到展开帧', src:'设备定义÷实测倍率3 + 第三方互证，待展开帧'},
+  innerLandscape: {w:951, h:669, screen:'inner',   sizeClass:'regular', fold:'present', posture:'flat',      label:'内屏·横',       px:'2853×2007', insets:'未采到展开帧', src:'同上，横持'},
+  book:           {w:669, h:951, screen:'inner',   sizeClass:'regular', fold:'present', posture:'halfOpen',  axis:'v', label:'半开·书立（竖带分左右）', px:'2007×2853', insets:'未采到半开帧', src:'带轴向属几何推断，待核'},
+  laptop:         {w:951, h:669, screen:'inner',   sizeClass:'regular', fold:'present', posture:'halfOpen',  axis:'h', label:'半开·笔记本（横带分上下）', px:'2853×2007', insets:'未采到半开帧', src:'同上'},
+  phone:          {w:390, h:844, screen:'unknown', sizeClass:'unknown', fold:'unknown', posture:'unknown',   label:'非 Duo 手机（对照）', px:'—', insets:'不读（一期逐字保持今天）', src:'未知主机：一期逐字保持今天'}
+};
+
+/* 传输条条目：名单原样来自 playback_transport.dart:22。
+   kind 决定它能不能进竖排（R14）；badge 决定它在同组里更晚被收（R15）。
+   播放 / 选集 / 倍速 / 全屏 不在名单里 —— 注释写明永不丢弃。 */
+const NEVER_DROP = [
+  {id:'play',    label:'播放/暂停', kind:'icon', ic:'▶'},
+  {id:'episodes',label:'选集',      kind:'icon', ic:'▤'},
+  {id:'speed',   label:'倍速',      kind:'icon', ic:'1.0×'},
+  {id:'fullscreen',label:'全屏',    kind:'icon', ic:'⛶'}
+];
+const TRANSPORT = [
+  {id:'clock-seconds', label:'当前/总时长', kind:'text',       ic:'⏱'},
+  {id:'episodes-pair', label:'上下集',      kind:'icon',       ic:'⇄'},
+  {id:'skip-pair',     label:'±10 秒',      kind:'icon',       ic:'±'},
+  {id:'volume-slider', label:'音量滑杆',    kind:'customView', ic:'🔊'},
+  {id:'quality',       label:'清晰度',      kind:'icon',       ic:'HD'},
+  {id:'picture-in-picture', label:'悬浮播放', kind:'icon',      ic:'⧉'},
+  {id:'cast',          label:'投屏',        kind:'icon', ic:'⤴', badge:'2'}
+];
+
+const STATE = {pose:'cover', rule:'both', fold:'auto'};
+
+/* ---- §5.1 的滞后容忍：矛盾读数不许把控件位置绑在瞬时值上 ---- */
+function divisionFor(p, foldRead){
+  const halfOpen = p.posture === 'halfOpen';
+  let active;
+  if(foldRead === 'unreachable') active = false;
+  else if(foldRead === 'forceActive') active = true;
+  else if(foldRead === 'forceInactive') active = false;
+  else active = halfOpen;
+  if(p.fold === 'none' || p.fold === 'unknown' || !active) return null;
+  /* 带的轴向 = 垂直于铰链。半开姿势由该姿势给定；强制读数时按屏形取近似
+     （竖屏左右分、横屏上下分）。这条轴向属几何推断，本轮 404 帧全是合上态、
+     外屏根本没有 division，所以轴向与居中都还没有一手帧支撑（§8 第 4 项）。 */
+  const horizontal = p.axis === 'h' || (p.axis === undefined && p.w > p.h);
+  return horizontal
+    ? {axis:'h', pos:(p.h - DIV) / 2, size:DIV}
+    : {axis:'v', pos:(p.w - DIV) / 2, size:DIV};
+}
+
+/* 奇偶只在「这台有折」时才是 R23 的话柄；未知主机一期不强转。 */
+function parityNote(n, fold){
+  const odd = n % 2;
+  if(fold === 'present') return odd ? '奇（R23 反对：这台有折）' : '偶（R23 ✓）';
+  if(fold === 'none') return odd ? '奇（这块屏没折，R23 不管）' : '偶';
+  return (odd ? '奇' : '偶') + '（主机未知，一期不强转）';
+}
+
+function lagNote(p, foldRead, div){
+  if(foldRead === 'unreachable' && p.fold === 'present')
+    return 'Flutter 层读不到 region（今天）：原生 UIHinge / reservedRegions 在 iOS 27.1 已可用且本轮已被探针读到（§3、§8），但引擎 PR #193025 未合、MediaQuery 里没有 displayFeatures，所以应用侧不做中缝预留，靠 §5.4/§5.7 的结构（分栏落在中缝、偶数列）保证「一条带出现在中间」不致命。';
+  if(foldRead === 'forceActive' && p.posture === 'flat')
+    return '矛盾读数 A：姿势说全开、带还 active（第三方 PR 正文实测：放平后 2–15ms 才清）。§5.1 → 继续让位，直到下一次 layout 读到带消失。';
+  if(foldRead === 'forceInactive' && p.posture === 'halfOpen')
+    return '矛盾读数 B：姿势说折起、带未 active（第三方 PR 正文实测：折起后约 1s 才置位；本轮没有展开帧，这条时序还没复核，§8 第 5 项）。§5.1 → 这一帧还没让位，是已知滞后窗口，不是新 bug。';
+  return null;
+}
+
+/* ---- §5.2 的两级判据：已知 Duo 读尺寸级；未知主机逐字保持今天 ---- */
+function env(poseKey, rule){
+  const p = SCREENS[poseKey];
+  /* 这条带是物理事实：不管判据认不认它，它都在那儿。
+     「现状」那一栏画的正是「带切在内容上而布局毫无反应」。 */
+  const physical = divisionFor(p, STATE.fold);
+  const div = rule === 'current' ? null : physical;
+  const todayWidthMode = p.w < 720 ? 'bottom' : (p.w < 1100 ? 'rail' : 'sidebar');
+  if(rule === 'current' || p.screen === 'unknown'){
+    const cell = p.w < 720 ? 100 : 120;
+    return {
+      p, div, physicalDiv:physical,
+      regular: p.w >= 720,
+      dialogHost: p.w >= 720 && p.h >= 400,
+      bars: todayWidthMode,
+      /* 今天 720 以上只换了一条 bar（rail / 200 侧栏，library_page.dart:3153-3231），
+         内容区始终是一栏——主从双栏是本设计在 regular 下新引入的，不是今天的读数。 */
+      panes: 1,
+      rows: p.w < 720 ? 3 : 4,
+      cellExtent: cell,
+      columns: derivedCols(p.w - GRID_PAD, cell),
+      gridAvail: p.w - GRID_PAD,
+      margin: p.w < 720 ? 16 : 28,
+      unknownHost: p.screen === 'unknown',
+      source: rule === 'current' ? '源码字面判据（<code>library_page.dart:3101</code> 等 §4.1 现读的 13 行 / 16 个字面量）'
+                                 : '未知主机 → 一期不改，档位与今天逐字相同（§5.2）'
+    };
+  }
+  const regular = p.sizeClass === 'regular';
+  const barsVertical = p.screen === 'cover' || (p.screen === 'inner' && p.w > p.h);
+  const cell = regular ? 120 : 100;
+  /* 推出来的列数才是 R23 的话柄。约束宽按「详情页还是整屏路由」算：只减侧栏占的那条边
+     与左右 24pt 内边距，竖带不减——§5.4 明说滚动内容不承诺让位，§5.7 的偶数律正是
+     用来让中带落在列间空档而不是卡片上的。将来详情页并成双栏的一栏时，同一个式子换成
+     那一栏的约束宽即可，规则不用改。 */
+  let gridAvail = p.w - (barsVertical ? bandWidth(p) : 0) - GRID_PAD;
+  let columns = derivedCols(gridAvail, cell);
+  if(p.fold !== 'none' && columns % 2) columns -= 1;
+  return {
+    p, div, physicalDiv:physical,
+    regular,
+    dialogHost: regular,
+    bars: barsVertical ? 'side' : 'bottom',
+    panes: regular ? 2 : 1,
+    rows: regular ? 4 : 3,
+    cellExtent: cell,
+    columns,
+    gridAvail,
+    margin: regular ? 28 : 16,
+    unknownHost:false,
+    source: barsVertical
+      ? '侧栏：§5.3 分派表（外屏任意方向 / 内屏横屏）'
+      : '横排：§5.3 分派表 + §1 R8「内屏竖屏保留标准横排条」'
+  };
+}
+
+/* =====================================================================
+   画 pieces
+   ===================================================================== */
+function px(pt){ return Math.round(pt * PT); }
+
+/* 侧栏宽：68pt 是 §5.3 的设计条目宽，但合上态右边带系统自己就留了 84pt（本轮实测
+   safeAreaInsets.right）。§5.3 的规则是「那条边的 padding 已 ≥ 条目宽时，条目只吃
+   padding、不再额外加宽」，所以外屏这一格的侧栏按 84pt 画，内屏没有系统带才用 68pt。
+   两者谁最终生效要等 Flutter 侧透出多少 padding（§8 第 2 项），这里先按实测值显示。
+   §9 那条冲突记在这里：若引擎把 84pt 原样透出，实现时又按 68 加宽，侧栏总宽会到 152pt，
+   外屏 466 只剩 314 给内容——所以在读到 Dart 侧的 paddingOf 之前，两侧都不许写死侧栏宽度。 */
+function bandWidth(p, mode){
+  if(mode === 'player') return 34;
+  return p.screen === 'cover' ? SYS_EDGE_COVER : BAND_ITEM;
+}
+
+function divisionLayer(e, force){
+  /* 默认只画「布局没让开」的那条带；让开了的由中缝 .gutter 承担，避免重画。
+     force 用于网格与播放器：带始终要画出来，好让人看见自己的内容有没有落在它上面。 */
+  const d = e.physicalDiv;
+  if(!d || (!force && d === e.div)) return '';
+  const cls = 'division' + (d.axis === 'h' ? ' h' : '') + (STATE.fold === 'unreachable' ? ' off' : '');
+  const geom = d.axis === 'h'
+    ? `left:0;right:0;top:${px(d.pos)}px;height:${px(d.size)}px`
+    : `top:0;bottom:0;left:${px(d.pos)}px;width:${px(d.size)}px`;
+  return `<div class="${cls}" style="${geom}"><span>折叠带 frame ${d.size}pt</span></div>`;
+}
+
+/* 外屏遮挡：本轮 Mac 探针经 UIView.reservedRegions(of: .occlusion) 实测的两块矩形，
+   都 isActive=true、margins 全 0（§2）。旧版这里画的 96×28pt 是示意角，已按真数替换。
+   窄的那块（前摄 37pt）放不下字，改画一个点，读数靠 title 与读出窗。 */
+function occlusionLayer(e){
+  if(e.p.screen !== 'cover') return '';
+  /* 两块矩形在真实几何里是叠着的（前摄落在硬件带里面），所以大的先画、小的后画才看得见。 */
+  return [...OCCL_COVER].sort((a,b)=>b.w*b.h - a.w*a.h).map(o=>{
+    const narrow = px(o.w) < 46;
+    return `<div class="occl${narrow ? ' dot' : ''}" style="left:${px(o.x)}px;top:${px(o.y)}px;width:${px(o.w)}px;height:${px(o.h)}px" title="${o.lab} ${o.w}×${o.h}pt @(${o.x}, ${o.y})">${narrow ? '' : o.lab}</div>`;
+  }).join('');
+}
+
+function sideBand(e, opts){
+  const items = opts.items, mode = opts.mode || 'shell';
+  const sysH = opts.sysH || 30;
+  /* 外屏那一格顶部实测 inset 是 0（§2 safeAreaInsets 行），所以它不叫「灵动岛」——
+     那条 84pt 的预留整条在右边，也就是这条侧栏本身。内屏没有读数，仍按今天画。
+     内屏那一格只写「灵动岛」三字：68pt 的带折成 42px，四个字会换行。 */
+  const sysLab = e.p.screen === 'cover' ? '状态栏段' : '灵动岛';
+  let rows = `<div class="sys" style="height:${px(sysH)}px"><i class="isl"></i>${sysLab}</div>`;
+  rows += `<div class="grp-lab">${mode === 'player' ? '工具栏' : '导航'}</div>`;
+  items.forEach(it=>{
+    const cls = 'it' + (it.sel ? ' sel' : '') + (it.rejected ? ' rej' : '') + (it.gone ? ' gone' : '');
+    rows += `<div class="${cls}" title="${it.label}（竖排只画图标 · R14）"><i class="ic">${it.ic || ''}</i><span class="tx">${it.label}</span>${it.badge ? `<b class="bdg">${it.badge}</b>` : ''}</div>`;
+  });
+  if(opts.overflow) rows += `<div class="ovf" title="溢出：从下往上收（R13）">···</div>`;
+  return `<div class="band" style="width:${px(bandWidth(e.p, mode))}px">${rows}</div>`;
+}
+
+function tabBar(e, sel){
+  const d = [['发现','🧭'],['分类','▦'],['榜单','🏆'],['我的','👤']];
+  return `<div class="tabbar">${d.map((x,i)=>
+    `<div class="it${i===sel?' sel':''}"><i class="ic"></i><span class="tx">${x[0]}</span></div>`).join('')}</div>`;
+}
+
+function rail(e, sel){
+  const d = ['发','类','榜','我'];
+  return `<div class="rail">${d.map((x,i)=>`<div class="it${i===sel?' sel':''}">${x}</div>`).join('')}</div>`;
+}
+
+function cards(cols, n, straddleIdx){
+  let h = '';
+  const cls = ['','b','c'];
+  for(let i=0;i<n;i++){
+    h += `<div class="cd${i===straddleIdx?' straddle':''}"><div class="cv ${cls[i%3]}"></div><div class="tt"></div><div class="tt s"></div><b class="ep">·${8 + i}集</b>${i===0?'<b class="bdg">热播</b>':''}</div>`;
+  }
+  return `<div class="grid" style="grid-template-columns:repeat(${cols},1fr)">${h}</div>`;
+}
+
+/* ---- 外壳：发现/分类 ---- */
+function shellContent(e){
+  const sel = e.p.screen === 'cover' ? 1 : 0;
+  const topbar = `<div class="topbar"><span class="ttl">发现</span><span class="sp">
+      <span class="bt on">短剧</span><span class="bt">漫剧</span><span class="bt">AI 短剧</span></span></div>`;
+  const detail = `<div class="blk"><div class="h"></div><div class="l"></div><div class="l w80"></div><div class="l w60"></div></div>`;
+  /* 折叠带吸附（§5.4）：带的轴向决定分栏的轴向，中缝落在带上。
+     不让位时（「现状」从不让位）带就切在内容栏中间。 */
+  let inner;
+  /* 主栏（放网格那一栏）的宽/高与列数由 masterPane 一处推，读数栏读同一个式子 */
+  const m = masterPane(e);
+  if(e.panes === 2 && e.div && e.div.axis === 'v'){
+    const lead = e.div.pos, trail = e.p.w - (e.div.pos + e.div.size);
+    inner = `<div class="panes">
+      <div class="pane" style="flex:0 0 ${px(lead)}px">${topbar}${cards(m.cols, m.n)}</div>
+      <div class="gutter" style="width:${px(e.div.size)}px"><span class="lbl">${e.div.size}pt</span></div>
+      <div class="pane" style="flex:1 1 ${px(trail)}px">${detail}</div>
+    </div>`;
+  } else if(e.panes === 2 && e.div && e.div.axis === 'h'){
+    const top = e.div.pos, bot = e.p.h - (e.div.pos + e.div.size);
+    inner = `<div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column">
+      <div class="pane" style="flex:0 0 ${px(top)}px">${topbar}${cards(m.cols, m.n)}</div>
+      <div class="gutter" style="height:${px(e.div.size)}px"><span class="lbl">横带 ${e.div.size}pt：分栏改为上下（R25）</span></div>
+      <div class="pane" style="flex:1 1 ${px(bot)}px">${detail}</div>
+    </div>`;
+  } else if(e.panes === 2){
+    /* 全开（division == null 但 fold != none）时 §5.4 明写「不做任何中缝预留，等分双栏是正解」，
+       所以这里画 50/50，不是今天桌面档那条 SizedBox(width: 200)（library_page.dart:3166-3167）。 */
+    inner = `<div class="panes">
+      <div class="pane" style="flex:1 1 0">${topbar}${cards(m.cols, m.n)}</div>
+      <div class="pane" style="flex:1 1 0">${detail}</div>
+    </div>`;
+  } else {
+    /* 单栏。此刻若有一条带，落在带上的卡片就是被折到的卡片 */
+    let straddle = -1;
+    const d = e.physicalDiv;
+    if(d && d.axis === 'v') straddle = 4;
+    if(d && d.axis === 'h') straddle = 3;
+    inner = `<div class="pane">${topbar}${cards(e.columns, 6, straddle)}</div>`;
+  }
+  const band = e.bars === 'side' ? sideBand(e, {
+      items:[
+        {label:'返回', ic:'←'},
+        {label:'刷新', ic:'↻'},
+        ...[['发现','🧭'],['分类','▦'],['榜单','🏆'],['我的','👤']].map((x,i)=>({label:x[0], ic:x[1], sel:i===sel}))
+      ], sysH:30
+    }) : '';
+  const railEl = e.bars === 'rail' ? rail(e, sel) : '';
+  return `<div class="scr" style="width:${px(e.p.w)}px;height:${px(e.p.h)}px">
+    ${occlusionLayer(e)}${band}
+    <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column">
+      <div style="flex:1 1 auto;min-width:0;display:flex">
+        ${railEl}
+        <div style="flex:1 1 auto;min-width:0;position:relative;display:flex">${inner}${divisionLayer(e)}</div>
+      </div>
+      ${e.bars === 'side' ? '' : tabBar(e, sel)}
+    </div>
+  </div>`;
+}
+
+/* ---- 详情 + 弹层 ---- */
+/* §5.7 的偶数列为什么是「干净地分开」：今天 669 全开推出 5 列，中带 314.5–354.5
+   正切在第 3 列的卡片上；设计后单元宽换 120 推出 4 列，中缝落在第 2、3 列之间的空档。
+   横带则切在滚动的行上 —— 那是 §5.4 的已知局限（让位只作用于页面级分栏，不作用于滚动内容，R27）。 */
+function gridStraddle(e){
+  const d = e.physicalDiv;
+  if(!d) return -1;
+  if(d.axis === 'v') return (e.columns % 2) ? Math.floor(e.columns / 2) : -1;
+  return 4;
+}
+
+/* 示意格里画几行：真的 EpisodePager 是 rows × 列数 一屏，画进设备框就得按框里剩下的
+   高度算，否则外屏那种「3 列宽卡」会把第三行顶出屏——用实测高度而不是拍一个行数，
+   正是 §5.3 那条溢出规则的同款理由。本轮量过：24 组组合 × 每组 6 个设备框 = 144 框、
+   7872 个非零盒，越出设备框 0，卡片内被裁掉的标题条 0，海报比例失真 0。 */
+function gridDemoRows(e){
+  return gridRows(e.columns, e.gridAvail, e.p.h - 150 - INFO_BLOCK_PT);
+}
+
+/* 栏内可用高决定画几行：.grid 的 align-content 是默认值，容器有确定高度时
+   会把 auto 行拉平分配，海报（3:4）就被卡片自己的 overflow:hidden 裁成半张。
+   所以条目数必须按高度推，而不是写死 6 个。cols / innerWPt 都由 §5.7 那条
+   floor 公式推，两处（详情页、双栏主栏）共用同一份算术。 */
+function gridRows(cols, innerWPt, availHPt){
+  /* 一张卡片的固有高 = 海报（3:4）+ 两条标题占位（.tt 5px×2 + 4/2px 间距 ≈ 16px ÷ 0.62 ≈ 26pt）。
+     少留这 26pt 时，行高被压到只剩海报，第二条标题被卡片自己的 overflow:hidden 切掉。
+     再扣掉 .grid 的上下内边距（14px ≈ 23pt）与行间距（5px ≈ 8pt）。 */
+  const rowPt = (innerWPt / cols) * 4 / 3 + 26;
+  const padPt = 23, gapPt = 8;
+  return Math.max(1, Math.min(3, Math.floor((availHPt - padPt + gapPt) / (rowPt + gapPt))));
+}
+const TOPBAR_PT = 42;   // .topbar 那 26px ÷ 0.62
+
+/* 双栏时「放网格那一栏」的几何：宽度按带的轴向（竖带取带左侧、横带取整宽、
+   全开等分取一半），高度同理，再扣掉横排底部条。画图与读数栏共用这一个式子——
+   分栏后主栏的列数按栏宽用同一条 floor 公式推，不是整屏那个读数
+   （§5.7 落点规则：R5 的违例在调用方喂进去的宽，不在网格里）。 */
+function masterPane(e){
+  const contentW = e.p.w - (e.bars === 'side' ? bandWidth(e.p) : 0);
+  const paneH = e.p.h - (e.bars === 'side' ? 0 : TABBAR_PT);
+  let wPt = contentW, hPt = paneH;
+  if(e.div && e.div.axis === 'v') wPt = e.div.pos;
+  else if(e.div && e.div.axis === 'h') hPt = e.div.pos;
+  else if(e.panes === 2) wPt = contentW / 2;
+  const innerW = wPt - GRID_PAD;
+  const cols = Math.max(1, derivedCols(innerW, e.cellExtent));
+  const rows = gridRows(cols, innerW, hPt - TOPBAR_PT);
+  return {wPt, hPt, cols, rows, n: cols * rows};
+}
+function detailContent(e){
+  const band = e.bars === 'side'
+    ? sideBand(e, {items:[{label:'返回', ic:'←'},{label:'收藏', ic:'♡'},{label:'下载', ic:'⤓', badge:'1'},{label:'分享', ic:'⤴'}], sysH:30})
+    : '';
+  /* 弹层：dialogHost 决定居中对话框还是底部抽屉（§5.2）；
+     有带时对话框不许压在中缝上（§5.6），退到带的近侧半屏里。 */
+  let pop;
+  if(e.dialogHost){
+    let avail = e.p.w - (e.bars === 'side' ? bandWidth(e.p) : 0);
+    let left = (e.p.w - Math.min(520, avail)) / 2;
+    let width = Math.min(520, avail);
+    let top = 120;
+    const d = e.div;
+    if(d && d.axis === 'v'){
+      width = Math.min(420, e.p.w - (d.pos + d.size) - 16);
+      left = d.pos + d.size + 8;
+    } else if(d && d.axis === 'h'){
+      top = d.pos + d.size + 10;
+    }
+    const head = e.p.screen === 'cover' ? '<div class="vhead"><i class="x"></i><i class="d"></i></div>' : '';
+    pop = `<div class="dlg" style="left:${px(left)}px;width:${px(width)}px;top:${px(top)}px">
+      ${e.p.screen === 'cover' ? '' : '<div class="hh">下载 · 选择集数与清晰度</div>'}
+      ${[0,1,2].map(i=>`<div class="rowl"><i class="bx on"></i>第 ${9+i} 集<span class="q">1080P</span></div>`).join('')}
+      <div class="dlgfoot">${e.p.screen === 'cover' ? '' : '<div class="bt2">取消</div>'}<div class="bt2 p">下载 3 集</div></div>
+    </div>`;
+  } else {
+    const d = e.div;
+    pop = `<div class="sheet" style="${d && d.axis === 'v' ? 'left:' + px(d.pos + d.size + 8) + 'px;' : ''}">
+      <div class="grab"></div><div class="hh" style="font-size:11px;font-weight:700;color:var(--ink);margin-bottom:5px">下载 · 选择集数与清晰度</div>
+      ${[0,1].map(i=>`<div class="rowl"><i class="bx on"></i>第 ${9+i} 集<span class="q">1080P</span></div>`).join('')}
+      <div class="sheetfoot"><div class="bt2">取消</div><div class="bt2 p">下载 2 集</div></div>
+    </div>`;
+  }
+  return `<div class="scr" style="width:${px(e.p.w)}px;height:${px(e.p.h)}px">
+    ${occlusionLayer(e)}${band}
+    <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;position:relative">
+      <div class="topbar"><span class="ttl">剧名 · 第 12 集</span><span class="sp"><span class="bt on">题材词</span><span class="bt">同题材</span></span></div>
+      <div style="flex:1 1 auto;position:relative">
+        ${cards(e.columns, e.columns * gridDemoRows(e), gridStraddle(e))}
+        <div class="blk"><div class="h"></div><div class="l"></div><div class="l w80"></div></div>
+        ${divisionLayer(e, true)}${pop}
+      </div>
+      ${e.bars === 'side' ? '' : tabBar(e, 0)}
+    </div>
+  </div>`;
+}
+
+/* ---- 播放器 ---- */
+/* 侧向传输条用的就是实验台那一份丢弃计算（§5.3 第 4 条：dropOrder 接上真实测量） */
+function tpBand(e){
+  const r = computeDrop(e.p.h - 16);
+  const cells = r.out.map(t=>{
+    if(t.rejected) return `<i class="b rej" title="${t.label}（R14：无图标 / 自定义 view 不进竖排）">${t.ic}</i>`;
+    if(t.gone) return '';
+    return `<i class="b${t.id === 'clock-seconds' ? ' d2' : ''}${NEVER_DROP.some(n=>n.id===t.id) ? ' never' : ''}" title="${t.label}">${t.ic}</i>`;
+  }).join('');
+  return `<div class="tpband">${cells}${r.goneCount ? '<i class="ovf">···</i>' : ''}</div>`;
+}
+function playerContent(e){
+  const W = e.p.w, H = e.p.h;
+  const side = e.bars === 'side';
+  const inset = side ? 34 : 0;
+  let video, info = '', extra = '';
+  if(e.div && e.div.axis === 'h'){
+    /* overlay 规则（R26）：primary（画面）落带的近侧（下），secondary（信息）落远侧（上） */
+    const top = e.div.pos + e.div.size;
+    const ok = e.regular || e.dialogHost || e.p.screen !== 'unknown';
+    video = `<div class="vid lap" style="left:0;right:${inset}px;top:${px(top)}px;bottom:${side?0:44}px">
+        <div class="ph">画面 · 近侧半屏</div></div>`;
+    info = `<div class="infohalf" style="bottom:${px(H - e.div.pos)}px">
+        <div class="t">${ok ? '设计后：画面推到折叠带近侧（R26）' : '—'}</div>
+        <div class="eps">${Array.from({length:18},(_,i)=>`<i class="${i===11?'cur':(i<11?'done':'')}">${i+1}</i>`).join('')}</div>
+      </div>`;
+  } else if(e.div && e.div.axis === 'v'){
+    const left = e.div.pos + e.div.size;
+    video = `<div class="vid" style="left:${px(left)}px;right:${inset}px;top:0;bottom:${side?0:44}px"><div class="ph">画面 · 折叠带右侧（近侧）</div></div>`;
+    info = `<div class="infohalf" style="right:${px(W - e.div.pos)}px">
+        <div class="t">选集 · 远侧半屏</div>
+        <div class="eps" style="grid-template-columns:repeat(4,1fr)">${Array.from({length:12},(_,i)=>`<i class="${i===11?'cur':(i<11?'done':'')}">${i+1}</i>`).join('')}</div>
+      </div>`;
+  } else {
+    video = `<div class="vid" style="left:0;right:${inset}px;top:0;bottom:${side?0:44}px">
+        <div class="ph">${e.p.screen === 'cover' ? '画面可满宽（R19）' : '画面'}</div></div>`;
+    if(e.regular){
+      info = `<div class="infohalf" style="bottom:auto;top:0;height:${px(96)}px;background:transparent;pointer-events:none">
+          <div class="t" style="color:#fff;opacity:.8">同题材推荐 · 覆盖在画面上（overlay 全开态）</div></div>`;
+    }
+  }
+  const transport = side ? tpBand(e)
+    : `<div class="transport"><i class="b"></i><i class="b sm"></i><i class="b sm"></i><span class="bar"><i></i></span><span class="tx">12:04 / 48:30</span><i class="b sm"></i><i class="b sm"></i><i class="b"></i></div>`;
+  return `<div class="scr" style="width:${px(W)}px;height:${px(H)}px;background:#000">
+    <div style="flex:1 1 auto;position:relative">
+      ${occlusionLayer(e)}${video}${info}${transport}${divisionLayer(e, true)}
+    </div>
+    ${extra}
+  </div>`;
+}
+
+/* =====================================================================
+   溢出实验台（§5.3 第 4 条：接上 dropOrder 的真实测量）
+   ===================================================================== */
+const ITEM_H = 46;       // pt，竖排条目的固有高（含段间距）
+function computeDrop(availPt){
+  /* 顺序：系统带(30) + 段标题(12) 之后才是条目；条目先排永不丢弃的，
+     再按 dropOrder 原序排其余，带徽章的项在「被收起序列」里更靠后（R15）。
+     无图标 / 自定义 view 的条目不具备进竖排的形态（R14）→ rejected，不占高度。 */
+  const usable = availPt - 30 - 12;
+  const neverIds = new Set(NEVER_DROP.map(n=>n.id));
+  const others = TRANSPORT.slice();
+  others.sort((a,b)=> (b.badge?1:0) - (a.badge?1:0));
+  const rest = usable - NEVER_DROP.length * ITEM_H;
+  const out = [];
+  let keptCount = 0, goneCount = 0, rejCount = 0;
+  for(const t of [...NEVER_DROP, ...TRANSPORT]){
+    const rejected = t.kind === 'text' || t.kind === 'customView';
+    let kept, gone;
+    if(rejected){ kept = false; gone = false; rejCount++; }
+    else if(neverIds.has(t.id)){ kept = true; gone = false; }
+    else {
+      kept = others.indexOf(t) * ITEM_H < rest;
+      gone = !kept;
+    }
+    if(kept) keptCount++;
+    if(gone) goneCount++;
+    out.push({...t, rejected, kept, gone});
+  }
+  return {out, usable, keptCount, goneCount, rejCount};
+}
+
+function renderBench(){
+  const avail = +document.getElementById('h').value;
+  document.getElementById('hval').textContent = avail;
+  const r = computeDrop(avail);
+  const rows = r.out.map(t=>{
+    const pill = t.rejected ? '<span class="pill rej">R14 拒绝进侧栏</span>'
+      : t.kept ? '<span class="pill keep">竖排（只画图标）</span>'
+      : '<span class="pill ovf">溢出菜单</span>';
+    const nd = NEVER_DROP.some(n=>n.id===t.id) ? '<span class="pill never">永不丢弃</span>' : '';
+    return `<tr><td><code>${t.id}</code><br><span style="color:var(--ink3)">${t.label}</span></td>
+            <td>${t.kind}</td><td>${pill} ${nd}</td></tr>`;
+  }).join('');
+  document.getElementById('dropTbl').innerHTML =
+    `<tr><th>条目</th><th>kind</th><th>本高度下的处置</th></tr>` + rows +
+    `<tr><td colspan="3" style="color:var(--ink3)">可用 <b>${r.usable}pt</b> · 竖排 ${r.keptCount} 项 · 溢出 ${r.goneCount} 项 · R14 拒绝 ${r.rejCount} 项。
+     被收的项可能出现在列表中部而不是末尾：优先级驱动（R15），不是位置驱动。</td></tr>`;
+  const bandHtml = r.out.filter(t=>!t.rejected).map(t=>
+    `<div class="it${t.gone?' gone':''}${t.id==='play'?' sel':''}" title="${t.label}">
+       <i class="ic">${t.ic}</i>${t.badge?`<b class="bdg">${t.badge}</b>`:''}</div>`).join('')
+    + (r.out.some(t=>t.gone) ? '<div class="ovf">···</div>' : '');
+  document.getElementById('fakeBand').style.height = px(avail) + 'px';
+  document.getElementById('fakeBand').innerHTML =
+    `<div class="sys" style="height:${px(30)}px"><i class="isl"></i>灵动岛 / 状态栏</div>
+     <div class="grp-lab">工具栏 + 标签栏</div>${bandHtml}`;
+  return r;
+}
+
+/* =====================================================================
+   读出窗（§5.1 的字段名与 Dart 侧一一对应）
+   ===================================================================== */
+function readout(){
+  const p = SCREENS[STATE.pose];
+  const cur = env(STATE.pose, 'current'), des = env(STATE.pose, 'designed');
+  const divTxt = des.div
+    ? `<span class="v">${des.div.size}pt @ ${des.div.axis === 'h' ? 'y=' + Math.round(des.div.pos) : 'x=' + Math.round(des.div.pos)}（${des.div.axis === 'h' ? '横带分上下' : '竖带分左右'}）</span>`
+    : '<span class="bad">null</span>';
+  const lag = lagNote(p, STATE.fold, des.div);
+  const rows = [];
+  rows.push(`<span class="row"><span class="k">pose          </span> <em>${p.label}</em>  screen=<span class="v">${p.screen}</span> fold=<span class="v">${p.fold}</span> posture=<span class="v">${p.posture}</span></span>`);
+  rows.push(`<span class="row"><span class="k">物理 / 逻辑   </span> ${p.px} px → <span class="v">${p.w}×${p.h} pt</span> · <span style="color:#8b90a3">${p.src}</span></span>`);
+  const occlTxt = p.screen === 'cover'
+    ? `活动遮挡 ${OCCL_COVER.map(o=>`${o.w}×${o.h}@(${Math.round(o.x)},${Math.round(o.y)})`).join(' + ')}（两块都 active、margins 全 0 · §2 实测）`
+    : (p.screen === 'inner' ? '内屏摄像头只在采集时出现，本应用不采集 → 不适用（§1 R21、§5.9）' : '主机未知，无从读取');
+  const prov = p.screen === 'cover'
+    ? '本轮 Mac 探针实测：404 帧，scale=3、H=compact/V=regular、safeAreaInsets=(0,0,34,84)'
+    : (p.screen === 'inner' ? '无一手帧：三次采样全停在合上态，展开/半开读数仍靠设备定义与第三方互证（§8）' : '非 Duo 主机：一期逐字保持今天（§5.2）');
+  rows.push(`<span class="row"><span class="k">sizeClass     </span> <em>${p.sizeClass}</em>（§1 R2：外屏 compact <b>本轮实测坐实</b> / 内屏 regular 仍靠官方明文 + 折算）</span>`);
+  rows.push(`<span class="row"><span class="k">division      </span> ${divTxt}  band=<span class="v">${p.screen === 'cover' ? `trailing（侧栏贴这条边，宽 ${SYS_EDGE_COVER}pt）` : (p.screen === 'inner' ? '待展开帧' : '—')}</span></span>`);
+  rows.push(`<span class="row"><span class="k">safeArea      </span> t/l/b/r = <span class="v">${p.insets}</span>${p.screen === 'cover' ? '（外屏顶部不留边，84pt 整条在右边 —— 两块遮挡都落在里面，§2）' : ''}</span>`);
+  rows.push(`<span class="row"><span class="k">occlusion     </span> ${occlTxt}</span>`);
+  rows.push('<hr>');
+  rows.push(`<span class="row"><span class="k">现状          </span> regularWidth=<span class="v">${cur.regular}</span> bars=<span class="v">${cur.bars}</span> panes=<span class="v">${cur.panes}</span> columns=<span class="v">${cur.columns}</span> dialogHost=<span class="v">${cur.dialogHost}</span></span>`);
+  rows.push(`<span class="row"><span class="k">设计后        </span> regularWidth=<span class="v">${des.regular}</span> bars=<span class="v">${des.bars}</span> panes=<span class="v">${des.panes}</span> columns=<span class="v">${des.columns}</span> dialogHost=<span class="v">${des.dialogHost}</span></span>`);
+  rows.push(`<span class="row"><span class="k">grid          </span> 列数 = floor((栏内可用 + 10) ÷ (单元宽 + 10))（<code>episode_pager.dart:255-259</code>）· 今天 <span class="v">${cur.columns}</span> 列 / 栏内 ${Math.round(cur.gridAvail)}pt / 单元 ${cur.cellExtent}pt / ${cur.rows} 行 → 设计后 <span class="v">${des.columns}</span> 列 / ${Math.round(des.gridAvail)}pt / ${des.cellExtent}pt / ${des.rows} 行 · ${parityNote(des.columns, p.fold)}</span>`);
+  if(des.panes === 2){
+    const mp = masterPane(des);
+    rows.push(`<span class="row"><span class="k">分栏后主栏    </span> ${des.div ? (des.div.axis === 'v' ? '竖带左侧那一栏' : '横带上侧那一栏') : '等分一半'} = <span class="v">${Math.round(mp.wPt)}×${Math.round(mp.hPt)}pt</span> → 栏内 ${Math.round(mp.wPt - GRID_PAD)}pt 推出 <span class="v">${mp.cols}</span> 列 × ${mp.rows} 行；上面那个 ${des.columns} 列是「整块屏只有一栏」时的读数，两栏并排后喂给网格的约束宽换成这一栏（§5.7 落点规则）</span>`);
+  }
+  rows.push(`<span class="row"><span class="k">设计后依据    </span> ${des.source}</span>`);
+  if(des.columns !== cur.columns || des.bars !== cur.bars || des.dialogHost !== cur.dialogHost || des.panes !== cur.panes){
+    const diff = [];
+    if(des.bars !== cur.bars) diff.push(`控制条 ${cur.bars} → ${des.bars}`);
+    if(des.panes !== cur.panes) diff.push(`分栏 ${cur.panes} → ${des.panes}`);
+    if(des.columns !== cur.columns) diff.push(`网格 ${cur.columns} → ${des.columns} 列（单元宽 ${cur.cellExtent} → ${des.cellExtent}pt，栏内可用 ${Math.round(cur.gridAvail)} → ${Math.round(des.gridAvail)}pt 推出来）`);
+    if(des.dialogHost !== cur.dialogHost) diff.push(`弹层 抽屉 → 对话框`);
+    rows.push(`<span class="row"><span class="k">差异          </span> <span style="color:#ff9db1">${diff.join(' · ')}</span></span>`);
+  } else {
+    rows.push(`<span class="row"><span class="k">差异          </span> <span class="v">无 —— 未知主机一期逐字保持今天（§5.2）</span></span>`);
+  }
+  if(lag) rows.push(`<span class="row"><span class="k">滞后          </span> <span style="color:#ffd08a">${lag}</span></span>`);
+  rows.push(`<span class="row"><span class="k">状态          </span> <span style="color:#8b90a3">${prov}</span></span>`);
+  document.getElementById('readout').innerHTML = rows.join('');
+}
+
+/* ===================================================================== */
+function rules(poseKey, builder){
+  const list = STATE.rule === 'both' ? ['current','designed'] : [STATE.rule];
+  return list.map(rule=>{
+    const e = env(poseKey, rule);
+    const body = builder(e);
+    const tag = rule === 'current' ? '现状 · 裸 720' : '设计后 · 尺寸级';
+    const cls = rule === 'current' ? '' : 'new';
+    return `<div class="cell"><h3>${e.p.label}<span class="tag ${cls}">${tag}</span></h3>
+      <div class="sub">${e.source} · 带的读数 ${e.physicalDiv
+          ? e.physicalDiv.size + 'pt ' + (e.physicalDiv.axis === 'h' ? '横带（分上下）' : '竖带（分左右）')
+            + (e.div ? ' → 已让位' : ' → <b style="color:var(--warn)">未让位，切在内容上</b>')
+          : 'null（全开或读不到）'}</div>
+      <div class="dev"><div class="pt">${e.p.w}×${e.p.h} pt</div>${body}
+        <div class="cap"><b>${e.p.w}×${e.p.h} pt</b>（${e.p.src}）</div></div></div>`;
+  }).join('');
+}
+
+function render(){
+  document.getElementById('stage-shell').innerHTML  = rules(STATE.pose, shellContent);
+  document.getElementById('stage-detail').innerHTML  = rules(STATE.pose, detailContent);
+  document.getElementById('stage-player').innerHTML  = rules(STATE.pose, playerContent);
+  document.getElementById('stage-detail').innerHTML += extraPanelRow();
+  readout();
+  renderBench();
+}
+
+/* 详情区补一只固定尺寸的对照框：把「一条规则抄了三份」这件事画出来 */
+function extraPanelRow(){
+  const p = SCREENS[STATE.pose];
+  const gate = (p.w >= 720 && p.h >= 400);
+  const designed = env(STATE.pose, 'designed').dialogHost;
+  return `<div class="cell"><h3>720×400 这道门<span class="tag">§4.1 同一规则抄了三份</span></h3>
+    <div class="sub"><code>download_selection.dart:20</code> · <code>cast_device_sheet.dart:19</code> · <code>local_cache_page.dart:102</code> —— 三处逐字相同，改一处必漏两处。</div>
+    <div class="u">
+      本机位宽 <b>${p.w}×${p.h} pt</b><br>
+      今天：<code>width&gt;=720 &amp;&amp; height&gt;=400</code> → <span class="pill ${gate?'keep':'rej'}">${gate ? '居中对话框' : '底部抽屉'}</span><br>
+      设计后：<code>dialogHost = regularWidth</code> → <span class="pill ${designed?'keep':'rej'}">${designed ? '居中对话框' : '底部抽屉'}</span><br>
+      <span style="color:var(--ink3)">（内屏 regular 但 669&lt;720：今天判成抽屉，正是 R2 的反面。外屏永远判成抽屉，符合预期。）</span>
+    </div></div>`;
+}
+
+/* ---- 控件绑定 ---- */
+function bind(segId, key, attr){
+  document.querySelectorAll(`#${segId} button`).forEach(b=>{
+    b.onclick = ()=>{
+      STATE[key] = b.dataset[attr];
+      document.querySelectorAll(`#${segId} button`).forEach(x=>x.setAttribute('aria-pressed', String(x===b)));
+      render();
+    };
+  });
+}
+bind('seg-pose','pose','pose');
+bind('seg-rule','rule','rule');
+bind('seg-fold','fold','fold');
+document.getElementById('h').addEventListener('input', renderBench);
+addEventListener('keydown', ev=>{
+  if(ev.target.tagName === 'INPUT') return;
+  const poses = ['cover','innerPortrait','innerLandscape','book','laptop','phone'];
+  const k = ev.key.toLowerCase();
+  if('123456'.includes(ev.key)) STATE.pose = poses[+ev.key - 1];
+  else if(k === 'r') STATE.rule = STATE.rule === 'both' ? 'current' : (STATE.rule === 'current' ? 'designed' : 'both');
+  else if(k === 'a') STATE.fold = 'forceActive';
+  else if(k === 'i') STATE.fold = 'forceInactive';
+  else if(k === 'u') STATE.fold = 'unreachable';
+  else return;
+  sync(); render();
+});
+function sync(){
+  const map = [['seg-pose','pose','pose'],['seg-rule','rule','rule'],['seg-fold','fold','fold']];
+  map.forEach(([seg,key,attr])=>{
+    document.querySelectorAll(`#${seg} button`).forEach(b=>b.setAttribute('aria-pressed', String(b.dataset[attr] === STATE[key])));
+  });
+}
+render();
+</script>
+</body>
+</html>
