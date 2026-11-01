@@ -18,7 +18,7 @@ Windows 构建（插件符号链接 `ERROR_INVALID_FUNCTION`、UNC 工作目录�
 | `packages/update` `dart test` | +32 −1（既有的路径分隔符断言，见下） |
 | `packages/cast` `dart test` | +52 全过 |
 | `packages/tv` `flutter test` | +38 全过（本轮 +2：单行框交还上下、多行框保留上下） |
-| `packages/app` `flutter test` | +399 ~1 全过（本轮 +3：页头刷新、卡片右键开面板、TV 搜索框走得出去） |
+| `packages/app` `flutter test` | +399 ~1 全过（本轮 +11：榜单 3、卡片手势 4、欠装 3、TV 搜索框走得出去 1；388 → 399 的差值与逐文件新增数现读对齐） |
 | `dart compile exe tool/verify_portable.dart` 后本机原生跑 | 103 向量全过（含 96 条六段签名） |
 | `dart compile js -O2` 后 node 跑同一份产物 | 103 向量全过 |
 | `dart run tool/verify_media.dart` | 84 样本解密、0 残留密文，avc1 + mp4a 两条轨 |
