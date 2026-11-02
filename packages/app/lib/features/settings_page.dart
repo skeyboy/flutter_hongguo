@@ -886,6 +886,14 @@ class _SettingsPageState extends State<SettingsPage> {
                           'TV 模式：离开应用暂停播放，不启用画中画；最多提前缓存 1 集，同时准备 1 个任务。',
                         ),
                       _section('播放与提前缓存', [
+                        if (!tvBuild)
+                          _switch(
+                            '边下边播',
+                            '加密剧集在下载完成前就播放已解密的片段，弱网下更快起播；这一集会临时占用约两倍空间。',
+                            draft.progressivePlayback,
+                            (v) =>
+                                draft = draft.copyWith(progressivePlayback: v),
+                          ),
                         _switch(
                           '提前缓存后续剧集',
                           '播放当前集时，自动准备后续剧集的完整文件。',

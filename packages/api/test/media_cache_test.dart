@@ -64,8 +64,23 @@ void main() {
     );
   });
   tearDown(() async {
+    cache.close();
     dio.close(force: true);
-    await temp.delete(recursive: true);
+    // A cancelled preparation releases its working file in its own finally, so
+    // the tail of the job can still be running when the test returns. Windows
+    // refuses to delete a directory while a file inside it is open, hence the
+    // short settle window instead of an immediate delete.
+    Object? failure;
+    for (var attempt = 0; attempt < 50; attempt++) {
+      try {
+        await temp.delete(recursive: true);
+        return;
+      } on FileSystemException catch (error) {
+        failure = error;
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+    }
+    throw failure!;
   });
   test(
     'preparation timing separates transfer decrypt and cache hits',

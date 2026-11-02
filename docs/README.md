@@ -52,7 +52,7 @@
 
 1. [文档与代码对应表](project-map.md)：定位每项流程对应的源码、测试和工具。
 2. [当前 Mac 独立 App 与真实单集验收](macos-independent-app-poc.md)：最新的本机原生 POC 结果。
-3. [下载、解密、缓存与播放器实现](native-playback-pipeline.md)：已经落地的完整链路。
+3. [下载、解密、缓存与播放器实现](native-playback-pipeline.md)：已经落地的完整链路，含默认关闭的「边下边播」渐进通道。
 4. [第一阶段核心验证](initial-core-validation.md)：初始算法迁移与对拍记录。
 
 ## 原始分析结果

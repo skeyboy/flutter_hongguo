@@ -151,6 +151,10 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('my-settings')));
       await tester.pumpAndSettle();
       expect(find.byType(SettingsPage), findsOneWidget);
+      // A closed dropdown shows only its own value, so the next row has to be
+      // scrolled into view before its tap can open the menu.
+      await tester.ensureVisible(find.text('3 集'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('3 集'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('5 集').last);

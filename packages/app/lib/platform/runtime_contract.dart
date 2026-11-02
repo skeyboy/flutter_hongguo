@@ -29,6 +29,15 @@ abstract interface class PlaybackJob {
   void release();
 }
 
+/// A job whose video can start before its file is finished.
+///
+/// [earlySource] is a local origin serving the playable prefix of a download
+/// still in flight, or null when this episode has to wait for its whole file —
+/// a cached hit, an unencrypted source, or a stream the pipeline gave up on.
+abstract interface class EarlyPlayableJob {
+  Future<String?> get earlySource;
+}
+
 /// Local startup metrics distinguish preparation from player opening; not first-frame timing.
 class PlayerStartupTiming {
   final Duration preparation, open, elapsed;

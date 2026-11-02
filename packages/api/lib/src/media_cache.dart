@@ -8,6 +8,8 @@ import 'package:hongguo_core/hongguo_native.dart';
 
 import 'video_model_client.dart';
 import 'request_control.dart';
+import 'progressive_lane.dart';
+import 'progressive_stream_server.dart';
 
 enum MediaStage {
   queued,
@@ -49,14 +51,29 @@ class MediaCancelled implements Exception {
 
 class MediaPreparation {
   final _result = Completer<String>();
+  final _early = Completer<String?>();
   final void Function(MediaProgress)? onProgress;
   void Function()? _release;
+  bool _settled = false;
   Future<String> get result => _result.future;
+
+  /// Loopback URL of a stream that plays while the transfer still runs, or
+  /// null when this preparation cannot start early. It never stays pending
+  /// once [result] has an answer, so a player can await both in order.
+  Future<String?> get early => _early.future;
   MediaPreparation(this.onProgress);
   void cancel() {
+    _settle();
     if (_result.isCompleted) return;
     _release?.call();
     _result.completeError(const MediaCancelled());
+  }
+
+  /// Stops late early-playback news: after the job settles, the only source
+  /// worth handing the player is the finished file.
+  void _settle() {
+    _settled = true;
+    if (!_early.isCompleted) _early.complete(null);
   }
 }
 
@@ -104,6 +121,15 @@ class _Job {
       } catch (_) {}
     }
   }
+
+  /// Hands the mid-transfer URL to every lease that is still waiting for
+  /// preparation, so the player can start before the file is complete.
+  void announceEarly(String uri) {
+    for (final lease in leases.toList()) {
+      if (lease._settled || lease._early.isCompleted) continue;
+      lease._early.complete(uri);
+    }
+  }
 }
 
 /// Streams ciphertext to private working files. Only verified, atomically
@@ -135,8 +161,26 @@ class MediaCache {
 
   /// Explicit user downloads survive ordinary LRU and cache clearing.
   final bool Function(String vid, String quality)? retainFile;
+
+  /// Turns an encrypted transfer into a mid-download loopback stream when on.
+  /// The answer is sampled per job, so a settings change applies to the next
+  /// preparation without restarting the cache.
+  final bool Function()? progressivePlayback;
+
+  /// Memory a progressive plan may spend on header regions the transfer has
+  /// not reached yet, plus the clear prefix that must exist before the URL is
+  /// handed to a player.
+  final int progressiveMetadataBytes, progressiveOpenFloorBytes;
+
   final _jobs = <String, _Job>{};
   final _pins = <String, int>{};
+
+  /// Live mid-download streams, by job key. A published one keeps its mount
+  /// until the player releases the pin, because the URL it was opened with
+  /// still reads that file.
+  final _lanes = <String, ProgressiveLane>{};
+  ProgressiveStreamServer? _streamServer;
+  Future<ProgressiveStreamServer>? _bindingServer;
 
   /// Pinned bytes split by ownership: automatic cache files count against the
   /// maxBytes budget, manual (retained) downloads never squeeze that budget.
@@ -173,8 +217,30 @@ class MediaCache {
     this.maxConcurrent = 2,
     this.maxDownloadConcurrent = 1,
     this.retainFile,
+    this.progressivePlayback,
+    this.progressiveMetadataBytes = 8 * 1024 * 1024,
+    this.progressiveOpenFloorBytes = 256 * 1024,
   });
   int get _autoPinnedBytes => _autoBytes.values.fold<int>(0, (a, b) => a + b);
+
+  /// One loopback origin per cache, bound on the first progressive job so a
+  /// disabled setting never opens a socket.
+  Future<ProgressiveStreamServer> _openStreamServer() {
+    final existing = _streamServer;
+    if (existing != null) return Future.value(existing);
+    return _bindingServer ??=
+        () async {
+          final server = await ProgressiveStreamServer.bind();
+          if (_closed) {
+            await server.close();
+            throw const MediaCancelled();
+          }
+          return _streamServer = server;
+        }().catchError((Object error, StackTrace stack) {
+          _bindingServer = null;
+          Error.throwWithStackTrace(error, stack);
+        });
+  }
 
   void _trackPin(String path, int size) {
     (_retainedPath(path) ? _retainedBytes : _autoBytes)[path] = size;
@@ -262,9 +328,11 @@ class MediaCache {
         }
         if (lease._result.isCompleted) return;
         _trackPin(output.path, output.lengthSync());
+        lease._settle();
         lease._result.complete(output.path);
       } catch (error, stack) {
         release(lease);
+        lease._settle();
         if (!lease._result.isCompleted) {
           lease._result.completeError(error, stack);
         }
@@ -358,6 +426,7 @@ class MediaCache {
       _pending.remove(job);
       if (identical(_jobs[job.key], job)) _jobs.remove(job.key);
       for (final lease in job.leases.toList()) {
+        lease._settle();
         if (!lease._result.isCompleted) {
           lease._result.completeError(const MediaCancelled());
         }
@@ -374,16 +443,28 @@ class MediaCache {
         if (!lease._result.isCompleted) {
           lease._result.completeError(const MediaCancelled());
         }
+        lease._settle();
       }
     }
     _pending.clear();
     _jobs.clear();
+    // Unpublished streams are half-written ciphertext-derived files; a job
+    // that finished already handed its lane to a pin.
+    for (final lane in _lanes.values) {
+      unawaited(lane.discard());
+    }
+    _lanes.clear();
+    final server = _streamServer;
+    _streamServer = null;
+    unawaited(server?.close());
   }
 
   Future<void> _run(_Job job) async {
     String? working;
     String? workingIdentity;
-    var cacheHit = false, reported = false;
+    ProgressiveLane? lane;
+    var cacheHit = false, reported = false, streamPublished = false;
+    var keepStream = false;
     void report(Object? error) {
       if (reported) return;
       reported = true;
@@ -438,7 +519,35 @@ class MediaCache {
         working =
             '${output.path}.${DateTime.now().microsecondsSinceEpoch}.${_serial++}.part';
         workingIdentity = working;
+        final cipher = working;
         job.progress(const MediaProgress(MediaStage.downloading));
+        // A manual download is the user's own transfer, not a stream the
+        // player is waiting on; it keeps the single-pass pipeline it always
+        // had. Web and TV clients never pass the callback, so they are none
+        // closer to a loopback origin than before.
+        final progressiveKey = track.encrypted
+            ? Spade.decode(track.spadeA)?.hex
+            : null;
+        if (progressiveKey != null &&
+            (progressivePlayback?.call() ?? false) &&
+            !job.manual) {
+          lane = ProgressiveLane(
+            encryptedPath: working,
+            clearPath: output.path,
+            keyHex: progressiveKey,
+            fetchRange: progressiveRangeFetcher(dio, track.url),
+            server: await _openStreamServer(),
+            metadataBudgetBytes: progressiveMetadataBytes,
+            openFloorBytes: progressiveOpenFloorBytes,
+          );
+          _lanes[job.key] = lane;
+          final started = lane;
+          unawaited(
+            started.playable.then((uri) {
+              if (uri != null) job.announceEarly(uri);
+            }),
+          );
+        }
         void report(int received, int total) {
           if (job.background && !retainedJob && maxBytes > 0) {
             if (received > (_reserved[job] ?? 0)) _reserved[job] = received;
@@ -449,6 +558,11 @@ class MediaCache {
               job.token.cancel('Background cache budget exceeded');
             }
           }
+          // Feeding the lane cannot disturb the transfer: a lane that fails
+          // reports through its own futures.
+          try {
+            lane?.notify(received, total);
+          } catch (_) {}
           job.progress(
             MediaProgress(
               total == -1 ? MediaStage.waitingNetwork : MediaStage.downloading,
@@ -482,15 +596,27 @@ class MediaCache {
           );
         }
         _check(job);
-        if (track.encrypted) {
+        // A lane that survived the transfer already wrote the finished clear
+        // file under its final cache name; everything else takes the
+        // whole-file path it always had.
+        var clear = working;
+        if (lane != null) {
+          final streamed = await lane.finish(await File(working).length());
+          if (streamed != null) {
+            streamPublished = true;
+            clear = streamed;
+          }
+        }
+        _check(job);
+        if (!streamPublished && track.encrypted) {
           job.progress(const MediaProgress(MediaStage.decrypting));
           await FileDecryptor.decrypt(working, track.spadeA);
         }
         _check(job);
         job.progress(const MediaProgress(MediaStage.validating));
-        await FileDecryptor.validateClear(working);
+        await FileDecryptor.validateClear(clear);
         _check(job);
-        final length = await File(working).length();
+        final length = await File(clear).length();
         final temporaryManifest = File('$working.json');
         await temporaryManifest.writeAsString(
           jsonEncode({
@@ -503,15 +629,32 @@ class MediaCache {
         );
         // No await between cancellation check and atomic file publication.
         _check(job);
-        if (output.existsSync()) output.deleteSync();
-        File(working).renameSync(output.path);
+        if (!streamPublished) {
+          if (output.existsSync()) output.deleteSync();
+          File(clear).renameSync(output.path);
+          working = null;
+        }
         if (manifest.existsSync()) manifest.deleteSync();
         temporaryManifest.renameSync(manifest.path);
-        working = null;
+        if (streamPublished) {
+          // The lane read every ciphertext byte to write the published file,
+          // so the working copy is spent here. Retire it at the publish point
+          // instead of leaving a `.part` for the tail of this method.
+          working = null;
+          try {
+            await File(cipher).delete();
+          } on FileSystemException {
+            /* an unreadable leftover is reclaimed by the next prune */
+          }
+        }
       }
       _check(job);
       if (identical(_jobs[job.key], job)) _jobs.remove(job.key);
       _reserved.remove(job);
+      // A published stream keeps its mount until the last player lets go:
+      // the URL it handed out still reads that file from disk.
+      final stream = streamPublished ? _lanes.remove(job.key) : null;
+      keepStream = stream != null;
       // A ready result stays pinned while its consumer/player is using it.
       for (final lease in job.leases.toList()) {
         if (lease._result.isCompleted) continue;
@@ -522,11 +665,13 @@ class MediaCache {
           if (count <= 0) {
             _pins.remove(output.path);
             _untrackPin(output.path);
+            unawaited(stream?.detach());
           } else {
             _pins[output.path] = count;
           }
           lease._release = null;
         };
+        lease._settle();
         lease._result.complete(output.path);
       }
       job.progress(const MediaProgress(MediaStage.ready));
@@ -536,6 +681,7 @@ class MediaCache {
       report(job.token.isCancelled ? const MediaCancelled() : error);
       if (identical(_jobs[job.key], job)) _jobs.remove(job.key);
       for (final lease in job.leases.toList()) {
+        lease._settle();
         if (!lease._result.isCompleted) {
           lease._result.completeError(
             job.token.isCancelled ? const MediaCancelled() : error,
@@ -544,6 +690,14 @@ class MediaCache {
         }
       }
     } finally {
+      if (lane != null && !keepStream) {
+        try {
+          await lane.discard();
+        } catch (_) {
+          /* a stream that is already gone cannot block cleanup */
+        }
+        if (identical(_lanes[job.key], lane)) _lanes.remove(job.key);
+      }
       try {
         await onJobFinished?.call(job.vid, job.quality, workingIdentity);
       } catch (_) {
@@ -654,6 +808,16 @@ class MediaCache {
     return match != null && (retainFile?.call(match[1]!, match[2]!) ?? false);
   }
 
+  /// Cache files are named by their key, so a pin is recognised by name: the
+  /// paths this class joins and the ones `directory.list()` reports differ in
+  /// separator on Windows and cannot be compared as strings.
+  bool _isPinned(String path) {
+    final name = File(path).uri.pathSegments.last;
+    return _pins.keys.any(
+      (pinned) => File(pinned).uri.pathSegments.last == name,
+    );
+  }
+
   Future<void> prune() async {
     if (!await directory.exists()) return;
     await _reclaimOrphanPartials();
@@ -675,10 +839,13 @@ class MediaCache {
     files.sort(
       (a, b) => stats[b.path]!.modified.compareTo(stats[a.path]!.modified),
     );
-    bool protected(File f) =>
-        _retainedPath(f.path) ||
-        _pins.containsKey(f.path) ||
-        _jobs.values.any((job) => f.path == '${directory.path}/${job.key}.mp4');
+    bool protected(File f) {
+      final name = f.uri.pathSegments.last;
+      return _retainedPath(f.path) ||
+          _isPinned(f.path) ||
+          _jobs.values.any((job) => '${job.key}.mp4' == name);
+    }
+
     var kept = files.where(protected).length;
     var keptBytes = files
         .where(protected)
@@ -744,7 +911,9 @@ class MediaCache {
             jsonDecode(await File('${entity.path}.json').readAsString()) as Map;
         final vid = record['vid'] as String,
             quality = record['quality'] as String;
-        if (entity.path != '${directory.path}/${_key(vid, quality)}.mp4') {
+        // The manifest names this file, and `_key` has already refused a
+        // vid or quality that could not belong to it.
+        if (entity.uri.pathSegments.last != '${_key(vid, quality)}.mp4') {
           continue;
         }
         final stat = await entity.stat();
@@ -759,8 +928,7 @@ class MediaCache {
             quality,
             stat.size,
             stat.modified,
-            _pins.containsKey(entity.path) ||
-                _jobs.containsKey(_key(vid, quality)),
+            _isPinned(entity.path) || _jobs.containsKey(_key(vid, quality)),
           ),
         );
       } catch (_) {
@@ -786,9 +954,10 @@ class MediaCache {
     if (!await directory.exists()) return;
     await for (final file in directory.list()) {
       if (file is! File) continue;
-      if (file.path.endsWith('.part') || file.path.endsWith('.part.json')) {
+      final name = file.uri.pathSegments.last;
+      if (name.endsWith('.part') || name.endsWith('.part.json')) {
         final active = _jobs.values.any(
-          (job) => file.path.startsWith('${directory.path}/${job.key}.mp4.'),
+          (job) => name.startsWith('${job.key}.mp4.'),
         );
         if (!active) {
           try {
@@ -799,12 +968,15 @@ class MediaCache {
         }
         continue;
       }
-      final target = file.path.endsWith('.json')
+      final target = name.endsWith('.json')
           ? file.path.substring(0, file.path.length - 5)
           : file.path;
+      final targetName = name.endsWith('.json')
+          ? name.substring(0, name.length - 5)
+          : name;
       if (_retainedPath(target) ||
-          _pins.containsKey(target) ||
-          _jobs.keys.any((key) => target == '${directory.path}/$key.mp4')) {
+          _isPinned(target) ||
+          _jobs.keys.any((key) => '$key.mp4' == targetName)) {
         continue;
       }
       if (file.path.endsWith('.mp4') || file.path.endsWith('.mp4.json')) {

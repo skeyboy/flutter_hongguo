@@ -135,6 +135,7 @@ class NativeRuntime
       maxConcurrent: tvBuild ? 1 : settings.concurrentPreparations,
       maxDownloadConcurrent: settings.downloadConcurrent,
       retainFile: (vid, quality) => downloads.retains(vid, quality),
+      progressivePlayback: () => settings.progressivePlayback && !tvBuild,
       resolve: (vid, quality) => _model.fetchTrack(vid, quality: quality),
     );
     downloads = DownloadManager(
@@ -440,13 +441,18 @@ class NativeRuntime
   }
 }
 
-class _NativeJob implements PlaybackJob {
+class _NativeJob implements PlaybackJob, EarlyPlayableJob {
   final MediaPreparation lease;
   final MediaCache cache;
   _NativeJob(this.lease, this.cache);
   @override
   Future<String> get source =>
       lease.result.then((path) => File(path).uri.toString());
+
+  /// Already a URL: the loopback origin serves the prefix this job is still
+  /// writing, so the player opens it as-is instead of as a file path.
+  @override
+  Future<String?> get earlySource => lease.early;
   @override
   void cancel() => lease.cancel();
   @override

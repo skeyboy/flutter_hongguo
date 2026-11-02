@@ -835,7 +835,24 @@ class _PlayerPageState extends State<PlayerPage>
       _syncPrefetch();
       sourceVid = widget.detail.episodes[selected].vid;
       sourceQuality = quality;
-      final source = await active.source;
+      // A progressive lane serves the decrypted prefix over a local origin
+      // while its transfer still runs. Opening that is the whole point of the
+      // setting, so the finished file is awaited after the open instead of
+      // before it: a second open would restart the video already on screen.
+      // PiP hands its URL to the platform window, which expects a file.
+      String? earlyUrl;
+      if (!tvBuild &&
+          !widget.cachedOnly &&
+          !keepPip &&
+          active is EarlyPlayableJob) {
+        final early = await (active as EarlyPlayableJob).earlySource;
+        if (!mounted || ticket != generation) {
+          active.release();
+          return;
+        }
+        if (early != null) earlyUrl = early;
+      }
+      final source = earlyUrl ?? await active.source;
       preparationDuration = startupClock.elapsed;
       if (!mounted || ticket != generation) {
         active.release();
@@ -878,6 +895,22 @@ class _PlayerPageState extends State<PlayerPage>
         }
       }
       openClock.stop();
+      if (earlyUrl != null) {
+        // The player is already watching the growing stream, so the finished
+        // file is off the playback path. It is still awaited: that is what
+        // reports a transfer which dies before its last byte, and the notice
+        // says so without throwing away the frames already on screen.
+        unawaited(
+          active.source.then(
+            (_) {},
+            onError: (Object _) {
+              if (mounted && ticket == generation) {
+                _redraw(() => playbackNotice = '本集下载未完成，播放可能在结尾中断');
+              }
+            },
+          ),
+        );
+      }
       if (!mounted || ticket != generation) return;
       _resumeOffset = Duration.zero;
       // The app can become hidden while the native player is opening a file.

@@ -6,6 +6,8 @@
 
 2026-10-28 更新：链路图补齐播放取址、双下载通道分派、缓存回收与异常恢复路径，并新增「为什么 macOS 曾经无法加载在线视频」一节。
 
+2026-11-02 更新：新增「边下边播：渐进解密与本地回环源」一节与对应链路分支（默认关闭），同时修掉 Windows 下缓存身份按路径字符串比较的旧账（详见「下载、并发和缓存一致性」）。
+
 日期：2026-10-19。实现位置：`packages/core`、`packages/api`、`packages/app`。本文取代初步验证报告中的“尚未实现 MP4/播放器”状态；初步报告保留为第一阶段历史记录。
 
 ## 已落地的实际链路
@@ -28,9 +30,16 @@ flowchart TD
   Sys --> PartFile[.part 落盘]
   Dio[Dio 应用内通道<br/>followRedirects false / UA Mozilla/5.0<br/>receiveTimeout 120s / deleteOnError] --> PartFile
   PartFile --> Enc{track.encrypted?}
-  Enc -->|是| Stage4[阶段 decrypting] --> Worker[worker isolate：Spade 取 key + MP4 各轨样本 AES-128-CTR<br/>恢复 encv/enca codec / CENC 盒转等长 free]
-  Enc -->|否| Stage5
+  Enc -->|是| Prog{边下边播开着?<br/>非手动下载 且 Spade 可解}
+  Prog -->|否| Stage4[阶段 decrypting]
+  Stage4 --> Worker[worker isolate：Spade 取 key + MP4 各轨样本 AES-128-CTR<br/>恢复 encv/enca codec / CENC 盒转等长 free]
   Worker --> Stage5[阶段 validating]
+  Prog -->|是| ProgLane[渐进通道 ProgressiveLane<br/>前缀 + 有界 Range 回补建 ProgressivePlan<br/>ProgressiveDecrypt 顺序追加明文流式文件]
+  ProgLane --> Origin[本地回环 HTTP 源<br/>宣告最终长度 / 等待增长 / 停滞即截断响应]
+  Origin --> Early[播放器提前打开 http 源<br/>传输继续跑到最后一个字节]
+  Early --> Stage5
+  Origin -.提前起播.-> Player
+  Enc -->|否| Stage5
   Stage5 --> Publish[结构检查 + 写 part.json manifest + 原子 rename 发布]
   Publish --> Stage6[阶段 ready]
   Stage6 --> Pin[消费者持有 pin / lease]
@@ -38,7 +47,7 @@ flowchart TD
   Pin --> Local
   Sys -.等待网络.-> Wait[阶段 waitingNetwork]
   Wait -.-> PartFile
-  Local --> Player[media_kit 本地文件播放 / Texture]
+  Local --> Player[media_kit 播放：本地成品或回环 HTTP 源 / Texture]
   Player --> Next[选集 / 下一集 / 可选连播 / PrefetchWindow 预热下一批]
   Next --> Job
 ```
@@ -52,7 +61,28 @@ flowchart LR
   D[下载失败/超额度] --> E[失败上报给所有 lease<br/>作业出队，可重试]
   Sys[系统通道进程被杀] --> F[启动时读台账<br/>已完成文件走解密校验后发布<br/>未完成任务 cancelTaskWithId 后清理]
   G[崩溃遗留且无活跃 job 的 .part] --> H[prune 中 1 小时未再写入<br/>→ 回收]
+  P[渐进通道任一步失败] --> Q[撤销回环挂载 + 删除明文半成品<br/>同一作业退回整片解密发布]
+  R[切集/离开页面 detach 已发布成品] --> S[挂载立即 404<br/>文件活到最后一个 pin 释放]
 ```
+
+### 边下边播：渐进解密与本地回环源（2026-11-02）
+
+要解决的问题：加密剧集必须等「整片下载完 + 整片解密完」才出第一帧，弱网下这段等待被用户读成「加载不出来」。
+
+不能把 `.part` 直接交给播放器，原因有两条：上游给的是 CENC 密文，media_kit 只会读本地明文文件或明文 HTTP 源；尾部 moov 的形状在明文样本之前根本没有可解析的索引。于是链路分成三步：
+
+1. **计划早建**。`Mp4Cenc.inspect` 只读顶层盒的 16 字节头和 moov 本体，不读 mdat 负载，所以「已下载的前缀 + 一次有界 Range 回补 moov」就足够算出 `ProgressivePlan`：逐样本表、每片的覆盖水位、moov 补丁与偏移增量。此时文件可能只有开头几十 KB。
+2. **顺序追加**。`ProgressiveDecrypt.pump(已收字节)` 按片序把明文写进流式文件——`-1` 原样拷贝、`>=0` 单样本 AES-128-CTR、`-2` 写重定位后的 moov、`-4` 原地改写头部 moov、`-3` 收尾哨兵。尾部 moov 被搬到 mdat 之前并重算 stco/co64（等效 faststart），整片字节数守恒；覆盖不足的样本原地等待，绝不跳写，所以输出前缀始终连续，可以直接对外做 Range。
+3. **回环供给**。本机 127.0.0.1 上挂一个只读这个增长文件的源，宣告最终长度、按已解密前缀响应 `Range`，增长停滞超过 20 秒就把响应截断让播放器重连。播放器因此能按普通 HTTP 视频打开一个还在变长的地址。
+
+起播点与安全边界：
+
+- 计划算出的 `metadataEnd`（头部盒 + 重定位 moov + 首批样本）就是可解码前缀的下界，达到之后 `MediaPreparation.early` 才交出一个 URL；缓存命中、非加密轨、手动下载、TV、画中画交接与离线入口一律返回 null，播放器照旧等整片文件。
+- 传输报告的已收字节只是提示：Dio 与系统通道的写入端都会缓冲，`pump` 取「已收」与「文件实际长度」的较小值，晚几毫秒落盘的字节不会把已经在播的流判成失败。
+- 最后一个字节会强制一轮 `downloadComplete` 的 pump，让 `-3` 哨兵落盘；只有 `writer.completed` 为真才允许发布。
+- 发布口径不变：结构检查 + manifest + 原子改名，密文工作文件在发布点当场退役。渐进通道任何一步失败就撤销挂载、删掉半成品并退回整片链路，缓存命中的判定仍然只认完整成品。
+- 明文流式文件与密文工作文件会同时存在，这一集的瞬时占用约翻倍；播放页在传输中途断掉时提示「本集下载未完成，播放可能在结尾中断」，而不是把已经在屏的画面推翻。
+- pump 在主 isolate 上按 64 KB 分批写并主动让出事件循环，避免解密堵住 UI 与下载回调；这不是吞吐优化，是共存约束。
 
 ### 为什么 macOS 曾经「无法加载在线视频」
 
@@ -74,6 +104,7 @@ flowchart LR
 - 搜索：剧名搜索、官网 SSR 优先、App 回退、游标翻页；页面用请求代数丢弃旧响应，避免快速切换后的旧列表覆盖新列表。
 - 详情：封面、简介、分集列表与开始观看。
 - 播放：原生 Video texture、下载/处理状态、清晰度、全屏控件、上一集/下一集、自动连播、下一集预热、失败重试；离开页面取消准备并在播放器关闭后释放缓存 pin。
+- 设置：「边下边播」独立开关，默认关闭，说明文字直说它会为当前这一集临时多占约两倍空间；TV 端不出现这一项。
 - 缓存面板：统计本地成品大小，清理未使用文件，保护正在播放的文件。
 - 离线检查：保留第一阶段签名/摘要自检，入口在首页工具栏。
 - 音频输出设备故障独立提示，不把仍可解码的视频画面覆盖为整个播放失败。
@@ -122,6 +153,8 @@ ID 始终使用字符串。App 详情缓存 6 小时、最多 100 条。没有�
 - 只有“可解析为普通 MP4 + 原子重命名 + 完整 manifest”才命中缓存；崩溃残留、半成品、被截断文件不会作为 ready。
 - 默认保留最近 30 个成品，访问更新修改时间；正在使用的文件 pin 保护，允许暂时超过目标上限。
 - 播放错误后重新准备可淘汰坏缓存；文件关闭后才释放 pin，兼容 Windows 的打开文件语义。
+- 边下边播的作业和普通作业共用同一把 vid+quality 键、同一个 lease 计数与同一套发布条件；渐进通道只在「加密轨 + 自动预热或主动播放 + 设置开启 + Spade 可解」时建立，手动下载（`job.manual`）仍走整片链路，避免同一集同时占两份空间。回环源的挂载活到最后一个 pin 释放为止。
+- 缓存身份按文件名比较，不按路径字符串比较：`Directory.list()` 在本机给 `\`、代码里拼接给 `/`，字符串相等判断在 Windows 上会静默失效。这条旧账原先让 `entries()` 列不出成品、`prune()`/`clear()` 认不出正在播放的文件——现在 pin 保护与清单枚举都以 basename 为准，`tool/verify_all.sh` 在 Windows 门禁下同样可信。
 - 清理只针对自身缓存目录的成品/manifest，不扫描用户其他文件；`prune()` 同时回收没有任何活跃任务、且超过 1 小时未再写入的 `.part` / `.part.json`，避免进程被杀后遗留的不可用密文长期占额度。正在传输的工作文件落在该时间窗内，不会被误删。
 
 ## 跨平台适配
@@ -150,6 +183,10 @@ node tool/generate_media_fixtures.cjs /Users/lee/Downloads/hongguo-web-1.1.1-mac
 | Evidence | Finding | Path |
 |---|---|---|
 | `packages/core/test/mp4_test.dart` | 音视频逐样本与清晰原文件一致；错误整样本 key 不改写数据；坏表失败 | CENC → Dart parser/CTR → 普通 MP4 |
+| `packages/core/test/progressive_decrypt_test.dart` | 尾部 moov 边下边解：输出可再解析为普通 MP4、moov 前置、字节守恒、逐样本与整片解密一致；head-moov 恒等；停滞只暴露连续前缀并能原地续上 | 前缀 → ProgressivePlan → 顺序追加 → 再解析 |
+| `packages/api/test/progressive_lane_test.dart` | 计划可由极小前缀 + 有界 Range 回补建立；宣告的流经 HTTP 可播并收尾为完整明文；未加密/长度变化/超预算提前放弃；discard 撤挂载、detach 留成品 | 密文工作文件 → 通道 → 本地源 |
+| `packages/api/test/progressive_stream_server_test.dart` | 只绑回环且路径带令牌；HEAD 宣告最终长度；Range 出 206、越界 416；停滞按连续前缀截断；等待期间文件变长即可继续 | 增长的明文文件 → HTTP 语义 |
+| `packages/api/test/progressive_media_cache_test.dart` | 真实 `MediaCache` 端到端：传输暂停中即拿到可播 URL、已服务字节与成品头部一致、发布到最终缓存名、重开缓存直接命中且不再联网、关闭设置退回整片、取消不留 `.part` 与挂载 | cache → 通道 → 本地源 → 发布 |
 | `packages/api/test/media_cache_test.dart` | 下载/解包/解密/重启命中、独立取消、失败重试、pin 保护、prune 回收死会话 `.part` | Dio mock → worker → manifest/cache |
 | `packages/app/test/native_download_lane_test.dart` | 通道谓词只在移动端为真；macOS 覆盖下打开「后台下载」仍由应用内 Dio 完成真实 HTTP 下载 | 平台判定 → HttpServer → 文件字节一致 |
 | `packages/app/integration_test/macos_live_poc_test.dart`（`tool/verify_mac_live.sh`） | 真实上游在线选集：预缓存 N 集就绪、出帧、seek、切集阶段不再出现「正在下载」 | mac Release 容器 → 取址 → Dio → 解密 → media_kit |
@@ -181,3 +218,17 @@ macOS 原生测试提取了实际解码帧和 Flutter 首页/详情截图。截�
 - [Dart 解密后的普通 MP4](../build/verification/offline-decrypted.mp4)
 
 Android、Windows、Linux 的代码/平台适配已存在；不据此声称完成各端真机播放验收。Android 调试包已构建成功：`packages/app/build/app/outputs/flutter-apk/app-debug.apk`。未向连接的实体手机安装测试应用。
+
+## 2026-11-02 边下边播本轮执行结果（Windows 开发机）
+
+本机是 ARM64 Windows，media_kit 只提供 x64 原生产物，因此本轮只跑纯 Dart 与 widget 测试；原生容器内的真实边下边播要在 Mac 与 x64 CI 上另行验收。
+
+| 项目 | 结果 |
+|---|---|
+| 静态分析 | `dart analyze --fatal-infos` 对 `packages/core`、`packages/api` 与 `packages/app` 的 `lib`+`test` 均无问题 |
+| `packages/core` | 125 项全部通过（含新增 `progressive_decrypt_test.dart` 8 项） |
+| `packages/api` | 139 项全部通过（含新增渐进用例 30 项）；同机 HEAD 基线是 10 项失败，差额是本轮修掉的 Windows 缓存身份旧账与测试清理竞争 |
+| `packages/app` | 424 通过 / 1 跳过 / 3 失败；3 项全在 `tv_feed_test.dart`，把并行进行中的未提交改动单独叠加到 HEAD 后同样复现，与本功能无关 |
+| 渐进链路 | 传输暂停中即可拿到可播 URL、已服务字节与成品头部逐字节一致、发布后重启命中且不再联网、关闭开关退回整片、取消不留 `.part` 与挂载 |
+
+未验证的边界（不要当成已验收）：真实上游剧集的边下边播起播耗时与卡顿率、Mac/移动端 media_kit 对增长中 HTTP 源的实际 seek 行为、约翻倍的瞬时磁盘占用对低端机的影响，以及 TV/画中画路径之外的分支组合。这些都还只有离线夹具与单元/集成级证据。

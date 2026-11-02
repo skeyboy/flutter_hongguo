@@ -540,6 +540,32 @@ class Mp4Cenc {
     return count;
   }
 
+  /// Applies the encryption-signaling clear patch in place to a copy of the
+  /// moov bytes ([moovBytes] must start at [moov].start) and returns the
+  /// re-parsed box tree, anchored like [moovBytes], for offset rewrites.
+  static Mp4Box applyMoovClearPatch(Uint8List moovBytes, Mp4Box moov) {
+    final view = _View(moovBytes, moov.start);
+    final parsed = _boxes(view, moov.start, moov.end).single;
+    void type(int at, String value) => moovBytes.setRange(
+      at - moov.start,
+      at - moov.start + 4,
+      convert.latin1.encode(value),
+    );
+    for (final b in parsed.descendants) {
+      if (b.type == 'encv' || b.type == 'enca') {
+        final frma = b.child('sinf')?.child('frma');
+        if (frma == null) {
+          throw const FormatException('Missing original sample entry type');
+        }
+        type(b.start + 4, view.text(frma.payload, 4));
+      }
+      if (['sinf', 'senc', 'saiz', 'saio', 'pssh'].contains(b.type)) {
+        type(b.start + 4, 'free');
+      }
+    }
+    return parsed;
+  }
+
   /// Replace encryption boxes with same-size `free` boxes. Chunk offsets stay
   /// valid, even with tail moov/co64. No media copying or ffmpeg is needed.
   static void clearEncryptionMetadata(SampleStore store, Mp4Plan plan) {

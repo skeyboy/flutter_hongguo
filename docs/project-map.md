@@ -50,6 +50,9 @@ flutter_hongguo/
 | 匿名播放设备注册（ttEncrypt）与进程内复用 | [playback_device.dart](../packages/api/lib/src/playback_device.dart) | [playback_device_test.dart](../packages/api/test/playback_device_test.dart) |
 | App 取址：注册身份、免签 POST、内联 video_list 与 fallback、选流 | [video_model_client.dart](../packages/api/lib/src/video_model_client.dart) | [video_model_client_test.dart](../packages/api/test/video_model_client_test.dart) |
 | 流式下载、取消、并发合并、原子缓存、淘汰 | [media_cache.dart](../packages/api/lib/src/media_cache.dart) | [media_cache_test.dart](../packages/api/test/media_cache_test.dart) |
+| 边下边播：片序与覆盖水位、moov 重定位、顺序追加解密 | [progressive_decrypt.dart](../packages/core/lib/src/media/progressive_decrypt.dart) | [progressive_decrypt_test.dart](../packages/core/test/progressive_decrypt_test.dart) |
+| 渐进通道：前缀建计划、有界 Range 回补、发布或放弃 | [progressive_lane.dart](../packages/api/lib/src/progressive_lane.dart) | [progressive_lane_test.dart](../packages/api/test/progressive_lane_test.dart)、[progressive_media_cache_test.dart](../packages/api/test/progressive_media_cache_test.dart) |
+| 本地回环源：宣告最终长度、Range/416、停滞截断 | [progressive_stream_server.dart](../packages/api/lib/src/progressive_stream_server.dart) | [progressive_stream_server_test.dart](../packages/api/test/progressive_stream_server_test.dart) |
 | Flutter 入口与依赖装配 | [main.dart](../packages/app/lib/main.dart)、[bootstrap.dart](../packages/app/lib/bootstrap.dart) | [widget_test.dart](../packages/app/test/widget_test.dart) |
 | 首页、搜索、分类与题材 | [library_page.dart](../packages/app/lib/features/library_page.dart) | widget_test.dart |
 | 搜索聚焦下拉：历史落盘与推荐位取数 | [search_history.dart](../packages/app/lib/search/search_history.dart)、[search_suggestions.dart](../packages/app/lib/search/search_suggestions.dart) | [search_history_test.dart](../packages/app/test/search_history_test.dart)、[search_suggestions_test.dart](../packages/app/test/search_suggestions_test.dart) |

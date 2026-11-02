@@ -5,6 +5,11 @@ class AppSettings {
       backgroundDownloads,
       floatingPlayback,
       backgroundWifiOnly;
+
+  /// Play the decrypted prefix while the download is still running. Off by
+  /// default: it needs a local origin, doubles the transient disk use of one
+  /// episode, and can only help encrypted sources.
+  final bool progressivePlayback;
   final bool backgroundPlaybackPrompted,
       floatingPlaybackPrompted,
       episodeSwipeHintShown;
@@ -46,6 +51,7 @@ class AppSettings {
     this.backgroundDownloads = false,
     this.floatingPlayback = false,
     this.backgroundWifiOnly = true,
+    this.progressivePlayback = false,
     this.backgroundPlaybackPrompted = false,
     this.floatingPlaybackPrompted = false,
     this.episodeSwipeHintShown = false,
@@ -91,6 +97,7 @@ class AppSettings {
     'backgroundDownloads': backgroundDownloads,
     'floatingPlayback': floatingPlayback,
     'backgroundWifiOnly': backgroundWifiOnly,
+    'progressivePlayback': progressivePlayback,
     'backgroundPlaybackPrompted': backgroundPlaybackPrompted,
     'floatingPlaybackPrompted': floatingPlaybackPrompted,
     'episodeSwipeHintShown': episodeSwipeHintShown,
@@ -134,6 +141,10 @@ class AppSettings {
         'backgroundWifiOnly',
         defaults.backgroundWifiOnly,
       ),
+      progressivePlayback: read(
+        'progressivePlayback',
+        defaults.progressivePlayback,
+      ),
       prefetchEnabled: read('prefetchEnabled', defaults.prefetchEnabled),
       prefetchEpisodes: read('prefetchEpisodes', defaults.prefetchEpisodes),
       autoNext: read('autoNext', defaults.autoNext),
@@ -172,6 +183,7 @@ class AppSettings {
     bool? backgroundDownloads,
     bool? floatingPlayback,
     bool? backgroundWifiOnly,
+    bool? progressivePlayback,
     bool? backgroundPlaybackPrompted,
     bool? floatingPlaybackPrompted,
     bool? episodeSwipeHintShown,
@@ -206,6 +218,7 @@ class AppSettings {
     'backgroundDownloads': backgroundDownloads ?? this.backgroundDownloads,
     'floatingPlayback': floatingPlayback ?? this.floatingPlayback,
     'backgroundWifiOnly': backgroundWifiOnly ?? this.backgroundWifiOnly,
+    'progressivePlayback': progressivePlayback ?? this.progressivePlayback,
     'backgroundPlaybackPrompted':
         backgroundPlaybackPrompted ?? this.backgroundPlaybackPrompted,
     'floatingPlaybackPrompted':
