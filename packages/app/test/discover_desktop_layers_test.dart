@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart'
     show debugDefaultTargetPlatformOverride;
-import 'package:flutter/material.dart' show ChoiceChip, ValueKey;
+import 'package:flutter/material.dart' show ChoiceChip, MouseRegion, ValueKey;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hongguo_app/features/library_page.dart' show DramaCard;
@@ -145,6 +145,43 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'the preview opens on its card, not on the window it floats over',
+    (tester) async {
+      await mount(tester, RowedCatalog());
+      final card = find.byType(DramaCard).first;
+      await hover(tester, card);
+      await tester.pump(const Duration(milliseconds: 1600));
+      // `mount` 的 macOS 帧在 Navigator 之上留了 32px 题条，浮层的坐标空间比窗口矮
+      // 这一截：锚点不换算，预览就整体偏出去，还顺带把「下面放不下就翻到上面」判错。
+      final cardRect = tester.getRect(card);
+      final peekRect = tester.getRect(peekSurface(tester));
+      expect(peekRect.top - cardRect.bottom, 8);
+      expect(peekRect.left, cardRect.left);
+      debugDefaultTargetPlatformOverride = null;
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('a card with no room under it gets its preview above itself', (
+    tester,
+  ) async {
+    await mount(tester, RowedCatalog());
+    // Short enough that the first row has nowhere to put the preview below it:
+    // the flip is the other half of the same anchor, and it has to touch the card
+    // by the promised 8 rather than by whatever the window's own height says.
+    await tester.binding.setSurfaceSize(const Size(1440, 500));
+    await tester.pumpAndSettle();
+    final card = find.byType(DramaCard).first;
+    await hover(tester, card);
+    await tester.pump(const Duration(milliseconds: 1600));
+    final cardRect = tester.getRect(card);
+    final peekRect = tester.getRect(peekSurface(tester));
+    expect(cardRect.top - peekRect.bottom, 8);
+    debugDefaultTargetPlatformOverride = null;
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a word outside this type list is not stretched to a near one', (
     tester,
   ) async {
@@ -192,3 +229,12 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 }
+
+/// The preview card's own surface -- the box the page anchored it to, which is
+/// what a promise about where the preview lands is a promise about.
+Finder peekSurface(WidgetTester tester) => find
+    .ancestor(
+      of: find.byKey(const ValueKey('peek-drill-theme')),
+      matching: find.byType(MouseRegion),
+    )
+    .first;

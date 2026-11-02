@@ -25,6 +25,7 @@ OverlayEntry showAnchoredPanel({
   VoidCallback? onDismiss,
 }) {
   final overlay = Overlay.of(context);
+  final anchored = overlayLocalAnchor(overlay, anchor);
   late final OverlayEntry entry;
   void close() {
     entry.remove();
@@ -32,42 +33,45 @@ OverlayEntry showAnchoredPanel({
   }
 
   entry = OverlayEntry(
-    builder: (context) => Material(
-      type: MaterialType.transparency,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              key: ValueKey('$id-scrim'),
-              behavior: HitTestBehavior.opaque,
-              onTap: close,
-              child: const SizedBox.expand(),
-            ),
-          ),
-          Positioned(
-            top: anchor.bottom + 6,
-            left: alignRight ? null : anchor.left,
-            right: alignRight ? 12 : null,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: width ?? 380,
-                maxHeight:
-                    MediaQuery.sizeOf(context).height - anchor.bottom - 24,
+    builder: (context) => LayoutBuilder(
+      builder: (context, space) => Material(
+        type: MaterialType.transparency,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                key: ValueKey('$id-scrim'),
+                behavior: HitTestBehavior.opaque,
+                onTap: close,
+                child: const SizedBox.expand(),
               ),
-              child: anchoredSurface(
-                context: context,
-                // The panel is handed what is left under the chip, and a type
-                // that publishes five dimensions is taller than that. So the
-                // surface scrolls instead of overflowing: the drawer is drawn
-                // `overflow:auto` in the prototype for exactly this reason, and
-                // a clipped 「完成」 is a drawer that cannot be closed.
-                child: SingleChildScrollView(
-                  child: Builder(builder: (context) => panel(context, close)),
+            ),
+            Positioned(
+              top: anchored.bottom + 6,
+              left: alignRight ? null : anchored.left,
+              right: alignRight ? 12 : null,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: width ?? 380,
+                  // What the overlay actually has under the chip, not what the
+                  // window has: the two differ by the frame around it.
+                  maxHeight: space.maxHeight - anchored.bottom - 24,
+                ),
+                child: anchoredSurface(
+                  context: context,
+                  // The panel is handed what is left under the chip, and a type
+                  // that publishes five dimensions is taller than that. So the
+                  // surface scrolls instead of overflowing: the drawer is drawn
+                  // `overflow:auto` in the prototype for exactly this reason, and
+                  // a clipped 「完成」 is a drawer that cannot be closed.
+                  child: SingleChildScrollView(
+                    child: Builder(builder: (context) => panel(context, close)),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     ),
   );
@@ -95,43 +99,46 @@ OverlayEntry showAnchoredPeek({
   double width = 300,
 }) {
   final overlay = Overlay.of(context);
+  final anchored = overlayLocalAnchor(overlay, anchor);
   late final OverlayEntry entry;
   entry = OverlayEntry(
-    builder: (context) {
-      final size = MediaQuery.sizeOf(context);
-      final below = size.height - anchor.bottom - 24;
-      final above = anchor.top - 8;
-      final flip = below < 200 && above > below;
-      final maxLeft = size.width - width - 12;
-      return Material(
-        type: MaterialType.transparency,
-        child: Stack(
-          children: [
-            Positioned(
-              left: maxLeft <= 12
-                  ? 12
-                  : anchor.left.clamp(12.0, maxLeft).toDouble(),
-              top: flip ? null : anchor.bottom + 8,
-              bottom: flip ? size.height - anchor.top + 8 : null,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: width,
-                  maxHeight: flip ? above : below,
-                ),
-                child: MouseRegion(
-                  onEnter: (_) => onPointerEnter?.call(),
-                  onExit: (_) => onPointerExit?.call(),
-                  child: anchoredSurface(
-                    context: context,
-                    child: Builder(builder: card),
+    builder: (context) => LayoutBuilder(
+      builder: (context, space) {
+        final size = space.biggest;
+        final below = size.height - anchored.bottom - 24;
+        final above = anchored.top - 8;
+        final flip = below < 200 && above > below;
+        final maxLeft = size.width - width - 12;
+        return Material(
+          type: MaterialType.transparency,
+          child: Stack(
+            children: [
+              Positioned(
+                left: maxLeft <= 12
+                    ? 12
+                    : anchored.left.clamp(12.0, maxLeft).toDouble(),
+                top: flip ? null : anchored.bottom + 8,
+                bottom: flip ? size.height - anchored.top + 8 : null,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: width,
+                    maxHeight: flip ? above : below,
+                  ),
+                  child: MouseRegion(
+                    onEnter: (_) => onPointerEnter?.call(),
+                    onExit: (_) => onPointerExit?.call(),
+                    child: anchoredSurface(
+                      context: context,
+                      child: Builder(builder: card),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
-        ),
-      );
-    },
+            ],
+          ),
+        );
+      },
+    ),
   );
   overlay.insert(entry);
   return entry;
@@ -152,12 +159,28 @@ Widget anchoredSurface({
   child: child,
 );
 
-/// Where a widget of the page ends up on screen, in the global coordinates an
-/// `OverlayEntry` is laid out in. Null while the widget has not been laid out --
-/// which is the same moment the viewer cannot be looking at it either.
+/// Where a widget of the page ends up in window coordinates. Null while the
+/// widget has not been laid out -- which is the same moment the viewer cannot be
+/// looking at it either.
+///
+/// Window coordinates are not what an overlay lays its children in: see
+/// [overlayLocalAnchor], which converts this before anything is positioned.
 Rect? globalRectOf(BuildContext context) {
   final box = context.findRenderObject();
   if (box is! RenderBox || !box.attached || !box.hasSize) return null;
   final origin = box.localToGlobal(Offset.zero);
   return origin & box.size;
+}
+
+/// [anchor] as the overlay holding an anchored entry measures it.
+///
+/// The overlay is window-sized only when it *is* the window. Under the macOS
+/// caption, and under any frame that stops short of the window's edges, the two
+/// spaces differ by the overlay's own origin -- and a card positioned with
+/// window numbers sits that far off the thing it was opened from. The search
+/// suggestions have always converted this way; the peek and the drawer must.
+Rect overlayLocalAnchor(OverlayState overlay, Rect anchor) {
+  final box = overlay.context.findRenderObject();
+  if (box is! RenderBox || !box.attached || !box.hasSize) return anchor;
+  return box.globalToLocal(anchor.topLeft) & anchor.size;
 }

@@ -132,6 +132,35 @@ class TaggedCatalog extends DesktopCatalog {
   }
 }
 
+/// Enough distinct cards to fill the surface: a test that wants to know where a
+/// preview lands can hover one near the top of the grid and one whose row runs
+/// out at the bottom, and read the two different branches off one catalog.
+class RowedCatalog extends DesktopCatalog {
+  RowedCatalog([this.count = 24]);
+  final int count;
+
+  @override
+  Future<CatalogPage> browse({
+    String genre = 'short_play',
+    String sort = 'online_time',
+    String? theme,
+    String? cursor,
+    List<String> seen = const [],
+  }) async {
+    browseCalls++;
+    return CatalogPage([
+      for (var i = 0; i < count; i++)
+        Drama(
+          id: 'row$i',
+          title: '剧名$i',
+          intro: '一段关于相遇的故事',
+          episodeCount: 12,
+          tagNames: const ['玄幻'],
+        ),
+    ], nextCursor: cursor == null ? '18' : null);
+  }
+}
+
 /// The app on a Mac-sized surface.
 ///
 /// `desktopHost` is read from the platform, and `flutter_test`'s default is
