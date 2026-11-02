@@ -11,6 +11,22 @@ const signPath = path.resolve(sourceRoot, 'server/src/core/pure-sign.js');
 const source = fs.readFileSync(signPath, 'utf8');
 const nodeRequire = createRequire(signPath);
 const now = 1700000000123;
+// The reference signer freezes `di0` at `di[0]`, so its branch-0 message
+// expansion never rolls and every x-medusa it builds is refused by the
+// endpoint. The app rolls the previous word into the next round, which is what
+// this port does and what the live player accepts, so correct the round
+// function before generating. `sourceSha256` still pins the unpatched file,
+// keeping the upstream-drift check honest about what actually shipped.
+function withRolledHashF13(src) {
+  if (src.includes('di0 = di1')) return src;
+  const rolled = src
+    .replace('const di0 = di[0];', 'let di0 = di[0];')
+    .replace('di[diLen++] = (di0 + di[i + 9] + r1 + r2) | 0;',
+      'di[diLen++] = (di0 + di[i + 9] + r1 + r2) | 0;\n    di0 = di1;');
+  if (rolled === src) throw new Error('hashF13 expansion not found in ' + signPath);
+  return rolled;
+}
+const signerSource = withRolledHashF13(source);
 function makeSigner(seed) {
   let state = seed >>> 0;
   function bytes(n) {
@@ -25,7 +41,7 @@ function makeSigner(seed) {
   }};
   const context = {Buffer, console, BigInt, Date:class extends Date {static now(){return now;}},
     module:{exports:{}},require:id=>id==='crypto'?entropy:nodeRequire(id)};
-  vm.runInNewContext(source + '\nmodule.exports.debug={hashF13,heliosWith,xGorgon};', context);
+  vm.runInNewContext(signerSource + '\nmodule.exports.debug={hashF13,heliosWith,xGorgon};', context);
   return context.module.exports;
 }
 const cases=[];

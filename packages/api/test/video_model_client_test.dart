@@ -548,20 +548,54 @@ void main() {
       encodeQueryPart("玄幻 !'()*~"),
       '%E7%8E%84%E5%B9%BB%20%21%27%28%29%2A~',
     );
+    // The player's own encoder leaves `*` in the query bytes, and this hop
+    // signs over the bytes it received, so `%2A` there is a different request.
+    expect(
+      encodeQueryPart("玄幻 !'()*~", keepLiteralStar: true),
+      '%E7%8E%84%E5%B9%BB%20%21%27%28%29*~',
+    );
   });
   test(
-    'the player request carries the registered identity and no signature',
+    'the player request carries the registered identity and its signature',
     () {
       final request = builder().build('123', device: FixedDevices.device);
-      expect(request.url, contains('resolution=1280%2A2772'));
+      expect(request.url, contains('resolution=1280*2772'));
       // The fixed template first, then the identity the platform handed out.
       expect(
         request.url.indexOf('device_id='),
-        greaterThan(request.url.indexOf('is_android_pad_screen=')),
+        greaterThan(request.url.indexOf('resolution=')),
       );
       expect(request.url, contains('device_id=7661622467441478681'));
       expect(request.url, contains('iid=3912088544850522'));
-      expect(request.url, contains('_rticket=1700000000123'));
+      expect(request.url, contains('cdid='));
+      expect(request.url, contains('ts=1700000000'));
+      final ticket = int.parse(
+        RegExp('_rticket=(\\d+)').firstMatch(request.url)!.group(1)!,
+      );
+      // `_rticket` is the field the signature search rolls, so it stays inside
+      // the run the builder is allowed to take.
+      expect(ticket, inInclusiveRange(1700000000123, 1700000000123 + 127));
+      expect(request.headers['x-ss-req-ticket'], '$ticket');
+      expect(request.headers['x-khronos'], '1700000000');
+      for (final name in [
+        'x-gorgon',
+        'x-khronos',
+        'x-ladon',
+        'x-argus',
+        'x-helios',
+        'x-medusa',
+      ]) {
+        expect(request.headers[name], isNotEmpty, reason: name);
+      }
+      expect(request.headers['x-tt-store-region'], 'cn');
+      expect(request.headers['x-tt-store-region-src'], 'did');
+      // The branch is a function of the query bytes, so a request that left the
+      // search is a request upstream would have refused.
+      expect(
+        PureSign(clockMillis: () => 1700000000123)
+            .branchOf(request.url, request.body, 1700000000),
+        0,
+      );
       expect(request.headers['User-Agent'], isNotNull);
       expect(
         jsonDecode(utf8.decode(request.body))['mixed_video_id_map']['1004'],
@@ -631,48 +665,38 @@ void main() {
       throwsStateError,
     );
   });
-  test(
-    'protocol overrides apply to the player hop, which stays anonymous',
-    () async {
-      final adapter = FakeAdapter('https://a.fqnovel.com/fallback');
-      final dio = Dio()..httpClientAdapter = adapter;
-      final protocol = const AppSettings().copyWith(
-        videoHost: 'api3.fqnovel.com',
-        videoVersion: '7.2.2.32',
-        videoVersionCode: '72232',
-        videoUserAgent: 'updated-agent',
-      );
-      await VideoModelClient(
-        dio: dio,
-        devices: FixedDevices(),
-        builder: VideoRequestBuilder(protocol: protocol),
-      ).fetchTrack('123');
-      final request = adapter.playerRequest;
-      expect(request.uri.host, 'api3.fqnovel.com');
-      expect(request.uri.queryParameters['version_name'], '7.2.2.32');
-      expect(request.uri.queryParameters['version_code'], '72232');
-      expect(
-        request.headers['User-Agent'],
-        VideoRequestBuilder.playbackUserAgent,
-      );
-      // The endpoint stopped accepting signed shapes on 2026-10-27, and the
-      // account never travels on it either.
-      for (final header in [
-        'x-argus',
-        'x-gorgon',
-        'x-khronos',
-        'x-hls5',
-        'x-ladon',
-        'x-ss-stub',
-        'x-tt-dt',
-        'cookie',
-        'x-tt-token',
-      ]) {
-        expect(request.headers.containsKey(header), isFalse, reason: header);
-      }
-      // Only the player's own UA: the fallback keeps the configured one.
-      expect(adapter.requests[1].headers['User-Agent'], 'updated-agent');
-      dio.close();
-    },
-  );
+  test('protocol overrides apply to the signed player hop, which carries no '
+      'session', () async {
+    final adapter = FakeAdapter('https://a.fqnovel.com/fallback');
+    final dio = Dio()..httpClientAdapter = adapter;
+    final protocol = const AppSettings().copyWith(
+      videoHost: 'api3.fqnovel.com',
+      videoVersion: '7.2.2.32',
+      videoVersionCode: '72232',
+      videoUserAgent: 'updated-agent',
+    );
+    await VideoModelClient(
+      dio: dio,
+      devices: FixedDevices(),
+      builder: VideoRequestBuilder(protocol: protocol),
+    ).fetchTrack('123');
+    final request = adapter.playerRequest;
+    expect(request.uri.host, 'api3.fqnovel.com');
+    expect(request.uri.queryParameters['version_name'], '7.2.2.32');
+    expect(request.uri.queryParameters['version_code'], '72232');
+    expect(
+      request.headers['User-Agent'],
+      VideoRequestBuilder.playbackUserAgent,
+    );
+    // The player hop is signed again (2026-11-02), but it is the registered
+    // anonymous identity that signs: no account material travels on it.
+    expect(request.headers['x-gorgon'], isNotEmpty);
+    expect(request.headers['x-medusa'], isNotEmpty);
+    for (final header in ['x-ss-stub', 'x-hls5', 'cookie', 'x-tt-token']) {
+      expect(request.headers.containsKey(header), isFalse, reason: header);
+    }
+    // Only the player's own UA: the fallback keeps the configured one.
+    expect(adapter.requests[1].headers['User-Agent'], 'updated-agent');
+    dio.close();
+  });
 }

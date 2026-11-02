@@ -992,6 +992,7 @@ class PureSign {
         _bit(">>>", di14, 10),
       );
       di[diLen++] = _i32((((di0 + di[(i + 9)]) + r1) + r2));
+      di0 = di1;
     }
     dynamic initRaw = [
       2059030472,

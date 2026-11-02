@@ -11,6 +11,7 @@
 | [playback-protocol-2026-10-28](playback-protocol-2026-10-28/findings.md) | 取址改走匿名设备注册前后的线上只读探测读数、注册信封离线对拍、API 回归日志 |
 | [playback-identity-2026-10-30](playback-identity-2026-10-30/findings.md) | 取址空包按秒聚集的修前/修后线上读数、身份与分集矩阵、身份轮换后的 API 回归与 macOS 实机日志 |
 | [feed-rotation-2026-11-01](feed-rotation-2026-11-01/findings.md) | 启动数据重复的假设与线上只读对拍：同参数确定性应答、`filter_ids`/`session_id` 都不换内容、`offset` 是唯一杠杆；11-01 的随机窗口修法与 11-02 换成「冷启动接着落盘位置走」的理由与读数 |
+| [playback-sign-restore-2026-11-02](playback-sign-restore-2026-11-02/findings.md) | 取址重新生效的签名准入三条件矩阵（签名头 / query 字面 `*` / `x-medusa` 滚动字）、注释掉那一行的同路径 A/B，与真实客户端的分集读数 |
 
 常用入口：
 

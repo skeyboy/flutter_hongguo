@@ -188,3 +188,24 @@ Dart 侧的迁移分四处：
 与参考实现的偏离（下一轮再动）：`references/hongguo-web` 1.1.6 之后把注册的 `REGISTER_UA` 从 `72232` 对齐到 `73932`（与 body 的 `version_code 73932` 一致），并加了注册失败冷却与 `resetPlaybackDevice`。Dart 本轮不跟：注册这一跳每次实测都是 `200 / 355–384` 字节，没有可归因的失败；而把 `tool/upstream_protocol.json` 推进到 1.1.8 需要重新生成 `packages/core/test/fixtures/node_oracle.json`（1.1.8 重构动了 `pure-sign.js`），属单独一轮更大的同步。另一件考虑过也没做的是「同一集短时间内复用一次取址结果」：它能削掉 App 自己造成的 POST 突发，但有把已签名的媒体地址用过期之险，收益不抵风险。
 
 本轮未提交、未发布；工作树与其他在途工作共用，改动只落在上面 api 的 5 个源文件、2 个测试文件与 2 个只读探测工具。
+
+## 2026-11-02：签名重新生效，缺的是 `x-medusa` 的滚动字与 query 里的字面 `*`
+
+观众侧又是「暂时无法播放 / 播放信息未返回数据，请稍后重试」，但这次不是窗口：修前同一条请求怎么重试都是 HTTP 200 + 0 字节。三发矩阵（[docs/evidence/playback-sign-restore-2026-11-02/findings.md](../evidence/playback-sign-restore-2026-11-02/findings.md)）把成因钉在三个必须同时成立的条件上——10-27 起那条「注册身份 + 免签」的通道在 11-02 关闭（去掉六个签名头一律空包），签名保留但只把 `resolution=1280*2772` 的 `*` 按 RFC 3986 转成 `%2A` 也一律空包，签名与 query 都对时只剩 `x-medusa` 把头打死。
+
+| 变更 | 位置 | 说明 |
+|---|---|---|
+| `hashF13` 分支 0 补回滚动字 | [packages/core/lib/src/crypto/pure_sign.dart:995](../../packages/core/lib/src/crypto/pure_sign.dart#L995) | 移植时抄丢一行：`di0` 被钉在 `di[0]`，112 轮从不滚动。线上接受的是「上一轮的 `di1` 滚成下一轮的 `di0`」，即 `di[i] + di[i+9] + r1 + r2`。`x-gorgon` 走 MD5 那条路径不受影响，所以差异只体现在 `x-medusa` |
+| 取址重新签名 | [packages/api/lib/src/video_model_client.dart:101-165](../../packages/api/lib/src/video_model_client.dart#L101) | 请求头回到 `x-gorgon`/`x-khronos`/`x-ladon`/`x-argus`/`x-helios`/`x-medusa`，外加 `x-ss-req-ticket`、`sdk-version: 2`、`x-xs-from-web: 0`、`x-tt-dt`、`x-tt-store-region(-src)`；身份仍用注册得到的 `device_id`/`iid`，并补上 `cdid` |
+| 分支 0 靠滚 `_rticket` 找 | 同上 [:143-151](../../packages/api/lib/src/video_model_client.dart#L143) | 这一跳只认签名分支 0，而分支是 query 字节的函数，`_rticket` 是播放器自己每试一次就变的那个字段，所以最多滚 128 次直到落回分支 0；落不到就抛 `IncompleteCatalogResponse`（「播放信息签名暂时无法生成，请稍后重试」[:164](../../packages/api/lib/src/video_model_client.dart#L164)），仍吃这一跳原有的 3 次恢复 |
+| query 编码保留字面 `*` | 同上 [:24-40](../../packages/api/lib/src/video_model_client.dart#L24) `encodeQueryPart(..., keepLiteralStar: true)` | 这个端点校验的是**收到的** query 字节，播放器自身的 `quote()` 把 `*` 原样留在 query 里，重新按 RFC 转义就等于换了被签名的原文 |
+
+离线对拍跟着动：`packages/core/test/fixtures/node_oracle.json` 的 31 个分支 0 样本把「钉死 `di0`」的参考实现当基准，改完全部对不上，差集只有 `x-medusa`。做法是让生成器在执行前补这一处——[tool/generate_oracle.cjs](../../tool/generate_oracle.cjs) 的 `withRolledHashF13()`，而 `sourceSha256` 仍钉未打补丁的文件（`3186e62…`，与 `references/hongguo-web` `3841835` / 1.1.5 相符），上游漂移门禁照旧有效，补丁记在我们这边；参考实现哪天自己修好，该函数原样返回、不叠加。
+
+线上读数（同日、匿名只读、不下载媒体）：三发 `production` 全 `code=0 videoRows=5`、24209/24230/24217 字节；`escaped_star` 与 `unsigned` 各三发全 `200 / 0`。把那一行注释掉再原样重跑，`production` 落回 `200 / 0`（2/2），改回来立刻 24447 字节——同一条代码路径的 A/B。仓库里原有的整条链路探针 `dart run tool/probe_upstream.dart --recover --video` 同一天给出 `浏览 58056 → 详情 101471 → 注册 384 → 取址 POST 22674`，`episodes: 96`、`1080p`、`contentKeyValid: true`。
+
+要说清的边界：6 个历史 vid 里有三集稳定回 `200 / 176 字节`、`code=101000 message=服务异常`、`data` 空，同一集连问三次不变答复、换一集就正常。带业务码的信封按既有约定归 `PlaybackUnavailable`，那句是「这一集暂时不能播放，请稍后重试或换一集」，与本轮修的「播放信息未返回数据」不是同一句，本轮不改它的分类。目录类接口不校验 `x-medusa`（从「丢了滚动字仍能返回 36–60KB」反推的观测，不是协议声明），这个缺陷因此一直藏到签名重新生效才露出来。
+
+验证统计：core `dart test` 125 项通过（含重生成后的 96 个签名样本）、api `dart test` 139 项通过；`dart analyze` 对本轮改动的文件无问题（`packages/core`、`packages/api` 各剩一条 info 属在途的渐进下载工作）。探测工具为 [packages/api/tool/probe_playback_sign.dart](../../packages/api/tool/probe_playback_sign.dart)。
+
+本轮未提交、未发布。

@@ -21,25 +21,30 @@ class VideoRequest {
       headers = Map.unmodifiable(headers);
 }
 
-String encodeQueryPart(String value) => utf8.encode(value).map((b) {
-  final safe =
-      b >= 65 && b <= 90 ||
-      b >= 97 && b <= 122 ||
-      b >= 48 && b <= 57 ||
-      [45, 46, 95, 126].contains(b);
-  return safe
-      ? String.fromCharCode(b)
-      : '%${b.toRadixString(16).toUpperCase().padLeft(2, '0')}';
-}).join();
+/// The player's own query encoder. `keepLiteralStar` reproduces the one place
+/// where it differs from RFC 3986 percent-encoding: the app's `quote()` leaves
+/// `*` in the query bytes (`resolution=1280*2772`), and this endpoint verifies
+/// signatures over the bytes it received, so re-encoding it refuses the request.
+String encodeQueryPart(String value, {bool keepLiteralStar = false}) =>
+    utf8.encode(value).map((b) {
+      final safe =
+          b >= 65 && b <= 90 ||
+          b >= 97 && b <= 122 ||
+          b >= 48 && b <= 57 ||
+          [45, 46, 95, 126].contains(b) ||
+          keepLiteralStar && b == 42;
+      return safe
+          ? String.fromCharCode(b)
+          : '%${b.toRadixString(16).toUpperCase().padLeft(2, '0')}';
+    }).join();
 
 class VideoRequestBuilder {
   static const endpoint =
       'https://api5-normal-sinfonlineb.fqnovel.com/novel/player/multi_video_model/v1/';
 
-  /// The player's own UA. Since 2026-10-27 this request is only answered when it
-  /// is anonymous -- registered device identity, no signature headers -- and the
-  /// upstream pairs that shape with this UA, which is a different build than the
-  /// one the list/detail traffic reports.
+  /// The player's own UA. This hop pairs it with the signed request: the device
+  /// build the list/detail traffic reports is a different one, and the player
+  /// answers this request only to its own.
   static const playbackUserAgent =
       'com.phoenix.read/71532 (Linux; U; Android 9; SM-N9860; '
       'Build/PQ3A.190705.10241111;tt-ok/3.12.13.20)';
@@ -48,15 +53,18 @@ class VideoRequestBuilder {
   final String playbackUA;
   final int Function() clockMillis;
   final Map<String, String> Function() deviceFactory;
+  final PureSign signer;
   VideoRequestBuilder({
     this.protocol = const AppSettings(),
     String? playbackUserAgent,
     int Function()? clockMillis,
     Map<String, String> Function()? deviceFactory,
+    PureSign? signer,
   }) : playbackUA = playbackUserAgent ?? VideoRequestBuilder.playbackUserAgent,
        clockMillis =
            clockMillis ?? (() => DateTime.now().millisecondsSinceEpoch),
-       deviceFactory = deviceFactory ?? defaultDevice {
+       deviceFactory = deviceFactory ?? defaultDevice,
+       signer = signer ?? PureSign() {
     protocol.validate();
   }
 
@@ -125,18 +133,35 @@ class VideoRequestBuilder {
       'pv_player': protocol.videoVersionCode,
       'device_id': device.deviceId,
       'iid': device.iid,
-      '_rticket': '${clockMillis()}',
+      'cdid': device.cdid,
     };
-    final url =
-        'https://${protocol.videoHost}/novel/player/multi_video_model/v1/'
-        '?${query.entries.map((e) => '${encodeQueryPart(e.key)}=${encodeQueryPart(e.value)}').join('&')}';
-    // No signature headers and no session: this endpoint started refusing the
-    // signed shape on 2026-10-27, and the anonymous one is what answers.
-    return VideoRequest(url, body, {
-      'User-Agent': playbackUA,
-      'Accept': 'application/json; charset=utf-8,application/x-protobuf',
-      'Content-Type': 'application/json; charset=UTF-8',
-    });
+    final khronos = clockMillis() ~/ 1000;
+    final ticketBase = clockMillis();
+    // Upstream admits one signature branch on this hop, and the branch is a
+    // function of the query bytes, so `_rticket` -- the only field the player
+    // rolls per try -- is searched until the query lands on it.
+    for (var attempt = 0; attempt < 128; attempt++) {
+      final ticket = ticketBase + attempt;
+      final params = {...query, 'ts': '$khronos', '_rticket': '$ticket'};
+      final url =
+          'https://${protocol.videoHost}/novel/player/multi_video_model/v1/'
+          '?${params.entries.map((e) => '${encodeQueryPart(e.key, keepLiteralStar: true)}'
+              '=${encodeQueryPart(e.value, keepLiteralStar: true)}').join('&')}';
+      if (signer.branchOf(url, body, khronos) != 0) continue;
+      return VideoRequest(url, body, {
+        'User-Agent': playbackUA,
+        'Accept': 'application/json; charset=utf-8,application/x-protobuf',
+        'Content-Type': 'application/json; charset=UTF-8',
+        'x-ss-req-ticket': '$ticket',
+        'sdk-version': '2',
+        'x-xs-from-web': '0',
+        ...signer.sign(url, body, khronos),
+        'x-tt-dt': '',
+        'x-tt-store-region': 'cn',
+        'x-tt-store-region-src': 'did',
+      });
+    }
+    throw const IncompleteCatalogResponse('播放信息签名暂时无法生成，请稍后重试');
   }
 }
 

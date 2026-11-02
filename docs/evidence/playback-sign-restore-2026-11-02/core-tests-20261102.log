@@ -1,0 +1,127 @@
+00:00 +0: loading test\mp4_test.dart
+00:00 +0: test\mp4_test.dart: decrypt head moov, preserve offsets and remove signaling
+00:00 +1: test\progressive_decrypt_test.dart: tail-moov relocation metadata alone is enough to build the recipe
+00:00 +2: test\progressive_decrypt_test.dart: tail-moov relocation metadata alone is enough to build the recipe
+00:00 +3: test\progressive_decrypt_test.dart: tail-moov relocation metadata alone is enough to build the recipe
+00:00 +4: test\oracle_test.dart: six headers match Node: seed 42, branch 0
+00:00 +5: test\oracle_test.dart: six headers match Node: seed 42, branch 0
+00:00 +6: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +7: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +8: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +9: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +10: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +11: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +12: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +13: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +14: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +15: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +16: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +17: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +18: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +19: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +20: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +21: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +22: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +23: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +24: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +25: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +26: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +27: test\progressive_decrypt_test.dart: tail-moov relocation output is clear, moov-first, byte-conserving
+00:00 +28: test\oracle_test.dart: six headers match Node: seed 61, branch 0
+00:00 +29: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +30: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +31: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +32: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +33: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +34: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +35: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +36: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +37: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +38: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +39: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +40: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +41: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +42: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +43: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +44: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +45: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +46: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +47: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +48: test\progressive_decrypt_test.dart: tail-moov relocation media bytes match the whole-file decrypt after remapping
+00:00 +49: test\oracle_test.dart: six headers match Node: seed 81, branch 2
+00:00 +50: test\progressive_decrypt_test.dart: tail-moov relocation playable prefix grows with the download
+00:00 +51: test\progressive_decrypt_test.dart: tail-moov relocation playable prefix grows with the download
+00:00 +52: test\progressive_decrypt_test.dart: tail-moov relocation playable prefix grows with the download
+00:00 +53: test\progressive_decrypt_test.dart: tail-moov relocation playable prefix grows with the download
+00:00 +54: test\progressive_decrypt_test.dart: tail-moov relocation playable prefix grows with the download
+00:00 +55: test\progressive_decrypt_test.dart: tail-moov relocation playable prefix grows with the download
+00:00 +56: test\progressive_decrypt_test.dart: tail-moov relocation playable prefix grows with the download
+00:00 +57: test\progressive_decrypt_test.dart: tail-moov relocation playable prefix grows with the download
+00:00 +58: test\progressive_decrypt_test.dart: tail-moov relocation playable prefix grows with the download
+00:00 +59: test\progressive_decrypt_test.dart: tail-moov relocation playable prefix grows with the download
+00:00 +60: test\progressive_decrypt_test.dart: tail-moov relocation playable prefix grows with the download
+00:00 +61: test\progressive_decrypt_test.dart: tail-moov relocation playable prefix grows with the download
+00:00 +62: test\progressive_decrypt_test.dart: tail-moov relocation playable prefix grows with the download
+00:00 +63: test\oracle_test.dart: six headers match Node: seed 91, branch 0
+00:00 +64: test\settings_test.dart: untrusted hosts, header injection and invalid limits are rejected
+00:00 +65: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +66: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +67: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +68: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +69: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +70: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +71: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +72: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +73: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +74: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +75: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +76: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +77: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +78: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +79: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +80: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +81: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +82: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +83: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +84: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +85: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +86: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +87: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +88: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +89: test\progressive_decrypt_test.dart: tail-moov relocation stalled span exposes exactly the contiguous prefix
+00:00 +90: test\oracle_test.dart: six headers match Node: seed 114, branch 1
+00:00 +91: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +92: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +93: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +94: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +95: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +96: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +97: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +98: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +99: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +100: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +101: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +102: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +103: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +104: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +105: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +106: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +107: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +108: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +109: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +110: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +111: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +112: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +113: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +114: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +115: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +116: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +117: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +118: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +119: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +120: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +121: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +122: test\progressive_decrypt_test.dart: head-moov identity output equals the whole-file decrypt byte for byte
+00:00 +123: test\progressive_decrypt_test.dart: plain files are rejected for progressive use
+00:00 +124: test\progressive_decrypt_test.dart: writer refuses input beyond the plan
+00:00 +125: All tests passed!

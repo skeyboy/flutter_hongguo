@@ -1,0 +1,141 @@
+00:00 +0: loading test\catalog_page_size_test.dart
+00:00 +0: test\catalog_page_size_test.dart: request 30 rows and use raw response cursor without assuming 18 rows
+00:00 +1: test\catalog_page_size_test.dart: request 30 rows and use raw response cursor without assuming 18 rows
+00:00 +2: test\catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +3: test\catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +4: test\catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +5: test\catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +6: test\catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +7: test\catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +8: test\catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +9: test\catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +10: test\catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +11: test\catalog_retry_test.dart: queued legacy lists reuse the discovered signature requirement before sending
+00:00 +12: test\catalog_retry_test.dart: signature fallback never retries rejected authorization or changes session headers
+00:01 +13: test\catalog_retry_test.dart: signature fallback never retries rejected authorization or changes session headers
+00:01 +14: test\catalog_vocabulary_test.dart: a row named only in Chinese still lands on its request key
+00:01 +15: test\catalog_vocabulary_test.dart: a row named only in Chinese still lands on its request key
+00:01 +16: test\catalog_retry_test.dart: legacy unsigned empty body upgrades once and subsequent lists remain signed
+00:01 +17: test\catalog_retry_test.dart: legacy unsigned empty body upgrades once and subsequent lists remain signed
+00:01 +18: test\catalog_retry_test.dart: legacy unsigned empty body upgrades once and subsequent lists remain signed
+00:01 +19: test\catalog_retry_test.dart: legacy unsigned empty body upgrades once and subsequent lists remain signed
+00:01 +20: test\catalog_retry_test.dart: legacy unsigned empty body upgrades once and subsequent lists remain signed
+00:01 +21: test\catalog_retry_test.dart: legacy unsigned empty body upgrades once and subsequent lists remain signed
+00:01 +22: test\catalog_retry_test.dart: legacy unsigned empty body upgrades once and subsequent lists remain signed
+00:01 +23: test\catalog_retry_test.dart: legacy unsigned empty body upgrades once and subsequent lists remain signed
+00:01 +24: test\catalog_vocabulary_test.dart: a panel that comes back with no rows keeps the last real one
+00:01 +25: test\media_cache_download_lane_test.dart: manual downloads run side by side up to their own limit
+00:01 +26: test\media_cache_download_lane_test.dart: manual downloads run side by side up to their own limit
+00:01 +27: test\media_cache_download_lane_test.dart: manual downloads run side by side up to their own limit
+00:01 +28: test\media_cache_download_lane_test.dart: manual downloads run side by side up to their own limit
+00:02 +29: test\media_cache_download_lane_test.dart: manual downloads run side by side up to their own limit
+00:02 +30: test\catalog_retry_test.dart: empty signed responses stop after two short recoveries
+00:02 +31: test\catalog_vocabulary_test.dart: catalogDimKeysByGenre agrees with what the parser yields for a full panel
+00:02 +32: test\catalog_vocabulary_test.dart: catalogDimKeysByGenre agrees with what the parser yields for a full panel
+00:02 +33: test\catalog_vocabulary_test.dart: catalogDimKeysByGenre agrees with what the parser yields for a full panel
+00:02 +34: test\media_cache_download_lane_test.dart: each lane peaks against its own budget
+00:02 +35: test\media_cache_download_lane_test.dart: each lane peaks against its own budget
+00:02 +36: test\media_cache_download_lane_test.dart: each lane peaks against its own budget
+00:02 +37: test\catalog_retry_test.dart: list 503 then success retains requested cursor, size and seen IDs
+00:02 +38: test\media_cache_download_lane_test.dart: download transfers never occupy the playback or prefetch budget
+00:02 +39: test\media_cache_test.dart: preparation timing separates transfer decrypt and cache hits
+00:02 +40: test\media_cache_test.dart: preparation timing separates transfer decrypt and cache hits
+00:02 +41: test\catalog_retry_test.dart: persistent transport failure stops after one retry and a later request can recover
+00:03 +42: test\catalog_retry_test.dart: persistent transport failure stops after one retry and a later request can recover
+00:03 +43: test\catalog_retry_test.dart: persistent transport failure stops after one retry and a later request can recover
+00:03 +44: test\catalog_retry_test.dart: persistent transport failure stops after one retry and a later request can recover
+00:03 +45: test\catalog_retry_test.dart: persistent transport failure stops after one retry and a later request can recover
+00:03 +46: test\catalog_retry_test.dart: persistent transport failure stops after one retry and a later request can recover
+00:03 +47: test\playback_device_test.dart: the registration envelope replays the reference framing, key schedule and payload
+00:03 +48: test\playback_device_test.dart: the registration envelope replays the reference framing, key schedule and payload
+00:03 +49: test\playback_device_test.dart: the registration envelope replays the reference framing, key schedule and payload
+00:03 +50: test\catalog_retry_test.dart: missing selector payload is retried, valid empty choices are not
+00:03 +51: test\catalog_retry_test.dart: missing selector payload is retried, valid empty choices are not
+00:03 +52: test\catalog_retry_test.dart: missing selector payload is retried, valid empty choices are not
+00:03 +53: test\catalog_retry_test.dart: missing selector payload is retried, valid empty choices are not
+00:03 +54: test\catalog_retry_test.dart: missing selector payload is retried, valid empty choices are not
+00:03 +55: test\catalog_retry_test.dart: missing selector payload is retried, valid empty choices are not
+00:03 +56: test\catalog_retry_test.dart: missing selector payload is retried, valid empty choices are not
+00:03 +57: test\catalog_retry_test.dart: missing selector payload is retried, valid empty choices are not
+00:03 +58: test\catalog_retry_test.dart: missing selector payload is retried, valid empty choices are not
+00:03 +59: test\catalog_retry_test.dart: missing selector payload is retried, valid empty choices are not
+00:03 +60: test\media_cache_test.dart: truncated ready file with old manifest is re-downloaded
+00:03 +61: test\catalog_retry_test.dart: slow themes do not block independent list request
+00:03 +62: test\catalog_retry_test.dart: slow themes do not block independent list request
+00:03 +63: test\catalog_retry_test.dart: slow themes do not block independent list request
+00:03 +64: test\catalog_retry_test.dart: slow themes do not block independent list request
+00:03 +65: test\catalog_retry_test.dart: slow themes do not block independent list request
+00:03 +66: test\catalog_retry_test.dart: slow themes do not block independent list request
+00:03 +67: test\catalog_retry_test.dart: slow themes do not block independent list request
+00:03 +68: test\prefetch_scheduler_test.dart: byte budget evicts old unpinned files but protects the playing file
+00:03 +69: test\prefetch_scheduler_test.dart: byte budget evicts old unpinned files but protects the playing file
+00:03 +70: test\media_cache_test.dart: recovery publishes completed ciphertext without resolving or downloading
+00:03 +71: test\media_cache_test.dart: recovery publishes completed ciphertext without resolving or downloading
+00:03 +72: test\media_cache_test.dart: recovery never lists a partial or corrupt video as ready
+00:04 +73: test\progressive_lane_test.dart: plan from a partial download the tail moov arrives by range, not by waiting
+00:04 +74: test\progressive_media_cache_test.dart: the stream is playable while the transfer is still paused
+00:04 +75: test\progressive_media_cache_test.dart: the stream is playable while the transfer is still paused
+00:04 +76: test\progressive_media_cache_test.dart: the stream is playable while the transfer is still paused
+00:04 +77: test\progressive_media_cache_test.dart: the stream is playable while the transfer is still paused
+00:04 +78: test\progressive_media_cache_test.dart: the stream is playable while the transfer is still paused
+00:04 +79: test\progressive_media_cache_test.dart: the stream is playable while the transfer is still paused
+00:04 +80: test\progressive_media_cache_test.dart: the stream is playable while the transfer is still paused
+00:04 +81: test\progressive_media_cache_test.dart: the stream is playable while the transfer is still paused
+00:04 +82: test\progressive_media_cache_test.dart: the stream is playable while the transfer is still paused
+00:04 +83: test\progressive_media_cache_test.dart: the stream is playable while the transfer is still paused
+00:04 +84: test\progressive_media_cache_test.dart: the stream is playable while the transfer is still paused
+00:04 +85: test\progressive_media_cache_test.dart: the stream is playable while the transfer is still paused
+00:04 +86: test\progressive_media_cache_test.dart: the stream is playable while the transfer is still paused
+00:04 +87: test\progressive_stream_server_test.dart: a seek into undelivered bytes waits, then answers 416
+00:04 +88: test\progressive_stream_server_test.dart: a seek into undelivered bytes waits, then answers 416
+00:04 +89: test\progressive_media_cache_test.dart: a stream published mid-download is a cache hit afterwards
+00:04 +90: test\progressive_media_cache_test.dart: a stream published mid-download is a cache hit afterwards
+00:04 +91: test\progressive_media_cache_test.dart: a stream published mid-download is a cache hit afterwards
+00:04 +92: test\progressive_media_cache_test.dart: a stream published mid-download is a cache hit afterwards
+00:04 +93: test\progressive_media_cache_test.dart: a stream published mid-download is a cache hit afterwards
+00:04 +94: test\progressive_media_cache_test.dart: a stream published mid-download is a cache hit afterwards
+00:04 +95: test\progressive_media_cache_test.dart: a stream published mid-download is a cache hit afterwards
+00:04 +96: test\progressive_media_cache_test.dart: a stream published mid-download is a cache hit afterwards
+00:04 +97: test\progressive_media_cache_test.dart: a stream published mid-download is a cache hit afterwards
+00:04 +98: test\progressive_stream_server_test.dart: file source the origin plays a file that is still being written
+00:04 +99: test\progressive_media_cache_test.dart: a disabled setting keeps the whole-file pipeline
+00:04 +100: test\progressive_media_cache_test.dart: an origin without range support falls back to whole-file decrypt
+00:05 +101: test\request_control_test.dart: shared request survives cancellation of only one subscriber
+00:05 +102: test\request_control_test.dart: shared request survives cancellation of only one subscriber
+00:05 +103: test\request_control_test.dart: shared request survives cancellation of only one subscriber
+00:05 +104: test\video_model_client_test.dart: simultaneous qualities and track share both metadata hops
+00:05 +105: test\request_control_test.dart: last subscriber cancellation reaches transport
+00:05 +106: test\video_model_client_test.dart: video metadata fallback uses the same deadline and is cancelled
+00:05 +107: test\video_model_client_test.dart: video metadata fallback uses the same deadline and is cancelled
+00:05 +108: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +109: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +110: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +111: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +112: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +113: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +114: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +115: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +116: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +117: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +118: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +119: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +120: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +121: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +122: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +123: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +124: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +125: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +126: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +127: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +128: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +129: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +130: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +131: test\request_control_test.dart: queued cancellation does not send or poison subsequent requests
+00:05 +132: test\request_control_test.dart: cancellation interrupts retry sleep
+00:05 +133: test\request_control_test.dart: themes expire by genre and failed responses never replace cache
+00:06 +134: test\request_control_test.dart: cursor and exclusions distinguish shared request keys
+00:07 +135: test\request_control_test.dart: detail primary and website fallback share one deadline
+00:07 +136: test\request_control_test.dart: Retry-After numeric and HTTP-date are never shortened
+00:07 +137: test\request_control_test.dart: fallback phases share the total deadline
+00:07 +138: test\request_control_test.dart: trace separates queue signing transport and backoff without sensitive fields
+00:07 +139: All tests passed!
