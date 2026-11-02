@@ -208,4 +208,4 @@ Dart 侧的迁移分四处：
 
 验证统计：core `dart test` 125 项通过（含重生成后的 96 个签名样本）、api `dart test` 139 项通过；`dart analyze` 对本轮改动的文件无问题（`packages/core`、`packages/api` 各剩一条 info 属在途的渐进下载工作）。探测工具为 [packages/api/tool/probe_playback_sign.dart](../../packages/api/tool/probe_playback_sign.dart)。
 
-本轮未提交、未发布。
+本轮已提交（`f41351c`），未发布：版本号、标签与 Release 都不动，发布另走一轮。工作树与其他在途工作共用，本轮改动只落在上面 core 的 1 个源文件与 1 份夹具、api 的 1 个源文件与 1 个测试与 1 个探测工具、生成器 `tool/generate_oracle.cjs` 与其产物 `tool/oracle_data.dart`，以及证据与分析两处文档。
