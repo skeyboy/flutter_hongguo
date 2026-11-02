@@ -103,10 +103,11 @@
   .band .it.sel .ic{background:var(--brand)}
   .band .it .bdg{position:absolute;top:5px;right:7px;min-width:12px;height:12px;border-radius:7px;
                  background:var(--brand);color:#fff;font-size:8px;line-height:12px;text-align:center;padding:0 2px}
-  .band .it.rej{opacity:.32;background:repeating-linear-gradient(135deg,#1b1e26 0 5px,#22262f 5px 10px)}
-  .band .it.rej .ic{border:1px dashed #6b7180;background:none;border-radius:3px}
-  .band .ovf{margin-top:auto;display:flex;align-items:center;justify-content:center;height:26px;
-             background:#22262f;color:#c8ccd6;font-size:13px;letter-spacing:2px}
+  /* «···» 溢出标记：三个宿主（外壳侧栏、实验台、播放页那条）共用这一条规则，
+     高度由 JS 按 OVF_PT 给 —— 预算与画法同一个数。原来它是 .band 下一条写死的
+     height:26px（= 42pt），谁也没把它记进丢弃预算，于是「算出来放得下」而画出来顶出屏。 */
+  .ovf{margin-top:auto;display:flex;align-items:center;justify-content:center;
+       background:#22262f;color:#c8ccd6;font-size:13px;letter-spacing:2px;border-radius:6px}
   .tabbar{flex:0 0 auto;background:#fff;border-top:1px solid var(--line);display:flex}
   .tabbar .it{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px 5px;position:relative}
   .tabbar .it .ic{width:17px;height:17px;border-radius:5px;background:#c9cedb}
@@ -115,7 +116,8 @@
   .tabbar .it.sel .tx{color:var(--brand);font-weight:600}
   .tabbar .it .bdg{position:absolute;top:3px;right:12px;min-width:11px;height:11px;border-radius:6px;
                    background:var(--brand);color:#fff;font-size:8px;line-height:11px;padding:0 2px;text-align:center}
-  .rail{flex:0 0 auto;width:52px;background:#fff;border-right:1px solid var(--line);
+  /* rail 的宽由 JS 按 NavigationRail 默认 minWidth 给（见 RAIL_PT），不在样式里写死 */
+  .rail{flex:0 0 auto;background:#fff;border-right:1px solid var(--line);
         display:flex;flex-direction:column;align-items:center;padding-top:8px;gap:4px}
   .rail .it{width:40px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;
             background:#e9ebf0;color:var(--ink3);font-size:9px;font-weight:600}
@@ -171,6 +173,43 @@
          display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:5px;padding-top:6px}
   .vhead .x{width:13px;height:13px;border-radius:50%;background:#dfe3ec}
   .vhead .d{width:13px;height:13px;border-radius:4px;background:var(--brand)}
+  /* ---------- 桌面档的侧栏（今天 ≥1100 那条支路，不是 Duo 侧栏） ---------- */
+  .navside{flex:0 0 auto;background:#fff;border-right:1px solid var(--line);
+           display:flex;flex-direction:column;align-items:stretch;padding-top:8px}
+  .navside .it{display:flex;align-items:center;gap:7px;padding:7px 10px;font-size:10px;color:var(--ink3)}
+  .navside .it .ic{width:17px;height:17px;border-radius:5px;background:#c9cedb;flex:0 0 auto;
+                   display:flex;align-items:center;justify-content:center;font-size:9px;font-style:normal}
+  .navside .it.sel{background:var(--brand-soft);color:var(--brand);font-weight:600}
+  .navside .it.sel .ic{background:var(--brand);color:#fff}
+  .navdiv{flex:0 0 auto;width:1px;background:var(--line)}   /* VerticalDivider(width: 1) */
+  /* ---------- 溢出落面：PopupMenuButton 形态（§5.12 的裁决） ---------- */
+  .pmenu{position:absolute;z-index:38;background:#fff;border-radius:10px;min-width:118px;
+         box-shadow:0 6px 20px rgba(20,22,28,.24);padding:4px;font-size:9.5px;color:var(--ink2)}
+  .pmenu .mh{font-size:8px;color:var(--ink3);padding:3px 6px 4px;letter-spacing:.3px}
+  .pmenu .mi{display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:7px}
+  .pmenu .mi:hover{background:#f2f4f8}
+  .pmenu .mi .ic{width:14px;height:14px;border-radius:4px;background:#e9ebf0;flex:0 0 auto;
+                 display:flex;align-items:center;justify-content:center;font-size:8px;font-style:normal}
+  .pmenu .mi .bd{margin-left:auto;font-size:8px;background:var(--brand);color:#fff;
+                 border-radius:6px;padding:0 4px}
+  /* ---------- 双击分区与手势路径（§5.10） ---------- */
+  .zones{position:absolute;z-index:33;display:flex;pointer-events:none}
+  .zones i{flex:1 1 0;display:flex;align-items:flex-start;justify-content:center;padding-top:4px;
+           font-size:8px;font-style:normal;color:rgba(255,255,255,.7);
+           border-left:1px dashed rgba(255,255,255,.3)}
+  .zones i:first-child{border-left:0}
+  .zones i.mid{color:#7ee0a0;background:rgba(126,224,160,.09)}
+  .panelbar{position:absolute;z-index:34;border-radius:6px;font-size:8px;display:flex;
+            align-items:center;justify-content:center;color:#fff;font-style:normal;
+            background:rgba(255,45,85,.5);border:1px solid rgba(255,255,255,.4)}
+  .panelbar.ok{background:rgba(18,133,90,.5)}
+  /* ---------- 阈值线与手势表 ---------- */
+  .gtbl td.hit{color:var(--warn);font-weight:600}
+  .gtbl td.na{color:var(--ink3)}
+  .two{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+  .two .col{flex:1 1 420px;min-width:320px}
+  /* 表格单元格里第二行小字：源码出处，跟条目名同格但不抢注意力 */
+  .sub2{display:block;font-size:9px;color:var(--ink3);font-weight:400;margin-top:2px}
   /* ---------- 播放器 ---------- */
   .player{flex:1 1 auto;min-width:0;background:#000;position:relative;display:flex;overflow:hidden}
   .vid{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
@@ -190,14 +229,12 @@
   .transport .tx{font-size:8px;color:#fff;opacity:.8;flex:0 0 auto}
   .tpband{position:absolute;top:0;bottom:0;right:0;z-index:34;width:34px;background:rgba(9,11,15,.92);
           border-left:1px solid rgba(255,255,255,.14);display:flex;flex-direction:column;
-          align-items:center;gap:3px;padding:6px 0}
+          align-items:center;gap:0;padding:0}
   .tpband .b{width:15px;height:15px;border-radius:4px;background:rgba(255,255,255,.86);flex:0 0 auto;
              display:flex;align-items:center;justify-content:center;font-size:7px;color:#0d0f13;font-style:normal}
   .tpband .b.never{outline:1.5px solid rgba(126,224,160,.8)}
   .tpband .b.d2{width:13px;height:13px;border-radius:50%;background:rgba(255,255,255,.5)}
-  .tpband .b.rej{background:none;border:1px dashed rgba(255,255,255,.45);border-radius:3px;color:rgba(255,255,255,.45)}
-  .tpband .b.gone{display:none}
-  .tpband .ovf{margin-top:auto;color:#c8ccd6;font-size:11px;letter-spacing:2px}
+  .tpband .ovf{width:100%;font-size:10px;letter-spacing:1px}   /* 34px 宽的边上放不下 13px 的三个点 */
   .infohalf{position:absolute;left:0;right:0;top:0;z-index:32;background:#f6f7f9;
              display:flex;flex-direction:column;padding:6px;gap:5px;overflow:hidden}
   .infohalf .t{font-size:10px;font-weight:700;color:var(--ink)}
@@ -220,7 +257,9 @@
   .pill.ovf{background:var(--fold-soft);color:var(--fold)}
   .pill.rej{background:var(--cam-soft);color:var(--cam)}
   .pill.never{background:#e9ebf0;color:var(--ink2)}
-  .fake-band{background:#111318;border-radius:12px;padding:6px;color:#e7eaf2;overflow:hidden}
+  /* 实验台与第 6 节那条假边：padding 必须是 0，否则 CSS 又偷偷吃掉 12px（≈19pt），
+     预算里的 chrome 就和画出来的格子数不一致。外壳那条 .band 本来就没有内边距，这里对齐它。 */
+  .fake-band{background:#111318;border-radius:12px;padding:0;color:#e7eaf2;overflow:hidden}
   .u{font-size:11.5px;color:var(--ink2);line-height:1.75}
   .u code{background:#eef0f4;padding:1px 5px;border-radius:5px;font:11px ui-monospace,Menlo,monospace}
   .flag{color:var(--warn);font-weight:600}
@@ -237,6 +276,9 @@
       <button data-pose="book" aria-pressed="false">半开·书立</button>
       <button data-pose="laptop" aria-pressed="false">半开·笔记本</button>
       <button data-pose="phone" aria-pressed="false">非 Duo 手机（对照）</button>
+      <button data-pose="deskNarrow" aria-pressed="false">桌面窄窗 800（rail 档）</button>
+      <button data-pose="deskWide" aria-pressed="false">桌面宽窗 1280（200 侧栏档）</button>
+      <button data-pose="tv" aria-pressed="false">TV / 外接 1920（连带面）</button>
     </div>
   </div>
   <div class="grp"><span>判据</span>
@@ -254,7 +296,7 @@
       <button data-fold="unreachable" aria-pressed="false">Flutter 层读不到（今天）</button>
     </div>
   </div>
-  <div class="hint">设计说明 <b>../iphone-duo-adaptation.md</b>：§5.1 姿势模型 · §5.2 阈值迁移 · §5.3 竖排控制条 · §5.4 预留区让位 · §5.5 arrangement · §5.6 逐界面 · §5.7 偶数列 · §5.10 手势与带 · §5.11 可达性 · §5.12 溢出落面。键盘 <kbd>1</kbd>–<kbd>6</kbd> 换姿势、<kbd>R</kbd> 换判据、<kbd>A</kbd>/<kbd>I</kbd>/<kbd>U</kbd> 换折叠带读数。</div>
+  <div class="hint">设计说明 <b>../iphone-duo-adaptation.md</b>：§5.1 姿势模型 · §5.2 阈值迁移 · §5.3 竖排控制条 · §5.4 预留区让位 · §5.5 arrangement · §5.6 逐界面 · §5.7 偶数列 · §5.10 手势与带 · §5.11 可达性 · §5.12 溢出落面。键盘 <kbd>1</kbd>–<kbd>9</kbd> 换姿势、<kbd>R</kbd> 换判据、<kbd>A</kbd>/<kbd>I</kbd>/<kbd>U</kbd> 换折叠带读数。后三个姿势都是<b>未知主机</b>：它们的「设计后」与「现状」逐字相同，用来演 §5.2 的未知支路等价律与 §5.14 的 TV 连带面。</div>
 </div>
 
 <div class="readout wrap" id="readout" aria-live="polite"></div>
@@ -266,9 +308,13 @@
     <span><i style="background:#111318"></i>竖排控制条（自绘侧栏）</span>
     <span><i style="background:#fff;border:1px solid var(--line)"></i>横排控制条（今天）</span>
     <span><i style="background:repeating-linear-gradient(135deg,#1b1e26 0 4px,#22262f 4px 8px)"></i>被 R14 拒绝进侧栏的条目</span>
+    <span><i style="background:#fff;border:1px solid var(--line);box-shadow:0 1px 4px rgba(20,22,28,.2)"></i>溢出落面 = <code>PopupMenuButton</code>（§5.12 的裁决，图标+标题）</span>
+    <span><i style="background:rgba(126,224,160,.35)"></i>双击的中间区（播放/暂停），左右各 35% 是快退/快进（§5.10）</span>
+    <span><i style="background:rgba(255,45,85,.5)"></i>按整块屏宽画出来的面板/滑轨（会横跨折叠带）</span>
+    <span><i style="background:#c9cedb"></i>今天桌面档的 <code>NavigationRail</code> / 200pt 侧栏（非 Duo 侧栏）</span>
   </div>
   <div class="kbd">
-    框上标的是<b>真实逻辑点</b>（屏幕像素只是等比缩放）。「现状」列的每一个结论都按 <code>library_page.dart:3101</code> 等源码字面判据算出，不是画师发挥。
+    框上标的是<b>真实逻辑点</b>（屏幕像素只是等比缩放）。「现状」列的每一个结论都按 <code>library_page.dart:3129</code> 等源码字面判据算出，不是画师发挥。
     <span class="flag">已坐实</span>：外屏 466×678pt、scale=3、H=compact、右侧系统带 84pt 与两块遮挡矩形，本轮 Mac 探针 404 帧实测（文档 §2）。
     <span class="flag">未坐实项</span>：内屏 669×951pt 是设备定义像素÷实测倍率 3 的折算，只有第三方模拟器读数互证；折叠带 40pt 同属第三方读数、无一手帧。两者都要等一次真的展开采样（文档 §8 第 1、4 项）。
   </div>
@@ -297,7 +343,7 @@
   <h2>4 · 侧栏装不下的时候：溢出顺序与 R14 的拒绝</h2>
   <p>侧栏是官方给 Duo 的核心范式（R7），代价是可用高度大幅缩水，于是「谁先被收起」必须有声明。官方的答案是：默认从下往上溢出（R13）、带徽章的状态项更晚收（R15）、纯文字或纯自定义 view 的条目<b>根本进不了竖排</b>（R14）。仓库里已经有一份这样的名单——<code>playback_transport.dart:22</code> 的 <code>dropOrder</code>，注释写明了「播放、选集、倍速、全屏永不丢弃」，但全仓库对它的 grep 只有这一处命中：<b>被声明，从未被消费</b>（§4.3）。下面的实验台就是把它接上真实测量的样子。</p>
   <div class="cell">
-    <h3><span id="bench-title">溢出实验台</span><span class="tag new">dropOrder 已接上</span></h3>
+    <h3><span id="bench-title">溢出实验台</span><span class="tag new">dropOrder 已接上 · 粒度是组</span><span class="tag">··· 可点</span></h3>
     <div class="bench">
       <div class="left">
         <label for="h">侧栏可用高度：<b id="hval">560</b> pt（外屏约 500pt 会被系统带与工具栏段占掉一部分）</label>
@@ -305,20 +351,57 @@
         <table class="tbl" id="dropTbl"></table>
       </div>
       <div>
-        <div class="fake-band" id="fakeBand"></div>
+        <!-- 与设备框那条 .band 共用同一套 CSS（见 renderScale 里那段说明），
+             否则实验台画的是「另一套排版」，量出来的摆得下就不作数。 -->
+        <div class="fake-band band" id="fakeBand"></div>
+        <div id="menuHost"></div>
       </div>
     </div>
   </div>
 </section>
 
 <section>
-  <h2>5 · 这张原型刻意没有演示的东西</h2>
+  <h2>5 · 手势的路径上有没有那条带（§5.10）</h2>
+  <p>前四节都在管「东西放哪」，但这个应用的核心交互是<b>横向手势</b>，而一条竖着的折叠带正好横在它们的路径上。§5.10 把七处手势逐个回到源码裁了一遍，结论可以压成一句：<b>凡是分母取自身约束的手势（进度条、双击、<code>viewportWidth</code> 链）都不需要改判据，只需要保证传进去的那个宽是「去掉带之后的宽」；真正要改的只有三处按屏宽算的</b>——<code>detail_page.dart:339</code>、<code>anchored_panel.dart:101</code>、<code>episode_workspace.dart:220</code>。下面这张表按当前姿势把那几个数现算一遍，<b>红底</b>的那一行就是「今天会跨到带上」的位置。这一节用的是 40pt 的第三方读数，所以带的位置是推断；但「喂屏宽还是喂栏宽」这件事与带的宽度无关，两栏一对比就能看出来。</p>
+  <div class="two">
+    <div class="col"><table class="tbl gtbl" id="gestureTbl"></table></div>
+    <div class="col"><div class="stage" id="stage-gesture"></div></div>
+  </div>
+</section>
+
+<section>
+  <h2>6 · 侧栏在系统大字号与 VoiceOver 下（§5.11）</h2>
+  <p>§5.3 那条 68pt 条目宽是本仓库<b>第一个固定尺寸的交互件</b>，于是两笔一直没人还的欠账开始疼：文字缩放（全 <code>packages/**</code> 里 <code>textScaler</code> / <code>textScaleFactor</code> / <code>BoldText</code> 本轮现读 <b>0 命中</b>）和语义（<code>Semantics</code> 全仓只有 8 处、<code>library_page.dart</code> <b>0 处</b>、Material <code>Badge</code> <b>0 处</b>）。今天底部条是 Material <code>NavigationBar</code>，语义白送；换成自绘 <code>SideControlBand</code> 之后，VoiceOver 在<b>最需要它的外屏</b>上会读到一片空。规则写死在这里：<b>缩放换形态、不换字号</b>，触控目标在任意缩放下不小于 44×44pt。</p>
+  <p>本轮把缩放滑块推到上限 1.7× 复算了一遍：缩放吃的是<b>条目高</b>（48pt → 48+2×15×1.7 ≈ 99pt），条目宽只从 68pt 涨到 71pt，离「吃掉外屏 466pt 的 40%（186pt）」差得远。于是 §5.11 原来那条「缩放到某个档位整条退回横排」<b>在 Duo 上不可达</b>：真正的退路是同一条竖排里<b>溢出菜单变长</b>（R13/R16 那条落点），不是形态换回横排。下面实验台里那条横排只作示意保留，本档永远不触发。</p>
+  <div class="cell">
+    <h3>缩放实验台<span class="tag new">形态切换点在 1.3×</span></h3>
+    <div class="bench">
+      <div class="left">
+        <label for="s">显示缩放：<b id="sval">1.00</b>×（系统 设置 → 辅助功能 → 显示与文字大小）</label>
+        <input id="s" type="range" min="100" max="170" step="5" value="100">
+        <table class="tbl" id="scaleTbl"></table>
+      </div>
+      <div id="scaleHost"></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>7 · 五条字面量线在 Duo 上谁会被触发（§4.1 / §5.2）</h2>
+  <p>§4.1 那张表列了 13 行比较式判据，但它们其实只吃<b>五条线</b>：<code>720</code>、<code>850</code>、<code>1100</code>、<code>400</code>、<code>280</code>。这一节按当前姿势把每条线的<b>读数来源</b>（整块屏还是所在栏）与<b>会不会被触发</b>算出来。它顺手纠正了设计文档一处算术：<b><code>280</code> 这条线在 Duo 的任何姿势都够不着</b>——§4.1 原来写「内屏横屏的分栏半屏可能落到 280 以下」，而那一半是 (951 − 侧栏 68 − 带 40) ÷ 2 = <b>421.5pt</b>，六档里最窄的栏也是书立竖带的 <b>314.5pt</b>，都远在 280 之上。</p>
+  <div class="cell"><table class="tbl gtbl" id="threshTbl"></table></div>
+</section>
+
+<section>
+  <h2>8 · 这张原型仍然没有演示的东西</h2>
   <p class="u">
     ① <b>内屏摄像头遮挡</b>：本应用不采集影像，内屏摄像头永不激活，R21 的这条对我们不适用（§5.9）。<br>
     ② <b>内屏 Split View 多任务</b>（R30）：需要 <code>UIApplicationSupportsMultipleScenes=true</code>，现状是 false，一期不动；侧栏贴哪一边在模型里是读主机上报的 band 边而不是写死常量，为的是将来不必重设计（§5.3）。<br>
     ③ <b>详情栏的竖排条</b>（R10）：内屏竖屏双栏时官方把详情栏的条放在侧边，一期按 HIG 的例外保留横排，记为已知偏差（§5.3 末、§7 P3）。<br>
-    ④ <b>内屏与半开帧</b>：本轮 Mac 探针采到 404 帧，<b>全部是合上态</b>——模拟器窗口没在前台，手动展开没有落到系统，一条展开帧都没有。所以内屏 669×951、折叠带 40pt、division 的 margins、换屏时序在框上都只是示意，<b>不构成设备上的验收</b>（§8）。外屏那一列相反：尺寸、尺寸级、右边带 84pt 与两块遮挡几何都是本轮实测。<br>
-    ⑤ <b>手势让位与溢出落面</b>：§5.10 的六处手势点和 §5.12 的溢出弹层用哪条通道，都是按源码字面读出来的判定，本原型没有把它们做成可交互的帧——折叠带压住滑轨这件事，要等真展开帧才好实拍。
+    ④ <b>内屏与半开帧</b>：本轮 Mac 探针采到 404 帧，<b>全部是合上态</b>——模拟器窗口没在前台，手动展开没有落到系统，一条展开帧都没有。所以内屏 669×951、折叠带 40pt、division 的 margins、换屏时序在框上都只是示意，<b>不构成设备上的验收</b>（§8）。外屏那一列相反：尺寸、尺寸级、右边带 84pt 与两块遮挡几何都是本轮实测。第 5 节那两条分区线、中缝坐标同样吃这个未坐实的 40pt，所以它们标的是「按第三方读数推」。<br>
+    ⑤ <b>焦点遍历与键盘</b>（§5.11 末、§7 P3）：仓库有 <code>HardwareKeyboard</code>（<code>compact_controls.dart:65-76</code>）与 <code>requestFocus</code>（<code>library_page.dart:1867</code>）两处同类件，但 Duo 的焦点顺序一期不动，本原型没有画焦点环。<br>
+    ⑥ <b>手势的真实命中</b>：第 5 节演的是「喂进去的宽」与「带落在哪个区间」这两个<b>算术</b>，不是手势响应本身——滑动接力（<code>_handoverPhysics</code>）、双击分区在设备上是否按这里的判定生效，要等一次真展开帧与实机操作（§8 Mac 验收项）。<br>
+    ⑦ <b>VoiceOver 实读</b>：第 6 节列的是 <code>BandItem</code> 必须带上的语义字段清单与缩放后的形态，实际朗读文本需要设备开辅助功能实拍（§8 第 9 项）。
   </p>
 </section>
 
@@ -335,13 +418,20 @@ const PT = 0.62;                     // 逻辑点 → 屏幕像素
 const BAND_ITEM = 68;                // 侧栏条目宽 pt（§5.3 设计值）
 const SYS_EDGE_COVER = 84;           // 合上态右边带实测 pt（§2「外屏系统侧边预留」行）
 const DIV = 40;                      // 折叠带宽 pt（仍是第三方 iOS 27.1 模拟器读数，无一手帧）
+/* 今天桌面档那两条支路的实宽，用来画未知主机三档（不是 Duo 侧栏）：
+   NavigationRail 没给 minWidth，取 SDK 默认——navigation_rail.dart:285 的注释原文
+   「The default is 72」；宽窗那条是 library_page.dart:3195 的 SizedBox(width: 200)，
+   后面跟一根 VerticalDivider(width: 1)（:3232-3235）。 */
+const RAIL_PT = 72;
+const SIDEBAR_PT = 200;
+const DIVIDER_PT = 1;
 
 /* 分集网格的真实算法：列数从来不是「选」出来的。episode_pager.dart:255-259 用
    floor((约束宽 + spacing) / (cellExtent + spacing)) 推导，spacing 默认 10（:41）；
    调用方只选 rows（可见行数）与 cellExtent（目标单元宽），而 detail_page.dart:339-342
    选这两样时读的是 MediaQuery 整块屏宽——R5 的违例在这一处，网格自己反而是按所在约束宽算的。
    外层左右各 24pt 内边距来自 detail_page.dart:332。DetailPage 是整屏路由
-   （library_page.dart:1402 push），所以今天的约束宽与外壳那条 bar 无关。 */
+   （library_page.dart:1430 push），所以今天的约束宽与外壳那条 bar 无关。 */
 const GRID_PAD = 48;
 const CELL_SPACING = 10;
 const INFO_BLOCK_PT = 89;    // 网格下方那块信息占位（.blk 41px + 上下 margin 14px）÷ 0.62
@@ -366,29 +456,61 @@ const SCREENS = {
   innerLandscape: {w:951, h:669, screen:'inner',   sizeClass:'regular', fold:'present', posture:'flat',      label:'内屏·横',       px:'2853×2007', insets:'未采到展开帧', src:'同上，横持'},
   book:           {w:669, h:951, screen:'inner',   sizeClass:'regular', fold:'present', posture:'halfOpen',  axis:'v', label:'半开·书立（竖带分左右）', px:'2007×2853', insets:'未采到半开帧', src:'带轴向属几何推断，待核'},
   laptop:         {w:951, h:669, screen:'inner',   sizeClass:'regular', fold:'present', posture:'halfOpen',  axis:'h', label:'半开·笔记本（横带分上下）', px:'2853×2007', insets:'未采到半开帧', src:'同上'},
-  phone:          {w:390, h:844, screen:'unknown', sizeClass:'unknown', fold:'unknown', posture:'unknown',   label:'非 Duo 手机（对照）', px:'—', insets:'不读（一期逐字保持今天）', src:'未知主机：一期逐字保持今天'}
+  phone:          {w:390, h:844, screen:'unknown', sizeClass:'unknown', fold:'unknown', posture:'unknown',   label:'非 Duo 手机（对照）', px:'—', insets:'不读（一期逐字保持今天）', src:'未知主机：一期逐字保持今天'},
+  /* 下面三档都是未知主机，存在的理由有两个：一是 §4.2 那两条桌面支路（720–1100 的
+     NavigationRail、≥1100 的 SizedBox(width:200)）在前面六个姿势里永远走不到，
+     不画出来就等于原型里留着两段死代码；二是 §5.14 说的连带面——TV flavor 复用同一套
+     页面，env 恒为 unknown，那档等价律得有姿势可演。尺寸不是编的：800×900 与 1280×900
+     是 adaptive_ui_test.dart:63-64 里现读的测试档位，1920×1080 是 §5.14 那条 TV 用例。 */
+  deskNarrow:     {w:800, h:900, screen:'unknown', sizeClass:'unknown', fold:'unknown', posture:'unknown',   label:'桌面窄窗 800×900（rail 档）', px:'测试档位 adaptive_ui_test.dart:63', insets:'不读（未知主机）', src:'720 ≤ 宽 < 1100 → NavigationRail（默认宽 72）'},
+  deskWide:       {w:1280, h:900, screen:'unknown', sizeClass:'unknown', fold:'unknown', posture:'unknown',  label:'桌面宽窗 1280×900（200 侧栏档）', px:'测试档位 adaptive_ui_test.dart:64', insets:'不读（未知主机）', src:'宽 ≥ 1100 → SizedBox(width: 200)（library_page.dart:3167）'},
+  tv:             {w:1920, h:1080, screen:'unknown', sizeClass:'unknown', fold:'unknown', posture:'unknown', label:'TV / 外接 1920×1080（连带面）', px:'§5.14 那条 TV 用例', insets:'不读（TV flavor 恒为 unknown）', src:'TV 复用主工程页面 → 一期档位与今天逐字相同'}
 };
 
-/* 传输条条目：名单原样来自 playback_transport.dart:22。
-   kind 决定它能不能进竖排（R14）；badge 决定它在同组里更晚被收（R15）。
-   播放 / 选集 / 倍速 / 全屏 不在名单里 —— 注释写明永不丢弃。 */
+/* 传输条条目：id 名单原样来自 playback_transport.dart:22-30 的 dropOrder，
+   每条的真实形态本轮回到 :330-436 逐条核对，不是照名单编的：
+   - clock-seconds = _clock() 里那行 Text(fontSize:12) → 纯文字，R14 拒进竖排
+   - episodes-pair = skip_previous / skip_next 两个 IconButton（只在 desktopWide 出现）
+   - skip-pair     = replay_10 / forward_10 两个 IconButton（mobilePortrait 不出现）
+   - volume-slider = 固定 92pt 宽的 Slider（:203 那个 SizedBox(width: 92)），
+     自定义 view → R14 拒收；窄档它自己已经退成 PopupMenu，这条正好是官方的答案
+   - quality / picture-in-picture / cast 各是一个 IconButton 或 PopupMenuButton
+   两个 *_pair 在竖排里必须占两格（一条边只有一个横向可摆），所以固有高取 2×48。
+   条目高按 Material 最小触控 kMinInteractiveDimension = 48pt 取（SDK
+   icon_button.dart:39 `_kMinButtonSize = kMinInteractiveDimension`）；文字行按它的
+   字号 12 取一行 28pt。group 是 R13/R16 要的「组」，声明序 = dropOrder 的原序。
+   badge 是声明出来的布尔（§5.11：全仓 0 处 Material Badge，只能显式传入），
+   它决定同组内谁更晚被收（R15）。 */
+const ICON_PT = 48, TEXT_PT = 28, SLIDER_W_PT = 92, GROUP_LABEL_PT = 12, SYS_BAND_PT = 30;
+/* 溢出标记 «···» 自己也要占一条边：它在外壳那条边上是 CSS 里写死的 26px 高
+   （÷ 0.62 = 42pt），而丢弃预算里从来没记过它——于是预算说放得下，画出来顶出设备框
+   （本轮夹具量到播放页那条顶出 24 处、实验台那条把 589px 的内容裁进 347px 的框）。
+   现在高度由 OVF_PT 一处给，三个宿主共用。 */
+const OVF_PT = 42;
 const NEVER_DROP = [
-  {id:'play',    label:'播放/暂停', kind:'icon', ic:'▶'},
-  {id:'episodes',label:'选集',      kind:'icon', ic:'▤'},
-  {id:'speed',   label:'倍速',      kind:'icon', ic:'1.0×'},
-  {id:'fullscreen',label:'全屏',    kind:'icon', ic:'⛶'}
+  {id:'play',      label:'播放/暂停', kind:'icon', ic:'▶',  group:'核心控制', bandH:ICON_PT},
+  {id:'episodes',  label:'选集',      kind:'icon', ic:'▤',  group:'核心控制', bandH:ICON_PT},
+  {id:'speed',     label:'倍速',      kind:'icon', ic:'1.0×', group:'核心控制', bandH:ICON_PT},
+  {id:'fullscreen',label:'全屏',      kind:'icon', ic:'⛶',  group:'核心控制', bandH:ICON_PT}
 ];
 const TRANSPORT = [
-  {id:'clock-seconds', label:'当前/总时长', kind:'text',       ic:'⏱'},
-  {id:'episodes-pair', label:'上下集',      kind:'icon',       ic:'⇄'},
-  {id:'skip-pair',     label:'±10 秒',      kind:'icon',       ic:'±'},
-  {id:'volume-slider', label:'音量滑杆',    kind:'customView', ic:'🔊'},
-  {id:'quality',       label:'清晰度',      kind:'icon',       ic:'HD'},
-  {id:'picture-in-picture', label:'悬浮播放', kind:'icon',      ic:'⧉'},
-  {id:'cast',          label:'投屏',        kind:'icon', ic:'⤴', badge:'2'}
+  {id:'clock-seconds', label:'当前/总时长', kind:'text',       ic:'⏱', group:'时间',     bandH:TEXT_PT},
+  {id:'episodes-pair', label:'上下集',      kind:'icon-pair',  ic:'⇄', group:'跳转',     bandH:ICON_PT*2},
+  {id:'skip-pair',     label:'±10 秒',      kind:'icon-pair',  ic:'±', group:'跳转',     bandH:ICON_PT*2},
+  {id:'volume-slider', label:'音量滑杆',    kind:'customView', ic:'🔊', group:'音量',     bandH:ICON_PT+SLIDER_W_PT},
+  {id:'quality',       label:'清晰度',      kind:'icon',       ic:'HD', group:'播放设置', bandH:ICON_PT},
+  {id:'picture-in-picture', label:'悬浮播放', kind:'icon',      ic:'⧉', group:'播放设置', bandH:ICON_PT},
+  {id:'cast',          label:'投屏',        kind:'icon',       ic:'⤴', group:'投屏状态', bandH:ICON_PT, badge:'2'}
 ];
 
-const STATE = {pose:'cover', rule:'both', fold:'auto'};
+const STATE = {pose:'cover', rule:'both', fold:'auto', menu:false, scale:1.0};
+
+/* R16 的「组」在这份名单里就是六个：画一条组标题占一行高（GROUP_LABEL_PT），
+   预算按「最坏情况下六组全都露头」记，宁可少放一项也不要在画出来之后裁掉。 */
+const BAND_GROUPS = [...new Set([...NEVER_DROP, ...TRANSPORT].map(t=>t.group))];
+function bandChrome(o){
+  return (o.sys ? SYS_BAND_PT : 0) + (o.labels || 0) * GROUP_LABEL_PT + (o.ovf ? OVF_PT : 0);
+}
 
 /* ---- §5.1 的滞后容忍：矛盾读数不许把控件位置绑在瞬时值上 ---- */
 function divisionFor(p, foldRead){
@@ -441,7 +563,7 @@ function env(poseKey, rule){
       regular: p.w >= 720,
       dialogHost: p.w >= 720 && p.h >= 400,
       bars: todayWidthMode,
-      /* 今天 720 以上只换了一条 bar（rail / 200 侧栏，library_page.dart:3153-3231），
+      /* 今天 720 以上只换了一条 bar（rail / 200 侧栏，library_page.dart:3181-3260），
          内容区始终是一栏——主从双栏是本设计在 regular 下新引入的，不是今天的读数。 */
       panes: 1,
       rows: p.w < 720 ? 3 : 4,
@@ -450,7 +572,7 @@ function env(poseKey, rule){
       gridAvail: p.w - GRID_PAD,
       margin: p.w < 720 ? 16 : 28,
       unknownHost: p.screen === 'unknown',
-      source: rule === 'current' ? '源码字面判据（<code>library_page.dart:3101</code> 等 §4.1 现读的 13 行 / 16 个字面量）'
+      source: rule === 'current' ? '源码字面判据（<code>library_page.dart:3129</code> 等 §4.1 现读的 13 行 / 16 个字面量）'
                                  : '未知主机 → 一期不改，档位与今天逐字相同（§5.2）'
     };
   }
@@ -524,18 +646,20 @@ function occlusionLayer(e){
 
 function sideBand(e, opts){
   const items = opts.items, mode = opts.mode || 'shell';
-  const sysH = opts.sysH || 30;
+  const sysH = opts.sysH || SYS_BAND_PT;
   /* 外屏那一格顶部实测 inset 是 0（§2 safeAreaInsets 行），所以它不叫「灵动岛」——
      那条 84pt 的预留整条在右边，也就是这条侧栏本身。内屏没有读数，仍按今天画。
      内屏那一格只写「灵动岛」三字：68pt 的带折成 42px，四个字会换行。 */
   const sysLab = e.p.screen === 'cover' ? '状态栏段' : '灵动岛';
-  let rows = `<div class="sys" style="height:${px(sysH)}px"><i class="isl"></i>${sysLab}</div>`;
-  rows += `<div class="grp-lab">${mode === 'player' ? '工具栏' : '导航'}</div>`;
+  /* 段标题与条目高都和溢出实验台用同一套数（R16 的分组 + Material 最小触控 48pt），
+     这样「这一格摆得下吗」在两处是同一个算术，不会各说一套。 */
+  let rows = `<div class="sys" style="height:${px(sysH)}px"><i class="isl"></i>${sysLab}</div>`
+           + `<div class="grp-lab" style="height:${px(GROUP_LABEL_PT)}px;line-height:${px(GROUP_LABEL_PT)}px">${mode === 'player' ? '工具栏' : '导航'}</div>`;
   items.forEach(it=>{
-    const cls = 'it' + (it.sel ? ' sel' : '') + (it.rejected ? ' rej' : '') + (it.gone ? ' gone' : '');
-    rows += `<div class="${cls}" title="${it.label}（竖排只画图标 · R14）"><i class="ic">${it.ic || ''}</i><span class="tx">${it.label}</span>${it.badge ? `<b class="bdg">${it.badge}</b>` : ''}</div>`;
+    const cls = 'it' + (it.sel ? ' sel' : '');
+    rows += `<div class="${cls}" style="height:${px(it.bandH || ICON_PT)}px" title="${it.label}（竖排只画图标 · R14 · 触控高 ${it.bandH || ICON_PT}pt）"><i class="ic">${it.ic || ''}</i><span class="tx">${it.label}</span>${it.badge ? `<b class="bdg">${it.badge}</b>` : ''}</div>`;
   });
-  if(opts.overflow) rows += `<div class="ovf" title="溢出：从下往上收（R13）">···</div>`;
+  if(opts.overflow) rows += `<div class="ovf" style="height:${px(OVF_PT)}px" title="溢出：从下往上收（R13）">···</div>`;
   return `<div class="band" style="width:${px(bandWidth(e.p, mode))}px">${rows}</div>`;
 }
 
@@ -545,9 +669,21 @@ function tabBar(e, sel){
     `<div class="it${i===sel?' sel':''}"><i class="ic"></i><span class="tx">${x[0]}</span></div>`).join('')}</div>`;
 }
 
+/* 今天 720–1100 那条支路：NavigationRail(labelType: NavigationRailLabelType.selected)
+   （library_page.dart:3247-3259），宽取 SDK 默认 72，只有选中项在图标下方出文字。
+   画它不是为了推荐它，而是为了让「未知主机一期逐字不变」这条律有帧可看。 */
 function rail(e, sel){
-  const d = ['发','类','榜','我'];
-  return `<div class="rail">${d.map((x,i)=>`<div class="it${i===sel?' sel':''}">${x}</div>`).join('')}</div>`;
+  const d = [['发现','🧭'],['分类','▦'],['榜单','🏆'],['我的','👤']];
+  return `<div class="rail" style="width:${px(RAIL_PT)}px">${d.map((x,i)=>
+      `<div class="it" style="height:auto;min-height:${px(32)}px;padding:3px 0;font-size:11px">${x[1]}${i===sel?`<span style="font-size:8px;display:block">${x[0]}</span>`:''}</div>`).join('')}</div>`
+    + `<div class="navdiv" style="width:${px(DIVIDER_PT)}px"></div>`;
+}
+/* 今天 ≥1100 那条支路：SizedBox(width: 200) 里塞一条 Material 侧栏（:3194-3196） */
+function navsideBar(e, sel){
+  const d = [['发现','🧭'],['分类','▦'],['榜单','🏆'],['我的','👤']];
+  return `<div class="navside" style="width:${px(SIDEBAR_PT)}px">${d.map((x,i)=>
+      `<div class="it${i===sel?' sel':''}"><i class="ic">${x[1]}</i>${x[0]}</div>`).join('')}</div>`
+    + `<div class="navdiv" style="width:${px(DIVIDER_PT)}px"></div>`;
 }
 
 function cards(cols, n, straddleIdx){
@@ -586,7 +722,7 @@ function shellContent(e){
     </div>`;
   } else if(e.panes === 2){
     /* 全开（division == null 但 fold != none）时 §5.4 明写「不做任何中缝预留，等分双栏是正解」，
-       所以这里画 50/50，不是今天桌面档那条 SizedBox(width: 200)（library_page.dart:3166-3167）。 */
+       所以这里画 50/50，不是今天桌面档那条 SizedBox(width: 200)（library_page.dart:3194-3195）。 */
     inner = `<div class="panes">
       <div class="pane" style="flex:1 1 0">${topbar}${cards(m.cols, m.n)}</div>
       <div class="pane" style="flex:1 1 0">${detail}</div>
@@ -607,15 +743,23 @@ function shellContent(e){
       ], sysH:30
     }) : '';
   const railEl = e.bars === 'rail' ? rail(e, sel) : '';
+  const sideEl = e.bars === 'sidebar' ? navsideBar(e, sel) : '';
+  /* 侧栏画在<b>右边</b>：合上态实测 safeAreaInsets = (0,0,34,84)，那条 84pt 整条在 trailing，
+     两块摄像头遮挡（x 382–466）也落在它里面（§2 实测两行）。今天这版把它画在左边，
+     于是同一个框里「侧栏在左、遮挡在右」，两块 84pt 的几何各说一套——已改。
+     今天的桌面支路相反：NavigationRail 与 200 侧栏都在 leading（library_page.dart:3181-3260），
+     所以 railEl / sideEl 仍留在内容之前。R30 说内屏分屏时贴哪一边由主机决定，
+     实现读的是 band 边而不是常量，这里按外屏实测值取 trailing。 */
   return `<div class="scr" style="width:${px(e.p.w)}px;height:${px(e.p.h)}px">
-    ${occlusionLayer(e)}${band}
+    ${occlusionLayer(e)}
     <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column">
       <div style="flex:1 1 auto;min-width:0;display:flex">
-        ${railEl}
+        ${railEl}${sideEl}
         <div style="flex:1 1 auto;min-width:0;position:relative;display:flex">${inner}${divisionLayer(e)}</div>
       </div>
-      ${e.bars === 'side' ? '' : tabBar(e, sel)}
+      ${e.bars === 'bottom' ? tabBar(e, sel) : ''}
     </div>
+    ${band}
   </div>`;
 }
 
@@ -632,10 +776,13 @@ function gridStraddle(e){
 
 /* 示意格里画几行：真的 EpisodePager 是 rows × 列数 一屏，画进设备框就得按框里剩下的
    高度算，否则外屏那种「3 列宽卡」会把第三行顶出屏——用实测高度而不是拍一个行数，
-   正是 §5.3 那条溢出规则的同款理由。本轮量过：24 组组合 × 每组 6 个设备框 = 144 框、
-   7872 个非零盒，越出设备框 0，卡片内被裁掉的标题条 0，海报比例失真 0。 */
+   正是 §5.3 那条溢出规则的同款理由。
+   本轮改掉一处画错：详情页是整屏路由（library_page.dart:1430 push），外壳那条底部条
+   不在它上面（本轮现读 detail_page.dart：无 bottomNavigationBar / NavigationBar / TabBar），
+   旧版却照着外壳那一格也画了一条 tabbar，并把它的 69pt 扣进了预算 —— 现在两处一起改：
+   扣掉的那格换成详情页自己的顶栏。 */
 function gridDemoRows(e){
-  return gridRows(e.columns, e.gridAvail, e.p.h - 150 - INFO_BLOCK_PT);
+  return gridRows(e.columns, e.gridAvail, e.p.h - TOPBAR_PT - 8 - INFO_BLOCK_PT);
 }
 
 /* 栏内可用高决定画几行：.grid 的 align-content 是默认值，容器有确定高度时
@@ -658,7 +805,7 @@ const TOPBAR_PT = 42;   // .topbar 那 26px ÷ 0.62
    （§5.7 落点规则：R5 的违例在调用方喂进去的宽，不在网格里）。 */
 function masterPane(e){
   const contentW = e.p.w - (e.bars === 'side' ? bandWidth(e.p) : 0);
-  const paneH = e.p.h - (e.bars === 'side' ? 0 : TABBAR_PT);
+  const paneH = e.p.h - (e.bars === 'bottom' ? TABBAR_PT : 0);
   let wPt = contentW, hPt = paneH;
   if(e.div && e.div.axis === 'v') wPt = e.div.pos;
   else if(e.div && e.div.axis === 'h') hPt = e.div.pos;
@@ -676,13 +823,16 @@ function detailContent(e){
      有带时对话框不许压在中缝上（§5.6），退到带的近侧半屏里。 */
   let pop;
   if(e.dialogHost){
-    let avail = e.p.w - (e.bars === 'side' ? bandWidth(e.p) : 0);
-    let left = (e.p.w - Math.min(520, avail)) / 2;
+    /* 对话框居中在<b>去掉侧栏那一条边之后</b>的内容区里，而不是整块屏：侧栏在 trailing
+       （外屏实测 84pt），按整屏居中会让它压住侧栏。R31 那条「内容是不对称的」在这里落地。 */
+    const trail = e.bars === 'side' ? bandWidth(e.p) : 0;
+    const avail = e.p.w - trail;
+    let left = (avail - Math.min(520, avail)) / 2;
     let width = Math.min(520, avail);
     let top = 120;
     const d = e.div;
     if(d && d.axis === 'v'){
-      width = Math.min(420, e.p.w - (d.pos + d.size) - 16);
+      width = Math.min(420, avail - (d.pos + d.size) - 16);
       left = d.pos + d.size + 8;
     } else if(d && d.axis === 'h'){
       top = d.pos + d.size + 10;
@@ -702,7 +852,7 @@ function detailContent(e){
     </div>`;
   }
   return `<div class="scr" style="width:${px(e.p.w)}px;height:${px(e.p.h)}px">
-    ${occlusionLayer(e)}${band}
+    ${occlusionLayer(e)}
     <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;position:relative">
       <div class="topbar"><span class="ttl">剧名 · 第 12 集</span><span class="sp"><span class="bt on">题材词</span><span class="bt">同题材</span></span></div>
       <div style="flex:1 1 auto;position:relative">
@@ -710,21 +860,27 @@ function detailContent(e){
         <div class="blk"><div class="h"></div><div class="l"></div><div class="l w80"></div></div>
         ${divisionLayer(e, true)}${pop}
       </div>
-      ${e.bars === 'side' ? '' : tabBar(e, 0)}
+      <!-- 整屏路由上没有外壳那条底部条，本轮按源码删掉（见 gridDemoRows 上方那段注释） -->
     </div>
+    ${band}
   </div>`;
 }
 
 /* ---- 播放器 ---- */
 /* 侧向传输条用的就是实验台那一份丢弃计算（§5.3 第 4 条：dropOrder 接上真实测量） */
 function tpBand(e){
-  const r = computeDrop(e.p.h - 16);
+  /* 播放页那条侧栏用的是实验台同一份丢弃计算（§5.3 第 4 条：dropOrder 接上真实测量）。
+     一对图标（上下集 / ±10 秒）在竖排里占两格，所以它的条目高是 2×48，画出来也更长——
+     让「为什么它比别的项先被收」在这张图上直接看得见。
+     chrome 与实验台不同：这条边不画系统带段、也不画组标题，只有一条溢出标记。
+     R14 拒收的两项不画进这条边（它们和溢出项一起进 PopupMenuButton，见第 4 节那只菜单），
+     否则「算出来放得下」和「画出来占了几格」就又是两件事。 */
+  const r = computeDrop(e.p.h, {ovf:true});
   const cells = r.out.map(t=>{
-    if(t.rejected) return `<i class="b rej" title="${t.label}（R14：无图标 / 自定义 view 不进竖排）">${t.ic}</i>`;
-    if(t.gone) return '';
-    return `<i class="b${t.id === 'clock-seconds' ? ' d2' : ''}${NEVER_DROP.some(n=>n.id===t.id) ? ' never' : ''}" title="${t.label}">${t.ic}</i>`;
+    if(t.rejected || t.gone) return '';
+    return `<i class="b${t.id === 'clock-seconds' ? ' d2' : ''}${NEVER_DROP.some(n=>n.id===t.id) ? ' never' : ''}" style="height:${px(t.bandH)}px" title="${t.label} · 组「${t.group}」 · ${t.bandH}pt">${t.ic}</i>`;
   }).join('');
-  return `<div class="tpband">${cells}${r.goneCount ? '<i class="ovf">···</i>' : ''}</div>`;
+  return `<div class="tpband">${cells}${r.goneCount || r.rejCount ? `<i class="ovf" style="height:${px(OVF_PT)}px" title="溢出项与 R14 拒收项都进 PopupMenuButton（§5.12）">···</i>` : ''}</div>`;
 }
 function playerContent(e){
   const W = e.p.w, H = e.p.h;
@@ -769,59 +925,398 @@ function playerContent(e){
 /* =====================================================================
    溢出实验台（§5.3 第 4 条：接上 dropOrder 的真实测量）
    ===================================================================== */
-const ITEM_H = 46;       // pt，竖排条目的固有高（含段间距）
-function computeDrop(availPt){
-  /* 顺序：系统带(30) + 段标题(12) 之后才是条目；条目先排永不丢弃的，
-     再按 dropOrder 原序排其余，带徽章的项在「被收起序列」里更靠后（R15）。
-     无图标 / 自定义 view 的条目不具备进竖排的形态（R14）→ rejected，不占高度。 */
-  const usable = availPt - 30 - 12;
-  const neverIds = new Set(NEVER_DROP.map(n=>n.id));
-  const others = TRANSPORT.slice();
-  others.sort((a,b)=> (b.badge?1:0) - (a.badge?1:0));
-  const rest = usable - NEVER_DROP.length * ITEM_H;
-  const out = [];
-  let keptCount = 0, goneCount = 0, rejCount = 0;
-  for(const t of [...NEVER_DROP, ...TRANSPORT]){
+function computeDrop(availPt, chrome, items){
+  /* availPt 是「这条边能给多少高」，chrome 是除条目之外要占掉的部分（系统带、组标题、溢出标记）。
+     两个宿主占的东西不一样：外壳/实验台有系统带与组标题，播放页那条只有溢出标记，
+     所以 chrome 由调用方给，不在这里猜。条目高一律按 bandH（48 = Material 最小触控）。
+     两条顺序分开处理，这是 R13 那句「给每个条目一个可见性优先级来改变那个顺序」的落地：
+       · 版序 = 声明序（自上而下），跨姿势不动（R29）；
+       · 收序 = 先整组（从最下面那组开始整组收），只有放不下的是「边界组」时才拆到组内单项，
+         组内带徽章的项更晚被收（R15）。
+     无图标 / 自定义 view 的条目不具备进竖排的形态（R14）→ rejected：既不占高、也不画进这条边，
+     而是落到溢出菜单里（本轮把「算预算」和「画多少格」统一成同一件事，见 OVF_PT 那段注释）。 */
+  const usable = availPt - bandChrome(chrome || {});
+  const decl = items || [...NEVER_DROP, ...TRANSPORT];
+  const map = new Map();
+  decl.forEach((t, pos)=>{
     const rejected = t.kind === 'text' || t.kind === 'customView';
-    let kept, gone;
-    if(rejected){ kept = false; gone = false; rejCount++; }
-    else if(neverIds.has(t.id)){ kept = true; gone = false; }
-    else {
-      kept = others.indexOf(t) * ITEM_H < rest;
-      gone = !kept;
+    if(!map.has(t.group)) map.set(t.group, []);
+    map.get(t.group).push({...t, rejected, pos, kept:false, gone:false});
+  });
+  const groups = [...map.entries()].map(([name, items], i)=>({
+    name, items, i,
+    core: name === '核心控制',
+    hasBadge: items.some(t=>t.badge),
+    h: items.filter(t=>!t.rejected).reduce((a,t)=>a + t.bandH, 0)
+  }));
+  const out = [];
+  groups.forEach(g=>g.items.forEach(t=>out.push(t)));
+  const core = groups.find(g=>g.core);
+  core.items.forEach(t=>{ if(!t.rejected) t.kept = true; });
+  let remaining = usable - core.h;
+  const coreOverrun = remaining < 0;
+  const rank = g => g.hasBadge ? 0 : 1;
+  const keepOrder = groups.filter(g=>!g.core).sort((a,b)=> rank(a) - rank(b) || a.i - b.i);
+  let boundary = null, droppedGroups = [];
+  for(const g of keepOrder){
+    if(boundary){ g.items.forEach(t=>{ if(!t.rejected) t.gone = true; }); droppedGroups.push(g.name); continue; }
+    if(g.h <= remaining){ g.items.forEach(t=>{ if(!t.rejected) t.kept = true; }); remaining -= g.h; continue; }
+    boundary = g.name;
+    const inner = g.items.slice().sort((a,b)=> (b.badge?1:0) - (a.badge?1:0) || a.pos - b.pos);
+    for(const t of inner){
+      if(t.rejected) continue;
+      if(t.bandH <= remaining){ t.kept = true; remaining -= t.bandH; }
+      else t.gone = true;
     }
-    if(kept) keptCount++;
-    if(gone) goneCount++;
-    out.push({...t, rejected, kept, gone});
   }
-  return {out, usable, keptCount, goneCount, rejCount};
+  /* 边界组整组其实放得下时不算「拆单项」——那只是恰好填满 */
+  if(boundary && groups.find(g=>g.name===boundary).items.every(t=>t.rejected || t.kept)) boundary = null;
+  const keptCount = out.filter(t=>t.kept).length;
+  const goneCount = out.filter(t=>t.gone).length;
+  const rejCount = out.filter(t=>t.rejected).length;
+  return {out, groups, usable, keptCount, goneCount, rejCount, boundary, droppedGroups,
+          coreH: core.h, coreOverrun, leftH: remaining};
 }
 
 function renderBench(){
   const avail = +document.getElementById('h').value;
   document.getElementById('hval').textContent = avail;
-  const r = computeDrop(avail);
+  const chrome = {sys:true, labels:BAND_GROUPS.length, ovf:true};
+  const r = computeDrop(avail, chrome);
   const rows = r.out.map(t=>{
     const pill = t.rejected ? '<span class="pill rej">R14 拒绝进侧栏</span>'
       : t.kept ? '<span class="pill keep">竖排（只画图标）</span>'
       : '<span class="pill ovf">溢出菜单</span>';
     const nd = NEVER_DROP.some(n=>n.id===t.id) ? '<span class="pill never">永不丢弃</span>' : '';
+    const why = t.rejected
+      ? (t.kind === 'customView' ? `自定义 view，且它本体就 ${SLIDER_W_PT}pt 宽 > 条目宽 ${BAND_ITEM}pt` : '纯文字条目')
+      : (t.kind === 'icon-pair' ? '两个图标 → 竖排占两格' : '单图标');
     return `<tr><td><code>${t.id}</code><br><span style="color:var(--ink3)">${t.label}</span></td>
-            <td>${t.kind}</td><td>${pill} ${nd}</td></tr>`;
+            <td>${t.group}</td><td>${t.bandH}pt</td><td>${pill} ${nd}</td><td style="color:var(--ink3)">${why}</td></tr>`;
   }).join('');
+  const dropped = r.out.filter(t=>t.gone || t.rejected);
   document.getElementById('dropTbl').innerHTML =
-    `<tr><th>条目</th><th>kind</th><th>本高度下的处置</th></tr>` + rows +
-    `<tr><td colspan="3" style="color:var(--ink3)">可用 <b>${r.usable}pt</b> · 竖排 ${r.keptCount} 项 · 溢出 ${r.goneCount} 项 · R14 拒绝 ${r.rejCount} 项。
-     被收的项可能出现在列表中部而不是末尾：优先级驱动（R15），不是位置驱动。</td></tr>`;
-  const bandHtml = r.out.filter(t=>!t.rejected).map(t=>
-    `<div class="it${t.gone?' gone':''}${t.id==='play'?' sel':''}" title="${t.label}">
-       <i class="ic">${t.ic}</i>${t.badge?`<b class="bdg">${t.badge}</b>`:''}</div>`).join('')
-    + (r.out.some(t=>t.gone) ? '<div class="ovf">···</div>' : '');
+    `<tr><th>条目</th><th>组</th><th>固有高</th><th>本高度下的处置</th><th>形态依据</th></tr>` + rows +
+    `<tr><td colspan="5" style="color:var(--ink3)">可用 <b>${Math.round(r.usable)}pt</b> = 滑杆 ${avail} − 系统带 ${SYS_BAND_PT}
+     − ${BAND_GROUPS.length} 条组标题 ${BAND_GROUPS.length * GROUP_LABEL_PT} − 溢出标记 ${OVF_PT}
+     · 核心组恒占 ${r.coreH}pt · 竖排 ${r.keptCount} 项 · 溢出 ${r.goneCount} 项 · R14 拒绝 ${r.rejCount} 项 · 剩余 ${Math.max(0, Math.round(r.leftH))}pt。<br>
+     丢弃粒度：<b>整组</b>${r.droppedGroups.length ? ' 已收「' + r.droppedGroups.join('」「') + '」' : ' 未触发'}
+     ${r.boundary ? ' · <b>组内单项</b>在边界组「' + r.boundary + '」里拆开（R13 的粒度是「先组后项」，不是逐项）' : ''}。
+     ${r.coreOverrun ? ' · <span class="pill rej">连永不丢弃的四项都放不下</span>：这就是 §8 Mac 验收第 6 项要实拍的那个极限窄度。' : ''}<br>
+     被收的项可能出现在列表中部而不是末尾：优先级驱动（R15），不是位置驱动；而版序仍按声明序自上而下（R29）。</td></tr>`;
+  /* 条按组画，组之间由 band 统一给间距——这就是 R16「用分组而不是手摆间距」的画法。
+     画进这条边的格子和算预算的格子是同一批：R14 被拒的项不占高，改列在溢出菜单里。 */
+  let bandHtml = `<div class="sys" style="height:${px(SYS_BAND_PT)}px"><i class="isl"></i>状态栏</div>`;
+  r.groups.forEach(g=>{
+    const live = g.items.filter(t=>!t.gone && !t.rejected);
+    if(!live.length) return;
+    bandHtml += `<div class="grp-lab" style="height:${px(GROUP_LABEL_PT)}px;line-height:${px(GROUP_LABEL_PT)}px;padding:0">${g.name}</div>`;
+    bandHtml += live.map(t=>{
+      const cls = 'it' + (t.id === 'play' ? ' sel' : '');
+      return `<div class="${cls}" style="height:${px(t.bandH)}px" title="${t.label}（组：${t.group} · 触控高 ${t.bandH}pt）">
+        <i class="ic">${t.ic}</i>${t.badge ? `<b class="bdg">${t.badge}</b>` : ''}</div>`;
+    }).join('');
+  });
+  bandHtml += r.goneCount || r.rejCount
+    ? `<div class="ovf" id="ovfBtn" style="height:${px(OVF_PT)}px;cursor:pointer" title="点开看溢出落面（§5.12 裁决：复用 PopupMenuButton）">···</div>`
+    : '';
   document.getElementById('fakeBand').style.height = px(avail) + 'px';
-  document.getElementById('fakeBand').innerHTML =
-    `<div class="sys" style="height:${px(30)}px"><i class="isl"></i>灵动岛 / 状态栏</div>
-     <div class="grp-lab">工具栏 + 标签栏</div>${bandHtml}`;
+  document.getElementById('fakeBand').innerHTML = bandHtml;
+  const btn = document.getElementById('ovfBtn');
+  if(btn) btn.onclick = ()=>{ STATE.menu = !STATE.menu; renderBench(); };
+  document.getElementById('menuHost').innerHTML = (btn && STATE.menu)
+    ? `<div class="pmenu" style="position:static;margin-top:10px">
+         <div class="mh">溢出菜单 · PopupMenuButton（图标 + 标题，顺序与侧栏一致 · R29）</div>
+         ${dropped.map(t=>`<div class="mi"><i class="ic">${t.ic}</i>${t.label}`
+            + `${t.rejected ? ' <span style="color:var(--warn);font-size:8px">R14 不进竖排</span>' : ' <span style="color:var(--ink3);font-size:8px">溢出</span>'}`
+            + `${t.badge?`<b class="bd">${t.badge}</b>`:''}</div>`).join('')}
+       </div>
+       <div class="note" style="margin-top:8px">这就是 §5.12 的裁决：一期<b>不新造面板</b>，两类条目都落回仓库已有的
+       <code>PopupMenuButton</code>（<code>playback_transport.dart:212/:243/:284</code> 三处现役）——被高度收掉的走 R13 的溢出，
+       被形态拒掉的走 R14 的拒收。它已带图标+标题，正好满足 R14「溢出菜单用得上标题」；
+       而 <code>showAnchoredPanel</code> 那条按屏定位的路径是另一件事，见第 5 节。</div>`
+    : '';
   return r;
+}
+
+/* =====================================================================
+   第 5 节 · 手势与折叠带（§5.10）
+   ===================================================================== */
+function fmt1(n){ return Math.round(n * 10) / 10; }
+function crosses(x, w, d){ return !!d && d.axis === 'v' && x < d.pos + d.size && x + w > d.pos; }
+
+/* 一条边的宽度与它在哪一边：Duo 侧栏在 trailing（外屏实测 safeAreaInsets.right=84，§2），
+   今天桌面档那两条支路都在 leading（library_page.dart:3181-3260 的 rail 与 200 侧栏，
+   后者后面跟一根 1pt 的 VerticalDivider）。未知主机一期不改，所以两栏算出来相同。 */
+function edgeWidth(e){
+  if(e.bars === 'side') return bandWidth(e.p, e.mode === 'player' ? 'player' : undefined);
+  if(e.bars === 'sidebar') return SIDEBAR_PT + DIVIDER_PT;
+  if(e.bars === 'rail') return RAIL_PT + DIVIDER_PT;
+  return 0;
+}
+function edgeLead(e){ return (e.bars === 'rail' || e.bars === 'sidebar') ? edgeWidth(e) : 0; }
+function edgeTrail(e){ return e.bars === 'side' ? edgeWidth(e) : 0; }
+
+function gestureModel(e, designed){
+  const p = e.p, W = p.w, H = p.h;
+  const d = e.physicalDiv;                 // 带是物理事实，两栏都要拿它来判跨不跨
+  const lead = edgeLead(e), trail = edgeTrail(e);
+  const contentX = lead, contentRight = W - trail, contentW = contentRight - contentX;
+  const edge = lead + trail;
+  const lay = designed ? e.div : null;      // 「布局让没让开」只有设计后那一栏有
+  /* 设计后喂给页面级分栏的宽 = 那一栏的宽；未知主机一期不改 → 与今天逐字相同。 */
+  let paneW = contentW;
+  if(designed && !e.unknownHost && e.panes === 2){
+    if(lay && lay.axis === 'v') paneW = Math.max(0, lay.pos - contentX);   // 主栏 = 带的 leading 侧
+    else if(lay && lay.axis === 'h') paneW = contentW;                     // 横带分左右无关，宽度不变
+    else paneW = contentW / 2;                                              // 全开等分（§5.4）
+  }
+  /* 播放器画面（手势的分母）。overlay 规则 R26：设计后 primary 落到带的近侧。 */
+  let pic = {x:contentX, y:0, w:contentW, h:H};
+  if(!designed || e.unknownHost) pic = {x:0, y:0, w:W, h:H};                // 今天：分母 = 整块屏
+  else if(d && d.axis === 'v') pic = {x:d.pos + d.size, y:0, w:Math.max(0, contentRight - (d.pos + d.size)), h:H};
+  else if(d && d.axis === 'h') pic = {x:contentX, y:d.pos + d.size, w:contentW, h:H - (d.pos + d.size)};
+  const mid = pic.x + pic.w / 2, screenMid = W / 2;
+  const dz = {a:pic.x + pic.w * .35, b:pic.x + pic.w * .65};
+  /* 选集面板：episode_workspace.dart:220 的 min(340, 屏宽×0.8)。右锚在「它所在的那一侧」：
+     今天按整块屏，设计后按去掉边的那一侧。位置由上层给，这里只复现那条宽度的算法。 */
+  const epFed = designed && !e.unknownHost ? paneW : W;
+  const epW = Math.min(340, epFed * .8);
+  const epX = (designed && !e.unknownHost ? contentRight : W) - epW;
+  /* 悬停面板：anchored_panel.dart:52 的 right:12 与 :55 的 maxWidth: 380，
+     两个调用方（library_page.dart:1776 面板 / :1876 悬停）都不传 width，所以 380/300 是硬上限。
+     本轮 `fe33852` 把可用高宽从 MediaQuery.sizeOf 改成浮层自己的 LayoutBuilder 盒子（:105/:107），
+     所以「读窗口」那半条已修；overlay 仍跨整块屏，「按所在栏」这半条没修。 */
+  const anW = designed && !e.unknownHost ? Math.min(380, Math.max(0, paneW - 24)) : 380;
+  const anX = (designed && !e.unknownHost ? contentRight : W) - 12 - anW;
+  /* 栏顶搜索框：viewportWidth 链下游还有一处 clamp（library_page.dart:2842，本轮从 :2814 漂移） */
+  const seW = Math.min(440, Math.max(240, epFed * .42));
+  return {p, W, H, d, edge, lead, trail, contentX, contentRight, contentW, paneW, pic, mid, screenMid, dz,
+          ep:{x:epX, w:epW}, epCross:crosses(epX, epW, d),
+          an:{x:anX, w:anW}, anCross:crosses(anX, anW, d),
+          seW, seOver:seW > paneW,
+          midCross:crosses(dz.a, dz.b - dz.a, d),
+          pagerCross:designed && !e.unknownHost ? crosses(contentX, paneW, d) : crosses(0, W, d),
+          pull:48, pullFits:paneW > 48};
+}
+
+function gestureRows(e){
+  const t = gestureModel(e, false), s = gestureModel(e, true);
+  const na = '<td class="na">这一档没有带</td>';
+  const cell = (m) => m.d ? `<td>${m.d.axis === 'v' ? `x ${fmt1(m.d.pos)}–${fmt1(m.d.pos + m.d.size)}` : `y ${fmt1(m.d.pos)}–${fmt1(m.d.pos + m.d.size)}（横带）`}</td>` : na;
+  const R = [];
+  R.push({n:'外壳换目的地<br><span class="sub2">AutoTabsRouter.pageView · library_page.dart:3132-3150</span>',
+          a:fmt1(t.W) + 'pt', b:fmt1(s.paneW) + 'pt',
+          v:(t.d && t.pagerCross ? '<span class="pill rej">今天整块跨带</span>' : '<span class="pill keep">不跨</span>')
+            + (s.pagerCross ? '<span class="pill rej">仍跨</span>' : '')});
+  R.push({n:'类型级横滑（一级三页）<br><span class="sub2">_innerPages :2876-2883</span>',
+          a:fmt1(t.W) + 'pt', b:fmt1(s.paneW) + 'pt', v:'同上一条：视口 = 那一栏的宽即可，判据不动'});
+  R.push({n:'题材级横滑（二级接力）<br><span class="sub2">_slotPage :2889-2900 · _handoverPhysics :391（用法在 :2894）</span>',
+          a:'阈值 48pt（:383，门在 :491/:532/:582）', b:'阈值仍是 48pt，但按栏算：栏宽 ' + fmt1(s.paneW) + 'pt ' + (s.pullFits ? '&gt; 48 ✓' : '&lt; 48 ✗'),
+          v:'48 与 40 谁大都不构成为让位；让位只由 <code>division.frame</code> 决定'});
+  R.push({n:'行内横滑 + 栏顶搜索框<br><span class="sub2">viewportWidth 链 :2790/:2825/:2889/:2911</span>',
+          a:'搜索框 = clamp(0.42×' + fmt1(t.W) + ', 240, 440) = ' + fmt1(t.seW) + 'pt',
+          b:'= clamp(0.42×' + fmt1(s.paneW) + ', 240, 440) = ' + fmt1(s.seW) + 'pt',
+          v:(s.seOver ? '<span class="pill rej">下界 240 顶破栏宽 ' + fmt1(s.paneW) + 'pt</span>' : '<span class="pill keep">那条 240 下界不会顶破这一档的栏</span>')
+            + '<br><span class="sub2">:2842 的 clamp 是本轮读链时新登记的一处下游（下限 240 按整屏调、双栏时占栏宽 76%）</span>'});
+  R.push({n:'选集页横滑<br><span class="sub2">episode_pager.dart:282（dragDevices :275-280）· 宽来自 episode_workspace.dart:220</span>',
+          a:fmt1(t.ep.w) + 'pt @ x ' + fmt1(t.ep.x) + '–' + fmt1(t.ep.x + t.ep.w), b:fmt1(s.ep.w) + 'pt @ x ' + fmt1(s.ep.x) + '–' + fmt1(s.ep.x + s.ep.w),
+          v:(t.epCross ? '<span class="pill rej">今天横跨中缝</span>' : '<span class="pill keep">未跨</span>')
+            + (s.epCross ? '<span class="pill rej">仍跨</span>' : '')});
+  R.push({n:'题材词悬停面板<br><span class="sub2">anchored_panel.dart:52 right:12 · :55 maxWidth 380 · :110 flip 线 200 · :107 已读浮层盒子（fe33852）</span>',
+          a:fmt1(t.an.w) + 'pt @ x ' + fmt1(t.an.x) + '–' + fmt1(t.an.x + t.an.w), b:fmt1(s.an.w) + 'pt @ x ' + fmt1(s.an.x) + '–' + fmt1(s.an.x + s.an.w),
+          v:(t.anCross ? '<span class="pill rej">今天横跨中缝</span>' : '<span class="pill keep">未跨</span>')
+            + '<br><span class="sub2">屏幕锚点（right:12 而不是栏右 12）是 §5.12 登记的独立缺陷</span>'});
+  R.push({n:'进度条横拖 seek<br><span class="sub2">player_progress_bar.dart:61/:98（分母 = box.maxWidth）</span>',
+          a:'分母 ' + fmt1(t.pic.w) + 'pt → 0.5 落在 x ' + fmt1(t.mid), b:'分母 ' + fmt1(s.pic.w) + 'pt → 0.5 落在 x ' + fmt1(s.mid),
+          v:'分母已合规，判据不动。但设计后<b>进度 0.5 ≠ 屏幕中线</b>（差 ' + fmt1(Math.abs(s.mid - s.screenMid)) + 'pt）——这是 R26 把画面推到近侧的直接后果'});
+  R.push({n:'双击分区快进/快退<br><span class="sub2">compact_controls.dart:259（分母 = context.size.width）· :156-163（0.35/0.65）</span>',
+          a:'中间区 x ' + fmt1(t.dz.a) + '–' + fmt1(t.dz.b), b:'中间区 x ' + fmt1(s.dz.a) + '–' + fmt1(s.dz.b),
+          v:(t.midCross ? '<span class="pill rej">今天带落在「播放/暂停」区内</span>' : '<span class="pill keep">带不在中间区</span>')
+            + (s.midCross ? '<span class="pill rej">仍落在里面</span>' : (s.d ? '<span class="pill keep">设计后带移出画面</span>' : ''))});
+  return R;
+}
+
+function gestureFrame(e, designed){
+  const m = gestureModel(e, designed);
+  const W = m.W, H = m.H;
+  const zoneH = Math.min(120, H * .3);
+  const band = divisionLayer(e, true);
+  /* 吃掉的那一条边要画出来，否则「内容区 382pt」在框上没有对应物：
+     Duo 的侧栏在 trailing（外屏实测），今天的 rail / 200 侧栏在 leading。 */
+  const strip = m.trail
+    ? `<div style="position:absolute;right:0;top:0;bottom:0;width:${px(m.trail)}px;background:#111318;z-index:33;
+        color:#7b8194;font-size:8px;text-align:center;padding-top:6px">侧栏 ${Math.round(m.trail)}pt</div>`
+    : m.lead
+    ? `<div style="position:absolute;left:0;top:0;bottom:0;width:${px(m.lead)}px;background:#fff;border-right:1px solid var(--line);z-index:33;
+        color:var(--ink3);font-size:8px;text-align:center;padding-top:6px">${e.bars==='rail'?'rail 72pt':'侧栏 200pt'}</div>`
+    : '';
+  const picBox = `<div style="position:absolute;left:${px(m.pic.x)}px;top:${px(m.pic.y)}px;width:${px(m.pic.w)}px;height:${px(m.pic.h)}px;border:1px dashed rgba(255,255,255,.32);border-radius:8px"></div>`;
+  const zones = `<div class="zones" style="left:${px(m.pic.x)}px;top:${px(m.pic.y + 6)}px;width:${px(m.pic.w)}px;height:${px(zoneH)}px">
+      <i>快退<br>0–35%</i><i class="mid">播放/暂停<br>35–65%</i><i>快进<br>65–100%</i></div>`;
+  const bars = [
+    {lab:'选集面板', seg:m.ep, cross:m.epCross},
+    {lab:'悬停面板', seg:m.an, cross:m.anCross}
+  ].map((b,i)=>`<div class="panelbar${b.cross ? '' : ' ok'}" style="left:${px(Math.max(0, b.seg.x))}px;bottom:${px(20 + i * 22)}px;width:${px(b.seg.w)}px;height:${px(15)}px" title="${b.lab} ${fmt1(b.seg.x)}–${fmt1(b.seg.x + b.seg.w)}pt${b.cross ? ' · 横跨折叠带' : ' · 没跨带'}">${b.lab} ${Math.round(b.seg.w)}pt</div>`).join('');
+  const mid = `<div style="position:absolute;left:${px(m.mid)}px;top:${px(m.pic.y)}px;bottom:0;width:1px;background:rgba(126,224,160,.75);z-index:35"></div>`;
+  return `<div class="scr" style="width:${px(W)}px;height:${px(H)}px;background:#000">
+      <div style="flex:1 1 auto;position:relative">${picBox}${zones}${bars}${mid}${band}${strip}</div>
+    </div>`;
+}
+
+function renderGestures(){
+  const cur = env(STATE.pose, 'current'), des = env(STATE.pose, 'designed');
+  const rows = gestureRows(des).map(r=>
+    `<tr><td>${r.n}</td><td>${r.a}</td><td>${r.b}</td><td>${r.v}</td></tr>`).join('');
+  document.getElementById('gestureTbl').innerHTML =
+    `<tr><th>手势 / 出处</th><th>今天喂的宽</th><th>设计后喂的宽</th><th>带落点与裁决</th></tr>` + rows +
+    `<tr><td colspan="4" style="color:var(--ink3)">裁决来自 §5.10 那张表，逐行回到源码现读。<b>绿底</b>=没跨带，<b>红底</b>=跨带或顶破。
+     带的位置按第三方 40pt 读数推（本轮没有展开帧），但「喂屏宽 vs 喂栏宽」这件事与带宽无关。<br>
+     这一档：${cur.p.label} · 屏宽 ${cur.p.w}pt · 今天那条边 ${Math.round(gestureModel(cur, false).edge)}pt（${gestureModel(cur,false).lead ? 'leading' : gestureModel(cur,false).trail ? 'trailing' : '没有'}）·
+     设计后的边 ${Math.round(gestureModel(des, true).edge)}pt（${gestureModel(des,true).lead ? 'leading' : gestureModel(des,true).trail ? 'trailing，外屏实测那条边' : '没有'}）·
+     设计后内容区 ${Math.round(gestureModel(des, true).contentW)}pt · 主栏 ${Math.round(gestureModel(des, true).paneW)}pt · 画面 ${Math.round(gestureModel(des, true).pic.w)}pt。</td></tr>`;
+  document.getElementById('stage-gesture').innerHTML = [['current','现状 · 画面与面板都按整块屏算',cur],
+                                                        ['designed','设计后 · 宽换成所在栏，画面吸到带近侧',des]]
+    .map(([rule, lab, e])=>`<div class="cell"><h3>${e.p.label}<span class="tag ${rule==='current'?'':'new'}">${lab}</span></h3>
+      <div class="sub">${rule === 'current'
+        ? '分母 = 整块屏宽 → 双击的中间区盖住中缝，两个面板横穿中带（红底）。'
+        : '分母 = 那一栏 / 那块近侧画面的宽 → 中间区移出带外，面板收进栏内；<code>right:12</code> 的屏幕锚点仍是 §5.12 登记的独立缺陷。'}
+        ${e.unknownHost ? '<b>未知主机：一期两栏逐字相同。</b>' : ''}</div>
+      <div class="dev"><div class="pt">${e.p.w}×${e.p.h} pt</div>${gestureFrame(e, rule === 'designed')}
+        <div class="cap"><b>${e.p.w}×${e.p.h} pt</b> · 绿细线 = 进度 0.5 落点（x ${Math.round(gestureModel(e, rule==='designed').mid)}pt）</div></div></div>`).join('');
+}
+
+/* =====================================================================
+   第 6 节 · 缩放与语义（§5.11）
+   ===================================================================== */
+const TEXT_FORM_PT = 1.3;   // 超过这个缩放，标题从隐藏转为图标下方两行（§5.11 第三条）
+const LABEL_LINE_PT = 15;   // 12pt 标题行 × 1.25 行高：出两行标题就多这一截
+/* 缩放改的是「形态」，不是「字号档位」：1.3× 以上把标题摆回图标下方，条目因此变高。
+   这条高度同时进预算和进画法，所以「摆得下几条」与「画了几格」永远是同一个数。 */
+function scaleBandH(t, s){
+  return t.rejected ? t.bandH : t.bandH + (s > TEXT_FORM_PT ? 2 * LABEL_LINE_PT * s : 0);
+}
+function bandItemWidth(items, s){
+  const need = Math.max(...items.map(t=>Math.ceil(t.label.length / 2) * 12 * s));
+  return Math.round(Math.max(BAND_ITEM, s > TEXT_FORM_PT ? need + 10 : BAND_ITEM));
+}
+function renderScale(){
+  const s = +document.getElementById('s').value / 100;
+  document.getElementById('sval').textContent = s.toFixed(2);
+  const e = env(STATE.pose, 'designed');
+  const bandItems = [...NEVER_DROP, ...TRANSPORT];
+  const wide = bandItemWidth(bandItems, s);
+  const chrome = {sys:true, labels:BAND_GROUPS.length, ovf:true};
+  const scaled = bandItems.map(t=>({...t, rejected:t.kind === 'text' || t.kind === 'customView'}));
+  scaled.forEach(t=>{ t.bandH = scaleBandH(t, s); });
+  const r = computeDrop(e.p.h, chrome, scaled);
+  /* §5.11 原文写的回退条件是「条目宽吃掉屏宽 40% → 整条退回横排」。这条在本机量不出成立：
+     缩放涨的是宽度里那一列标题，滑块顶到 1.7× 条目宽才 71pt 量级，而外屏 466pt 的 40% 是 186pt。
+     先撑不住的是高度——条目从 48pt 一路涨到 48+2×15×s，于是「装不下」变成「溢出条目变多」，
+     由溢出菜单承接，而不是横排。所以宽度门槛在这里当一条可验算的结论印出来，不再当分支。 */
+  const itemH = Math.round(ICON_PT + (s > TEXT_FORM_PT ? 2 * LABEL_LINE_PT * s : 0));
+  const rowTriggerPt = Math.round(e.p.w * .4);
+  const stage = s > TEXT_FORM_PT ? '图标 + 下方两行标题' : '只画图标（标题隐藏）';
+  /* 这一格必须复用设备框里那条 `.band` 的同一套 CSS（列布局、图标盒子、徽章位、组标题高），
+     否则「缩放后画出来长什么样」和「框里那一格」就是两套排版——本轮第一版就是只写了
+     `.fake-band`，结果 `.band .it` 的 flex 规则没进来，标题被挤成一字一行、还顶出条目高。
+     唯一允许的差别是标题：`.band .it .tx` 平时 `display:none`（R16 只画图标），
+     缩放超过 1.3× 才由这里显式打开。 */
+  const itemsHtml = r.groups.map(g=>{
+    const live = g.items.filter(t=>!t.gone && !t.rejected);
+    if(!live.length) return '';
+    return `<div class="grp-lab" style="height:${px(GROUP_LABEL_PT)}px;line-height:${px(GROUP_LABEL_PT)}px;padding:0">${g.name}</div>` + live.map(t=>
+      `<div class="it${t.id==='play'?' sel':''}" style="height:${px(t.bandH)}px;justify-content:flex-start;padding:${px(4)}px 2px"
+        title="${t.label}（VoiceOver 读：${t.label}，按钮${t.id==='play'?'，已选中':''} · 缩放后条目高 ${Math.round(t.bandH)}pt）">
+        <i class="ic" style="width:${px(Math.round(19*s))}px;height:${px(Math.round(19*s))}px">${t.ic}</i>
+        ${s > TEXT_FORM_PT ? `<span class="tx" style="display:block;font-size:${px(12*s).toFixed(1)}px;line-height:1.25">${t.label}</span>` : ''}
+        ${t.badge ? `<b class="bdg">${t.badge}</b>` : ''}</div>`).join('');
+  }).join('');
+  document.getElementById('scaleHost').innerHTML =
+    `<div class="fake-band band" style="height:${px(e.p.h)}px;width:${px(wide)}px;position:relative">
+         <div class="sys" style="height:${px(SYS_BAND_PT)}px"><i class="isl"></i>状态栏</div>${itemsHtml}
+         ${r.goneCount || r.rejCount ? `<div class="ovf" style="height:${px(OVF_PT)}px">···</div>` : ''}</div>
+     <div class="note" style="margin-top:8px;opacity:.75">下面那条横排是<b>示意</b>，本档不成立：宽度要涨到 ${rowTriggerPt}pt（外屏 ${e.p.w}pt 的 40%）才该退，缩放顶到滑块上限也只有 ${wide}pt，还差 ${rowTriggerPt - wide}pt。<br>
+       <div style="background:#fff;border-radius:8px;display:flex;margin-top:6px">${['发现','分类','榜单','我的'].map((x,i)=>`<div style="flex:1;text-align:center;padding:6px 2px;font-size:${(9*s).toFixed(1)}px;color:${i===0?'var(--brand)':'var(--ink3)'}">${x}</div>`).join('')}</div></div>`;
+  const semRows = r.out.filter(t=>!t.gone).map(t=>
+    `<tr><td><code>${t.id}</code></td><td>${t.label}</td><td>${t.rejected ? '<span class="pill rej">不进竖排</span>' : '<span class="pill keep">Semantics(button, label: "' + t.label + '", hint: "' + t.group + '"' + (t.id==='play' ? ', selected: true' : '') + ')</span>'}</td></tr>`).join('');
+  document.getElementById('scaleTbl').innerHTML =
+    `<tr><th>条目</th><th>标题</th><th>BandItem 必须自带的语义（§5.11 第一条）</th></tr>${semRows}` +
+    `<tr><td colspan="3" style="color:var(--ink3)">
+     缩放 <b>${s.toFixed(2)}×</b> · 标题形态：<b>${stage}</b> · 条目宽 <b>${wide}pt</b>（设计值 ${BAND_ITEM}pt）
+     · 侧栏吃掉 <b>${Math.round(wide / e.p.w * 100)}%</b> 屏宽 · 内容剩 ${Math.round(e.p.w - wide)}pt<br>
+     这条边共 ${e.p.h}pt：chrome ${bandChrome(chrome)}pt（系统带 ${SYS_BAND_PT} + ${BAND_GROUPS.length} 条组标题 ${BAND_GROUPS.length*GROUP_LABEL_PT} + 溢出标记 ${OVF_PT}）
+     → 条目可用 ${Math.round(r.usable)}pt · <b>摆得下 ${r.keptCount} 条</b>（本缩放每条 ${itemH}pt）
+     · 核心四项先占掉 ${Math.round(r.coreH)}pt，其余组排完还剩 ${Math.round(r.leftH)}pt 的空档（${r.keptCount} 条摆得下） · 溢出 ${r.goneCount} 条${r.coreOverrun ? ' · <span class="pill rej">核心四项在本缩放下也放不下</span>' : ''}<br>
+     缩放的压力全在<b>高度</b>这一侧：s 从 1.00 涨到 1.70，条目高 ${ICON_PT}→${Math.round(ICON_PT + 2*LABEL_LINE_PT*1.7)}pt，
+     这条边的<b>宽度</b>却只从 ${BAND_ITEM}→${bandItemWidth(bandItems, 1.7)}pt，离「吃掉屏宽 40%」还差 ${rowTriggerPt - wide}pt。
+     所以 §5.11 那句「涨到某个缩放就整条退回横排」在本机不成立，回退是<b>溢出菜单变长</b>，不是条形态换回横排。<br>
+     触控目标：图标条目 <b>${Math.round(ICON_PT)}</b>pt 高 × ${wide}pt 宽（Material 最小触控 kMinInteractiveDimension）
+     ${ICON_PT >= 44 ? ' · ≥44pt ✓' : ' · <b>&lt;44pt ✗</b>'}；缩放只加标题行与图标盒子，<b>不越出 44pt 底线、也不换字号档位</b>。<br>
+     本轮现读的欠账：<code>Semantics</code> 全 <code>packages/app/lib</code> 仅 <b>8 处</b>（8 个文件各 1 处），
+     <code>features/library_page.dart</code> <b>0 处</b>，Material <code>Badge</code> <b>0 处</b>，
+     <code>textScaler</code>/<code>textScaleFactor</code>/<code>BoldText</code> 在 <code>packages/**</code> <b>0 命中</b>。
+     今天底部条是 Material <code>NavigationBar</code>，语义白送；换成自绘侧栏后这些必须自己写。</td></tr>`;
+}
+
+/* =====================================================================
+   第 7 节 · 五条字面量线（§4.1 / §5.2）
+   ===================================================================== */
+const THRESHOLDS = [
+  {v:720, dir:'<', site:'library_page.dart:3129', reads:'LayoutBuilder 的 maxWidth（外壳那一层 ≈ 屏宽）',
+   eff:'compact → 底部 NavigationBar；否则 720–1100 走 rail、≥1100 走 200 侧栏',
+   after:'改读尺寸级：regular → 双栏 + 侧栏，与数字无关（§5.2 第一级）'},
+  {v:720, dir:'<', site:'detail_page.dart:339-342', reads:'MediaQuery.sizeOf 的<b>整块屏宽</b>（R5 违例）',
+   eff:'rows 3/4、cellExtent 100/120 → 列数由 episode_pager 那条 floor 推',
+   after:'喂那一栏的约束宽；单元宽按 regular 取 120，列数再由 floor 推（§5.7）'},
+  {v:720, dir:'>=', site:'download_selection.dart:20 · cast_device_sheet.dart:19 · local_cache_page.dart:102',
+   reads:'MediaQuery 屏宽', eff:'与下面那条 400 一起决定「居中对话框 vs 底部抽屉」',
+   after:'dialogHost = regularWidth（§5.2）：三条门槛合一条，且读的是尺寸级'},
+  {v:400, dir:'>=', site:'同上三处', reads:'MediaQuery <b>整块屏高</b>', eff:'第二条门槛：678 / 951 / 669 / 844 全部 ≥400，恒过',
+   after:'整条删掉。留着它只会在有人「顺手改成读栏高」时把笔记本姿（半屏 314.5pt）打回抽屉'},
+  {v:850, dir:'<', site:'settings_page.dart:740', reads:'size.maxWidth（设置页那一栏的约束宽）',
+   eff:'<850 直接返回内容，没有锚点列', after:'归入 wideSidebar 一档：regular 且有够宽的右列才出锚点'},
+  {v:1100, dir:'>=', site:'library_page.dart:3130', reads:'LayoutBuilder 的 maxWidth',
+   eff:'≥1100 → SizedBox(width: 200) 侧栏 + VerticalDivider(1)', after:'Duo 六档最宽 951pt，永不取这条支路（未知主机三档专门演它）'},
+  {v:280, dir:'<', site:'player_page.dart:1748', reads:'size.width（仅 restoringPip 时）',
+   eff:'浮窗恢复的极窄档', after:'Duo 任何姿势都够不着：最窄的那一栏也有 314.5pt'}
+];
+function renderThresholds(){
+  const e = env(STATE.pose, 'designed'), cur = env(STATE.pose, 'current');
+  const p = e.p, W = p.w, H = p.h;
+  const g = gestureModel(e, true);
+  /* 本档「六件事里最窄的那一栏」：竖带取带的 leading 侧，等分双栏取内容区一半，
+     横带则切高度、宽度不受影响。侧栏/桌面条吃掉的那一条边已经从内容区里扣掉了。 */
+  const panes = [g.contentW];
+  if(p.fold === 'present'){
+    if(g.d && g.d.axis === 'v')
+      panes.push(Math.max(0, g.d.pos - g.contentX), Math.max(0, g.contentRight - (g.d.pos + g.d.size)));
+    else if(!g.d && e.panes === 2) panes.push(g.contentW / 2);   // 全开等分双栏（§5.4）
+  }
+  const minPane = Math.min(...panes);
+  const rows = THRESHOLDS.map(t=>{
+    const feed = t.reads.indexOf('屏高') >= 0 ? H : W;         // 今天这六处吃的都是整块屏
+    const today = t.dir === '<' ? feed < t.v : feed >= t.v;
+    const never = !e.unknownHost && t.v === 280 && minPane >= 280;
+    return `<tr><td><b>${t.v}</b> ${t.dir}</td><td>${t.site}</td><td>${t.reads}</td>
+      <td>读到 ${Math.round(feed)}pt → <span class="pill ${today?'keep':'rej'}">${today?'触发':'不触发'}</span></td>
+      <td>${e.unknownHost ? '<span class="pill never">一期不改，与今天逐字相同</span>'
+        : `<span class="pill ${t.v===280&&never?'rej':'ovf'}">${t.after}</span>`}</td>
+      <td style="color:var(--ink3)">${t.eff}</td></tr>`;
+  }).join('');
+  document.getElementById('threshTbl').innerHTML =
+    `<tr><th>线</th><th>出处</th><th>今天读的是什么</th><th>本档（${p.label}）今天会不会过</th><th>设计后</th><th>它决定什么</th></tr>` + rows +
+    `<tr><td colspan="6" style="color:var(--ink3)">
+     本档最窄的一栏 = <b>${fmt1(minPane)}pt</b>（屏宽 ${W}pt · 侧栏那条边 ${Math.round(g.edge)}pt 在 ${e.bars==='side'?'trailing':'leading 或没有'} ·
+     ${g.d ? (g.d.axis==='v' ? `竖带 x ${fmt1(g.d.pos)}–${fmt1(g.d.pos+g.d.size)}` : '横带只切高度，不改宽度') : '这一档没有 active 的带'}），
+     内容区 ${fmt1(g.contentW)}pt。<br>
+     <b>所以 280 这条线在 Duo 上永不触发</b>——设计文档 §4.1 与 §5.2 原来写的是「内屏横屏的分栏半屏可能落到 280 以下」，
+     而 (951 − 侧栏 68 − 带 40) ÷ 2 = 421.5pt，按 §5.7 那张栏宽表重算六档，最窄的是书立竖带的 <b>314.5pt</b>，两个数都在 280 之上；文档已改写。<br>
+     <b>400 这条线的教训相反</b>：今天它读整块屏高（678 / 951 / 669 / 844 全部 ≥400 → 恒过），一旦有人「顺手把它改成读栏高」，
+     笔记本姿那一半只有 (669 − 40) ÷ 2 = <b>314.5pt</b> 高，就会把对话框打回抽屉——
+     所以 §5.2 定的是 <code>dialogHost = regularWidth</code>，<b>整条高度门槛删掉</b>，不是换个来源继续比。<br>
+     本档今天的条形态：<code>${cur.bars}</code>（${cur.bars==='bottom'?'底部横排 NavigationBar':cur.bars==='rail'?'72pt NavigationRail':cur.bars==='sidebar'?'200pt 侧栏':'—'}）·
+     设计后：<code>${e.bars}</code>（${e.bars==='side'?'竖排侧栏，贴 trailing 那条实测边':'按 R8 保留横排'}）。</td></tr>`;
 }
 
 /* =====================================================================
@@ -896,6 +1391,9 @@ function render(){
   document.getElementById('stage-detail').innerHTML += extraPanelRow();
   readout();
   renderBench();
+  renderGestures();
+  renderScale();
+  renderThresholds();
 }
 
 /* 详情区补一只固定尺寸的对照框：把「一条规则抄了三份」这件事画出来 */
@@ -927,11 +1425,12 @@ bind('seg-pose','pose','pose');
 bind('seg-rule','rule','rule');
 bind('seg-fold','fold','fold');
 document.getElementById('h').addEventListener('input', renderBench);
+document.getElementById('s').addEventListener('input', renderScale);
 addEventListener('keydown', ev=>{
   if(ev.target.tagName === 'INPUT') return;
-  const poses = ['cover','innerPortrait','innerLandscape','book','laptop','phone'];
+  const poses = ['cover','innerPortrait','innerLandscape','book','laptop','phone','deskNarrow','deskWide','tv'];
   const k = ev.key.toLowerCase();
-  if('123456'.includes(ev.key)) STATE.pose = poses[+ev.key - 1];
+  if('123456789'.includes(ev.key)) STATE.pose = poses[+ev.key - 1];
   else if(k === 'r') STATE.rule = STATE.rule === 'both' ? 'current' : (STATE.rule === 'current' ? 'designed' : 'both');
   else if(k === 'a') STATE.fold = 'forceActive';
   else if(k === 'i') STATE.fold = 'forceInactive';

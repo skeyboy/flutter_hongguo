@@ -9,7 +9,7 @@
 ## 0. 结论摘要
 
 1. **官方规则本身可直接照搬，但它的前提在我们身上不成立。** Apple 两份文档（2026-09-09 同时上线）反复讲的是一条捷径：「用系统组件，折叠屏的适配自动送你」。我们是 Flutter 应用，发现页外壳的 `NavigationBar`/`NavigationRail`/侧栏、传输条、弹窗与抽屉全部自绘，`NavigationSplitView`、`ArrangementView`、`ReservedRegion` 一个都不存在。所以本设计的主体是：**把官方规则翻译成我们自己要写的东西**，而不是「换成系统组件就好了」。
-2. **今天必须先解决的是阈值，不是折叠带。** 现读的官方口径把外屏定为 compact width、内屏定为 regular width；内屏竖屏宽约 669pt。而 `library_page.dart:3101` 的 `size.maxWidth < 720` 会把 669 判成 compact——于是内屏全开时观众看到的是一块 6.7 寸手机布局（底部标签条 + 单栏 + 底部抽屉 + 由 `floor((621+10)/110)` 推出的 **5 列**分集，奇数列正被中带切），这正是官方明确反对的「把已有布局按可用空间放大」的反面。**这一条不需要折叠感知就能修**，是本设计的第一期。
+2. **今天必须先解决的是阈值，不是折叠带。** 现读的官方口径把外屏定为 compact width、内屏定为 regular width；内屏竖屏宽约 669pt。而 `library_page.dart:3129`（`b720845` 上是 `:3101`）的 `size.maxWidth < 720` 会把 669 判成 compact——于是内屏全开时观众看到的是一块 6.7 寸手机布局（底部标签条 + 单栏 + 底部抽屉 + 由 `floor((621+10)/110)` 推出的 **5 列**分集，奇数列正被中带切），这正是官方明确反对的「把已有布局按可用空间放大」的反面。**这一条不需要折叠感知就能修**，是本设计的第一期。
 3. **折叠感知不是「拿不到」，而是「Flutter 层还没接」——第一轮这句结论要改。** 本轮现读 iOS 27.1 SDK：`UIHinge`（`status = unknown/closed/partiallyOpen/fullyOpen` + `angle`）、`UIHingeInteraction`（事件回调）、`UIView.reservedRegions(of:)`（division / occlusion，含 `frame` / `margins` / `isActive` / `IncludeInactive` 查询项）全部是 `API_AVAILABLE(ios(27.1))` 的公开 API；探针已在 iPhone Duo 模拟器上真收到 `hinge = closed` 的初始回调，不是只有头文件。缺的只有 Flutter 侧：`MediaQuery.displayFeatures` 在 iOS 上仍是空表，提案 flutter/flutter#192515 与 PR flutter/flutter#193025 都仍 open、未合入，且该 PR 的引擎代码在 `#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 270100` 下、要等 Flutter 官方 CI 换到 Xcode 27.1 才会真的报。**因此折叠带仍然按「可插拔的一路输入」设计，但立论换了**：不再是「今天拿不到」，而是①这些 API 有 iOS 27.1 硬门槛，低版本 iOS 与非 iOS 折叠机仍拿不到；②上游语义还会变（§3）。结构性防御（分栏落中缝、网格取偶数列）继续保留，让位则在能读到时精确做。§7 的分期由此重排：P2 不再被上游 PR 阻塞，改为被「自写通道的工程量」阻塞。
 4. **一期范围**：pose 模型与注入式 `LayoutEnvironment`、把 §4.1 现读出的 13 行字面量判据改成 pose 驱动、外屏与内屏横屏的竖排控制条、内屏的常规宽度双栏与偶数列网格、弹窗/抽屉口径、播放器的 overlay 分屏（立姿上半画面下半控件）、§5.10 的手势宽度喂法与 §5.11 的侧栏语义。**明确不做**：影像采集相关（本应用不采集）、Live Activities、Split View 多任务分屏、iOS 端画中画第二屏。
 
@@ -118,11 +118,11 @@
 
 ### 4.1 宽度阈值：13 行按字面量比较的判据（本轮用 §8 的守门正则现读）
 
-`packages/app/lib` 里与布局有关的 `720` 字面量。先把清晰度串排除：本轮现读它们是 `local_playlist.dart:49`、`settings_page.dart:944`、`player_page.dart:1411/:1412/:1871`、`download_selection.dart:206` 共**六处** `'720p'`（第一轮漏登记最后那处集合字面量）。剩下的用 §8 那条守门正则跑出现读结果：**13 行含字面量比较的判据、共 16 个字面量**（`720` 九次、`400` 四次、`850`/`1100`/`280` 各一次）。另有三处**正则抓不到但同样按屏定尺寸**，只能靠人读：`download_selection.dart:25` 的 `width: 720`、`episode_workspace.dart:220` 的 `math.min(340.0, size.maxWidth * .8)`、`anchored_panel.dart:50/:104` 的 `right: 12` 与 `below < 200`（后者确实是比较式，只是左边不叫 `.width`/`.height`，正则同样漏）。两张表共 14 格但只有 13 行进得了正则，账这样对：表一 8 格出 9 行（`detail_page.dart` 那格横跨 `:339` 与 `:340`），表二 6 格里只有 `:740`、`:3102`、`:1748`、`:40` 四格是行，`episode_workspace.dart:220` 与 `anchored_panel.dart` 两格正是上面那「三处」里的。9 + 4 = 13。前 8 行是第一轮登记过的：
+`packages/app/lib` 里与布局有关的 `720` 字面量。先把清晰度串排除：本轮现读它们是 `local_playlist.dart:49`、`settings_page.dart:944`、`player_page.dart:1411/:1412/:1871`、`download_selection.dart:206` 共**六处** `'720p'`（第一轮漏登记最后那处集合字面量）。剩下的用 §8 那条守门正则跑出现读结果：**13 行含字面量比较的判据、共 16 个字面量**（`720` 九次、`400` 四次、`850`/`1100`/`280` 各一次）。另有三处**正则抓不到但同样按整块容器（而不是所在栏）定尺寸**，只能靠人读：`download_selection.dart:25` 的 `width: 720`、`episode_workspace.dart:220` 的 `math.min(340.0, size.maxWidth * .8)`、`anchored_panel.dart:52/:110` 的 `right: 12` 与 `below < 200`（后者确实是比较式，只是左边不叫 `.width`/`.height`，正则同样漏）。两张表共 14 格但只有 13 行进得了正则，账这样对：表一 8 格出 9 行（`detail_page.dart` 那格横跨 `:339` 与 `:340`），表二 6 格里只有 `:740`、`:3130`（原 `:3102`，本轮漂移）、`:1748`（`player_page.dart`，本轮没动过这个文件）、`:40` 四格是行，`episode_workspace.dart:220` 与 `anchored_panel.dart` 两格正是上面那「三处」里的。9 + 4 = 13。前 8 行是第一轮登记过的：
 
 | 位置 | 现在的判据 | 内屏全开竖屏（669pt）会得到什么 |
 |---|---|---|
-| `features/library_page.dart:3101` | `size.maxWidth < 720` → `compact` | 底部 `NavigationBar`（R2 说这里该是 regular） |
+| `features/library_page.dart:3129`（`b720845` 上是 `:3101`） | `size.maxWidth < 720` → `compact` | 底部 `NavigationBar`（R2 说这里该是 regular） |
 | `features/player_page.dart:1746` | `(size.width < 720 && size.height >= size.width) \|\| floating` → `compact` | 精简播放器 chrome |
 | `features/player_page.dart:1816` | `!compact && size.width >= 720` → `desktopWide`（仅非移动端分支） | ——（移动端不取此支路） |
 | `features/detail_page.dart:339-342` | `MediaQuery.sizeOf` 宽 `< 720 ? rows:3 / cellExtent:100 : rows:4 / cellExtent:120` | **列数不在这一行里**：`episode_pager.dart:255-259` 由 `floor((约束宽+10)/(cellExtent+10))` 推出。669 整屏（左右各 24 内边距，`detail_page.dart:332`）配 cellExtent 100 → **5 列**，奇数（R23 反对）；951 → **7 列**，同样奇数 |
@@ -131,22 +131,57 @@
 | `downloads/download_selection.dart:20`（与 `:25` 的 `width: 720`） | `width >= 720 && height >= 400` → 对话框 | 底部抽屉 |
 | `cast/cast_device_sheet.dart:19` | `width >= 720 && height >= 400` → 对话框 | 底部抽屉 |
 
-本轮回到源码逐行重读，**上一版写在这里的行号有 3 处已经漂了**（`3098` 实为 `3101`；`3150-3228` 实为 `3153-3231`；`:3158` 实为 `:3161`，已在 §4.2 改正）。下表是**第一轮没进这张表的判据**：`850` 与 `1100` 两条桌面档线（`1100` 第一轮只在 §4.2 出现过），加四条本轮新登记的、同样会在 669pt 上做出决定的判据——最后那条（`:40` 的高度线）是本轮为 §8 写守门正则时才现读出来的，说明**按数字找阈值一定会漏**：
+**第三轮（11-02）基线漂移，先登记再读表**：本节与 §5 的行号是在 `b720845`（`v0.3.19`）上现读的，而仓库 HEAD 已经走到 `6e60b1f`。`git diff --stat b720845..HEAD -- packages/app/lib` 本轮现读：只有两个文件动过——`features/library_page.dart`（`d8547a3`，三个 hunk：`:719` +3、`:942` +11、`:978` 后插 17 行，净 +31）与 `platform/runtime_native.dart`（+1）。**所以除 `library_page.dart` 之外的所有引用仍然有效，本轮逐条不重读**（**这句当场就被推翻了一半，见下面「第四轮」那段**：HEAD 在同一工作日又前进两笔，`anchored_panel.dart` 也被改了）；`library_page.dart` 里 `:719` 之后的引用全部右移，本轮按下表逐条重钉（右移量随区段不同是 +28～+31，不是同一个数，所以只能逐条钉、不能加一个常数）：
+
+| 本节/§5 里的旧锚 | 本轮在 `6e60b1f` 现读 | 锚点内容 |
+|---|---|---|
+| `:3101` / `:3102` | **`:3129` / `:3130`** | `this.compact = size.maxWidth < 720` / `final wide = size.maxWidth >= 1100`（守门正则本轮重跑，**仍是 13 行 / 16 个字面量**，只是这两行的行号变了） |
+| `:3104-3122`（外壳 pager） | `:3132-3150` | `AutoTabsRouter.pageView`（`animatePageTransition: !desktopHost` 在 `:3139`） |
+| `:3123-3142`（四条目的地） | `:3151-3172` | `const destinations = [`，四条 `NavigationDestination` 分别在 `:3152/:3157/:3162/:3167` |
+| `:3153-3231`（三条支路） | `:3181-3260` | `bottomNavigationBar: compact` 起，到 `NavigationRail` / `VerticalDivider` |
+| `:3161-3162`（`body: SafeArea(child: Row(`） | `:3189-3190` | §5.3 那条争边的现场 |
+| `:3166-3167`（`SizedBox(width: 200)`） | `:3194-3195` | 桌面 200 侧栏 |
+| `:3219-3231`（`NavigationRail`） | `:3247-3259` | `labelType: NavigationRailLabelType.selected`（`:3249`） |
+| `:1402`（push 详情路由） | `:1430` | `DetailPage(runtime:…, initial:…)` |
+| `:1748-1764`（`showAnchoredPanel` 唯一调用方） | `:1776-1792` | `filterPanelEntry = showAnchoredPanel(` |
+| `:1839`（`filterChipFocus.requestFocus()`） | `:1867` | 键盘/焦点同类件 |
+| `:2208`（`Icons.fiber_new_rounded`） | `:2236` | 「徽章是画出来的」那条证据 |
+| `:2420-2426`（`_themeChips`） | `:2448-2450` | `limit = desktopHost ? _desktopRowMax : …` |
+| `:2848-2854`（`_innerPages`） | `:2876-2883` | 类型级横滑 |
+| `:2861-2872`（`_slotPage`） | `:2889-2900` | 题材级横滑 + `physics: _handoverPhysics` |
+| `:2762/:2861/:2883`（`viewportWidth` 链） | `:2790/:2889/:2911` | 行宽一路当参数传下去 |
+| `:3250`（`_onRowScroll` 挂载） | `:2805` | `onNotification: (n) => _onRowScroll(pane, n)` |
+| `:47`、`:383`、`:391`、`:468`、`:491`、`:505`、`:532`、`:582` | **不变** | 都在 `:719` 之前，没吃到插入 |
+
+本轮另在 `library_page.dart:2842` 现读到一条与 §5.10 同族、此前没登记的：非 compact 分支的题材搜索框宽 `(viewportWidth * .42).clamp(240.0, 440.0)` —— 它的**分母已经是栏宽**（合规），但那条 240 下限是**按整屏调出来的**：双栏时栏宽 315pt，`.42` 只有 132pt，被钳回 240 → 一根占掉**栏宽 76%** 的搜索框，行头剩下的空间放不下那组图标。归进 §5.10 的「喂宽」那一类，不改判据、只改钳位（下限要跟着栏宽走，而不是钉在 240）。
+
+**上面那句「除 `library_page.dart` 之外仍然有效」在同一个工作日内被推翻了**，这是本轮最该记住的一笔：写它时 HEAD 是 `6e60b1f`，重读时已经走到 `3e3f82e`，中间多了两笔提交，其中 `fe33852 fix(discover): anchor the hover preview in the overlay's own space` 重写了 `widgets/anchored_panel.dart`（`git diff --stat 6e60b1f..HEAD -- packages/app/lib` 本轮现读：仅此一个文件，+90/−67）。于是本设计与 §5.12 那两格引用的行号全部右移，且**语义也变了**，不是简单换个数字：
+
+| 本文旧引 | `3e3f82e` 现读 | 变的是什么 |
+|---|---|---|
+| `anchored_panel.dart:50` 的 `right: alignRight ? 12 : null` | `:52` | 位置没变的意思，仍是「贴 overlay 右边 12pt」 |
+| `:53` 的 `maxWidth: width ?? 380` | `:55` | 面板那条 380 硬上限**依旧成立**：`showAnchoredPanel` 的调用方（`:1776`）不传 `width`；悬停那条走 `showAnchoredPeek` 的声明式默认 `double width = 300`（`:99`），调用方（`:1876`）同样不传 |
+| `:101` 的 `size` 取 `MediaQuery.sizeOf(context)` | `:107` `final size = space.biggest;`（来自 `:105` 的 `LayoutBuilder`） | **这条是实质改动**：可用高/宽改读浮层自己的盒子，不再按窗口高度猜。R5 违例因此**减了一半**——不再读屏，但 overlay 本身跨整块屏，所以 Duo 双栏时它仍会跨过折叠带 |
+| `:104` 的 `flip = below < 200 && above > below` | `:110` | 判据本身没改，只是分母换成了上面那个盒子 |
+| 新出现：`overlayLocalAnchor(overlay, anchor)`（`:182-185`，两条支路各在 `:28`/`:102` 调一次） | —— | 锚点先换算进 overlay 坐标（提交说明给了 PC 帧的一手读数：旧代码报 −170.3/+108.0，新代码在 macOS 与 Windows 两种帧下都是 8.0）。**这条恰恰是 §5.1 要的「读所在容器而不是整块屏」的现成先例**，比 `detail_page.dart:339` 更接近我们要的形态 |
+| `showAnchoredPeek` 的调用方 | `library_page.dart:1876`（`peekEntry = showAnchoredPeek(`） | 本文旧版只登记了 `showAnchoredPanel` 一个调用方，漏了这个悬停预览；两者在 Duo 上都会按 overlay 全域定位，必须一起进 §8 第 5 项 |
+
+本轮回到源码逐行重读，**上一版写在这里的行号有 3 处已经漂了**（`3098` 实为 `3101`；`3150-3228` 实为 `3153-3231`；`:3158` 实为 `:3161`，已在 §4.2 改正）——注意那三个「实为」是 `b720845` 面上的读数，到 `6e60b1f` 又各自右移一次（`3101→3129`、`3153-3231→3181-3260`、`3161→3189`），以本节上面那张漂移表为准。**同一句话这轮又说了一遍**：两轮前那句「上一版有 3 处漂了」现在描述的是上一版的上一版，而这一轮它自己又成了那个「上一版」。下表是**第一轮没进这张表的判据**：`850` 与 `1100` 两条桌面档线（`1100` 第一轮只在 §4.2 出现过），加四条本轮新登记的、同样会在 669pt 上做出决定的判据——最后那条（`:40` 的高度线）是本轮为 §8 写守门正则时才现读出来的，说明**按数字找阈值一定会漏**：
 
 | 位置 | 现在的判据 | 为什么属于本设计 |
 |---|---|---|
 | `features/settings_page.dart:740` | `size.maxWidth < 850` 直接返回内容（无侧栏锚点） | 669 与 466 都 <850 → 内屏全开也没有锚点列，双栏时设置页只剩一栏 |
-| `features/library_page.dart:3102` | `size.maxWidth >= 1100` → `wide`（`SizedBox(width: 200)` 侧栏，`:3166-3167`） | 桌面档的第二条线。§8 的守门 grep 若只挡 `720/850`，这条会漏过去继续裸着 |
-| `features/player_page.dart:1748` | `platformPlayback.restoringPip && size.width < 280` | 浮窗恢复时的极窄档；Duo 内屏横屏的分栏半屏可能落到 280 以下（951 减去侧栏带与折叠带再对分），必须一起纳入 env |
+| `features/library_page.dart:3130`（原 `:3102`） | `size.maxWidth >= 1100` → `wide`（`SizedBox(width: 200)` 侧栏，`:3194-3195`） | 桌面档的第二条线。§8 的守门 grep 若只挡 `720/850`，这条会漏过去继续裸着 |
+| `features/player_page.dart:1748` | `platformPlayback.restoringPip && size.width < 280` | 浮窗恢复时的极窄档。**本轮按 §5.7 那张栏宽表重算，这条在 Duo 上够不着**：内屏横双栏 = (951 − 侧栏 68 − 带 40)/2 = **421.5pt**，最窄的书立竖带栏 = (669 − 40)/2 = **314.5pt**，两个数都在 280 之上（原型第 7 节按档现算，九档最小值即 314.5）。第一轮写的「可能落到 280 以下」是错的，已改（§5.2 同条） |
 | `playback/episode_workspace.dart:220` | `math.min(340.0, size.maxWidth * .8)` | 选集面板宽度。半开时它按整屏宽算，会盖住折叠带（R23 的反例） |
-| `widgets/anchored_panel.dart:50 / :101-104` | 锚屏幕右 `12pt`；`flip = below < 200 && above > below`，`size` 取 `MediaQuery.sizeOf(context)` | 悬停预览面板按**整块屏**而不是所在栏定位（违反 R5），且 200 这条翻转线在 669×951 与半开两半上都无人校过 |
+| `widgets/anchored_panel.dart:52 / :107-110`（`6e60b1f` 上是 `:50 / :101-104`） | 锚 overlay 右 `12pt`；`flip = below < 200 && above > below`，`size` 取 `:107` 的 `space.biggest`（`:105` 的 `LayoutBuilder`） | 悬停预览面板按**整块 overlay**而不是所在栏定位，双栏/半开时会跨过折叠带。**本轮更新**：`fe33852` 已把 `size` 从 `MediaQuery.sizeOf` 换成浮层自己的盒子，所以「读屏」这半条已修；但 overlay 仍跨整块屏，R5 剩下的那一半（按所在栏）没修，200 这条翻转线在 669×951 与半开两半上仍无人校过 |
 | `downloads/download_selection.dart:40` | `size.height * (size.height < 400 ? .95 : .78)` | 抽屉高度也按整块屏算。本轮为 §8 写守门正则时才现读到的**第 13 行**，第一轮完全没登记 |
 
-三条独立的证据链说明这不是「差不多」的问题：`720` 与 `720 && 400` 的**同一规则被抄了三份**（`download_selection.dart:20`、`cast_device_sheet.dart:19`、`local_cache_page.dart:102`），改一处必然漏两处；`detail_page.dart:339` 与 `anchored_panel.dart:101` 用屏幕尺寸而不是所在约束宽度（违反 R5）；而 `integration_test/v032_detail_shots_test.dart:54-55` 与 `integration_test/ios_episode_swipe_test.dart:445` 又把 720 这条线**钉进了测试**，所以阈值迁移必须连测试一起改，否则改完是绿的、语义是旧的。
+三条独立的证据链说明这不是「差不多」的问题：`720` 与 `720 && 400` 的**同一规则被抄了三份**（`download_selection.dart:20`、`cast_device_sheet.dart:19`、`local_cache_page.dart:102`），改一处必然漏两处；`detail_page.dart:339` 用屏幕尺寸而不是所在约束宽度（违反 R5）——同一条链上的 `anchored_panel.dart` **本轮被 `fe33852` 改了一半**：`size` 已从 `MediaQuery.sizeOf` 换成浮层 `LayoutBuilder` 的盒子（`:107`），但那个 overlay 仍跨整块屏，所以 R5 在 Duo 上还没修完（§4.1 上面那张新表、§5.12 同条）；而 `integration_test/v032_detail_shots_test.dart:54-55` 与 `integration_test/ios_episode_swipe_test.dart:445` 又把 720 这条线**钉进了测试**，所以阈值迁移必须连测试一起改，否则改完是绿的、语义是旧的。
 
 ### 4.2 自绘的控制条，且没有任何竖排形态
 
-`library_page.dart:3153-3231`：compact → `bottomNavigationBar: NavigationBar`（`:3153-3159`）；720–1100 → `NavigationRail(labelType: selected)`（`:3219-3231`）；≥1100 → `SizedBox(width: 200)` 侧栏（`:3166-3167`）。三条支路都是**横向或左侧纵向的桌面形态**，没有一条是「贴着一条边、自上而下排开、装不下就从底部开始溢出」的 Duo 侧栏。外层是 `body: SafeArea(child: Row(...))`（`:3161-3162`），也就是说系统给的那条边 padding 会被当成「内容要避开」的空隙，而不是「控制条该长在里面」的位置（R31 要求的是后者）。
+`library_page.dart:3181-3260`（`b720845` 上是 `:3153-3231`）：compact → `bottomNavigationBar: NavigationBar`（`:3181-3187`）；720–1100 → `NavigationRail(labelType: selected)`（`:3247-3259`）；≥1100 → `SizedBox(width: 200)` 侧栏（`:3194-3195`）。三条支路都是**横向或左侧纵向的桌面形态**，没有一条是「贴着一条边、自上而下排开、装不下就从底部开始溢出」的 Duo 侧栏。外层是 `body: SafeArea(child: Row(...))`（`:3189-3190`），也就是说系统给的那条边 padding 会被当成「内容要避开」的空隙，而不是「控制条该长在里面」的位置（R31 要求的是后者）。
 
 ### 4.3 `ControlSurface` 四值 + 一条没人用的丢弃顺序
 
@@ -220,8 +255,8 @@ class LayoutEnvironment extends InheritedWidget { /* of(context) 同 TvEnvironme
 - **一期不改动 `unknown` 支路的任何数字**。这是 §4.6 那批测试能保持原读数、以及 Android 折叠屏/桌面窗口回归为零的前提；等 §5.8 的桥能给 `screen` 之后，`regularWidth` 才会真的离开 720。
 - `settings_page.dart:740` 的 `850` 一并归入 `wideSidebar`，不再单独留字面量。
 - `detail_page.dart:339` 必须把 `MediaQuery.sizeOf(context).width` 换成所在 `LayoutBuilder`/sliver 约束（R5），否则双栏时它读的是整块内屏宽而不是自己那一栏。同一处判据还有两个同族违例：`anchored_panel.dart:101`（面板按整块屏定位并贴屏幕右 12pt）与 `episode_workspace.dart:220`（选集面板 `min(340, 屏宽×0.8)`）——它们与 §5.10 的手势裁决是同一件事的两面：**给组件喂进去的宽必须是「所在栏去掉带之后的宽」**。
-- `player_page.dart:1748` 的 `size.width < 280`（浮窗恢复时的极窄档）纳入同一套 env：内屏横屏双栏时，半屏宽 = (951 − 侧栏带 − 折叠带) / 2，完全可能落到 280 以下，今天这条判据会把它当极窄设备处理。
-- 守门测试的形状因此要改：第一轮写的是「grep 掉 `720`/`850` 两个数字」，那既漏掉 `1100`（`library_page.dart:3102`）与本轮补登记的 `400` 高度线与 `280`，又会在 `'720p'`、`Duration(milliseconds: 200)` 这类无关字面量上误报。改成**按比较式守**，三条正则（本轮已在 `packages/app/lib` 上实跑，命中恰为 §4.1 那 13 行、零误报）：`maxWidth\s*[<>]=?\s*[1-9][0-9]{2,}`、`\.width\s*[<>]=?\s*[1-9][0-9]{2,}`、`\.height\s*[<>]=?\s*[1-9][0-9]{2,}`（`[1-9][0-9]{2,}` 这一段是为了放过 `q.width > 0` 这类合法性检查——不加它，`player_page.dart:243` 会误报）。唯一豁免文件是 `layout/duo_breakpoints.dart`。**它抓不到非比较式**（`width: 720`、`min(340.0, …)`、`below < 200`），所以 §4.1 那三处只能靠人读，登记在表里。
+- `player_page.dart:1748` 的 `size.width < 280`（浮窗恢复时的极窄档）**本轮改判为「Duo 上永不触发」**：内屏横双栏那一栏 (951 − 68 − 40)/2 = 421.5pt，最窄的书立竖带栏 (669 − 40)/2 = 314.5pt，原型第 7 节九档扫下来的最小值就是 314.5。第一轮写的「完全可能落到 280 以下」不成立，已更正。这条仍然纳入 env 的理由变了：不是它会响，而是**它一旦跟着 §5.2 改成读栏宽，读的是「分栏后再减掉条」的那个数**——今天书立档保留底部横排（§5.3 的档位表），若将来把它也换成侧栏，同一栏剩 314.5 − 68 = 246.5pt 就会真的掉到 280 以下。所以登记它、但不按它设计任何形态。
+- 守门测试的形状因此要改：第一轮写的是「grep 掉 `720`/`850` 两个数字」，那既漏掉 `1100`（`library_page.dart:3130`，本轮从 `:3102` 漂移）与本轮补登记的 `400` 高度线与 `280`，又会在 `'720p'`、`Duration(milliseconds: 200)` 这类无关字面量上误报。改成**按比较式守**，三条正则（本轮已在 `packages/app/lib` 上实跑，命中恰为 §4.1 那 13 行、零误报）：`maxWidth\s*[<>]=?\s*[1-9][0-9]{2,}`、`\.width\s*[<>]=?\s*[1-9][0-9]{2,}`、`\.height\s*[<>]=?\s*[1-9][0-9]{2,}`（`[1-9][0-9]{2,}` 这一段是为了放过 `q.width > 0` 这类合法性检查——不加它，`player_page.dart:243` 会误报）。唯一豁免文件是 `layout/duo_breakpoints.dart`。**它抓不到非比较式**（`width: 720`、`min(340.0, …)`、`below < 200`），所以 §4.1 那三处只能靠人读，登记在表里。
 
 ### 5.3 竖排控制条（`SideControlBand`）
 
@@ -238,10 +273,10 @@ class LayoutEnvironment extends InheritedWidget { /* of(context) 同 TvEnvironme
 
 实现规则，逐条对应官方：
 
-- **侧栏要「长进」系统那条边，不是排在它旁边**（R31 + R19 的 Calculator 先例）：外壳从 `body: SafeArea(child: Row(...))`（`library_page.dart:3161-3162`）改成 `Row[SideControlBand, SafeArea(child: content)]`，侧栏自己吃掉 `MediaQuery.paddingOf` 给出的那条边加上条目宽；内容区仍读两侧 padding。放在 `SafeArea` 里面会把系统带变成空白，等于把官方要我们占住的那条边又还回去。**条目宽不再是一个拍的常量**：本轮 Mac 实测合上态 `safeAreaInsets.right = 84pt`，而系统把竖排 bar 与摄像头遮挡放在**同一条右边带**里（§2 那两行）——所以 84pt 是「系统自己给这条边留的宽」的一手读数。设计取 **68pt 条目宽 + 系统 padding**，并规定：若主机报出的那条边 padding 已经 ≥68，条目就**只吃 padding 不再额外加宽**（否则外屏 466 宽会被吃掉 152pt，内容只剩 314pt）。这条规则写进 §8 第 2 项的实测：Flutter 侧 `MediaQuery.paddingOf` 到底透不透出那 84pt，决定侧栏是 68 还是 84。
+- **侧栏要「长进」系统那条边，不是排在它旁边**（R31 + R19 的 Calculator 先例）：外壳从 `body: SafeArea(child: Row(...))`（`library_page.dart:3189-3190`）改成 `Row[SafeArea(child: content), SideControlBand]`——**本轮把这条顺序改过来了**：合上态实测的是 `safeAreaInsets = (t 0, l 0, b 34, r 84)`，那条边在 **trailing（右）**，而第一版文档和原型都按桌面习惯把它画在左，同一个框里就成了「侧栏在左、遮挡在右」，与实测相反。规则不是「画在右边」，而是**跟着主机报出的那条边贴**（R30/R31：`insets.left` 与 `insets.right` 谁非零贴谁，两侧都非零时贴当前 `layoutDirection` 的 trailing）；原型已把这条做成断言（夹具的 `bandEdge` 检查 `:scope > .band` 的右边与屏框右边对齐，三档实测姿势 `gapRight` 全为 0）。侧栏自己吃掉主机给出的那条边 padding 加上条目宽；内容区仍读两侧 padding。放在 `SafeArea` 里面会把系统带变成空白，等于把官方要我们占住的那条边又还回去。**条目宽不再是一个拍的常量**：本轮 Mac 实测合上态 `safeAreaInsets.right = 84pt`，而系统把竖排 bar 与摄像头遮挡放在**同一条右边带**里（§2 那两行）——所以 84pt 是「系统自己给这条边留的宽」的一手读数。设计取 **68pt 条目宽 + 系统 padding**，并规定：若主机报出的那条边 padding 已经 ≥68，条目就**只吃 padding 不再额外加宽**（否则外屏 466 宽会被吃掉 152pt，内容只剩 314pt）。这条规则写进 §8 第 2 项的实测：Flutter 侧 `MediaQuery.paddingOf` 到底透不透出那 84pt，决定侧栏是 68 还是 84。
 - **顺序契约**（R12）：`SideControlBand` 分三段——导航（返回/关闭）、强动作（`topBarPinnedTrailing` 的等价物）、其余；发现页把 4 个目的地放在最后一段，播放器把 播放/暂停 放在第一段。
 - **溢出方向 bottom→top，且优先级先组后项**（R13/R15）：`SideControlBand` 接受一个 `List<BandItem>`，每项带 `group`、`priority`、`hasBadge`；装不下时按「组 → 组内」的顺序从**底部**开始收；带徽章的条目在同组内排到最后被收（对应 HIG 点名的 badge 例外）。
-- **每个条目必须有图标也有标题**（R14）：竖排只画图标，横排优先图标，溢出菜单图标+标题。据此审一遍现有条目：`NavigationDestination` 四条（`library_page.dart:3123-3142`）本就 icon+label 齐备，可直接复用；传输条里 `dropOrder` 的 `volume-slider` 是纯自定义 view——按 R14 它进不了侧栏，所以侧栏形态下它降级成一个静音图标 + 长按调节，而不是硬塞。
+- **每个条目必须有图标也有标题**（R14）：竖排只画图标，横排优先图标，溢出菜单图标+标题。据此审一遍现有条目：`NavigationDestination` 四条（`library_page.dart:3151-3172`）本就 icon+label 齐备，可直接复用；传输条里 `dropOrder` 的 `volume-slider` 是纯自定义 view——按 R14 它进不了侧栏，所以侧栏形态下它降级成一个静音图标 + 长按调节，而不是硬塞。
 - **不手摆间距，用分组**（R16）：清掉传输条里条目之间的硬编码间隔，改为组间由 band 统一给。
 - **跨姿势相对位置稳定**（R29）：侧栏与底部条共用同一份 `List<BandItem>` 声明，只是排布方向不同。**不做**「切到侧栏时重排条目」的逻辑。
 - **接上 `dropOrder`**（§4.3）：`playback_transport.dart:22` 那份名单成为侧栏与窄横条唯一的丢弃来源；一期先把它接到真实测量（按 `BandItem` 的固有宽度自底向上裁），并把「播放、选集、倍速、全屏永不丢弃」写成断言而不是注释。
@@ -291,7 +326,7 @@ R23 的原文是「优先偶数列，好让内容干净地分开」，适用条�
 
 所以 R5 的违例**不在网格里**（它读的正是所在约束宽），而在调用方 `detail_page.dart:339-342`：那里按整块屏宽选 `rows` 与 `cellExtent`。而列数的奇偶从头到尾没人管，它只是那条 floor 的副产品。「列数由约束宽推」在本仓是既有做法不是新发明——TV 的网格同样如此，只是用了 `ceil`（`packages/tv/lib/src/grid.dart:156-160`）。
 
-本轮把这条 floor 逐档现算了一遍。详情页今天（以及一期）是**整屏路由**（`library_page.dart:1402` push），所以约束宽 = 屏宽 − 侧栏 − `detail_page.dart:332` 的左右各 24；竖带时页面级分栏不作用于滚动内容（§5.4），仍按整屏宽算：
+本轮把这条 floor 逐档现算了一遍。详情页今天（以及一期）是**整屏路由**（`library_page.dart:1430` push，原 `:1402`），所以约束宽 = 屏宽 − 侧栏 − `detail_page.dart:332` 的左右各 24；竖带时页面级分栏不作用于滚动内容（§5.4），仍按整屏宽算：
 
 | 档 | 今天 | 设计后 |
 |---|---|---|
@@ -348,22 +383,25 @@ R23 的原文是「优先偶数列，好让内容干净地分开」，适用条�
 
 | 手势 | 现在的实现 | 与折叠带的关系 | 裁决 |
 |---|---|---|---|
-| 外壳换目的地（4 tab） | `AutoTabsRouter.pageView` `library_page.dart:3104-3122`（`animatePageTransition: !desktopHost`） | 整屏宽 pager，双栏时跨住中缝 | 双栏时 pager 的 viewport 必须等于**所在栏**的约束宽；带 active 时把 `division.frame`（R33：它已含 margins）加进交换死区 |
-| 类型级横滑（一级三页） | `_innerPages` `:2848-2854` | 同上 | 同上 |
-| 题材级横滑（二级） | `_slotPage` `:2861-2872`，`physics: _handoverPhysics`（`:391`） | 接力链的下一层：外层不吃了才轮到它 | 接力阈值 `_edgePullExtent = 48.0`（`:383`，三处门 `:491/:532/:582`）**按栏算不按屏算**；48 与 40 谁大都不构成为让位，让位只由 `division.frame` 决定 |
-| 行内横滑（题材 chip 行） | `_onNestedScroll` `:468`、`_onRowScroll` `:505`（挂载 `:3250`）、`viewportWidth` 一路传进 `:2762/:2861/:2883` | 行的可用宽**已经是参数**而不是屏宽 | 这条已经栏相对：只要把传进去的 `viewportWidth` 从「屏宽」换成「去掉带之后的栏宽」，整条链自动对。这正是让位必须发生在页面级 `LayoutBuilder` 的理由（R27） |
+| 外壳换目的地（4 tab） | `AutoTabsRouter.pageView` `library_page.dart:3132-3150`（`animatePageTransition: !desktopHost` 在 `:3139`） | 整屏宽 pager，双栏时跨住中缝 | 双栏时 pager 的 viewport 必须等于**所在栏**的约束宽；带 active 时把 `division.frame`（R33：它已含 margins）加进交换死区 |
+| 类型级横滑（一级三页） | `_innerPages` `:2876-2883` | 同上 | 同上 |
+| 题材级横滑（二级） | `_slotPage` `:2889-2900`，`physics: _handoverPhysics`（声明在 `:391`，用法在 `:2894`） | 接力链的下一层：外层不吃了才轮到它 | 接力阈值 `_edgePullExtent = 48.0`（`:383`，三处门 `:491/:532/:582`）**按栏算不按屏算**；48 与 40 谁大都不构成为让位，让位只由 `division.frame` 决定 |
+| 行内横滑（题材 chip 行） | `_onNestedScroll` `:468`、`_onRowScroll` `:505`（挂载 `:2805`，原 `:3250`）、`viewportWidth` 一路传进 `:2790/:2889/:2911` | 行的可用宽**已经是参数**而不是屏宽 | 这条已经栏相对：只要把传进去的 `viewportWidth` 从「屏宽」换成「去掉带之后的栏宽」，整条链自动对。这正是让位必须发生在页面级 `LayoutBuilder` 的理由（R27） |
 | 选集页横滑 | `episode_pager.dart:282` `PageView.builder`，`dragDevices` 含 touch/stylus/mouse/trackpad `:275-279` | 半开时面板跨带 → 一次拖「跨中带翻页」 | 面板宽今天按 `math.min(340.0, size.maxWidth * .8)`（`episode_workspace.dart:220`）改为按**所在半屏**可用宽；带落在面板内时面板整体吸到带近侧 |
 | 进度条横拖 seek | `player_progress_bar.dart:61-62` `_fractionAt(x, width)`，`width` 取自身 `box.maxWidth`（`:98`），拖拽 `:131-158` | **已合规**（读自身约束） | 判据不动。唯一要求：横带（笔记本姿）下传输条随主视图一起落到带近侧（§5.5），于是它永不跨带——**进度 0.5 不等于屏幕中线** |
 | 双击分区快进/快退 | `compact_controls.dart:258-262` 记 `_doubleFraction = dx / context.size.width`（分母在 `:259`），`:153-164` 按 0.35 / 0.65 分派 | 分母是**画面自身宽**，不是屏宽 → 已合规 | 判据不动；但竖带（书立姿）下 0.35/0.65 之间那条「中间＝播放/暂停」带会与折叠带重合，落在 `margins` 内的双击按中间区处理，而不是按左右区 |
 
-这一节的结论可以压成一句，而且它是本轮最有操作价值的一句：**凡是分母取自身约束的手势（进度条、双击、`viewportWidth` 链）都不需要改判据，只需要保证传进去的那个宽是「去掉带之后的宽」；真正要改的只有三处按屏宽算的——`detail_page.dart:339`、`anchored_panel.dart:101`、`episode_workspace.dart:220`。** 也就是说折叠适配的手势成本几乎全部落在「谁给这些组件喂宽度」，而不是「组件内部的手势逻辑」。
+这一节的结论可以压成一句，而且它是本轮最有操作价值的一句：**凡是分母取自身约束的手势（进度条、双击、`viewportWidth` 链）都不需要改判据，只需要保证传进去的那个宽是「去掉带之后的宽」；真正要改的只有三处按整块容器算的——`detail_page.dart:339`（屏宽）、`episode_workspace.dart:220`（屏宽）、`anchored_panel.dart:107`（**本轮更新**：`fe33852` 之后它已经不再读 `MediaQuery.sizeOf`，改读浮层 `LayoutBuilder` 的盒子，所以「按屏」这半条没了；但那条 overlay 在 Duo 上仍跨整块屏，所以「按整块容器」这半条留着）。** 也就是说折叠适配的手势成本几乎全部落在「谁给这些组件喂宽度」，而不是「组件内部的手势逻辑」。
+
+**本轮把这张表做成了可复算的图**（原型第 5 节「手势的路径上有没有那条带」）：每档姿势并排画今天与设计后喂进去的宽，并把 0.35 / 0.65 两条分区线、中缝播放键、pager 的 viewport 投到那一栏坐标上逐条判跨不跨带。本轮现取的读数：外屏合上态 leading 0 / **trailing 84**（实测那条边），内容宽 466 → **382**；书立档每栏 315pt，**今天**按整屏 669 算出的 ep 分区线、中缝与 pager **三条都横跨中带**，**设计后三条都不跨**；笔记本档横带不吃宽（paneW 883 = 内容宽，只吃高）；内屏横档设计后等分 442pt；未知主机三档两栏逐字相同、画面铺满整屏（§5.2 等价律的图解）。**这些是算术，不是设备上的手势响应**——滑动接力与双击在真机上按不按这里的判定生效，仍要等一次真展开帧（§8 Mac 项）。
 
 ### 5.11 可达性与文字缩放：侧栏是这两个盲区的第一个固定尺寸件
 
 - **语义**：全 `packages/app/lib` 只有 8 处 `Semantics` 相关调用，各 1 处，分布在 `playback/player_progress_bar.dart`、`playback/episode_pager.dart`、`playback/player_center_overlay.dart`、`playback/compact_controls.dart`、`downloads/download_selection.dart`、`features/player_page.dart`、`cast/cast_floating_window.dart`、`features/tv/tv_library_page.dart`；**`features/library_page.dart` 为 0 处**（本轮现读）。今天底部条是 Material `NavigationBar`，语义白送；换成自绘 `SideControlBand` 之后，VoiceOver 在**最需要它的外屏**上会读到一片空。→ 一期交付里 `BandItem` 必须落 `Semantics(button: true, selected: …, label: 标题, hint: 组名)`，并把「四条目的地在侧栏形态下仍可被语义遍历」写成 `side_band_test.dart` 的断言。
-- **R15 的「带徽章晚收」今天没有数据源**：全仓库没有一处 Material `Badge` / `Badge.count`（本轮现读为空），所谓徽章是画出来的文字胶囊（`widgets/drama_card.dart:52-66`、`ranking/rank_card.dart:153-179`）和一枚 `Icons.fiber_new_rounded`（`features/library_page.dart:2208`）。→ `BandItem.hasBadge` 只能是**声明出来的布尔**，由页面构造条目时显式传入，不能指望从子树探测。
-- **文字缩放是零处理**：`textScaler` / `textScaleFactor` / `BoldText` 在 `packages/**` 里 **0 命中**（本轮现读）。今天没有固定尺寸的交互件，这笔欠账不疼；§5.3 的 68pt 条目宽是**第一个**。→ 规则：条目宽随缩放增长时**换形态不换字号**（超过约 1.3× 时标题从隐藏转为图标下方两行、整条退回横排），触控目标在任意缩放下不小于 44×44pt。这条进 §8 的 Mac 验收（开系统大字号实拍）。
-- **可借的现成设施**：`packages/tv/lib/src/environment.dart:21-25` 的 `InheritedWidget + of(context) ?? fallback` 形状（§5.1 已声明照它）；键盘/焦点在主工程里也有同类件（`playback/compact_controls.dart:65-76` 的 `HardwareKeyboard` handler、`features/library_page.dart:1839` 的 `filterChipFocus.requestFocus()`）。一期不把焦点遍历扩到 Duo，但**别把它写成只有桌面族能走**。
+- **R15 的「带徽章晚收」今天没有数据源**：全仓库没有一处 Material `Badge` / `Badge.count`（本轮现读为空），所谓徽章是画出来的文字胶囊（`widgets/drama_card.dart:52-66`、`ranking/rank_card.dart:153-179`）和一枚 `Icons.fiber_new_rounded`（`features/library_page.dart:2236`，原 `:2208`）。→ `BandItem.hasBadge` 只能是**声明出来的布尔**，由页面构造条目时显式传入，不能指望从子树探测。
+- **文字缩放是零处理**：`textScaler` / `textScaleFactor` / `BoldText` 在 `packages/**` 里 **0 命中**（本轮现读）。今天没有固定尺寸的交互件，这笔欠账不疼；§5.3 的 68pt 条目宽是**第一个**。→ 规则：条目宽随缩放增长时**换形态不换字号**（超过约 1.3× 时标题从隐藏转为图标下方两行），触控目标在任意缩放下不小于 44×44pt。
+  **本轮把「再涨就整条退回横排」这条判掉了**：原型第 6 节的滑块 1.00–1.70 × 四档姿势扫过一遍（夹具 `scaleSweep`），缩放吃的是**条目高**——48pt → 48 + 2×15×1.7 ≈ **99pt**，而条目宽只从 68pt 涨到 **71pt**，离「吃掉外屏 466pt 的 40%（= 186pt）」还差 115pt，所以宽度型回退在 Duo 上**不可达**。真正发生的是一样的高度型后果：外屏那条边共 678pt，chrome（系统带 30 + 6 条组标题 72 + 溢出标记 42）先吃掉 144pt，条目可用 534pt；1.00× 时核心四项占 192pt、**九条全摆得下、溢出 0 条**，1.35× 核心涨到 354pt、只剩 180pt，**摆得下的掉到 5 条、溢出 4 条**，1.70× 核心 396pt 仍是 5 条 / 溢出 4 条。同一条边在内屏竖屏（951pt）1.70× 还能留 7 条——**同一个缩放在两档姿势上给出的可见条目数差两条**，这就是 §5.11 必须让 `SideControlBand` 自己按约束高算、而不是写死「显示前 N 条」的原因。→ 缩放的退路是 §5.12 那只溢出菜单变长（R13/R16），不是形态换回横排；「什么时候宁可退回横排」仍然是**设计判断**，要等 §8 第 9 项的大字号实拍才有输入。这条进 §8 的 Mac 验收（开系统大字号实拍）。
+- **可借的现成设施**：`packages/tv/lib/src/environment.dart:21-25` 的 `InheritedWidget + of(context) ?? fallback` 形状（§5.1 已声明照它）；键盘/焦点在主工程里也有同类件（`playback/compact_controls.dart:65-76` 的 `HardwareKeyboard` handler、`features/library_page.dart:1867` 的 `filterChipFocus.requestFocus()`）。一期不把焦点遍历扩到 Duo，但**别把它写成只有桌面族能走**。
 
 ### 5.12 溢出之后东西去哪儿：一期用现成的三面，不新造
 
@@ -372,12 +410,14 @@ R13 只规定丢弃顺序，不规定被收起的条目落在哪一面。仓库�
 | 面 | 位置 | 锚点 | 适不适合侧栏 |
 |---|---|---|---|
 | `PopupMenuButton` | `playback/playback_transport.dart:212/:243/:284`、`ranking/board_tabs.dart:137-143` | 触发条目自身 | **适合**：条目就在侧栏里，位置天然正确；已带图标+标题，满足 R14「溢出菜单用得上标题」 |
-| `showAnchoredPanel` | `widgets/anchored_panel.dart:14`（`right: alignRight ? 12 : null` `:50`；`maxWidth: width ?? 380` `:53`；`flip = below < 200 && above > below` `:104`，`size` 取 `MediaQuery.sizeOf` `:101`） | **屏幕**右 12pt | 要改才能用：它读整块屏（违反 R5），双栏/半开时会把面板甩到另一栏上。**本轮新发现**：唯一的调用方 `library_page.dart:1748-1764`（题材词筛选面板）不传 `width`，于是那条 380 是硬上限——半开 669 竖带时它从右 12pt 起画会占住 x≈277–657，**正横跨 314.5–354.5 那条带**；`below < 200` 这条翻转线在同一姿势下也没人校过 |
+| `showAnchoredPanel` / `showAnchoredPeek` | `widgets/anchored_panel.dart:14`（`right: alignRight ? 12 : null` `:52`；`maxWidth: width ?? 380` `:55`；`flip = below < 200 && above > below` `:110`，`size` 取 `:107` 的 `space.biggest`，来自 `:105` 的 `LayoutBuilder`；两者都先过 `overlayLocalAnchor` `:182-185`） | **整块 overlay** 右 12pt | 要改才能用：它读的是浮层全域（Duo 上仍跨整块屏，违反 R5 的后半），双栏/半开时会把面板甩到另一栏上。**本轮更新（`fe33852`）**：锚点已换算进 overlay 坐标、可用高宽已改读浮层盒子，PC 帧那半边修好了；**按所在栏定位这一半仍未修**；两条支路的宽度上限不一样，别混：面板走 `maxWidth: width ?? 380`（`:55`），悬停走声明式默认 `double width = 300`（`:99`）再被 `maxLeft = size.width - width - 12`（`:111`）钳住，**两个调用方 `library_page.dart:1776-1792`（题材词筛选面板）与 `:1876`（悬停预览）都不传 `width`**，于是半开 669 竖带时面板从右 12pt 起画会占住 x≈277–657，**正横跨 314.5–354.5 那条带**（悬停那一只是 300 宽，同样落在带右侧那条栏外）；`below < 200` 这条翻转线在同一姿势下也没人校过 |
 | `showModalBottomSheet` | `widgets/sort_menu.dart:183` | 底部 | 外屏上正是 R11「条在侧边」的场景，用它就得连头部一起改，超出 P1 范围 |
 
-裁决：**复用 `PopupMenuButton` 作为溢出落面**，一期不新造面板；`showAnchoredPanel` 的屏幕锚点与那条 380 硬上限登记为独立缺陷（它同时就是 §4.1 那条 R5 违例），不在本设计里顺手改，但 §5.6 详情页那一行要指向它，免得半开时有人以为筛选面板已经让位了。溢出条目进菜单后**保持同一顺序**，这样被收起的条目在屏幕上的相对次序不变（R29）。
+裁决：**复用 `PopupMenuButton` 作为溢出落面**，一期不新造面板；`showAnchoredPanel` / `showAnchoredPeek` 的 overlay 全域锚点与那两条宽度上限（380 / 300）登记为独立缺陷（它同时就是 §4.1 那条 R5 违例的后半——`fe33852` 已把「读窗口高度」改成「读浮层盒子」，但浮层在 Duo 上仍跨整块屏），不在本设计里顺手改，但 §5.6 详情页那一行要指向它，免得半开时有人以为筛选面板已经让位了。溢出条目进菜单后**保持同一顺序**，这样被收起的条目在屏幕上的相对次序不变（R29）。
 
-另一条值得照抄的先例：`ranking/board_tabs.dart:7-11` 的注释已经写明「两族输入用两条不同的溢出规则」，并把它做成声明式参数 `overflowAfter`（`:24/:40`）；`features/library_page.dart:2420-2426` 的 `_themeChips` 则用 `_desktopRowMax = 8`（`:47`）+ `desktopHost` 决定截断。§5.3 的 `BandItem` 沿用同一个形状（一个可选 `overflowAfter`），但**键换成实测高度而不是宿主族**——按 `desktopHost` 判在 Duo 上会给出反向答案：外屏属移动端族，却恰恰是最需要截断的那一面。
+**本轮原型第 4/6 节把这只落面画出来了**（上一版只算了「谁被收」没说「收到哪」）：三条带宿主（外壳侧栏、溢出滑杆实验台、播放页那条）共用同一个 `···` 标记与同一份 `computeDrop()`，点它展开的就是那只 `PopupMenuButton` 形状的面板，里面同时装着**被收掉的条目**与**按 R14 根本不进竖排的条目**（纯文字、自定义 view），且顺序与声明序一致。夹具本轮现取：九档姿势各一只菜单宿主（`pmenu 9`），每只 5 项，没有一项甩出宿主边界（`menuPastHost` 0）。**上一版在这里写的「面板 552px 宽」已删**：`.pmenu` 在实验台里是 `position:static` 的块，宽度跟着那一栏的可用宽（也就是浏览器窗口）走——本轮同一段代码在 560px 视口下量到 487px，上一轮在更宽的窗口下量到 552px，**这个数根本不是设计量，写进文档只会变成下一轮的假漂移**。夹具因此把 `window.innerWidth` 一起打进读数（`menuHosts[].vw`），今后这条宽度只能连着视口宽一起读。仍然没演示的是它在 iOS 上的**真实弹出位置与动画**——那是 P1 的实现验收，不是原型能给的证据。
+
+另一条值得照抄的先例：`ranking/board_tabs.dart:7-11` 的注释已经写明「两族输入用两条不同的溢出规则」，并把它做成声明式参数 `overflowAfter`（`:24/:40`）；`features/library_page.dart:2448-2450` 的 `_themeChips` 则用 `_desktopRowMax = 8`（`:47`）+ `desktopHost` 决定截断。§5.3 的 `BandItem` 沿用同一个形状（一个可选 `overflowAfter`），但**键换成实测高度而不是宿主族**——按 `desktopHost` 判在 Duo 上会给出反向答案：外屏属移动端族，却恰恰是最需要截断的那一面。
 
 ### 5.13 挂点与测试挂载：`LayoutEnvironment` 放在哪一层
 
@@ -393,15 +433,20 @@ R13 只规定丢弃顺序，不规定被收起的条目落在哪一面。仓库�
 
 ## 6. 原型
 
-[prototypes/iphone-duo.html](prototypes/iphone-duo.html) 是单文件、无网络依赖、双击即开的交互原型，沿用本仓库原型house style（顶部 `.meta` 分段控制 + `#readout` 读出窗 + `#legend` + `#kbd` + `.stage` 设备框）。它演示四件事：
+[prototypes/iphone-duo.html](prototypes/iphone-duo.html) 是单文件、无网络依赖、双击即开的交互原型，沿用本仓库原型house style（顶部 `.meta` 分段控制 + `#readout` 读出窗 + `#legend` + `#kbd` + `.stage` 设备框）。本轮把它从「演示四件事」扩成**八节**，每节都把自己那部分的算术直接印在页面上——也就是说**读得出数的地方都是式子跑出来的，不是画师摆的**。键盘 `1–9` 选姿势、`r` 循环两套判据、`a/i` 强制带的两个矛盾读数。
 
-1. **同一块内屏竖屏，两套判据并排**：左「现状（裸 720）」给出底部标签条 + 单栏 + 推出 5 列（奇，中带切卡）+ 底部抽屉；右「设计后（尺寸级）」给出双栏 + 居中对话框，读出窗里那一格「设计后 columns=4」是**整块屏只有一栏时**的推导，而画面上双栏的主栏按栏宽另推 2 列（§5.7 末尾那张栏宽表）——两个数并排写、不互相覆盖。这一格仍是 §0 第 2 条的可视化证据。
-2. **六个姿势的分派表**（§5.3）可点：外屏 / 内屏竖 / 内屏横 / 半开竖（书立）/ 半开横（笔记本）/ 非 Duo 手机对照。每个姿势的 `#readout` 打出 `screen / sizeClass / division / safeArea / occlusion / bars / panes / grid(列数·栏内宽·单元宽·行数) / 分栏后主栏(栏宽·栏高·列数) / dialogHost`，并逐格标这一格是**实测**还是**推断**；字段名与 §5.1 的 `DuoPose` 一一对应。
-3. **折叠带让位**（§5.4 + §5.5）：半开姿势画一条 40pt 的中带，双栏边界吸附到带边（带的轴向决定分栏轴向：竖带分左右、横带分上下），overlay 姿势把画面推到近侧半屏；读出不活动（全开）时带为 `null`、栏宽回到等分——把 R22 的 active/inactive 差别演成可切换状态。「折叠带读数」那一组还能强制两个矛盾读数（全开但带仍 active / 折起但带未 active），用来演示 §5.1 的滞后容忍。另外：**「现状」那一栏照样把带画出来**，因为它是物理事实，布局不认它也在那里——这正是那一栏要暴露的东西。带上的标签写的是 `frame`，因为 R33 说 `frame` 已含 `margins`；实现读的也是 `frame`，不许写死 40。
-4. **侧栏溢出**（§5.3/R13/R14/R15）：外屏侧栏条目按「整组 → 组内、自底向上」丢弃，带徽章项晚收，纯文字/纯自定义 view 条目显示为「不可进入侧栏」的灰条，`dropOrder` 名单直接来自 `playback_transport.dart:22`；侧栏可用高度是可调滑杆。
-5. **刻意没演示的**：内屏摄像头遮挡（本应用不采集）、内屏 Split View 多任务（`UIApplicationSupportsMultipleScenes=false`）、详情栏竖排条（R10，§7 P3）、**内屏与半开帧**（本轮 404 帧全是合上态）、**§5.10 的手势让位与 §5.12 的溢出落面**（要等一次真展开帧才好实拍）。这五条在原型第 5 节逐条写明，避免读成「已经覆盖全部官方条目」或「设备上都验过了」。
+1. **发现页外壳：同一块内屏竖屏，两套判据并排**（§5.1/§5.2）。左「现状（裸 720）」给出底部标签条 + 单栏 + 推出 5 列（奇，中带切卡）+ 底部抽屉；右「设计后（尺寸级）」给出双栏 + 居中对话框，读出窗里那一格「设计后 columns=4」是**整块屏只有一栏时**的推导，而画面上双栏的主栏按栏宽另推 2 列（§5.7 末尾那张栏宽表）——两个数并排写、不互相覆盖。这一格仍是 §0 第 2 条的可视化证据。
+2. **分集网格与弹层**（§5.7/§5.12）：偶数列那条 floor 按「整屏喂屏宽、双栏喂栏宽」走同一条式子；弹层那一格演示「尺寸级 → 居中对话框」对「裸 720 → 底部抽屉」。
+3. **播放页 overlay arrangement**（§5.5/R26/R19）：横带（笔记本姿）下画面推到近侧半屏、传输条随主视图一起落近侧，因此那条进度条**永不跨带**——这一格同时是 §5.10「进度 0.5 不等于屏幕中线」的图解。
+4. **侧栏装不下的时候**（§5.3/R12/R13/R14/R15）：条目按「整组 → 组内、自底向上」丢弃，带徽章项晚收，纯文字/纯自定义 view 条目按 R14 **根本不进竖排**（直接落溢出菜单），`dropOrder` 名单来自 `playback_transport.dart:22`；侧栏可用高度是可调滑杆（90–620pt）。**本轮补的是 chrome 预算**：系统带 30 + 6 条组标题 72 + 溢出标记 42 = 144pt 同时进预算和进画法，于是「算出来摆得下几条」和「框里画了几格」永远是同一个数（夹具 `bandLie` 专门抓这两个数不一致，本轮读数 0）。
+5. **手势的路径上有没有那条带**（§5.10；本轮新增）。每档姿势并排画「今天喂进去的宽」与「设计后喂进去的宽」，并把进度条 0.35/0.65 分区线、双击中间区、pager 的 viewport 三条线**投影到那一栏的坐标**上，逐条判它落不落在带上。本轮现读的几条：外屏合上态 leading 0 / trailing 84（实测那条边），内容宽 466 → **382**；书立档双栏每栏 315pt，**今天**按整屏 669 算出的分区线与 pager 全部横跨中带，**设计后**三条都不跨；笔记本档横带不吃宽（paneW 883 = 内容宽），横带只吃高；内屏横档设计后等分 442pt。未知主机三档两栏逐字相同，且画面铺满整屏——这就是 §5.2 那条等价律的图解。
+6. **侧栏在系统大字号与 VoiceOver 下**（§5.11；本轮新增）。缩放滑块 1.00–1.70 演「换形态不换字号」：1.3× 以上标题从隐藏转为图标下方两行，条目高 48 → 99pt 同时进预算；旁边列出 `BandItem` 必须自带的 `Semantics(button/selected/label/hint)` 逐条清单与本轮现读的语义欠账。**本轮在这里判掉了 §5.11 原来那句「再涨就整条退回横排」**——见 §5.11 那条更正。
+7. **五条字面量线在 Duo 上谁会被触发**（§4.1/§5.2；本轮新增）。`720 <`、`720 >=`、`400 >=`、`850 <`、`1100 >=`、`280 <` 逐条打出「本档今天读到多少 pt → 会不会过」与「设计后换成什么」，并按当前档现算最窄栏。本轮在这里的收获：**`280` 这条线在 Duo 九档上永不触发**（最小值 314.5pt，见 §4.1 与 §5.2 的更正）；`400` 那条**整删**，因为今天它读整块屏高恒过，而一旦有人「顺手改成读栏高」，笔记本姿那一半只有 (669 − 40)/2 = 314.5pt 高，就会把对话框打回抽屉。
+8. **仍然没有演示的七件事**逐条写在原型第 8 节：内屏摄像头遮挡（本应用不采集）、内屏 Split View（`UIApplicationSupportsMultipleScenes=false`）、详情栏竖排条（R10，§7 P3）、**内屏与半开帧**（本轮 404 条采样全是合上态）、焦点遍历（一期不动，没画焦点环）、**手势的真实命中**（第 5 节演的是算术，滑动接力与双击在设备上是否按这里的判定生效要等真展开帧）、**VoiceOver 实读**（第 6 节给的是字段清单与缩放形态，朗读文本要设备开辅助功能实拍）。这七条明确写「没演示」，避免读成「已经覆盖全部官方条目」或「设备上都验过了」。
 
-设备框比例按 §2 的工作数值（外 466×678、内 669×951）等比缩放；折叠带按第三方实测的 40pt 同比例画。**框上的标注本轮已改完口径**：外屏那一栏换成一手实测（`SCREENS.cover.src` 写明 404 帧、`safeArea` 行打出 `(0,0,34,84)`、遮挡层按实测两块 37×37@(400,29) 与 84×170@(382,0) 画，旧的 96×28pt 示意角已删）；内屏与 40pt 带仍标「待展开帧」。侧栏宽在合上态按实测 84pt 画、其余档按 68pt 设计值，两边都由 `bandWidth()` 一处给出，配 §5.3 那条「padding 已 ≥68 就不再额外加宽」和 §9 那句「读到 Dart 侧 `paddingOf` 之前不许实现侧栏宽度」。**示意格里画几张卡片也不是写死的**：列数走 §5.7 那条 floor（整屏一栏时喂屏宽、双栏时喂栏宽，同一处 `masterPane()`），行数按那一栏剩下的可用高推（扣 `.topbar` 42pt、`.tabbar` 69pt、信息块 89pt 与卡片自身的 26pt 标题区），所以「框里摆得下」是算出来的，不是靠 `overflow:hidden` 兜住的。
+带让位（§5.4 + §5.5）不是单独一节，而是第 1–3 节共用的一张图：半开姿势画一条 40pt 的中带，双栏边界吸附到带边（带的轴向决定分栏轴向：竖带分左右、横带分上下），overlay 姿势把画面推到近侧半屏；读出不活动（全开）时带为 `null`、栏宽回到等分——把 R22 的 active/inactive 差别演成可切换状态（键盘 `a`/`i`/`u`）。「折叠带读数」那一组还能强制两个矛盾读数（全开但带仍 active / 折起但带未 active），用来演示 §5.1 的滞后容忍。另外：**「现状」那一栏照样把带画出来**，因为它是物理事实，布局不认它也在那里——这正是那一栏要暴露的东西。带上的标签写的是 `frame`，因为 R33 说 `frame` 已含 `margins`；实现读的也是 `frame`，不许写死 40。每个姿势的 `#readout` 打出 `screen / sizeClass / division / safeArea / occlusion / bars / panes / grid(列数·栏内宽·单元宽·行数) / 分栏后主栏(栏宽·栏高·列数) / dialogHost`，并逐格标这一格是**实测**还是**推断**；字段名与 §5.1 的 `DuoPose` 一一对应。
+
+设备框比例按 §2 的工作数值（外 466×678、内 669×951）等比缩放；折叠带按第三方实测的 40pt 同比例画。**框上的标注本轮已改完口径**：外屏那一栏换成一手实测（`SCREENS.cover.src` 写明 404 帧、`safeArea` 行打出 `(0,0,34,84)`、遮挡层按实测两块 37×37@(400,29) 与 84×170@(382,0) 画，旧的 96×28pt 示意角已删）；内屏与 40pt 带仍标「待展开帧」。**本轮另改的两处口径**：① 侧栏那一格从左边挪到**右边**（trailing），因为实测那条边在右（§5.3 同条），夹具加了 `bandEdge` 断言防止它再漂回去；② 详情页的示意格**不再画底部条**——详情页是整屏路由（`library_page.dart:1430` push），本轮现读 `detail_page.dart` 没有 `bottomNavigationBar`/`NavigationBar`/`TabBar`，旧版照抄外壳那一格画了条 `.tabbar` 还把它的 69pt 扣进预算，现在扣的那格换成详情页自己的顶栏 42pt。侧栏宽在合上态按实测 84pt 画、其余档按 68pt 设计值，两边都由 `bandWidth()` 一处给出，配 §5.3 那条「padding 已 ≥68 就不再额外加宽」和 §9 那句「读到 Dart 侧 `paddingOf` 之前不许实现侧栏宽度」。**示意格里画几张卡片也不是写死的**：列数走 §5.7 那条 floor（整屏一栏时喂屏宽、双栏时喂栏宽，同一处 `masterPane()`），行数按那一栏剩下的可用高推（扣顶栏 42pt、信息块 89pt 与卡片自身的 26pt 标题区），所以「框里摆得下」是算出来的，不是靠 `overflow:hidden` 兜住的。
 
 ## 7. 落地阶段
 
@@ -416,7 +461,7 @@ P0/P1 不碰原生、不依赖 #193025，可在本机把测试跑绿并交付；
 
 ## 8. 验证计划
 
-**本轮（Mac）已经实际跑过的取证，与它的边界**：`tool/duo_probe/` 是一个手工打包的 UIKit 探针（`swiftc` 编 `main.swift` → 造 `.app` → ad-hoc 签名 → `simctl install/launch`），跑在 iPhone Duo / iOS 27.1 模拟器上，250ms 一帧写进沙盒 `Documents/samples.jsonl`，脚本经 `get_app_container` 取回落盘到 `tool/duo_probe/evidence/*.jsonl`。已落盘的三帧文件与读数：`duo-20261101T123726Z.jsonl`（**404 帧 / 100.28s**）、`…T123315Z`（30 帧）、`…T122109Z`（45 帧），全部是**合上态**。所以本轮坐实的是外屏那一半（§2 的 scale / 466×678 / H=compact V=regular / 右 84pt / 两块遮挡 / hinge=closed 回调），**内屏与半开一条都没有**。
+**本轮（Mac）已经实际跑过的取证，与它的边界**：`tool/duo_probe/` 是一个手工打包的 UIKit 探针（`swiftc` 编 `main.swift` → 造 `.app` → ad-hoc 签名 → `simctl install/launch`），跑在 iPhone Duo / iOS 27.1 模拟器上，250ms 一帧写进沙盒 `Documents/samples.jsonl`，脚本经 `get_app_container` 取回落盘到 `tool/duo_probe/evidence/*.jsonl`。已落盘的三帧文件与读数：`duo-20261101T123726Z.jsonl`（**404 条采样 / 100.28s**——该文件 `wc -l` 是 405，多的那一行是开头的 `# header`，本轮按 `DUOPROBE ` 前缀逐条重数过）、`…T123315Z`（30 条）、`…T122109Z`（45 条），三份合起来 **479 条**（就是开头那句「三帧共 479 个样本」的来源；附录用的是同一组数，那里按行写的 404/30/45 与这里的条数一致），全部是**合上态**：`hinge.status = closed` 471 条、另 3 条是连接期的 `no-update`，`divisionActive` 与 `divisionAll` 在全部 474 条带该字段的采样里都是空数组。所以本轮坐实的是外屏那一半（§2 的 scale / 466×678 / H=compact V=regular / 右 84pt / 两块遮挡 / hinge=closed 回调），**内屏与半开一条都没有**。
 
 这条负结果本身就是验收信息，三处原因都记下来免得下轮重踩：
 
@@ -426,10 +471,13 @@ P0/P1 不碰原生、不依赖 #193025，可在本机把测试跑绿并交付；
 
 **本机可跑（第一轮在 Windows NTFS 克隆 `hg-verify-dl`，本轮在 Mac，两边都能跑）：**
 
-- 原型自身的结构校验（**本轮重跑，口径比第一轮宽，第一轮的读数作废**）：第一轮只量了每种姿势页面上**第一个**设备框，本轮把 4 种折叠带读数 × 6 种姿势 = **24 组组合**、每组页面上真实存在的 **6 个设备框**（外壳 / 详情+弹层 / 播放器三处，每处各画「现状」与「设计后」两框）全展开，逐框量框内每一个非零尺寸后代：**144 框 / 7872 个盒，越出设备框 0 个**，卡片内被自身 `overflow:hidden` 裁掉的标题条 0 个，海报 3:4 比例失真 0 个；`undefined`/`NaN`/`[object Object]` 全文再扫一次，页面上为零。跑法：把 [prototypes/iphone-duo.check.js](prototypes/iphone-duo.check.js) 整段函数体贴进浏览器控制台（或用 `mcp__browser-use__evaluate_script` 直接执行），它返回上面那四个计数与每档的读数。
-  本轮改掉的三处，全是「靠裁剪兜住」而不是「按可用高排布」，第一轮的窄口径量不到：① 播放器画面占位块在横屏/笔记本框里按 9:16 从宽推出 692px 高、比 415px 的框还长，只被 `.scr` 裁掉 → 加 `max-height:100%`（外屏窄，那条「画面可满宽」的 9:16 示意不受影响）；② 外屏详情页的信息块被第三行卡片顶出屏 22px → 演示行数的预算里加上 `.blk` 实高（本轮 41px + 上下 margin 14px ≈ 89pt）与 `.tabbar` 实高（43px ≈ 69pt）；③ 双栏主栏写死 `cards(2, 6)` / `cards(3, 6)`，容器有确定高时 CSS Grid 把 auto 行拉平分配，海报被卡片自己裁成半张、第二条标题整条不见 → 换成 `masterPane()` 按栏宽走 §5.7 那条 floor、按栏高推行数，画图与读出窗共用这一个式子。
-  姿势矩阵本轮读数（今天 → 设计后，全部现取）：**cover 3 → 3 列**（栏内 418 → 334pt，单元 100pt，奇数列合法因为这块屏没折）、**内屏竖 / 书立 5 → 4 列**（栏内 621pt 不变，单元 100 → 120pt）、**内屏横 / 笔记本 7 → 6 列**（903 → 835pt）、**非 Duo 手机 3 → 3 列逐字**（342pt，一期不强转）。双栏后主栏另算：书立 315×882pt → 2 列、内屏竖 335×882pt → 2 列、内屏横 442×669pt → 3 列、笔记本 883×315pt → 6 列（§5.7 末尾那张表）。几何件本轮也现取核对过：外屏侧边带 52px = 84pt（实测系统值）、内屏侧栏 42px = 68pt（§5.3 设计值）、书立中缝 25×547px @x=195（竖带分左右）、笔记本 548×25px @y=195（横带分上下）、遮挡两块 52.1×105.4px 与 22.9px 圆点（= 84×170pt 与 37×37pt）。带顶那格系统标签本轮用 Range 的行盒数验过不换行：外屏「状态栏段」36px 落在 52px 的带里、内屏「灵动岛」27px 落在 42px 的带里，都 1 个行盒（内屏那格原来写「灵动岛 / 状态栏」，四个字带圆点会折行，已缩短）。
-  **这仍是 DOM 度量 + 无窗口 Chrome 的整页渲染，不是对着模拟器的像素验收**：in-app 浏览器本轮仍拿不到可见表面（`NATIVE_BROWSER_VIEWPORT_UNAVAILABLE`、`visible=false`），帧只到本机 `/tmp/shot_*.png`、`/tmp/mc_*.png` 那几张渲染图（夹具在 `/tmp/duo_<pose>.html`，用 `sed` 换 `STATE.pose` 生成）；配色、字距这类只能靠眼睛发现的没有与模拟器同框比对过，模拟器侧本轮无帧（本节第 3 项）。
+- 原型自身的结构校验（**本轮再跑，口径又比上一轮宽，上一轮的读数作废**）：夹具把 4 种折叠带读数 × 9 档姿势（六个 Duo 姿势 + 三个未知主机档）里真实存在的组合全展开，逐框量框内每一个非零尺寸后代。本轮现取的读数：**24 组组合 / 192 个设备框 / 8816 个盒，越出设备框 0 个**，卡片内被自身 `overflow:hidden` 裁掉的标题条 0 个，海报 3:4 比例失真 0 个，溢出菜单宿主 9 只（每档一只、5 项、宽度随窗口，本轮 560px 视口下 487px，见 §5.12 那条删掉绝对像素的说明），三条带宿主（外壳侧栏 / 实验台 / 播放页那条）「算出来放得下但画出来顶出屏」0 个，`undefined`/`NaN`/`[object Object]` 全文扫描 0 命中，明细数组 `det` 为空。跑法：把 [prototypes/iphone-duo.check.js](prototypes/iphone-duo.check.js) 整段函数体贴进浏览器控制台（或用 `mcp__browser-use__evaluate_script` 以 `<script src>` 注入，让页面跑的就是入库那一份），它返回上面这些计数与每档读数。
+  本轮夹具**新增的四类检查/口径**，都是上一轮量不到的：① `bandEdge` —— 断言 `bars==='side'` 那几格里 `:scope > .band` 的右边与屏框右边对齐（本轮把侧栏从左边改到右边，这条防它漂回去；三档实测姿势 `gapRight` 全 0）；② `scaleSweep` —— 缩放滑块 1.00–1.70 × 四档姿势共 60 步，量侧栏假条不能吃超屏宽（最大 44px = 71pt，对 466pt 屏的裕量 −245px）与标题是否顶穿条目盒；③ `benchSweep` —— 侧栏高度滑杆 90–620pt 共 54 步，只在预算说放得下（`!coreOverrun`）时要求画出来也放得下（90–330pt 那一段是**故意**让「连核心四项都放不下」露出来的，对应 §8 Mac 验收第 6 项）；④ **本轮再补一条口径**：`menuHosts` 每项现在同时打 `w` 与 `window.innerWidth`（`vw`），因为那只溢出面板是 `position:static` 的块、宽度跟着窗口走——本轮读数 `w=487 / vw=560`，九档姿势同一个数，说明它量的是页面列宽而不是任何 Duo 设计量，今后**只准连着 `vw` 一起引用**（§5.12 那条 552px 就是这么废掉的）。
+  **本轮被自己的夹具骗过一次，记下来**：`scaleSweep` 原来用 `tx.scrollWidth > tx.clientWidth` 判「标题被裁」，而 `<span>`/`<i>` 这类 inline 元素在 Chrome 里 `scrollWidth` 与 `clientWidth` **恒为 0**，于是那条检查永远绿——实际画面上标题被挤成一字一行、竖着顶出条目盒（因为缩放实验台那格只写了 `.fake-band`，没带 `.band`，条目就不是列 flex，图标盒子与标题排版全丢了）。现在改成量**每个条目最后一个子元素的底边 vs 条目盒底边**（`itemOver`），并且实验台与溢出滑杆那两格都挂上 `.band` 类，与设备框共用同一套 CSS。这条改动做过反向验证：同一份夹具下，带 `.band` 时 `itemOver=0`，把类名去掉立刻报 1 条顶穿。**教训写进规矩：夹具里凡是拿 `scrollWidth`/`clientWidth` 判 inline 元素的断言，都算没有断言。**
+  上一轮改掉的三处，全是「靠裁剪兜住」而不是「按可用高排布」，更早那轮的窄口径量不到：① 播放器画面占位块在横屏/笔记本框里按 9:16 从宽推出 692px 高、比 415px 的框还长，只被 `.scr` 裁掉 → 加 `max-height:100%`（外屏窄，那条「画面可满宽」的 9:16 示意不受影响）；② 外屏详情页的信息块被第三行卡片顶出屏 22px → 演示行数的预算里加上 `.blk` 实高（41px + 上下 margin 14px ≈ 89pt）；**这一条本轮又改了一次**：那一版把外壳的 `.tabbar` 69pt 也一起扣了，而详情页是整屏路由、本轮现读 `detail_page.dart` 没有 `bottomNavigationBar`/`NavigationBar`/`TabBar`，于是「画了一条不存在的底部条 + 多扣 69pt」两处一起错 → 现在扣的是详情页自己的顶栏 42pt，底部条不画（§6 末同条）；③ 双栏主栏写死 `cards(2, 6)` / `cards(3, 6)`，容器有确定高时 CSS Grid 把 auto 行拉平分配，海报被卡片自己裁成半张、第二条标题整条不见 → 换成 `masterPane()` 按栏宽走 §5.7 那条 floor、按栏高推行数，画图与读出窗共用这一个式子。
+  姿势矩阵本轮读数（今天 → 设计后，全部现取）：**cover 3 → 3 列**（栏内 418 → 334pt，单元 100pt，奇数列合法因为这块屏没折）、**内屏竖 / 书立 5 → 4 列**（栏内 621pt 不变，单元 100 → 120pt）、**内屏横 / 笔记本 7 → 6 列**（903 → 835pt）、**非 Duo 手机 3 → 3 列逐字**（342pt，一期不强转）。双栏后主栏另算：书立 315×882pt → 2 列、内屏竖 335×882pt → 2 列、内屏横 442×669pt → 3 列、笔记本 883×315pt → 6 列（§5.7 末尾那张表）。几何件本轮也现取核对过：外屏侧边带 52px = 84pt（实测系统值）**且画在 x=237、右边与屏框对齐**（`bandEdge` 三档 side 姿势 `gapRight` 全 0，本轮从左边改到右边的那次修正由这条钉住）、内屏侧栏 42px = 68pt（§5.3 设计值）、书立中缝 25×547px @x=195（竖带分左右）、笔记本 548×25px @y=195（横带分上下）、遮挡两块 52.1×105.4px 与 22.9px 圆点（= 84×170pt 与 37×37pt）。带顶那格系统标签本轮用 Range 的行盒数验过不换行：外屏「状态栏段」36px 落在 52px 的带里、内屏「灵动岛」27px 落在 42px 的带里，都 1 个行盒（内屏那格原来写「灵动岛 / 状态栏」，四个字带圆点会折行，已缩短）。
+  **这仍是 DOM 度量 + 浏览器整页渲染，不是对着模拟器的像素验收**：本轮 in-app 浏览器拿到了可见表面，两张渲染帧已入库到 `docs/evidence/iphone-duo-prototype-2026-11-02/`：`duo-scale-170.png`（128047 字节，改 CSS 前，正是那张看出「标题被挤成一字一行」）与 `duo-scale-170-fixed.png`（125567 字节，改后，缩放 1.70× 外屏那一格：图标盒 + 两行标题 + 徽章 + 底部 `···`，旁边印着「本档不成立」那条示意横排）；上一轮记的 `NATIVE_BROWSER_VIEWPORT_UNAVAILABLE` 本轮没有复现。**但这两帧量的是原型自己的排版，不是模拟器里的应用**：配色、字距这类只能靠眼睛发现的没有与模拟器同框比对过，模拟器侧本轮仍无帧（本节第 3 项），设备像素级验收仍算未做。
+  **第四轮（同一天，改完引用与页脚措辞后重跑）补一句**：夹具照常跑通（`24/192/8816`、五个越界类计数全 0、`det` 空、`menuHosts[0]` = `{items:5, w:487, vw:560}`），但**这一轮取帧又撞上 `NATIVE_BROWSER_VIEWPORT_UNAVAILABLE`（`visibilityState=hidden`）→ 本轮无新帧**，像素记录仍是上面那两张。也就是说这条错误是**间歇性**的，不是上一轮偶发：取帧前得先把应用内浏览器切到可见，否则只能拿 DOM 度量，而 DOM 度量证明不了配色与字距。
 - `dart format --output=none --set-exit-if-changed packages tool`、`dart analyze --fatal-infos packages tool`；`packages/app` 与 `packages/tv` 全量 `flutter test`（用 `.fvm` 钉的 3.47.4，且 `dart test` 必须在包目录内跑）。
 - 新增套件：`layout_environment_test.dart`（`unknown` 支路对 390/600/740/800/1280 逐字复现今天档位——把「一期不改未知主机」写成断言；再加 §5.14 那条 TV flavor + 1920×1080 用例）、`side_band_test.dart`（§5.3 三段顺序 + 自底向上溢出 + 徽章晚收 + 无图标条目拒绝进侧栏 + §5.11 的语义遍历）、`fold_collapse_test.dart`（`division` 给定/为 `null` 时双栏边界与列数，并把 §5.7 末尾那张栏宽表钉成断言：书立 315×882 → 2 列、等分 335×882 → 2 列、内屏横 442×669 → 3 列、笔记本 883×315 → 6 列。前三档必须与整屏那个 4/4/6 列不同，否则就是把屏宽抄进了双栏的调用方；笔记本那档两者恰好都是 6，不作为判据）、`transport_drop_test.dart`（`dropOrder` 真被消费，且四个永不丢弃项在任意窄度下仍在）。全部挂在 §5.13 的 `test/support/pose_mount.dart` 上。
 - 一条**按比较式**的守门测试（本轮已实跑校准）：`packages/app/lib` 内不得再出现把布局档位钉在字面量上的表达式，三条正则 `maxWidth\s*[<>]=?\s*[1-9][0-9]{2,}`、`\.width\s*[<>]=?\s*[1-9][0-9]{2,}`、`\.height\s*[<>]=?\s*[1-9][0-9]{2,}`；**当前命中恰为 §4.1 的 13 行 / 16 个字面量、零误报**，迁移完成后期望命中数为 0（豁免 `layout/duo_breakpoints.dart`）。第一轮写的「grep 掉 720/850」既漏 `1100` 又会被 `'720p'` 与 `q.width > 0` 误报，作废。
@@ -446,12 +494,13 @@ P0/P1 不碰原生、不依赖 #193025，可在本机把测试跑绿并交付；
 8. **本轮新增**：`UIViewReservedRegion.margins`（R33）在 Duo 上的实际值——外屏两块遮挡的 margins 实测全 0，但 division 的 margins 未读；若它非零，§5.10 的手势死区与 §5.4 的让位宽就要按 `frame`（外圈）而不是内缩后的本体算——反过来，若它是 0，两个矩形重合，按哪个都一样。
 9. **本轮新增**：系统大字号（Accessibility 显示缩放）下 §5.3 侧栏条目的形态切换与 44pt 目标（§5.11 第三条），需实拍。
 10. **本轮新增**：`interactivelyResizing`（R34）在换屏过程中是否真的会置位——本轮所有帧都是 `false`，因为没发生换屏。
+11. **本轮新增（`fe33852` 带出来的）**：两个悬停/筛选面板在 Duo 上按**所在栏**定位。`overlayLocalAnchor`（`anchored_panel.dart:182-185`）已经把「窗口坐标 → 浮层坐标」这一步做对了，剩下的一跳是「浮层全域 → 所在栏」：要求是把 `DuoPose` 的那条栏矩形（§5.1）喂给两条支路的可用盒子，替掉它们现在读的整块 overlay（悬停在 `:107` `space.biggest`，面板在 `:58` `space.maxHeight - anchored.bottom - 24`），并且**两个调用方各自显式传 `width`**（今天 `:1776` 与 `:1876` 都不传，于是面板吃 380、悬停吃默认 300）。验收姿势就用半开书立（669 竖带、栏宽 314.5pt）：面板与悬停都必须整只落在自己那一栏里，`below < 200` 那条翻转线（`:110`）在同一姿势下第一次有了被校的意义。
 
 **下一次取证的固定动作**（写死，避免再采一轮空帧）：① 把 Device Hub 里这台 iPhone Duo 的窗口点到前台并确认探针的屏上限时绿字在动；② `DUO_SAMPLE_SECONDS=300 tool/duo_probe/build_and_run.sh` 后台起；③ 依次 **展开→停 20s→半开→停 20s→合上→停 10s→展开后转横屏→停 20s**；④ 采完立刻读摘要里的「切换时刻」表，若仍只有 `scene-connected` 一行，说明手势没落到系统，不要改设计去迁就一次失败的采样。
 
 ## 9. 风险与未定
 
-- **669pt 这条地基只坐实了一半。** 本轮把「像素÷3」这个换算律本身证了（外屏定义 1398×2034 ÷ 实测 scale 3 = 实测 466×678，分毫不差），所以内屏 2007×2853 ÷ 3 = 669×951 从「折算猜测」升成「同一律的推论 + 第三方模拟器实测互证」；但**展开帧仍然没有**，而 §5.2 的 600 过渡标定值、§5.10 的「半屏会不会掉到 280 以下」都吃这个数。地基未完全坐实之前，P0 可以合、P1 的分派表可以合，但**不要**对外说内屏已适配。
+- **669pt 这条地基只坐实了一半。** 本轮把「像素÷3」这个换算律本身证了（外屏定义 1398×2034 ÷ 实测 scale 3 = 实测 466×678，分毫不差），所以内屏 2007×2853 ÷ 3 = 669×951 从「折算猜测」升成「同一律的推论 + 第三方模拟器实测互证」；但**展开帧仍然没有**，而 §5.2 的 600 过渡标定值、§5.7 那张栏宽表（连带本轮由它推出的两条结论：`280` 那条线在 Duo 上永不触发、`400` 那条一旦改读栏高就会在笔记本姿打回抽屉）都吃这个数。地基未完全坐实之前，P0 可以合、P1 的分派表可以合，但**不要**对外说内屏已适配。
 - **上游不再是闸门，但语义仍会变。** #193025 未合、引擎还要换 Xcode——这两条现在只影响「将来能不能改用 `MediaQuery.displayFeatures`」，不影响本设计能不能落地（§5.8 自写通道）。真正的残留风险是**语义**：Flutter 团队已表示不会用 `DisplayFeatureState` 表达 active/inactive，而 §5.1 把 `fold`/`posture` 分开正是为此。§5.1 的接缝（换 provider 不动页面）是对这条的唯一对冲。
 - **40pt 这条带从头到尾没有一手实测。** 它是第三方 PR 正文的模拟器读数，而 §5.4 的让位、§5.5 的 overlay 分屏、§5.10 的手势死区全都按它算。**设计不能改，但任何实现都不许把 40 写成常量**——必须读 `division.frame`（它已含 margins，见 R33）；本轮实测外屏遮挡的 margins 全 0，说明这个字段真有可能是 0，也可能 division 不是。
 - **§5.10 的手势裁决是推理，不是测量。** 「进度条与双击已合规」有源码行号撑着（分母取 `box.maxWidth` / `context.size.width`），但「竖带下 0.35/0.65 分区线与带重合时应判中间区」是设计判断，没有任何用户研究或实测支持；同理「接力链的 48pt 阈值按栏算」也没量过。P2 做这条时要留一个可关的开关在 `LayoutEnvironment` 里，别把判断写死进手势层。
