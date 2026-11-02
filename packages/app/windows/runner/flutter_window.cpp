@@ -25,14 +25,19 @@ bool FlutterWindow::AddTrayIcon() {
   icon.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
   icon.uCallbackMessage = kTrayMessage;
   icon.hIcon = LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(IDI_APP_ICON));
-  wcscpy_s(icon.szTip, L"Hongguo - 双击打开，右键退出");
+  wcscpy_s(icon.szTip, L"Hongguo - 单击打开，右键菜单");
   tray_available_ = Shell_NotifyIconW(NIM_ADD, &icon) != FALSE;
   return tray_available_;
 }
 
 void FlutterWindow::RestoreWindow() {
-  ShowWindow(GetHandle(), IsIconic(GetHandle()) ? SW_RESTORE : SW_SHOW);
-  SetForegroundWindow(GetHandle());
+  const HWND handle = GetHandle();
+  ShowWindow(handle, IsIconic(handle) ? SW_RESTORE : SW_SHOW);
+  SetForegroundWindow(handle);
+  // The tray click is delivered while Explorer keeps the foreground, and a
+  // background process may not take it: the window would be shown behind
+  // everything, which reads as a click that did nothing.
+  if (GetForegroundWindow() != handle) SwitchToThisWindow(handle, TRUE);
 }
 
 bool FlutterWindow::OnCreate() {
@@ -96,7 +101,9 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     return 0;
   }
   if (message == kTrayMessage) {
-    if (lparam == WM_LBUTTONDBLCLK) RestoreWindow();
+    // WM_LBUTTONDBLCLK arrives as an up-click and then a double-click, so the
+    // single up-click alone already wakes the window from one press.
+    if (lparam == WM_LBUTTONUP || lparam == WM_LBUTTONDBLCLK) RestoreWindow();
     if (lparam == WM_RBUTTONUP || lparam == WM_CONTEXTMENU) {
       HMENU menu = CreatePopupMenu();
       if (!menu) { RestoreWindow(); return 0; }
