@@ -716,7 +716,10 @@ class _LibraryPageState extends LibraryPageStateBase {
     catalogThemeHandoff.genre = genre;
     catalogThemeHandoff.addListener(_applyThemeAsk);
     unawaited(router.replaceAll([const NamedRoute('CatalogShell')]));
-    _reload(feed);
+    // 启动这一次必须问到网络上：磁盘快照只负责第一帧不空白，它存的是上一次启动
+    // 那一窗的行，而 <30 秒的免刷新会把它们原样再端一次。上游对同样的请求回同样
+    // 的行，所以跳过这一问就是「每次启动看到同样的数据」。
+    _reload(feed, force: true);
   }
 
   @override
@@ -939,7 +942,18 @@ class _LibraryPageState extends LibraryPageStateBase {
       }
     }
     try {
-      final page = await _page(feed);
+      final resume = _resumeCursor(key, cached);
+      var page = resume == null
+          ? await _page(feed)
+          : await _page(feed, next: resume);
+      // 续位那一发被 `seen` 清空了（内容池缩短，或上游把看过的又发一遍）就退回顶端
+      // 再问一次：顶端是最新内容，比给客户看一个空页诚实。
+      if (resume != null &&
+          page.items.isEmpty &&
+          mounted &&
+          current == feed.revision) {
+        page = await _page(feed);
+      }
       if (!mounted || current != feed.revision) return;
       final seen = <String>{};
       setState(() {
@@ -974,6 +988,23 @@ class _LibraryPageState extends LibraryPageStateBase {
         if (_askedSort(feed)) _rollBackSort(feed);
       }
     }
+  }
+
+  /// 多久之内还愿意「接着上次的位置往下走」。上游把同一个请求回成同一页，所以换
+  /// 内容只能换 `offset`；而这一列按 `online_time` 排，顶端就是最新的一批，走太远
+  /// 就把新的看不见。90 行（约 5 屏）之内接着走，越过它下一次直接回顶端。
+  static const _maxResumeRows = 90;
+
+  /// The offset a fresh ask of this feed starts at: where the previous session
+  /// left off, so a relaunch answers with rows the viewer has not been shown.
+  /// A search list has no such position, and an absent, zero or over-far cursor
+  /// means the walk is over — the next ask goes back to the head, where the
+  /// newest 内容 lives.
+  String? _resumeCursor(String key, FeedSnapshot? cached) {
+    if ((paramsOf(key)['query'] as String).isNotEmpty) return null;
+    final at = int.tryParse(cached?.page.nextCursor ?? '');
+    if (at == null || at <= 0 || at > _maxResumeRows) return null;
+    return '$at';
   }
 
   /// Whether the request this record made is the 档 the L3 control now reads

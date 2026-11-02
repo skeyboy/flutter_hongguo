@@ -200,6 +200,7 @@ class NativeRuntime
   String get deviceId => store.deviceId;
   @override
   String? get settingsWarning => store.warning;
+
   void _rebuildClients() {
     if (_clientsReady) {
       _catalog.close();

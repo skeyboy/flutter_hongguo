@@ -302,6 +302,15 @@ class CatalogClient
         FilteredCatalogRepository {
   final NetworkRetry retry;
   final int browsePageSize;
+
+  /// The `session_id` sent upstream. Empty is what this client has always sent
+  /// and what the reference sends (client.js:1132), so the default keeps every
+  /// request byte-identical. Kept as an input rather than a constant because it
+  /// is a protocol field and because [the measurement that proved it inert]
+  /// (`tool/probe_feed_rotation.dart`) has to stay runnable: a fresh numeric and
+  /// a fresh uuid both returned the same eighteen ids as an empty one
+  /// (2026-11-02, anonymous) — the feed does not rotate per session here.
+  final String sessionId;
   late final CatalogRequests _requests;
 
   /// The last vocabulary that came back with rows in it, per genre. Upstream
@@ -323,6 +332,7 @@ class CatalogClient
   final _details = <String, ({DateTime expires, DramaDetail value})>{};
   CatalogClient({
     this.browsePageSize = 18,
+    this.sessionId = '',
     Duration requestDeadline = const Duration(seconds: 12),
     DateTime Function()? now,
     void Function(MetadataTiming)? onTiming,
@@ -624,7 +634,7 @@ class CatalogClient
         'need_selector_panel': false,
         'limit': browsePageSize,
         'select_items': _selection(genre, sort, dims),
-        'session_id': '',
+        'session_id': sessionId,
         'req_type': 'only_content',
         'client_req_type': 3,
       },
@@ -667,7 +677,7 @@ class CatalogClient
         'req_type': 'default',
         'client_req_type': 3,
         'select_items': _selection(genre, 'online_time', const {}),
-        'session_id': '',
+        'session_id': sessionId,
       },
     );
     final rows = _list(_map(j['data'])['selector_rows']);
