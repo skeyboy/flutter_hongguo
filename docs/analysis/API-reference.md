@@ -150,6 +150,10 @@ JS
 - browse：`req_type=only_content`、`need_selector_panel=false`，select_items 包含筛选映射。
 - filters：`req_type=default`、`need_selector_panel=true`、offset=0、limit=1，读取 selector_rows。
 
+2026-11-01/02 的只读探测（留样见 [feed-rotation-2026-11-01](../evidence/feed-rotation-2026-11-01/findings.md)）给这一跳定了四件事：同样的请求体连发两次，上游回**完全同序**的同一页；把已展示的 ID 填进 `filter_ids`，上游把**那一页原样重发**（`next_offset` 照常推进），所以这字段不是排除开关，只是客户端自己的去重清单；把 `session_id` 换成随机数字或 UUID 仍是同 18 条（`numericSession/uuidSession/betweenSessions` 都是 18），这一跳不认会话身份；只有 `offset` 会换内容，而且列表很深——offset 18/90/360/900/2000/5000 各回满 18 条、与首页零重合，翻页是连续无缝的。参考实现自己写了这条：「offset 必须从已展示条数起步，否则上游每次都回第一页」（[client.js:1046-1048](../../references/hongguo-web/server/src/service/client.js#L1046-L1048)）。
+
+因此「每次启动看到同样的数据」只能由请求参数解释，而客户端把这件事做在**调用方**：`CatalogClient` 保持「参数定 = 请求定」（`sessionId` 只是协议字段，默认空串 = 逐字节同旧请求），由 [library_page.dart](../../packages/app/lib/features/library_page.dart) 用快照里已落盘的 `nextCursor` 作为冷启动/下拉刷新第一发的 `cursor`，并把当前屏的 ID 作为 `seen` 一起带上；这一发被去重清空就退回顶端再问一次，位置超过 90 行（约 5 屏）就不再续位、直接问顶端——顶端按 `online_time` 就是最新的一批。搜索列表没有位置可言，由 `query` 守卫排除。
+
 ## 6. 超时、重试、缓存
 
 | 链路 | 行为 |

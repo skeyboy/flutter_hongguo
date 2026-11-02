@@ -1,0 +1,10 @@
+head ask #1 (session_id empty) (attempt 1) -> 18 rows, cursor=18
+head ask #2, same params (attempt 1) -> 18 rows, cursor=18
+head ask with filter_ids of ask #1 (attempt 1) -> 0 rows, cursor=18
+head ask with sort=hot_score (attempt 1) -> 18 rows, cursor=18
+head ask with a fresh numeric session_id (attempt 1) -> 18 rows, cursor=18
+same numeric session_id, second ask (attempt 1) -> FAILED IncompleteCatalogResponse
+same numeric session_id, second ask (attempt 2) -> 18 rows, cursor=18
+head ask with a fresh uuid session_id (attempt 1) -> FAILED IncompleteCatalogResponse
+head ask with a fresh uuid session_id (attempt 2) -> 18 rows, cursor=18
+head ask at offset=0 (empty session) (attempt 1) -> 18 rows, cursor=18

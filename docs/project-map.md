@@ -46,6 +46,7 @@ flutter_hongguo/
 | MP4 盒、样本索引、各轨 IV、CTR 与 CENC 信令处理 | [mp4.dart](../packages/core/lib/src/media/mp4.dart) | [mp4_test.dart](../packages/core/test/mp4_test.dart) |
 | 原生文件随机读写、worker isolate | [file_decryptor.dart](../packages/core/lib/src/media/file_decryptor.dart) | mp4_test.dart |
 | 搜索、分类、AI短剧、题材、详情与分集 | [catalog.dart](../packages/api/lib/src/catalog.dart) | [catalog_test.dart](../packages/api/test/catalog_test.dart) |
+| 启动与下拉刷新接着上次的位置往下问（上游同参数确定性应答的对策） | library_page.dart 的 `_resumeCursor` | [network_cache_behavior_test.dart](../packages/app/test/network_cache_behavior_test.dart) |
 | 匿名播放设备注册（ttEncrypt）与进程内复用 | [playback_device.dart](../packages/api/lib/src/playback_device.dart) | [playback_device_test.dart](../packages/api/test/playback_device_test.dart) |
 | App 取址：注册身份、免签 POST、内联 video_list 与 fallback、选流 | [video_model_client.dart](../packages/api/lib/src/video_model_client.dart) | [video_model_client_test.dart](../packages/api/test/video_model_client_test.dart) |
 | 流式下载、取消、并发合并、原子缓存、淘汰 | [media_cache.dart](../packages/api/lib/src/media_cache.dart) | [media_cache_test.dart](../packages/api/test/media_cache_test.dart) |

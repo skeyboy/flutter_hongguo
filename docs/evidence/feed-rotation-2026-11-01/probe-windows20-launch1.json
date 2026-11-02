@@ -1,0 +1,23 @@
+{
+  "at": "2026-11-01T12:37:05.641611Z",
+  "startupWindows": 20,
+  "sameParamsIdenticalOrder": true,
+  "overlapWithAsk1": {
+    "sameParams": 18,
+    "filterIdsOfAsk1": 0,
+    "otherSort": 0,
+    "rolledWindow": 0,
+    "roll1VsRoll2": 0
+  },
+  "filterIdsInterpretation": "upstream re-sent the already-shown page; the client filtered it out",
+  "sampleTitles": {
+    "ask1": [
+      "贤妻的秘密",
+      "枕边局中局之村里那些事"
+    ],
+    "roll1": [
+      "一杯毒酒，贵妃入豪门",
+      "他算计我的钱，我送他坐牢"
+    ]
+  }
+}

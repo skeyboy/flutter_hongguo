@@ -1,0 +1,39 @@
+{
+  "at": "2026-11-01T12:24:51.831555Z",
+  "headWindow": {
+    "items": 18,
+    "cursor": "18"
+  },
+  "depths": {
+    "offset90": {
+      "items": 18,
+      "cursor": "108",
+      "overlapWithHead": 0,
+      "sampleTitle": "我被亲戚误会破产了"
+    },
+    "offset360": {
+      "items": 18,
+      "cursor": "378",
+      "overlapWithHead": 0,
+      "sampleTitle": "儿子执意成婚，家产我分文不留"
+    },
+    "offset900": {
+      "items": 18,
+      "cursor": "918",
+      "overlapWithHead": 0,
+      "sampleTitle": "折栀入怀"
+    },
+    "offset2000": {
+      "items": 18,
+      "cursor": "2018",
+      "overlapWithHead": 0,
+      "sampleTitle": "手握三十万死士，请陛下退位"
+    },
+    "offset5000": {
+      "items": 18,
+      "cursor": "5018",
+      "overlapWithHead": 0,
+      "sampleTitle": "我刚登基称帝，她就说我是昏君第2季"
+    }
+  }
+}

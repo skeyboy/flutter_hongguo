@@ -1,0 +1,39 @@
+{
+  "at": "2026-11-02T02:18:09.796405Z",
+  "resumeOffset": 18,
+  "sameParamsIdenticalOrder": true,
+  "overlapWithAsk1": {
+    "sameParams": 18,
+    "filterIdsOfAsk1": 0,
+    "otherSort": 0,
+    "numericSession": 18,
+    "uuidSession": 18,
+    "offsetResumed": 0
+  },
+  "withinOneSession": {
+    "numericTwoAsksIdenticalOrder": true,
+    "numericTwoAsksOverlap": 18
+  },
+  "betweenSessions": 18,
+  "filterIdsInterpretation": "upstream re-sent the already-shown page; the client filtered it out",
+  "sizes": {
+    "ask1": 18,
+    "numeric": 18,
+    "uuid": 18,
+    "resumed": 18
+  },
+  "sampleTitles": {
+    "ask1": [
+      "富贵见孝心，千金归来掌家业",
+      "今夜，霍总的软肋在逃"
+    ],
+    "numeric": [
+      "富贵见孝心，千金归来掌家业",
+      "今夜，霍总的软肋在逃"
+    ],
+    "uuid": [
+      "富贵见孝心，千金归来掌家业",
+      "今夜，霍总的软肋在逃"
+    ]
+  }
+}

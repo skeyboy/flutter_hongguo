@@ -14,7 +14,8 @@
 | 连续切换筛选 | 旧结果不显示，但请求仍继续 | 旧调用者退出；排队、退避和底层传输均响应取消 |
 | 相同参数并发加载 | 多次传输 | 同客户端共用在途结果；最后一个调用者离开才取消传输 |
 | 重复获取题材 | 每次联网 | 每个 genre 成功结果内存缓存 6 小时；错误不写入缓存 |
-| 发现/分类短期回看 | 缓存后仍立即请求 | 30 秒内直接复用；过期先显示缓存再刷新；手动刷新绕过新鲜期 |
+| 发现/分类短期回看 | 缓存后仍立即请求 | 30 秒内直接复用；过期先显示缓存再刷新；手动刷新绕过新鲜期；冷启动那一次同样绕过——磁盘快照只负责第一帧不空白 |
+| 每次启动的内容 | 启动请求逐字节相同，上游把同样的请求回成同样的页 | 冷启动与下拉刷新的第一发用快照里已落盘的 `nextCursor` 起步（参考实现自己的规则：offset 从已展示条数起），并带当前屏的 ID 作 `seen` 兜底；该发被去重清空就退回顶端再问一次，位置越过 90 行（约 5 屏）直接问顶端。`packages/api` 保持「参数定 = 请求定」，见 [feed-rotation 证据](../evidence/feed-rotation-2026-11-01/findings.md) |
 | 起播计时 | 下载/解密等待易被误认为 API 慢 | 单独记录排队、缓存查找、解析、下载、解密、校验和播放器打开 |
 
 260ms 请求启动间隔保留，改用单调时钟；仍只限制启动频率，慢题材请求不会阻塞其他列表响应。视频下载的长接收超时保持独立，不套用元数据的 12 秒预算。TV 保留原有常驻页面的后台刷新策略，同时使用共享请求恢复、去重、题材缓存和取消机制。
@@ -23,10 +24,10 @@
 
 - `packages/api/lib/src/request_control.dart`：`CatalogRequestScope`、单调时钟 `RequestBudget`、引用计数在途共享、`MetadataTiming`。
 - `packages/api/lib/src/network_retry.dart`：错误分类、短退避、服务端 Retry-After、预算感知等待；恢复次数按错误类型分派（`maxRecoveries` 默认 2，只有「必要字段缺失」类吃满）。
-- `packages/api/lib/src/catalog.dart`：完整参数键、题材缓存、受限主来源及官网回退。
+- `packages/api/lib/src/catalog.dart`：完整参数键、题材缓存、受限主来源及官网回退；`browse(cursor:)` 是纯透传，客户端内部不藏任何换内容的状态。
 - `packages/api/lib/src/video_model_client.dart`：两个元数据请求共享截止时间；同时获取清晰度与播放地址可共用元数据；`playbackRetry()` 是取址一跳自己的更宽窗口，恢复整块挪在注册之后，回空包即换身份。
 - `packages/api/lib/src/playback_device.dart`：进程级注册身份的 `rotate()`，带 `refusedDeviceId` 核对，并发恢复只多花一次注册。
-- `packages/app/lib/features/library_page.dart`：250ms 合并保留，切换立即取消旧作用域，30 秒新鲜期、强制刷新与过期缓存回退。
+- `packages/app/lib/features/library_page.dart`：250ms 合并保留，切换立即取消旧作用域，30 秒新鲜期、强制刷新与过期缓存回退；`initState` 那一次带 `force: true`，起点由 `_resumeCursor`（快照里已落盘的 `nextCursor`，90 行为界）决定。
 - `packages/app/lib/features/detail_page.dart`、`features/tv/tv_feed_page.dart`：页面释放/失活时取消旧作用域。
 - `packages/api/lib/src/media_cache.dart`：媒体准备阶段计时，取消准备同时释放元数据调用者。
 - `packages/app/lib/features/player_page.dart`：准备耗时与播放器打开耗时分开。

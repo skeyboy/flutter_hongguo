@@ -1,0 +1,23 @@
+{
+  "at": "2026-11-01T12:37:41.885463Z",
+  "startupWindows": 20,
+  "sameParamsIdenticalOrder": true,
+  "overlapWithAsk1": {
+    "sameParams": 18,
+    "filterIdsOfAsk1": 0,
+    "otherSort": 0,
+    "rolledWindow": 0,
+    "roll1VsRoll2": 0
+  },
+  "filterIdsInterpretation": "upstream re-sent the already-shown page; the client filtered it out",
+  "sampleTitles": {
+    "ask1": [
+      "贤妻的秘密",
+      "枕边局中局之村里那些事"
+    ],
+    "roll1": [
+      "我嫁谁，谁才是大哥",
+      "藏锋敛迹二十八载，只为今朝"
+    ]
+  }
+}
