@@ -1,0 +1,370 @@
+{
+  "vid": "7701334783946673176",
+  "successes": 0,
+  "total": 7,
+  "results": [
+    {
+      "case": "seq-1",
+      "ok": false,
+      "seconds": 9.104,
+      "errorType": "IncompleteCatalogResponse",
+      "message": "播放信息未返回数据，请稍后重试",
+      "exchanges": [
+        {
+          "t": "05:49:34.169",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:49:34.387",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:49:35.370",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:49:35.465",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:49:37.917",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:49:37.998",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:49:42.511",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:49:42.735",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "seq-2-immediately",
+      "ok": false,
+      "seconds": 8.812,
+      "errorType": "IncompleteCatalogResponse",
+      "message": "播放信息未返回数据，请稍后重试",
+      "exchanges": [
+        {
+          "t": "05:49:42.821",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:49:44.219",
+          "status": 200,
+          "bytes": 355,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:49:44.308",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:49:46.726",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:49:46.834",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:49:51.323",
+          "status": 200,
+          "bytes": 380,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:49:51.548",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "seq-3-immediately",
+      "ok": false,
+      "seconds": 8.388,
+      "errorType": "IncompleteCatalogResponse",
+      "message": "播放信息未返回数据，请稍后重试",
+      "exchanges": [
+        {
+          "t": "05:49:51.644",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:49:52.622",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:49:52.721",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:49:55.257",
+          "status": 200,
+          "bytes": 380,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:49:55.347",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:49:59.745",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:49:59.937",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "parallel-1",
+      "ok": false,
+      "seconds": 8.391,
+      "errorType": "IncompleteCatalogResponse",
+      "message": "播放信息未返回数据，请稍后重试",
+      "exchanges": [
+        {
+          "t": "05:50:00.026",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:50:00.988",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:50:01.071",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:50:03.438",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:50:03.606",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:50:08.088",
+          "status": 200,
+          "bytes": 355,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:50:08.329",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "parallel-2",
+      "ok": false,
+      "seconds": 8.391,
+      "errorType": "IncompleteCatalogResponse",
+      "message": "播放信息未返回数据，请稍后重试",
+      "exchanges": [
+        {
+          "t": "05:50:00.026",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:50:00.988",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:50:01.071",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:50:03.438",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:50:03.606",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:50:08.088",
+          "status": 200,
+          "bytes": 355,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:50:08.329",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "parallel-3",
+      "ok": false,
+      "seconds": 8.391,
+      "errorType": "IncompleteCatalogResponse",
+      "message": "播放信息未返回数据，请稍后重试",
+      "exchanges": [
+        {
+          "t": "05:50:00.026",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:50:00.988",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:50:01.071",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:50:03.438",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:50:03.606",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:50:08.088",
+          "status": 200,
+          "bytes": 355,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:50:08.329",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "parallel-4",
+      "ok": false,
+      "seconds": 8.391,
+      "errorType": "IncompleteCatalogResponse",
+      "message": "播放信息未返回数据，请稍后重试",
+      "exchanges": [
+        {
+          "t": "05:50:00.026",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:50:00.988",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:50:01.071",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:50:03.438",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:50:03.606",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        },
+        {
+          "t": "05:50:08.088",
+          "status": 200,
+          "bytes": 355,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:50:08.329",
+          "status": 200,
+          "bytes": 0,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    }
+  ]
+}

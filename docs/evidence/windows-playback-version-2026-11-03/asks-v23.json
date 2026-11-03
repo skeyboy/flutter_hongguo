@@ -1,0 +1,147 @@
+{
+  "vid": "7701334783946673176",
+  "successes": 7,
+  "total": 7,
+  "results": [
+    {
+      "case": "seq-1",
+      "ok": true,
+      "seconds": 0.755,
+      "definition": "1080p",
+      "exchanges": [
+        {
+          "t": "05:48:13.916",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:48:14.231",
+          "status": 200,
+          "bytes": 24253,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "seq-2-immediately",
+      "ok": true,
+      "seconds": 0.345,
+      "definition": "1080p",
+      "exchanges": [
+        {
+          "t": "05:48:14.435",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:48:14.591",
+          "status": 200,
+          "bytes": 24583,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "seq-3-immediately",
+      "ok": true,
+      "seconds": 0.496,
+      "definition": "1080p",
+      "exchanges": [
+        {
+          "t": "05:48:14.854",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:48:15.088",
+          "status": 200,
+          "bytes": 24254,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "parallel-1",
+      "ok": true,
+      "seconds": 0.355,
+      "definition": "1080p",
+      "exchanges": [
+        {
+          "t": "05:48:15.263",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:48:15.443",
+          "status": 200,
+          "bytes": 24409,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "parallel-2",
+      "ok": true,
+      "seconds": 0.353,
+      "definition": "1080p",
+      "exchanges": [
+        {
+          "t": "05:48:15.263",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:48:15.443",
+          "status": 200,
+          "bytes": 24409,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "parallel-3",
+      "ok": true,
+      "seconds": 0.353,
+      "definition": "1080p",
+      "exchanges": [
+        {
+          "t": "05:48:15.263",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:48:15.443",
+          "status": 200,
+          "bytes": 24409,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "parallel-4",
+      "ok": true,
+      "seconds": 0.354,
+      "definition": "1080p",
+      "exchanges": [
+        {
+          "t": "05:48:15.263",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:48:15.443",
+          "status": 200,
+          "bytes": 24409,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    }
+  ]
+}

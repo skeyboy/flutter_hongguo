@@ -1,0 +1,111 @@
+{
+  "vid": "7701334783946673176",
+  "successes": 7,
+  "total": 7,
+  "results": [
+    {
+      "case": "seq-1",
+      "ok": true,
+      "seconds": 0.674,
+      "definition": "1080p",
+      "exchanges": [
+        {
+          "t": "05:48:52.316",
+          "status": 200,
+          "bytes": 384,
+          "hop": "service/2/device_register"
+        },
+        {
+          "t": "05:48:52.563",
+          "status": 200,
+          "bytes": 24213,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "seq-2-immediately",
+      "ok": true,
+      "seconds": 0.155,
+      "definition": "1080p",
+      "exchanges": [
+        {
+          "t": "05:48:52.731",
+          "status": 200,
+          "bytes": 24258,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "seq-3-immediately",
+      "ok": true,
+      "seconds": 0.233,
+      "definition": "1080p",
+      "exchanges": [
+        {
+          "t": "05:48:52.962",
+          "status": 200,
+          "bytes": 24243,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "parallel-1",
+      "ok": true,
+      "seconds": 0.197,
+      "definition": "1080p",
+      "exchanges": [
+        {
+          "t": "05:48:53.161",
+          "status": 200,
+          "bytes": 24213,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "parallel-2",
+      "ok": true,
+      "seconds": 0.198,
+      "definition": "1080p",
+      "exchanges": [
+        {
+          "t": "05:48:53.161",
+          "status": 200,
+          "bytes": 24213,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "parallel-3",
+      "ok": true,
+      "seconds": 0.198,
+      "definition": "1080p",
+      "exchanges": [
+        {
+          "t": "05:48:53.161",
+          "status": 200,
+          "bytes": 24213,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    },
+    {
+      "case": "parallel-4",
+      "ok": true,
+      "seconds": 0.198,
+      "definition": "1080p",
+      "exchanges": [
+        {
+          "t": "05:48:53.161",
+          "status": 200,
+          "bytes": 24213,
+          "hop": "novel/player/multi_video_model/v1"
+        }
+      ]
+    }
+  ]
+}
