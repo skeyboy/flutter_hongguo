@@ -169,7 +169,7 @@ void main() {
     // The response's cdid is not trusted; the one this process generated is kept.
     expect(device.cdid, 'uuid-1');
   });
-  test('registration posts the sealed envelope once and is reused', () async {
+  test('the registration posts the sealed envelope, and the next ask registers again', () async {
     final adapter = RegisterAdapter(responseText);
     final dio = Dio()..httpClientAdapter = adapter;
     addTearDown(dio.close);
@@ -180,11 +180,10 @@ void main() {
       uuid: countedUuid(),
     );
     final first = await registry.get();
-    final second = await registry.get(cancelToken: CancelToken());
-    expect(second.deviceId, first.deviceId);
+    expect(first.deviceId, '7661622467441478681');
     expect(adapter.requests, hasLength(1));
-    expect(adapter.requests.single.method, 'POST');
-    expect(adapter.requests.single.uri.host, 'log5-applog-lf.fqnovel.com');
+    expect(adapter.requests.first.method, 'POST');
+    expect(adapter.requests.first.uri.host, 'log5-applog-lf.fqnovel.com');
     final sent = adapter.bodies.single;
     expect(hex(sent.sublist(0, 6)), vectors.first['prefixHex']);
     expect(
@@ -193,13 +192,18 @@ void main() {
       reason: 'what left this process is the envelope the oracle framed',
     );
     expect(
-      adapter.requests.single.headers['Content-Type'],
+      adapter.requests.first.headers['Content-Type'],
       'application/octet-stream;tt-data=a',
     );
     // An anonymous registration carries no account material and no signature.
     for (final header in ['x-argus', 'x-gorgon', 'cookie', 'x-tt-token']) {
-      expect(adapter.requests.single.headers.containsKey(header), isFalse);
+      expect(adapter.requests.first.headers.containsKey(header), isFalse);
     }
+    // A settled registration is never replayed: the player endpoint answers
+    // one identity once per window and soft-blocks the replay, so the next
+    // fetch gets a registration this process has not spent.
+    await registry.get(cancelToken: CancelToken());
+    expect(adapter.requests, hasLength(2));
   });
   test(
     'an empty registration answer is named, not left to the decoder',
@@ -237,40 +241,24 @@ void main() {
       expect(adapter.requests, hasLength(2));
     },
   );
-  test('a refused identity is traded for a newly registered one', () async {
-    final adapter = RotatingRegisterAdapter();
-    final dio = Dio()..httpClientAdapter = adapter;
-    addTearDown(dio.close);
-    final registry = PlaybackDeviceRegistry(dio: dio);
-    final held = await registry.get();
-    expect(adapter.requests, hasLength(1));
-    final renewed = await registry.rotate(refusedDeviceId: held.deviceId);
-    expect(renewed.deviceId, isNot(held.deviceId));
-    expect(adapter.requests, hasLength(2));
-    // What the platform just admitted is now what every caller holds.
-    expect((await registry.get()).deviceId, renewed.deviceId);
-    expect(adapter.requests, hasLength(2));
-  });
   test(
-    'an identity another recovery already replaced is not registered again',
+    'concurrent asks share the in-flight registration, then each ask registers again',
     () async {
       final adapter = RotatingRegisterAdapter();
       final dio = Dio()..httpClientAdapter = adapter;
       addTearDown(dio.close);
       final registry = PlaybackDeviceRegistry(dio: dio);
-      final stale = await registry.get();
-      final current = await registry.rotate(refusedDeviceId: stale.deviceId);
-      // A second flight that was refused the old pair adopts the newer one
-      // instead of stampeding the registration endpoint.
-      final adopted = await registry.rotate(refusedDeviceId: stale.deviceId);
-      expect(adopted.deviceId, current.deviceId);
-      expect(adapter.requests, hasLength(2));
-      final racing = await Future.wait([
-        registry.rotate(refusedDeviceId: current.deviceId),
-        registry.rotate(refusedDeviceId: current.deviceId),
-      ]);
+      // A burst of simultaneous resolutions registers once, not once per
+      // caller -- the endpoint is a log service, not a per-request toll.
+      final racing = await Future.wait([registry.get(), registry.get()]);
       expect(racing.first.deviceId, racing.last.deviceId);
-      expect(adapter.requests, hasLength(3));
+      expect(adapter.requests, hasLength(1));
+      // Whoever asks after that registration has settled is handed a pair
+      // this process never spent, because replaying a spent pair only buys
+      // the HTTP 200 with nothing the player gives a refused identity.
+      final renewed = await registry.get();
+      expect(renewed.deviceId, isNot(racing.first.deviceId));
+      expect(adapter.requests, hasLength(2));
     },
   );
 }

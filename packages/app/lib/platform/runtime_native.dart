@@ -74,8 +74,9 @@ class NativeRuntime
   final _settingsEvents = StreamController<AppSettings>.broadcast();
   final Dio _dio = Dio();
 
-  /// One anonymous playback registration per app run, shared by every client
-  /// rebuild; the player endpoint only answers for an identity it handed out.
+  /// The one registration lane, shared by every client rebuild. The player
+  /// endpoint answers a registered identity once per window and soft-blocks
+  /// replays, so each ask registers a fresh pair rather than reusing one.
   late final PlaybackDeviceRegistry _playbackDevices;
   final _metadataTimings = <MetadataTiming>[];
   final _mediaTimings = <MediaPreparationTiming>[];

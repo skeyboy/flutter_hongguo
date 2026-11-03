@@ -21,25 +21,16 @@ class FixedDevices extends PlaybackDeviceRegistry {
   Future<PlaybackDevice> get({CancelToken? cancelToken}) async => device;
 }
 
-/// A registration that hands out a different pair every time it is asked to
-/// trade one in, so a test can see which identity each attempt carried.
+/// A registration that hands out a different pair on every ask, so a test can
+/// see which identity each attempt carried.
 class RotatingDevices extends PlaybackDeviceRegistry {
   RotatingDevices() : super(dio: Dio());
-  int rotations = 0;
+  int issued = 0;
   @override
   Future<PlaybackDevice> get({CancelToken? cancelToken}) async =>
-      _issued(issued++);
-  @override
-  Future<PlaybackDevice> rotate({
-    String? refusedDeviceId,
-    CancelToken? cancelToken,
-  }) async {
-    rotations++;
-    return _issued(issued++);
-  }
+      _pair(issued++);
 
-  int issued = 0;
-  static PlaybackDevice _issued(int serial) => PlaybackDevice(
+  static PlaybackDevice _pair(int serial) => PlaybackDevice(
     deviceId: '76616224674414${serial.toString().padLeft(4, '0')}',
     iid: '39120885448${serial.toString().padLeft(4, '0')}',
     cdid: 'rotating-cdid',
@@ -330,7 +321,7 @@ void main() {
     dio.close();
   });
   test(
-    'a recovery that got nothing trades the refused identity for a new one',
+    'a recovery that got nothing asks again with a registration never spent',
     () async {
       final adapter = ThinBodyAdapter(emptyPosts: 1);
       final dio = Dio()..httpClientAdapter = adapter;
@@ -344,7 +335,7 @@ void main() {
       expect(track.url.toString(), 'https://a.qznovelvod.com/test.mp4');
       // The empty answer is keyed to the pair it refused, so the next try asks
       // with a registration this process did not have before.
-      expect(devices.rotations, 1);
+      expect(devices.issued, 2);
       final posts = adapter.requests
           .where((request) => request.method == 'POST')
           .toList();
@@ -357,7 +348,7 @@ void main() {
     },
   );
   test(
-    'an answer on the first try keeps the identity the process already holds',
+    'an answer on the first try costs no second registration',
     () async {
       final adapter = FakeAdapter('https://test.fqnovel.com/info');
       final dio = Dio()..httpClientAdapter = adapter;
@@ -367,7 +358,7 @@ void main() {
         builder: builder(),
         devices: devices,
       ).fetchTrack('123');
-      expect(devices.rotations, 0);
+      expect(devices.issued, 1);
       dio.close();
     },
   );

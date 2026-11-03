@@ -236,8 +236,6 @@ class VideoModelClient {
 
   Future<Map<String, dynamic>> _fetchVideoInfo(String vid) async {
     final budget = RequestBudget.current;
-    // The identity this hop answered nothing for, if it already refused one.
-    PlaybackDevice? refused;
     // Both hops answer HTTP 200 with nothing often enough that a bare decode
     // used to reach the viewer as `FormatException: Unexpected end of input`.
     // The status check and the decode are inside the recovery, so an empty or
@@ -246,65 +244,52 @@ class VideoModelClient {
     // envelope and declined the episode is not in that category: repeating it
     // changes nothing, so it stops as PlaybackUnavailable.
     final model = await retry.run(() async {
-      // One process-wide registration buys the identity this endpoint insists
-      // on; it is measured inside the same deadline rather than retried on its
-      // own, so a log endpoint that is not answering cannot turn into a request
-      // storm. The first try reuses what the process already holds; after this
-      // hop has come back empty for a pair, the next try is registered again,
-      // because the answer is keyed to the device_id/iid pair it refused and
-      // replaying that pair is asking the same question.
+      // The answer is keyed to the registered `device_id`/`iid` pair and to a
+      // window of seconds: a pair that already answered comes back empty, so
+      // every try -- first included -- takes a registration this process has
+      // not spent, and a refusal costs only the ask it was refused on.
       final device = await budget.measure(
         'register',
-        () => refused == null
-            ? devices.get(cancelToken: budget.token)
-            : devices.rotate(
-                refusedDeviceId: refused!.deviceId,
-                cancelToken: budget.token,
-              ),
+        () => devices.get(cancelToken: budget.token),
       );
       final request = builder.build(vid, device: device);
-      try {
-        return await budget.transport(() async {
-          final first = await dio.fetch<String>(
-            Options(
-                  method: 'POST',
-                  headers: request.headers,
-                  responseType: ResponseType.plain,
-                  followRedirects: false,
-                  sendTimeout: _timeout(5),
-                  receiveTimeout: _timeout(8),
-                )
-                .compose(
-                  dio.options,
-                  request.url,
-                  data: Stream<Uint8List>.value(request.body),
-                  cancelToken: budget.token,
-                )
-                .copyWith(connectTimeout: _timeout(5)),
-          );
-          if (first.statusCode != 200) {
-            throw const PlaybackUnavailable('暂时取不到这一集的播放信息，请稍后重试');
-          }
-          final outer = _envelope(first.data);
-          _checkCodes(outer);
-          // The answer is nested three levels deep, and any of those levels can
-          // come back empty -- an envelope with no `data` is how upstream refuses
-          // an identity it does not recognise, the same missing answer as an empty
-          // body, so it is named and recovered the same way.
-          final data = _envelope(outer['data']);
-          if (data.isEmpty) {
-            throw const IncompleteCatalogResponse('播放信息未返回数据，请稍后重试');
-          }
-          final entry = _envelope(data[vid]);
-          if (entry.isEmpty) {
-            throw const PlaybackUnavailable('这一集暂时没有可播的片源，请稍后重试或换一集');
-          }
-          return _envelope(entry['video_model']);
-        });
-      } on IncompleteCatalogResponse {
-        refused = device;
-        rethrow;
-      }
+      return await budget.transport(() async {
+        final first = await dio.fetch<String>(
+          Options(
+                method: 'POST',
+                headers: request.headers,
+                responseType: ResponseType.plain,
+                followRedirects: false,
+                sendTimeout: _timeout(5),
+                receiveTimeout: _timeout(8),
+              )
+              .compose(
+                dio.options,
+                request.url,
+                data: Stream<Uint8List>.value(request.body),
+                cancelToken: budget.token,
+              )
+              .copyWith(connectTimeout: _timeout(5)),
+        );
+        if (first.statusCode != 200) {
+          throw const PlaybackUnavailable('暂时取不到这一集的播放信息，请稍后重试');
+        }
+        final outer = _envelope(first.data);
+        _checkCodes(outer);
+        // The answer is nested three levels deep, and any of those levels can
+        // come back empty -- an envelope with no `data` is how upstream refuses
+        // an identity it does not recognise, the same missing answer as an empty
+        // body, so it is named and recovered the same way.
+        final data = _envelope(outer['data']);
+        if (data.isEmpty) {
+          throw const IncompleteCatalogResponse('播放信息未返回数据，请稍后重试');
+        }
+        final entry = _envelope(data[vid]);
+        if (entry.isEmpty) {
+          throw const PlaybackUnavailable('这一集暂时没有可播的片源，请稍后重试或换一集');
+        }
+        return _envelope(entry['video_model']);
+      });
     }, budget: budget);
     // The newer answer carries the tracks inside video_model itself; only the
     // shape that hands back a fallback_api still needs a second hop. Asking for
