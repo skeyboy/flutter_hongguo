@@ -359,4 +359,28 @@
 
 历轮缺口继续挂着：Mac 真鼠标悬停、Windows 托盘三步、冷启动续位实机读数、iPhone Duo 内屏与半开帧（任务 #1）。
 
+### 9.13 发版补记（2026-11-03，标签 `v0.3.22` 与 `v0.3.23`）
+
+用户诉求（原话，两条同一支线）：「播放信息未返回数据 在线播放时报错，根据错误信息排除问题原因」，定位并修复后——「提交这 5 个路径并切 0.3.23 发布」。`§9.12` 写的时候是「未提交、未发布」的工作记录，而 `v0.3.22` 发布时没写自己的补记——这一 § 一次补齐两版的发布账，读数全部是 2026-11-03 从 GitHub API 与发布树现取，不靠发布时的记忆。
+
+**`v0.3.22`（标签指向 `58c43d3`）**
+
+- 三笔提交：`3b9ada4` 更新交系统后台车道（14 文件 +1948/−80，工作面与八条缺陷见 `§9.12` 本体）、`a36cf43` Windows 播放发布段不再被播放器句柄判成取不到数据（2 文件 +247/−26：`media_cache.dart` + 回归测试）、`58c43d3` 切版（5 文件 +8/−6，三处版本常量同步 **0.3.22+34**，`tool/ci/validate_release.py` 补两条正文）。
+- x64 门禁 `Verify Windows desktop` 运行 `41569275009`（number 93，`head_sha=58c43d3f…`）**success**（`02:57:37 → 03:04:32Z`，415s，`windows` 单 job 410s）。
+- 发布运行 `41572572603`（number 30，event=push，同一棵树）**success**：`preflight 10s / plan 6s / build-verify 321s / native(linux) 145s / native(android-tv) 429s / native(macos) 217s / native(android) 441s / native(windows) 279s / publish 26s` 九条，`ios-signed` **skipped**；`03:30:13 → 03:43:54Z`，约 13 分 41 秒。
+- Release `v0.3.22`（<https://github.com/skeyboy/flutter_hongguo/releases/tag/v0.3.22>）：`id=432254102`、`draft=false`、`publishedAt=2026-11-03T03:43:50Z`、正文 **37,471 字符 / 60 条要点**（比 `v0.3.21` 的 34,523 / 58 多出的 2 条正是切版那两条）、**15 个附件全带 `sha256:` digest**，合计 350,143,579 字节。本轮没有重读该树 suites 的逐套例数——`3b9ada4` 那轮的本地读数（app **+432 ~1**、update 五份 **+47**、`packages/update` **+37**）在 `§9.12` 的读数表里。
+
+**`v0.3.23`（标签指向 `02ee9c2`）——「播放信息未返回数据」的根因与修复**
+
+- 判据（读实错误文案的分支）：该句对应 `IncompleteCatalogResponse` = **HTTP 200 但空 body / 外层 `data` 为空**，与「这一集暂时没有可播的片源」（信封里 `data[vid]` 为空，剧集问题，重试无意义）不同支。三条线上只读探针（脚本在 `C:\Users\lee\scratch` 的门禁树里，不入库；只读数，签名头 / URL / 密钥 / 响应体一个字节都没打出来）把它钉死：**换发新身份，此前被拒的 vid 9/9 有答案**；同一批 vid，共享身份只答 **1/6**、逐请求新身份 **6/6**；同一身份 `+0s` 拿到答案后 `+1s/+3s/+8s` 的重 replay 全是 200/0——拒答绑在**已用掉答案的那个设备身份**上（一个身份一个窗口只答约一次），而应用按「一个进程注册一次、注册表跨重建共享」在取，重试车道每次都把同一个废身份再抛一遍，把 3 次恢复与 20s 预算烧干净。
+- 修复 `b2fb6ac`（5 文件 **+92/−145**，就是用户点名的五路径）：注册改**一次性租约**——`PlaybackDeviceRegistry.get()` 只共享在途的那一次 `_pending`，落定即在 `finally` 置空，用过的身份永不再发第二人；`rotate()`、`_issued` 计数与调用方的「被拒」标记整体删除，`video_model_client` 每一次尝试（含第一次）都取一份本进程没花过的注册。测试账：`playback_device_test` 两条 rotate 例删掉、换成「第二次 `get` 必然重新注册」与「并发请求共享在途那一次、事后各取新身份」两条（净 **−1**）；`video_model_client_test` 断言改成数注册次数（恢复后 `issued == 2`、首答 `issued == 1`）。api 例数 **139 → 140** 逐条对上：`a36cf43` 给 `media_cache_test` **+2**（16 → 18，本轮现数），`b2fb6ac` 净 **−1**（7 → 6，同上）。
+- **门禁树腐烂抓到一次**：复用的 `hg-rel` 还停在 `0.3.21` 时代（`git archive` 的基线缺 `3b9ada4`——`update_transfer.dart`、`update_background_test.dart` 只在新树里，`MainActivity.kt`、update lib 六文件与本文档也都不同），第一轮那个 app **+406** 读数是在旧树上跑的，**作废**。重切 `hg-cut = git archive(02ee9c2)` 全量重跑，与切版树逐文件比（`diff -r --strip-trailing-cr`）后读数为：api **+140**、core **+125**、app **+432 ~1**（串行跑，`flutter test` 与 `packages/api` 的 `dart test` 并发会把 1s deadline 例打成假红）、`flutter analyze` **No issues found!**（30.6s）、`dart analyze` 只剩 `§9.12` 挂账的那 2 条 `library_private_types_in_public_api`。本机没有可用的 python3，`release_meta.py:version()` 的判据照旧用 node 逐条复刻：两份 pubspec、两个 Dart 常量、`.fvmrc` 3.47.4 全中（**0.3.23+35**）；`validate_release.py` 新增那条正文（`Playback identity, one ask one registration`）逐行扫过大括号，只留 4 个合法插值表达式。
+- 切版 `02ee9c2`（5 文件 +7/−6）：根 `pubspec.yaml:4`、`packages/app/pubspec.yaml:5`、`packages/app/lib/update/app_release.dart`、`README.md:7/:89`、`tool/ci/validate_release.py`。推送 `main` 后先读 x64 门禁再打标签：`Verify Windows desktop` 运行 `41577561374`（number 94，`head_sha=02ee9c2e7775d7ee33777885bc55fd474b50c35d` 与切版提交逐字相同）**success**（`04:20:36 → 04:28:17Z`，461s，`windows` job 457s），然后才推轻量标签 `v0.3.23`。
+- 发布运行 `41578509094`（number 31，event=push，`head_sha` 同上逐字相同——**标签的树就是切版那一棵树**）：`preflight 9s / plan 7s / build-verify 240s / native(windows) 275s / native(android-tv) 494s / native(linux) 146s / native(android) 435s / native(macos) 302s / publish 28s` 九条 **success**，`ios-signed` **skipped**；`04:30:25 → 04:43:40Z`，约 13 分 15 秒。
+- Release `v0.3.23`（<https://github.com/skeyboy/flutter_hongguo/releases/tag/v0.3.23>）：`id=432286032`、`draft=false`、`publishedAt=2026-11-03T04:43:36Z`、正文 **39,019 字符 / 61 条要点**（比 `v0.3.22` 恰好多那 1 条身份正文）、**15 个附件全带 `sha256:` digest**，合计 350,111,811 字节。`release-manifest.json` 现读：`version=0.3.23 build=35 commit=02ee9c2 assets=13`。
+- 五平台主包与 `v0.3.22` 逐项对账：`macos-arm64.dmg 22,657,918 → 22,657,951（+33）/ windows-x64-setup.exe 26,840,801 → 26,843,054（+2,253）/ linux-x64.deb 9,927,912 → 9,927,344（−568）/ android-arm64-v8a.apk 36,776,152 → 36,776,152（±0，digest e23de78… → 96ebfb8…）/ android-tv-arm64-v8a.apk 36,395,300 → 36,395,300（±0，digest 590eced… → 364501d…）`。两个 APK 字节数纹丝不动而 digest 变了——`§9.9` 那条「大小相同 ≠ 同一份文件」的坑第三次出现，两边都是刚从各自 Release 现读；这与「本轮只动 api 层的 Dart、没碰原生面」同向，但仍只是大小对账。
+- shipped kernel 的线上读数（在 `hg-cut/packages/update` 里 `dart run tool/live_feed_check.dart 0.3.21 0.3.22 0.3.23`）：`status=available tag=v0.3.23 prerelease=false notes=39019 assets=15 etag=W/"3d08c0ff…"`；`0.3.21` 与 `0.3.22` 的观众各自 `-> available`，`0.3.23 -> upToDate`；四平台选件 macos（`1454439349a9…`）/ windows（`ec093692b1…`）/ linux（`4b91702a6d…`）/ android（`96ebfb8d12…`）的 digest 与 manifest 逐字同源，`ios -> NONE`，latest feed 已指向 `v0.3.23`。
+- **同一笔不对称**：这份补记排在 `02ee9c2` 之后，所以 `v0.3.23` 这棵树里没有它；`v0.3.22` 当时也未写补记，其发布账以本节为准。
+- 仍未闭环（不因为发了版就当作完成）：① 身份一次性租约**没有一次真机播放读数**——证据是三条线上只读探针与 api 套件，「真 vid 在真手机上首帧能不能如期起来、恢复车道在真实网络抖动下的实际命中率」没点过一台设备；② 若上游改成**按 IP / 按账号节流注册**（新身份也拒），本修复同样被耗尽——那是协议变更，不在这轮的防御面内，属挂账的探针哨兵该盯的事；③ `§9.12` 真机清单 A/B 两车道各一遍仍未跑（本机 `adb devices` 零台）；④ `a36cf43` 的 Windows mpv 真句柄 caveat 依旧——本轮拿到的是 CI x64 编译成功与 `media_cache_test` 那 2 条新回归，实体机上的发布段还没有一帧读数；⑤ iOS 仍未签（`ios-signed` skipped）。历轮缺口继续挂着：Mac 真鼠标悬停、Windows 托盘三步、冷启动续位实机读数、iPhone Duo 内屏与半开帧。
+
 
