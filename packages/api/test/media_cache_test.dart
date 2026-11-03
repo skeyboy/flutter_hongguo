@@ -117,6 +117,49 @@ void main() {
     },
   );
 
+  test('a held published file is reused, not re-downloaded, when its manifest '
+      'is lost', () async {
+    // Windows regression: the player keeps its handle until mpv really lets
+    // go. Before, the missing sidecar forced a re-download whose publish
+    // step then died on the delete with a sharing violation (errno 32) and
+    // the viewer read it as "cannot fetch video data" over an intact file.
+    final first = cache.prepare('11');
+    final path = await first.result;
+    final held = File(path).openSync();
+    try {
+      File('$path.json').deleteSync();
+      adapter.downloads = 0;
+      final second = cache.prepare('11');
+      expect(await second.result, path);
+      expect(adapter.downloads, 0, reason: 'the bytes on disk are the video');
+      expect(File('$path.json').existsSync(), isTrue);
+      cache.release(second);
+    } finally {
+      held.closeSync();
+    }
+    cache.release(first);
+  });
+
+  test(
+    'a held target with a stale manifest republishes by reuse, not delete',
+    () async {
+      final first = cache.prepare('11');
+      final path = await first.result;
+      final held = File(path).openSync();
+      try {
+        File('$path.json').writeAsStringSync('{"version":1,"size":1}');
+        final second = cache.prepare('11');
+        expect(await second.result, path);
+        final record = jsonDecode(File('$path.json').readAsStringSync()) as Map;
+        expect(record['size'], File(path).lengthSync());
+        cache.release(second);
+      } finally {
+        held.closeSync();
+      }
+      cache.release(first);
+    },
+  );
+
   test('prune reclaims working files left by a dead session', () async {
     File('${temp.path}/11_best.mp4.1700000000000000.3.part')
       ..writeAsBytesSync([0, 1, 2])

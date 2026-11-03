@@ -49,6 +49,17 @@ class MediaCancelled implements Exception {
   String toString() => '准备已取消';
 }
 
+enum _ManifestState {
+  /// The sidecar says exactly what is on disk.
+  current,
+
+  /// The sidecar disagrees with the file: the bytes are not this video.
+  mismatch,
+
+  /// The sidecar is absent or unreadable -- no evidence about the file.
+  stale,
+}
+
 class MediaPreparation {
   final _result = Completer<String>();
   final _early = Completer<String?>();
@@ -629,22 +640,45 @@ class MediaCache {
         );
         // No await between cancellation check and atomic file publication.
         _check(job);
-        if (!streamPublished) {
-          if (output.existsSync()) output.deleteSync();
-          File(clear).renameSync(output.path);
-          working = null;
-        }
-        if (manifest.existsSync()) manifest.deleteSync();
-        temporaryManifest.renameSync(manifest.path);
-        if (streamPublished) {
-          // The lane read every ciphertext byte to write the published file,
-          // so the working copy is spent here. Retire it at the publish point
-          // instead of leaving a `.part` for the tail of this method.
-          working = null;
+        try {
+          // A lane already wrote the clear bytes under the final cache name,
+          // so publishing it again is a no-op; everything else moves the
+          // decrypted working file into place. Both go through the same
+          // reuse-or-retry rule: Windows refuses to delete or rename over a
+          // handle the player still holds, and the file under that handle is
+          // the finished video, not a failure.
+          await _publishClear(File(clear), output, length);
+        } on FileSystemException {
           try {
-            await File(cipher).delete();
+            await temporaryManifest.delete();
           } on FileSystemException {
-            /* an unreadable leftover is reclaimed by the next prune */
+            /* the finally below and the next prune reclaim it */
+          }
+          rethrow;
+        }
+        working = null;
+        await _writeManifest(manifest, {
+          'version': 1,
+          'size': length,
+          'vid': job.vid,
+          'quality': job.quality,
+        }, '${output.path}.published.json');
+        // The manifest itself moved under its published name; the copy written
+        // beside the working file is spent either way.
+        _deleteQuietly(temporaryManifest.path);
+        if (_samePath(clear, output.path)) {
+          if (streamPublished) {
+            // The lane read every ciphertext byte to write the published file,
+            // so the working copy is spent here. Retire it at the publish
+            // point instead of leaving a `.part` for the tail of this method.
+            _deleteQuietly(cipher);
+          }
+        } else {
+          // The target was reused rather than replaced, so the working copy --
+          // the decrypted file it did not need -- is spent. Its temporary
+          // manifest sat beside it and is reclaimed the same way.
+          for (final spent in [clear, '$clear.json']) {
+            _deleteQuietly(spent);
           }
         }
       }
@@ -728,6 +762,88 @@ class MediaCache {
     }
   }
 
+  /// Windows refuses to delete or rename a file another process -- normally
+  /// the player's own still-open handle -- is reading, while macOS and Linux
+  /// rename an open file freely. A held candidate is retried briefly, then the
+  /// original error surfaces.
+  static void _retryWhileHeld(void Function() operation) {
+    for (var attempt = 0; ; attempt++) {
+      try {
+        operation();
+        return;
+      } on FileSystemException catch (error) {
+        // errno 32 (sharing violation) or 5 (access denied): a handle, not a
+        // broken disk. Anything else is genuine and must not be swallowed.
+        final osError = error.osError?.errorCode;
+        if (!Platform.isWindows ||
+            !(osError == 32 || osError == 5) ||
+            attempt >= 2) {
+          rethrow;
+        }
+        sleep(const Duration(milliseconds: 100));
+      }
+    }
+  }
+
+  static bool _samePath(String a, String b) =>
+      File(a).uri.toString().toLowerCase() ==
+      File(b).uri.toString().toLowerCase();
+
+  Future<void> _writeManifest(
+    File manifest,
+    Map<String, Object> record,
+    String temporaryPath,
+  ) async {
+    await File(temporaryPath).writeAsString(jsonEncode(record), flush: true);
+    try {
+      await _publishClear(File(temporaryPath), manifest, null);
+    } on FileSystemException {
+      try {
+        await File(temporaryPath).delete();
+      } on FileSystemException {
+        /* reclaimed by the next prune */
+      }
+      rethrow;
+    }
+  }
+
+  /// Moves `source` onto `target` -- or proves it is already there, returning
+  /// false when the source was left in place instead. A held target that
+  /// already carries a valid clear video is reused rather than deleted: the
+  /// bytes on disk are the finished result, and failing the job over an
+  /// uncloseable handle is how a healthy Windows library started reading as
+  /// "cannot fetch video data".
+  Future<bool> _publishClear(
+    File source,
+    File target,
+    int? expectedSize,
+  ) async {
+    final targetPath = target.path;
+    if (_samePath(source.path, targetPath)) return true;
+    if (expectedSize != null && target.existsSync()) {
+      var valid = false;
+      try {
+        if (await target.length() == expectedSize) {
+          await FileDecryptor.validateClear(target.path);
+          valid = true;
+        }
+      } on FileSystemException {
+        // A target this job cannot read at all is not a reusable file, and
+        // the delete below reports the real failure.
+      } on FormatException {
+        // Half a video parses as garbage: not reusable.
+      }
+      if (valid) return false;
+    }
+    if (target.existsSync()) {
+      _retryWhileHeld(() {
+        if (target.existsSync()) target.deleteSync();
+      });
+    }
+    _retryWhileHeld(() => source.renameSync(targetPath));
+    return true;
+  }
+
   /// Startup recovery of an already downloaded private working file. Never
   /// resolves a URL. The caller must serialize this before exposing the runtime.
   Future<void> adoptDownloaded(
@@ -748,7 +864,7 @@ class MediaCache {
       throw StateError('Cache entry is in use');
     }
     if (await _cacheHit(output, File('${output.path}.json'))) {
-      if (await file.exists()) await file.delete();
+      _deleteQuietly(file.path);
       return;
     }
     if (!_retainedPath(output.path) && await file.length() > maxBytes) {
@@ -773,26 +889,88 @@ class MediaCache {
       }),
       flush: true,
     );
-    if (output.existsSync()) output.deleteSync();
-    file.renameSync(output.path);
-    if (manifest.existsSync()) manifest.deleteSync();
-    temporary.renameSync(manifest.path);
+    var clearPublished = false;
+    try {
+      clearPublished = await _publishClear(file, output, length);
+    } on FileSystemException {
+      _deleteQuietly(temporary.path);
+      rethrow;
+    }
+    if (!clearPublished) {
+      // The published entry was reused, so the recovered working file -- and
+      // only it -- is the spent copy here.
+      _deleteQuietly(file.path);
+    }
+    await _writeManifest(manifest, {
+      'version': 1,
+      'size': length,
+      'vid': vid,
+      'quality': quality,
+    }, '${output.path}.published.json');
+    _deleteQuietly(temporary.path);
     await prune();
   }
 
   Future<bool> _cacheHit(File file, File manifest) async {
+    if (!await file.exists()) return false;
+    final length = await file.length();
+    // A readable-but-stale manifest is a real mismatch. An absent or corrupt
+    // one is not evidence about the video, and Windows can leave an intact
+    // file stranded that way when a manifest rename loses a race with the
+    // player's handle; re-downloading over that file then used to fail with a
+    // sharing violation. Prove the bytes clear and rewrite the manifest.
+    final recordState = _manifestState(manifest, length);
     try {
-      final record = jsonDecode(await manifest.readAsString()) as Map;
-      if (record['version'] != 1 ||
-          record['size'] != await file.length() ||
-          (record['size'] as int) <= 0) {
-        return false;
-      }
+      if (recordState == _ManifestState.mismatch) return false;
       await FileDecryptor.validateClear(file.path);
+      if (recordState != _ManifestState.current) {
+        final temporary = '${manifest.path}.selfheal.tmp';
+        try {
+          await _writeManifest(manifest, {
+            'version': 1,
+            'size': length,
+          }, temporary);
+        } finally {
+          _deleteQuietly(temporary);
+        }
+      }
       await file.setLastModified(DateTime.now());
       return true;
-    } on Object {
+    } on FormatException {
+      // A truncated or key-corrupted file parses as garbage -- unless its own
+      // manifest vouches for the byte count and the file cannot be read at
+      // all: on Windows that is the shape of a player still holding the
+      // handle while its reader is denied. The download path's reuse rule
+      // proves the bytes once more and takes the file back without a second
+      // transfer racing the lock.
       return false;
+    } on FileSystemException {
+      return false;
+    }
+  }
+
+  _ManifestState _manifestState(File manifest, int length) {
+    try {
+      final record = jsonDecode(manifest.readAsStringSync()) as Map;
+      final recorded = record['size'];
+      if (record['version'] != 1 || recorded != length || length <= 0) {
+        return _ManifestState.mismatch;
+      }
+      return _ManifestState.current;
+    } on FormatException {
+      return _ManifestState.stale;
+    } on FileSystemException {
+      return _ManifestState.stale;
+    } on Object {
+      return _ManifestState.mismatch;
+    }
+  }
+
+  void _deleteQuietly(String path) {
+    try {
+      File(path).deleteSync();
+    } on FileSystemException {
+      /* reclaimed by the next prune */
     }
   }
 
