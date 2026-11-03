@@ -2,6 +2,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 
+import 'cover_decode_size.dart';
+
 /// Shared online artwork with cached loading; explicit local providers remain
 /// authoritative so offline browsing never falls back to a network request.
 class DramaCover extends StatefulWidget {
@@ -22,9 +24,55 @@ class DramaCover extends StatefulWidget {
 class _DramaCoverState extends State<DramaCover> {
   int attempt = 0;
   bool retrying = false;
+
+  /// The ladder step the artwork is decoded to, held across a resize rather than
+  /// followed pixel by pixel. See [ResizeGate].
+  int? _bucket;
+
+  /// The step the latest measure asked for, committed once the resizing settles.
+  int _pendingBucket = 0;
+
+  /// Only a cover that has never been on screen fades in: a ladder step taken up
+  /// after a drag is the same artwork, and replaying the fade reads as a flicker.
+  bool _fadeIn = true;
+
+  ResizeGate get _resizeGate => ResizeGate.instance;
+  ValueNotifier<bool> get _holding => _resizeGate.holding;
   Drama get drama => widget.drama;
   ImageProvider? get imageProvider => widget.imageProvider;
   bool get allowNetwork => widget.allowNetwork;
+
+  @override
+  void initState() {
+    super.initState();
+    _resizeGate.addListener(_onResizeSettled);
+  }
+
+  @override
+  void didUpdateWidget(DramaCover oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A different card in the same slot is a first paint of its own artwork.
+    if (widget.drama.id != oldWidget.drama.id) _fadeIn = true;
+  }
+
+  @override
+  void dispose() {
+    _resizeGate.removeListener(_onResizeSettled);
+    super.dispose();
+  }
+
+  /// The gate opens on a timer, not in a frame, so this is where a cell is
+  /// allowed to ask for its own rebuild: waiting for the next frame instead would
+  /// leave the drag's last measurement uncommitted until something else moves.
+  void _onResizeSettled() {
+    if (_holding.value) return;
+    final live = _pendingBucket;
+    if (!mounted || live == 0 || live == _bucket) return;
+    setState(() {
+      _bucket = live;
+      _fadeIn = false;
+    });
+  }
 
   Future<void> _retry(String url) async {
     if (retrying) return;
@@ -38,6 +86,7 @@ class _DramaCoverState extends State<DramaCover> {
         setState(() {
           retrying = false;
           attempt++;
+          _fadeIn = true;
         });
       }
     }
@@ -129,12 +178,17 @@ class _DramaCoverState extends State<DramaCover> {
           : LayoutBuilder(
               builder: (context, constraints) {
                 final reducedMotion = MediaQuery.disableAnimationsOf(context);
-                final width = constraints.maxWidth;
-                final decodeWidth = width.isFinite && width > 0
-                    ? (width * MediaQuery.devicePixelRatioOf(context))
-                          .ceil()
-                          .clamp(1, 1600)
-                    : null;
+                _resizeGate.touch();
+                final live = coverDecodeBucket(
+                  constraints.maxWidth,
+                  MediaQuery.devicePixelRatioOf(context),
+                );
+                _pendingBucket = live;
+                // The first measure commits where it stands; after that the
+                // committed step survives the drag.
+                final bucket = _bucket ?? live;
+                _bucket = bucket;
+                final decodeWidth = bucket == 0 ? null : bucket;
                 return CachedNetworkImage(
                   // New drama IDs must never display another drama's old cover.
                   // URL refreshes for the same ID can keep the previous artwork.
@@ -145,10 +199,10 @@ class _DramaCoverState extends State<DramaCover> {
                   height: double.infinity,
                   memCacheWidth: decodeWidth,
                   useOldImageOnUrlChange: true,
-                  fadeInDuration: reducedMotion
+                  fadeInDuration: reducedMotion || !_fadeIn
                       ? Duration.zero
                       : const Duration(milliseconds: 140),
-                  fadeOutDuration: reducedMotion
+                  fadeOutDuration: reducedMotion || !_fadeIn
                       ? Duration.zero
                       : const Duration(milliseconds: 80),
                   placeholder: (_, _) => _loading(),
