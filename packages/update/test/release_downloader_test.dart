@@ -222,4 +222,68 @@ void main() {
       expect(File(second.path).readAsBytesSync(), payload);
     },
   );
+
+  test('bytes already verified on disk are not fetched again', () async {
+    // The duplicate download this guards: press 立即更新, close the app, press
+    // again -- the 36 MB was already on the device and checked.
+    await fetcher({url: payload})
+        .fetch(asset(sha256Value: payloadHash), release());
+    final adapter = Routed({url: payload});
+    final downloaded = await ReleaseDownloader(
+      dio: Dio()..httpClientAdapter = adapter,
+      destination: destination,
+    ).fetch(asset(sha256Value: payloadHash), release());
+    expect(adapter.requested, isEmpty);
+    expect(downloaded.reused, isTrue);
+    expect(downloaded.sha256, payloadHash);
+  });
+
+  test('a truncated leftover is fetched again, not trusted', () async {
+    File('${destination.path}/$name')
+      ..createSync()
+      ..writeAsBytesSync(payload.sublist(0, payload.length - 1));
+    final adapter = Routed({url: payload});
+    final downloaded = await ReleaseDownloader(
+      dio: Dio()..httpClientAdapter = adapter,
+      destination: destination,
+    ).fetch(asset(sha256Value: payloadHash), release());
+    expect(adapter.requested, [url]);
+    expect(downloaded.reused, isFalse);
+  });
+
+  test('two presses in one frame share a single transfer', () async {
+    final downloader = fetcher({url: payload});
+    final first = downloader.fetch(asset(sha256Value: payloadHash), release());
+    final second = downloader.fetch(asset(sha256Value: payloadHash), release());
+    final pair = await Future.wait([first, second]);
+    expect(pair[0].path, pair[1].path);
+    expect(pair[1].bytes, payload.length);
+    final progress = <int>[];
+    await downloader.fetch(
+      asset(sha256Value: payloadHash),
+      release(),
+      onProgress: (received, total) => progress.add(received),
+    );
+    expect(progress, [
+      payload.length,
+    ], reason: 'a reused file still reports 100%');
+  });
+
+  test(
+    'a finished transfer leaves nothing in flight for the next press',
+    () async {
+      final downloader = fetcher({url: payload});
+      await expectLater(
+        downloader.fetch(asset(sha256Value: 'f' * 64), release()),
+        throwsA(isA<UpdateFailure>()),
+      );
+      final adapter = Routed({url: payload});
+      final downloaded = await ReleaseDownloader(
+        dio: Dio()..httpClientAdapter = adapter,
+        destination: destination,
+      ).fetch(asset(sha256Value: payloadHash), release());
+      expect(adapter.requested, [url]);
+      expect(downloaded.bytes, payload.length);
+    },
+  );
 }

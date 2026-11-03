@@ -8,9 +8,9 @@ import 'package:path_provider/path_provider.dart';
 
 import '../platform/macos_window.dart';
 import '../platform/runtime.dart';
-import 'android_update_channel.dart';
 import 'update_controller.dart';
 import 'update_dialog.dart';
+import 'update_transfer.dart';
 
 /// Updates belong to an installed app. A browser tab has no installer to run
 /// and a television is side-loaded by hand, so neither gets the feature at all.
@@ -41,15 +41,15 @@ UpdateController sharedUpdateController(AppRuntime runtime, {Dio? transport}) =>
     );
 
 /// Where a downloaded installer waits to be verified and handed over.
+///
+/// The same folder under the app's support directory on every platform, because
+/// that is the only place the system's transfer lane can be pointed at: it
+/// addresses files relative to that base, and a stage folder it cannot name would
+/// leave the download and the note about it in two different places.
 Future<String> stageDirectoryFor() async {
   final support = await getApplicationSupportDirectory();
-  // The Android installer reads the APK through this app's own file handle, so
-  // a native stage directory is preferred but its absence is not fatal.
-  final staged = defaultTargetPlatform == TargetPlatform.android
-      ? await AndroidUpdate.stageDirectory()
-      : null;
   final updates = Directory(
-    '${staged ?? support.path}${Platform.pathSeparator}updates',
+    '${support.path}${Platform.pathSeparator}$updatePackagePath',
   );
   await updates.create(recursive: true);
   return updates.path;

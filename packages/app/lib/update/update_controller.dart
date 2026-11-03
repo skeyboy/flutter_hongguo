@@ -9,6 +9,7 @@ import 'package:hongguo_update/hongguo_update.dart';
 import 'android_update_channel.dart';
 import 'app_release.dart';
 import 'install_strategy.dart';
+import 'update_transfer.dart';
 
 /// A version check, its verdict in the user's words, and the one file this
 /// device would install. Everything platform-specific arrives through the four
@@ -26,6 +27,24 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
   /// What to do when a platform can only install by taking over the app itself.
   /// Injectable because a test must not be able to end the process.
   final Future<void> Function() exitApp;
+
+  /// The operating system's transfer lane, or a stand-in for a suite that has no
+  /// plugin to hand a download to.
+  final InstallerEngine? installerEngine;
+
+  /// Whether this host may run an installer download in the background at all --
+  /// the same policy the episode cache uses, read from the viewer's own setting.
+  final bool Function()? systemLaneAllowed;
+
+  /// What to do with a file whose bytes matched. Injectable because the real
+  /// handoff opens Finder, starts an installer, or ends this process -- and a
+  /// suite that only wants to see the order of operations may do none of those.
+  final Future<InstallPlan> Function(
+    DownloadedRelease file,
+    ReleaseInfo release,
+    AndroidInstaller android,
+  )
+  handoff;
 
   DateTime Function() clock = DateTime.now;
 
@@ -48,6 +67,17 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
   /// way out -- so a payment made after the process was taken away clears it too.
   bool installOwed = false;
 
+  /// The installer for [offer] is on this device, its bytes checked, and nothing
+  /// has been handed to the system yet: a background transfer that finished while
+  /// the app slept, or one that completed after its dialog closed. The prompt
+  /// turns 立即更新 into 立即安装 on this, and asks once.
+  bool installReady = false;
+
+  /// A transfer the operating system owns. It keeps running when this dialog
+  /// closes and when the app is taken away, so the press that started it is not
+  /// the thing that has to stay alive.
+  bool transferring = false;
+
   bool _watchingLifecycle = false;
 
   /// Android's install is the one handoff that can outlive the app: the verified
@@ -57,6 +87,26 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
     stageDirectory: stageDirectory,
   );
 
+  /// The note of installer files this device took or is taking, and the two lanes
+  /// that can fill it.
+  late final UpdateJournal _journal = UpdateJournal(
+    stageDirectory: stageDirectory,
+  );
+
+  late final UpdateTransferLane _transfers = UpdateTransferLane(
+    journal: _journal,
+    settings: readSettings,
+    // Its own transport, held for the controller's life: the runtime's Dio
+    // carries the upstream video API's timeouts, a multi-minute installer
+    // download must not inherit them -- and a transfer the app was told to
+    // outlive cannot be closed when the dialog that started it goes away.
+    dio: _transferDio(),
+    packageDirectory: stageDirectory,
+    packagePath: updatePackagePath,
+    engine: installerEngine,
+    systemLaneAllowed: systemLaneAllowed,
+  );
+
   UpdateController({
     required Dio dio,
     required this.readSettings,
@@ -64,6 +114,9 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
     required this.stageDirectory,
     this.exitApp = _leaveProcess,
     this.policy = const UpdatePolicy(),
+    this.installerEngine,
+    this.systemLaneAllowed,
+    this.handoff = _handOffDefault,
   }) : feed = ReleaseFeed(dio: dio, repository: AppRelease.repository);
 
   static Future<void> _leaveProcess() async {
@@ -77,11 +130,18 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
       ReleaseVersion.tryParse(AppRelease.version) ??
       const ReleaseVersion(numbers: [0, 0, 0]);
 
-  bool get busy => checking || downloading;
+  bool get busy => checking || downloading || transferring;
 
   /// Whether this platform can be given an installer at all.
   bool get canInstall =>
       offer != null && currentUpdateTarget().hasInstallableAsset;
+
+  /// Whether the line under the buttons is worth reading: a transfer running, a
+  /// package waiting to be installed, or a debt still unpaid. Each of those can
+  /// arrive while `downloading` is already false, and a prompt that swallows the
+  /// sentence is what the viewer is left staring at.
+  bool get showsMessage =>
+      downloading || transferring || installOwed || installReady;
 
   /// Startup check. The resumed observer is registered here, so a background
   /// return re-checks through the same throttled path -- and a launch the system
@@ -110,17 +170,27 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(_returnToForeground());
   }
 
-  /// Coming back to the app answers two things, in this order: the daily check
-  /// first, then the install the settings screen was blocking -- last, so that the
-  /// system's own words about the session are what the viewer reads.
+  /// Coming back to the app answers three things, in this order: the daily check,
+  /// then a package the system finished while the app was away, then the install
+  /// the settings screen was blocking -- last, so that the system's own words about
+  /// the session are what the viewer reads.
   ///
-  /// Only Android owes one. Every other platform finishes its handoff inside
-  /// [install], and the desktop builds have no `hongguo/update` handler to ask.
+  /// Only Android owes the third one. Every other platform finishes its handoff
+  /// inside [install], and the desktop builds have no `hongguo/update` handler.
   Future<void> _returnToForeground() async {
     await runQuietly();
+    await settleOnReturn();
     if (currentUpdateTarget().platform != ReleasePlatform.android) return;
+    final hadDebt = await _android.hasOwedInstall();
     final word = await _android.resume();
     installOwed = await _android.hasOwedInstall();
+    if (hadDebt && !installOwed) {
+      // The debt is paid, so the package it named is spent: a note left behind
+      // would ask this viewer to install the release they just installed.
+      final release = offer;
+      if (release != null) await _journal.drop(release.tag);
+      installReady = false;
+    }
     if (word == null) return;
     error = null;
     message = word;
@@ -261,54 +331,157 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
   /// Download, verify, then hand the file to the operating system. Every return
   /// path leaves either a message that says what to do next or an error the
   /// settings row shows -- and never a half-written installer.
+  ///
+  /// Bytes that are already on this device and already checked are never fetched
+  /// again, which is what a second press -- or a press after a background
+  /// transfer finished -- costs nothing.
   Future<InstallPlan?> install() async {
     final release = offer;
-    if (release == null || downloading) return null;
+    if (release == null || downloading || transferring) return null;
     final asset = (await _targetForDevice()).installer(release);
     if (asset == null) {
       error = '这个发布没有适配本机的安装包，请打开发布页下载。';
       notifyListeners();
       return null;
     }
-    downloading = true;
-    progress = null;
-    _announced = 0;
-    error = null;
+    // Bytes already on this device and already checked are never fetched again:
+    // this is what a press after a finished background transfer, and a press that
+    // repeats one, costs nothing. Only the lane that journals files can answer it,
+    // and the desktop handoff needs no note at all.
+    var file = _transfers.usesSystemLane
+        ? await _transfers.settle(release.tag)
+        : null;
+    if (file == null) {
+      if (_transfers.usesSystemLane) {
+        // Handed over rather than awaited here: the dialog must be free to close,
+        // and the transfer has to keep running when the app is taken away.
+        transferring = true;
+        progress = null;
+        _announced = 0;
+        error = null;
+        message = '安装包正在后台下载，进度见通知栏；下载完成后会提示是否安装。';
+        notifyListeners();
+        unawaited(_transferInBackground(release, asset));
+        return null;
+      }
+      downloading = true;
+      progress = null;
+      _announced = 0;
+      error = null;
+      notifyListeners();
+      try {
+        file = await _transfers.fetch(
+          asset,
+          release,
+          onProgress: reportProgress,
+        );
+      } on UpdateFailure catch (failure) {
+        error = failure.message;
+        return null;
+      } on Object {
+        error = '更新文件没能准备好，请稍后重试。';
+        return null;
+      } finally {
+        downloading = false;
+        progress = null;
+        notifyListeners();
+      }
+    }
+    return _handOff(file, release);
+  }
+
+  /// The one place a checked file becomes an install, so a background transfer
+  /// that lands later says the same things the pressed button said before.
+  Future<InstallPlan> _handOff(
+    DownloadedRelease file,
+    ReleaseInfo release,
+  ) async {
+    installReady = false;
+    final plan = await handoff(file, release, _android);
+    message = plan.message;
+    installOwed = plan.owesInstall;
+    // A package the system has taken needs no note and no bytes: keeping it would
+    // have a later return offer to install a release that is already installed.
+    // Only where the install reads the file itself -- on the desktop the verified
+    // download *is* what the viewer still has to open, so it stays.
+    if (!plan.owesInstall &&
+        currentUpdateTarget().platform == ReleasePlatform.android) {
+      await _journal.drop(release.tag);
+    }
+    // The prompt was answered: a transfer this device just handed to the system
+    // must not come back as a new interruption later in the same session.
+    unseenOffer = null;
+    if (plan.appWillExit) await exitApp();
     notifyListeners();
-    Dio? transfer;
+    return plan;
+  }
+
+  /// The system lane's transfer, finished wherever this process still is.
+  ///
+  /// Nothing here is owed an answer: when the app was taken away mid-transfer the
+  /// note and [settleOnReturn] carry the outcome, and this only makes the prompt
+  /// arrive as soon as the bytes are checked.
+  Future<void> _transferInBackground(
+    ReleaseInfo release,
+    ReleaseAsset asset,
+  ) async {
     try {
-      // Its own transport: the runtime's Dio carries the upstream video API's
-      // timeouts, and a multi-minute installer download must not inherit them.
-      transfer = _transferDio();
-      final downloader = ReleaseDownloader(
-        dio: transfer,
-        destination: Directory(await stageDirectory()),
-      );
-      final file = await downloader.fetch(
+      final file = await _transfers.fetch(
         asset,
         release,
         onProgress: reportProgress,
       );
-      final plan = await handOff(file, release, android: _android);
-      message = plan.message;
-      installOwed = plan.owesInstall;
-      // The prompt was answered: a transfer this device just handed to the system
-      // must not come back as a new interruption later in the same session.
-      unseenOffer = null;
-      if (plan.appWillExit) await exitApp();
-      return plan;
+      if (offer?.tag != release.tag) return;
+      installReady = true;
+      message =
+          '新版本 ${release.tag} 已下载完成（${(file.bytes / 1024 / 1024).toStringAsFixed(1)} MB），是否安装？';
+      // Re-raised rather than announced from the runner: the prompt already knows
+      // how to wait for the player or a download page to clear.
+      unseenOffer = release;
     } on UpdateFailure catch (failure) {
       error = failure.message;
-      return null;
     } on Object {
       error = '更新文件没能准备好，请稍后重试。';
-      return null;
     } finally {
-      transfer?.close(force: true);
-      downloading = false;
+      transferring = false;
       progress = null;
       notifyListeners();
     }
+  }
+
+  /// A package this device already holds for the standing offer.
+  ///
+  /// Runs on every return, because this is the only way a download the system
+  /// finished in the app's absence turns into a question instead of a file nobody
+  /// mentions again. A host that never hands a download over has no note to read,
+  /// so it is asked no question and touches no disk.
+  Future<void> settleOnReturn() async {
+    final release = offer;
+    if (release == null ||
+        !_transfers.usesSystemLane ||
+        transferring ||
+        installReady) {
+      return;
+    }
+    final file = await _transfers.settle(release.tag);
+    if (file != null) {
+      installReady = true;
+      message = '新版本 ${release.tag} 已下载完成，是否安装？';
+      unseenOffer = release;
+      notifyListeners();
+      return;
+    }
+    if (await _transfers.isTransferring(release.tag)) {
+      transferring = true;
+      message = '安装包仍在后台下载，完成后会提示是否安装。';
+      notifyListeners();
+    }
+  }
+
+  /// Back from the 「安装未知应用」 screen the prompt sent the viewer to. Android-only:
+  /// every other platform finishes its handoff inside [install].
+  Future<void> openInstallSettings() async {
+    await AndroidUpdate.openInstallPermissionSettings();
   }
 
   /// One notification per percentage point, not per socket chunk.
@@ -349,3 +522,11 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
 Dio _transferDio() =>
     Dio(BaseOptions(connectTimeout: const Duration(seconds: 20)))
       ..options.receiveTimeout = null;
+
+/// What the operating system does with a file whose bytes matched -- the product
+/// answer, which a suite replaces rather than inherits.
+Future<InstallPlan> _handOffDefault(
+  DownloadedRelease file,
+  ReleaseInfo release,
+  AndroidInstaller android,
+) => handOff(file, release, android: android);

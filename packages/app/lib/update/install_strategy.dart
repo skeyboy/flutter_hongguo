@@ -84,17 +84,22 @@ class AndroidInstaller {
   }
 
   /// A return to the app, and what it has to say about the install it found
-  /// owed. Null means this app owed nothing -- the common case on every platform
-  /// without an installer path, and on Android once the note has been paid.
+  /// owed. Null means this app owed nothing and the system had no words for it --
+  /// the common case on every platform without an installer path, and on Android
+  /// once the note has been paid.
   ///
   /// A debt that is still unpaid answers in words. Staying silent here was the
   /// hole a viewer lands in most often: they press 立即更新, Android takes the app to
   /// the settings screen, they come back without turning the switch -- and
   /// nothing on screen says the update is still waiting, because the prompt
   /// closed on the way out and the only trace was a file nobody reads.
+  ///
+  /// With no debt left, the answer can still be a sentence the system wrote while
+  /// this process was gone: the session reports into the launch the installer
+  /// itself started, where no `install` call is waiting to hear it.
   Future<String?> resume() async {
     final pending = await _read();
-    if (pending == null) return null;
+    if (pending == null) return AndroidUpdate.lastInstallResult();
     if (!await AndroidUpdate.canInstallPackages()) {
       return '还欠着一次更新安装：本应用仍未被允许安装未知应用。在系统设置里打开该权限后回到应用会自动继续，不需要再点一次。';
     }

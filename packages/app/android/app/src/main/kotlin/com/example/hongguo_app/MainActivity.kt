@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import android.util.Rational
 import android.view.KeyEvent
@@ -56,14 +57,31 @@ class MainActivity : AudioServiceActivity() {
     /// [android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION] and the
     /// dialog wrapped in [Intent.EXTRA_INTENT] -- launching that wrapped intent is
     /// the only way the installer UI appears.
+    ///
+    /// The trip to 「安装未知应用」 is exactly when Android takes this process, and the
+    /// status intent is then what starts it again -- so the same answer also arrives
+    /// in [getIntent], where nothing is waiting for it.
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        intent?.let { handleInstallResult(it) }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        handleInstallResult(intent)
+    }
+
+    private fun handleInstallResult(intent: Intent) {
         if (intent.action != INSTALL_RESULT_ACTION) return
         val status = intent.getIntExtra(
             android.content.pm.PackageInstaller.EXTRA_STATUS,
             android.content.pm.PackageInstaller.STATUS_FAILURE
         )
         if (status == android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION) {
+            // Only a call still waiting may open the confirmation: a launch the
+            // installer itself started would otherwise raise a second dialog over
+            // the one already on screen.
+            if (installReply == null) return
             val confirm = confirmIntent(intent)
             val opened = confirm != null && runCatching { startActivity(confirm) }.isSuccess
             answerInstall(
@@ -97,10 +115,31 @@ class MainActivity : AudioServiceActivity() {
     /// Answers the waiting `install` call exactly once: the system can deliver a
     /// second status after a rotation or a late confirm, and a [MethodChannel.Result]
     /// that has already been used must not be touched again.
+    ///
+    /// With nothing waiting -- the launch the installer itself started -- the words
+    /// are written down instead of dropped, because 「新版本已安装」 arriving in a
+    /// process that has no call to answer is the only answer the viewer will get.
     private fun answerInstall(message: String) {
-        val reply = installReply ?: return
+        val reply = installReply
+        if (reply == null) {
+            runCatching { resultFile().writeText(message) }
+            return
+        }
         installReply = null
         reply.success(message)
+    }
+
+    private fun resultFile() = java.io.File(filesDir, INSTALL_RESULT_FILE)
+
+    /// The words a launch without a waiting call kept, taken once: reading them
+    /// again on a later return would repeat a sentence about an install that has
+    /// long since settled.
+    private fun takeInstallResult(): String? {
+        val file = resultFile()
+        if (!file.isFile) return null
+        val words = runCatching { file.readText() }.getOrNull()
+        runCatching { file.delete() }
+        return words
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -169,15 +208,11 @@ class MainActivity : AudioServiceActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "hongguo/update")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
-                    "stageDir" -> {
-                        val dir = java.io.File(filesDir, "updates")
-                        if (!dir.isDirectory) dir.mkdirs()
-                        result.success(dir.absolutePath)
-                    }
                     "abi" -> result.success(Build.SUPPORTED_ABIS.toList())
                     "canInstall" -> result.success(canRequestInstalls())
                     "askPermission" -> result.success(openInstallPermissionSettings())
                     "install" -> beginInstall(call.argument<String>("path"), result)
+                    "installResult" -> result.success(takeInstallResult())
                     else -> result.notImplemented()
                 }
             }
@@ -191,14 +226,34 @@ class MainActivity : AudioServiceActivity() {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()
 
     /// Opens this app's 「安装未知应用」 row. Android 8+ keeps that permission out
-    /// of the runtime dialog, so the only way to get it is the settings screen.
+    /// of the runtime dialog, so the only way to get it is a settings screen.
+    ///
+    /// `ACTION_MANAGE_UNKNOWN_APP_SOURCES` is not on every ROM, and an
+    /// `startActivity` that finds nothing fails quietly in the middle of an update,
+    /// so the app-details page is the fallback that resolves on every device. A
+    /// `false` here now means neither screen exists -- the only case where the
+    /// caller has to name the switch by hand instead of pointing at it.
     private fun openInstallPermissionSettings(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
-        val intent = Intent(
-            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-            Uri.parse("package:$packageName")
+        val packageUri = Uri.parse("package:$packageName")
+        if (openIfAvailable(
+                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, packageUri)
+            )
+        ) return true
+        return openIfAvailable(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
         )
-        return runCatching { startActivity(intent) }.isSuccess
+    }
+
+    private fun openIfAvailable(intent: Intent): Boolean {
+        val resolver = packageManager.resolveActivity(
+            intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY
+        )
+        if (resolver == null) return false
+        return runCatching {
+            startActivity(intent)
+            true
+        }.getOrDefault(false)
     }
 
     /// Installs through a [android.content.pm.PackageInstaller] session, which
@@ -265,5 +320,9 @@ class MainActivity : AudioServiceActivity() {
 
     companion object {
         private const val INSTALL_RESULT_ACTION = "hongguo.update.result"
+
+        /// Where install words are written down when no Dart call is around to hear
+        /// them, so the next `resume` can hand them over.
+        private const val INSTALL_RESULT_FILE = "hongguo-install-result.txt"
     }
 }

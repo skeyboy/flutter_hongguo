@@ -31,11 +31,14 @@
 
 | 面 | 落点 | 职责 |
 | --- | --- | --- |
-| 纯 Dart 内核 | `packages/update/lib/src/{release_version,release_info,update_target,release_feed,update_policy,release_downloader}.dart` | 版本号解析与比较、feed 解析（含 ETag/304/未认证错误）、按 os+arch 选附件、下载到 `.part` → sha256 校验 → 改名、决策枚举 |
-| 编排 | `packages/app/lib/update/update_controller.dart` | 注入 `dio` / 当前版本 / `target` / 读写 `AppSettings`；节流、`WidgetsBindingObserver` 的 resumed 触发（先例 `packages/app/lib/downloads/download_manager.dart:89,534,554`）、下载进度、失败语言 |
+| 纯 Dart 内核 | `packages/update/lib/src/{release_version,release_info,update_target,release_feed,update_policy,release_downloader}.dart` | 版本号解析与比较、feed 解析（含 ETag/304/未认证错误）、按 os+arch 选附件、下载到 `.part` → sha256 校验 → 改名、决策枚举；**同一 URL 的并发点击共用一次传输**（`release_downloader.dart:52,72,83` 的进程内 in-flight，登记在第一个挂起点之前），已经校验过的同名文件按 sha256 直接认领（`:143` 的 `settled`，`DownloadedRelease.reused` 把「没重下」说给消费者） |
+| 编排 | `packages/app/lib/update/update_controller.dart` | 注入 `dio` / 当前版本 / `target` / 读写 `AppSettings`；节流、`WidgetsBindingObserver` 的 resumed 触发（先例 `packages/app/lib/downloads/download_manager.dart:89,534,554`）、下载进度、失败语言；按车道分派按下之后的事（`:338` `install()`：系统车道交出去就返回，`:424` 传完再问一次「是否安装」），并在每次回到应用时收养系统传完的包（`:458` `settleOnReturn()`） |
+| 传输车道 | `packages/app/lib/update/update_transfer.dart` | 一个暂存目录（`:17`，`<applicationSupport>/updates`）两种车道：本进程下载，或把 `DownloadTask` 交给 `background_downloader`（`:223`，组级通知 `:232`，不与媒体通知抢全局文案）；`:120` 的 `UpdateJournal` 是「这块盘上的包属于哪个版本、传到哪一步」的唯一账面，`:346,364` 的同帧门槛与 `:467` `settle()` 的认领一起把重复下载堵死 |
 | 安装策略 | `packages/app/lib/update/install_strategy.dart` | 按平台把校验完的文件交给系统：见 §5 表 |
-| UI | `packages/app/lib/update/update_dialog.dart` + `settings_page.dart` 新段 + 根页挂载 | 弹窗（正文可滚）、「检查更新」行、忽略语义 |
-| 原生 | `packages/app/android/app/src/main/kotlin/.../MainActivity.kt` 新通道 + `AndroidManifest.xml` 权限 | `abi` / `stageDir` / `canInstall` / `askPermission` / `install`，安装结果由 `onNewIntent` 读 `PackageInstaller.EXTRA_STATUS` 后回话 |
+| UI | `packages/app/lib/update/update_dialog.dart` + `settings_page.dart` 新段 + 根页挂载 | 弹窗（正文可滚，可见条件见 §9.12 的 `showsMessage`）、「检查更新」行、忽略语义、主按钮四态与欠装时的 `去系统设置` 出口 |
+
+> **本节「不新开文件」那句已被 §9.12 部分推翻（2026-11-03）**：`AppSettings` 那四个字段的账没变，但后台车道必须能在进程被拿走之后回答「这一版的包在哪、传到哪一步」，那是 `AppSettings` 的节流/偏好形状答不了的，于是新增一张条 `<applicationSupport>/updates/hongguo-update-journal.json`（`update_transfer.dart:120,123`，只留 2 个 tag、超限连文件一起删），原生侧另有一句话文件 `filesDir/hongguo-install-result.txt`（`MainActivity.kt:132`）。两张都跟着「读一次即删 / 装完即删」走，不留长尾。
+| 原生 | `packages/app/android/app/src/main/kotlin/.../MainActivity.kt` 新通道 + `AndroidManifest.xml` 权限 | `abi` / `canInstall` / `askPermission` / `install` / `installResult`（`stageDir` 已删：暂存目录由 Dart 一侧定，见上「传输车道」）。安装结果的两个入口都接：`onCreate` 读 `getIntent`、`onNewIntent` 读新 intent（`MainActivity.kt:64-71`），因为把应用拉起来的那一趟是安装器自己发起的；没有 Dart 调用在听时，终态写进 `filesDir/hongguo-install-result.txt`（`:122,132`），下一次回到应用由 `installResult` 取走并删除（`:137`，Dart 侧 `android_update_channel.dart:90`）。「安装未知应用」那一行在本机 ROM 上不存在时退到应用详情页（`:236-244`） |
 
 持久化跟着现有链路走，不新开文件：`AppSettings` 增**四**字段 `updateChecksEnabled`（默认开）、`ignoredUpdateVersion`、`lastUpdateCheckAt`（epoch 毫秒）、`updateFeedEtag`（上一问的校验子），改齐字段、`toJson:88`、`fromJson:114`、`copyWith:168` 与 `validate:240` 五处（`validate` 限长 120 且拒绝换行，防写入失控的响应头）；写盘仍是 `settings/settings_store.dart` → `FilePreferencesBackend`（tmp+rename）。
 
@@ -55,7 +58,7 @@
 | --- | --- | --- | --- |
 | Windows | `Hongguo-<v>-windows-x64-setup.exe` | 下载 → sha256 → 写一条 `start "" "<setup>" /VERYSILENT /NORESTART /SUPPRESSMSGBOXES` 的临时 cmd 并 detached 起 → `exit(0)` 让正在运行的 exe 解锁。`tool/ci/windows-installer.iss` 是 `PrivilegesRequired=lowest` + `DefaultDirName={localappdata}\Programs\Hongguo` + 固定 `AppId`，所以原地升级不要 UAC、也不会开出第二份安装 | 单测覆盖选件/校验；**没有 Windows 设备**，静默装成功与否不做实机断言 |
 | macOS | `Hongguo-<v>-macos-arm64.dmg`（v0.3.13 实测 22,547,501 字节 ≈ 21.5 MB） | 下载（沙箱内 app support 的 `updates/`）→ sha256 → `open <dmg>`；`open` 失败再退到 `open -R` 并在弹窗里给出可选中的完整路径 | macOS 真窗口跑通「检查 → 下载 21.5 MB dmg → 校验 → 弹出 dmg」，见 §9；本轮取不到窗口像素，所以只有运行期结论、没有画面结论 |
-| Android（mobile flavor） | `Hongguo-<v>-android-<abi>.apk`，`abi` 取 `Build.SUPPORTED_ABIS` 首个，回落 `arm64-v8a` | 下载 → sha256 → **先问 `canRequestPackageInstalls()`**：没开就 `startActivity(ACTION_MANAGE_UNKNOWN_APP_SOURCES, package:…)`，并把已校验 APK 的**路径与字节数写进下载目录里的欠装记录**（`hongguo-pending-install.json`），此后任何一次回到应用（`resumed` 或冷启动 `start()`）都会先核身再补开 `PackageInstaller` 会话，观众不需要再点一次；开了就直接开会话。`commit` 的 `PendingIntent` 回到 `onNewIntent`，`STATUS_PENDING_USER_ACTION` 就把 `Intent.EXTRA_INTENT` 拉起（系统确认弹窗由此出现），`SUCCESS`/`FAILED` 与 `EXTRA_STATUS_MESSAGE` 原样回话给 `install` 那一次调用 | 逻辑与选件走单测（`test/android_install_test.dart` 十例，含「去设置那一趟之后冷启动也算数」「记录一旦开会话立刻作废」「被系统清理过的包不再开会话」）＋ Kotlin 在本机 `flutter build apk --debug --flavor mobile` 编过；**不做真机安装**，装机成功与否仍不声称 |
+| Android（mobile flavor） | `Hongguo-<v>-android-<abi>.apk`，`abi` 取 `Build.SUPPORTED_ABIS` 首个，回落 `arm64-v8a` | **下载有两条车道，选择只看观众的「后台下载」开关与宿主**（`host_policy.dart` 的 `useSystemTransferLane`）：开着时按下 `立即更新` 把 `DownloadTask` 交给 `background_downloader`（通知栏走组级文案 `hongguo-update`，应用被系统拿走也继续传），传完由车道校验、写 `ready` 记录，再问一次「是否安装」；关着时仍是本进程下载。**两条车道都不重下已经在盘上且校验过的包**（同帧两次点击被 `update_transfer.dart:346` 的进程内门槛与 `:410` 起的「笔记说还在传」堵住）。校验通过后**先问 `canRequestPackageInstalls()`**：没开就 `startActivity(ACTION_MANAGE_UNKNOWN_APP_SOURCES, package:…)`，该 activity 在本机 ROM 上解析不到时退到应用详情页，并把已校验 APK 的**路径与字节数写进下载目录里的欠装记录**（`hongguo-pending-install.json`），此后任何一次回到应用（`resumed` 或冷启动 `start()`）都会先核身再补开 `PackageInstaller` 会话，观众不需要再点一次；开了就直接开会话。`commit` 的 `PendingIntent` 由 `onCreate` 与 `onNewIntent` 两处读（安装器自己拉起进程那一趟走的是前者），`STATUS_PENDING_USER_ACTION` 就把 `Intent.EXTRA_INTENT` 拉起（系统确认弹窗由此出现），`SUCCESS`/`FAILED` 与 `EXTRA_STATUS_MESSAGE` 原样回话给 `install` 那一次调用；**没有调用在听时落盘，下一次回到应用取走一次** | 逻辑与选件走单测（`test/android_install_test.dart` 十二例，含「去设置那一趟之后冷启动也算数」「记录一旦开会话立刻作废」「被系统清理过的包不再开会话」「安装器自启的进程留下的那句话只读一次」；车道与重复下载另见 `test/update_transfer_test.dart` 十七例、`test/update_background_test.dart` 七例）＋ Kotlin 在 Mac 上 `:app:compileMobileDebugKotlin` **BUILD SUCCESSFUL**；**不做真机安装**，装机成功与否仍不声称 |
 | Linux | `Hongguo-<v>-linux-x64.deb`，无 deb 时 `linux-x64.tar.gz` | 下载 → sha256 → `xdg-open <deb>` 交给系统包管理器；tar.gz 只落到「文件已备好，请按现有方式替换」 | 无 Linux 设备，只有单测 |
 | iOS | 无（不选附件） | 只提示，弹窗给出发布页 `html_url` 供复制 | 不发版本，无验证 |
 | Android TV | 不参与 | `tvBuild` 全部跳过 | — |
@@ -65,7 +68,7 @@
 ## 6. UI
 
 - **设置页**（行号按本轮落地后的文件）：`anchors`（`settings_page.dart:45-56`）里加「更新」一段，段体 `_section('更新', …)`（`:274`，`_section` 本身在 `:384`）依次给出「当前版本 v… （构建 …），新版本来自 GitHub Releases。」、`updateHandoffDescription` 那句按平台的说法、`SwitchListTile.adaptive`（key `自动检查更新`，`:287`）控制 `updateChecksEnabled`（副标题写清「一天最多询问一次；没有新版本时不打扰」），再由 `ListenableBuilder` 包住「检查更新」（`:338`，忙碌时写「正在检查…」）与「立即下载并安装」（`:345`）。
-- **弹窗**：`AlertDialog`，标题「发现新版本 v0.3.14」，正文列当前 → 新版本、发布时间与附件体积，**更新说明放进固定高度（≤360 逻辑点）的 `Scrollbar + SingleChildScrollView`**——真实正文 12357 字符，不滚就看不见「修复了什么」；按钮三枚：`立即更新`（→ 下载 + 进度 + 交给平台策略）、`忽略本次更新`（写 `ignoredUpdateVersion`）、`以后再说`（只记本次节流）。
+- **弹窗**：`AlertDialog`，标题「发现新版本 v0.3.14」，正文列当前 → 新版本、发布时间与附件体积，**更新说明放进固定高度（≤360 逻辑点）的 `Scrollbar + SingleChildScrollView`**——真实正文 12357 字符，不滚就看不见「修复了什么」；按钮三枚：`立即更新`（→ 下载 + 进度 + 交给平台策略）、`忽略本次更新`（写 `ignoredUpdateVersion`）、`以后再说`（只记本次节流）。主按钮的文案随控制器状态走，不再是一句「立即更新」到底（`update_dialog.dart:188-194`）：包已在盘上等装 → `立即安装`，本进程在传 → `正在下载…`，系统车道在传 → `正在后台下载…`（此时 `busy` 为真，按钮是禁用的，第二次按下点不动也本来就不该重下）。欠着一次未授权安装时另给一枚 `去系统设置`（`:162-167`），因为那一趟是观众自己走的，应用不能代劳；`controller.showsMessage`（`:133`）负责让「后台在传」「已下载完成，是否安装」「还欠着一次更新安装」这三句话在没有进度条的时候也仍然读得到。
 - **挂载**：不新开全局 Navigator key。宿主 `UpdatePromptHost` 包住非 TV 的 `home`（`packages/app/lib/main.dart:94-102`），用 `ModalRoute.of(context)!.isCurrent` 只在根页可点时弹——推到播放页/详情页时不抢画面；`resumed` 观察者由控制器持有，`dispose` 摘掉（先例同 `download_manager.dart:89,534,554`）。
 
 ## 7. 后端/分发配合清单（本轮不改上游，只记录约束）
@@ -220,6 +223,8 @@
 
 明确没做的：不加「再去设置一次」按钮（欠装记录已在，权限一开回到应用就自动兑付，再点一次反而是第二条会话的入口）；兑付路径不跳过重新下载（`立即更新` 保持 §9.6 的「重新下载并校验」语义，那句文案负责告诉观众他其实不需要再点）。
 
+> **上面这两条已被 2026-11-03 的 §9.12 逐条推翻，原文留着只为记账，读数与语义以 §9.12 为准。** ① 「不加按钮」→ 弹窗里现在有一个 `去系统设置` 出口（`update_dialog.dart:162-167`，`controller.installOwed` 为真时才出现）：去那一趟会把观众送出应用，而回来不是应用能强制的，所以在权限真打开之前入口必须留在屏幕上。② 「兑付路径不跳过重新下载」→ `立即更新` 的语义改成「把这一版交出去」：已在本机且已校验的字节不再取第二次（`update_transfer.dart:393-408` 的车道复用、`release_downloader.dart:143` 的 `settled()`），重复点击为此零字节，这就是 §9.12 的 D5。
+
 验证读数（2026-11-01，本地 NTFS 克隆 `hg-verify-dl`；本轮 5 份代码与测试文件与 \\Mac 副本逐份 `cmp` 全 `same`，格式化后把改动的两份再拷回来又逐份 `cmp` 一次仍一致）：
 
 | 范围 | 结果 |
@@ -285,5 +290,73 @@
 - shipped kernel 的线上读数（在切版树 `packages/update` 里 `dart run tool/live_feed_check.dart 0.3.20 0.3.21`，工作目录取本地 NTFS 克隆——UNC 会让 dart 退回 Windows 目录并报 `Could not find file`）：`status=available tag=v0.3.21 prerelease=false published=2026-11-02T13:27:18Z notes=34523 assets=15 etag=W/"40275f83…"`；`0.3.20 的观众 -> available`、忽略该 tag 后 `-> ignored`；`0.3.21 -> upToDate`（忽略状态下也 `upToDate`）；四平台选件 macos（`7f8c5557…`）/ windows（`20f5ebe0…`）/ linux（`4d63da75…`）/ android（`36b717f9…`）的 digest 与上表同源，`ios -> NONE`，全部 `host=github.com`，`SHA256SUMS.txt=true release-manifest.json=true`。
 - **同一笔不对称**：这份补记排在 `352d756` 之后，所以 `v0.3.21` 这棵树里没有它；要看读数取 `main`。
 - 仍未闭环（不因为发了版就当作完成）：① 边下边播**没有一次真实上游剧集走过这条链路**——38 例全跑在合成 plan、录制的 fixture MP4 与替身传输上，「提前起播」没有设备实测的首帧时间，media_kit 对「会长大的 HTTP 源」的 seek 只由测试替身打过点；② 本轮改的是移动端与桌面的播放路径，而这台 ARM64 开发机既构建不出 `-d windows`（media_kit 只有 x64 导入库），也没有 Android 设备与模拟器（`adb devices` 零台），所以**设备侧一格读数都没有**，实机验收仍归 Mac 那一格；③ `f41351c` 的签名修复有线上只读探测（生产形状回到 24,2xx 字节 / code=0），但同样没有真机播放读数。历轮缺口继续挂着：Mac 真鼠标悬停、Windows 托盘三步、冷启动续位实机读数。
+
+### 9.12 未知应用那条支路的静默失败、后台下载车道、重复下载（2026-11-03）
+
+用户诉求（原话，三条同一支线）：
+
+- 「https://pub.dev/packages/permission_handler 参照此三方库中的权限功能，修复apk的更新下载后无法执行apk的bug，主要是 未知应用 的安装权限」
+- 「同时针对更新包的下载增加后台下载，可以将应用包的下载切换到后台执行，下载完毕后边提示是否安装。」
+- 「同时针对多次点击下载不要出现重复下载的情形针对此重复下载的情形需要进行修复」
+
+续接指令「继续处理」= 沿用本轮方案收口。**本轮已按这三条改代码，改动全在工作树，未提交、未切版、未发布**（`.fvm/flutter_sdk` 只读，一个字没写）。
+
+#### 参照 permission_handler 是仿形，不是引依赖
+
+根 `pubspec.yaml`、`packages/app/pubspec.yaml`、`packages/update/pubspec.yaml` 与 `pubspec.lock` 本轮现读 grep `permission_handler` **零命中**。从这个库借的是工作形状，不是依赖：问一次状态 → 把观众送到**该应用自己那一行**设置 → 回到应用再问一次 → 本 ROM 上第一道门解不开就兜底跳应用详情页。落点是 Kotlin 通道 `MainActivity.kt:209-217`（`canInstall` / `askPermission` / `install` / `installResult` 四条）、`:225` `canRequestInstalls()`（Android 8 以下按全局授予回答，让系统弹窗自己判）、`:236-245` `openInstallPermissionSettings()`（`ACTION_MANAGE_UNKNOWN_APP_SOURCES` 解不开退 `ACTION_APPLICATION_DETAILS_SETTINGS`，两道都不存在才返回 `false`，此时 Dart 侧改为用文字说出那个开关的名字）、`install_strategy.dart:100-112` 每次回前台重问一次。
+
+不引依赖的理由要说白：报的 bug 不是「拿不到权限」——权限问没问在改之前就已经有了——而是**装成了、装砸了、装到一半被系统拿走，应用一句都不知道**。那是结果回话链路的洞（下面 D1/D2），比为一个已经被系统 API 覆盖的问题新增一整个跨六端的插件面更靠根。
+
+#### 八条缺陷与落点（行号本轮现读）
+
+| # | 洞 | 修法 |
+| --- | --- | --- |
+| D1 | 安装终态只发给「还在等的那次 `install` 调用」。`PackageInstaller` 的结果由系统**重新拉起 Activity** 送回：热态走 `onNewIntent`，进程已被拿走时走 `onCreate`，此前只有前者被接。 | `MainActivity.kt:64-66`（`onCreate(getIntent())`）+ `:69-71`（`onNewIntent`）双入口，同一 `handleInstallResult`（`:74`）把 `EXTRA_STATUS` 翻成中文（`installWords`）后交 `answerInstall`（`:122`） |
+| D2 | 无人在听时那句话会丢（冷启动那一趟的结果没有 `Result` 可回）。 | 落盘 + 读一次即删：`:125` `runCatching { resultFile().writeText(message) }`，路径 `:132`（`filesDir/hongguo-install-result.txt`，常量在 `:326`），取用 `:137 takeInstallResult()` ↔ 通道 `:215` ↔ Dart `android_update_channel.dart:90-92`。**没有欠款**时 `resume()` 读它（`install_strategy.dart:102`）。钉子测试 `a return with nothing owed reads what the installer itself left behind` 断言两次 `resume()` 的调用序列是 `['installResult']` → `['installResult','installResult']`，第二次拿到 `null` |
+| D3 | `ACTION_MANAGE_UNKNOWN_APP_SOURCES` 在部分 ROM 上无接收者，`startActivity` 静默失败，观众原地不动。 | 兜底应用详情页（`:240-244`），`openIfAvailable` 先 `resolveActivity` 再跳 |
+| D4 | 「回来还欠着什么」只有旧笔记（`hongguo-pending-install.json`）在答，而它答不了「后台那一趟下完了没有」。 | 新增 `UpdateJournal`（`update_transfer.dart:120`，文件 `hongguo-update-journal.json:123`，只留 2 个 tag、超限连文件一起删 `:128`/`:167-169`/`:194`），`settle(tag)`（`:467`）用磁盘 + 校验值回答；旧笔记原语义保留（测试钉死），兑付不再单独依赖它 |
+| D5 | 重复点击 = 重复下载。 | 三层，缺一层就漏一种形状：**内核**`_inFlight[url]`（`release_downloader.dart:52`，登记在第一个挂起点之前 `:83`，命中在跑的在同一条 `:72`）+ 已校验文件按 sha256 复用（`settled():143` → `DownloadedRelease.reused:23/:153`）；**车道**同帧门槛 `_handedOver`（`update_transfer.dart:346`，`fetch` 在挂起前 `add`:364、`finally` 释放:370）+ 跨进程「系统那边还在传」`journal.forTag` ∧ `engine.isLive(taskId)`（`:410-414`）；**编排/UI** `install()` 在 `downloading \|\| transferring` 早退（`update_controller.dart:340`）+ 弹窗主按钮 `busy` 禁用（`update_dialog.dart:173`）。第二次按下拿到的是**文字而不是字节** |
+| D6 | 暂存目录按平台各写一处，系统车道只能按基目录相对寻址，于是「包在哪」和「记它的那张条」分家。 | 统一 `<applicationSupport>/updates`（`update_host.dart:49-56` + `update_transfer.dart:17`） |
+| D7 | 更新包此前只在进程内下：弹窗一关、应用一被拿走就断，也没有「下完了问一句」。 | 交系统车道，开关沿用设置页既有的「后台下载」（`settings_page.dart:863` + `capability_preferences.dart:13`，仅 `mobileHost` 显示；本轮**没加新 UI 开关**）：`useSystemTransferLane(enabled: settings().backgroundDownloads)`（`host_policy.dart:18`，桌面/iOS/TV 自动 `false`，退回进程内车道）。命中时 `install()` 立刻 `transferring = true` 并 `unawaited(_transferInBackground(...))`（`update_controller.dart:358`、`:364`），弹窗主按钮改读「正在后台下载…」（`update_dialog.dart:193`）；落点后 `_transferInBackground`（`:424`）把 `installReady` + 「已下载完成…是否安装？」**重新举成一次提示**；应用在后台时才落盘的，由 `settleOnReturn()`（`:458`）在回前台收养——没有车道可交的宿主一个盘都不碰 |
+| D8 | 更新包与剧集缓存共用 `FileDownloader` 单例，通知配置是全局的，更新下载会说出媒体那套话。 | `configureNotificationForGroup('hongguo-update', …)`（`update_transfer.dart:232-245`）只给这一组配「正在下载新版本 / 新版本已下载完成 / 新版本下载未完成 / 新版本下载等待继续」，不动全局媒体文案；`tapOpensFile: false`——点通知不能把 APK 直接交给安装器，校验和「是否安装」必须回到应用问 |
+
+另有两条与此并列的行为改动：弹窗正文的可见条件从 `downloading` 扩到 `showsMessage`（`update_controller.dart:142-143`、`update_dialog.dart:133`；欠装与「已下载完成」都可能在 `downloading` 已经是 `false` 时到达，吞掉句子的弹窗是观众唯一能看见的东西），以及主按钮四态化（`立即更新 / 正在下载… / 正在后台下载… / 立即安装`，`update_dialog.dart:188-194`）。
+
+#### 读数（2026-11-03）
+
+| 范围 | 结果 |
+| --- | --- |
+| `dart analyze lib/update test`（`packages/app`，`.fvm` 钉的 3.47.4 绝对路径） | `No issues found!` |
+| `dart format --output=none --set-exit-if-changed`（本轮 24 份：`packages/app/lib/update` + 4 份 update 测试 + `packages/update` 的 lib/test） | **24 文件 0 变更** |
+| `flutter test` 本轮五份 update 测试（`packages/app`） | **+47 全过** = `update_transfer_test.dart` **17**（新）、`update_background_test.dart` **7**（新）、`android_install_test.dart` **12**（10 → 12）、`update_prompt_test.dart` **10**、`update_controller_test.dart` **1** |
+| `dart test`（`packages/update`） | **+37 全过**（`release_downloader_test.dart` 12 例，其中含本轮 in-flight 去重两条） |
+| `:app:compileMobileDebugKotlin` | **BUILD SUCCESSFUL**（143 tasks），本轮 Kotlin 那几处第一次被编 |
+| `packages/app` 全量（工作树，含另一会话在飞的 tv 改动） | `+431 ~1 -3`——3 条红**全在 `test/tv_feed_test.dart`**，见末条归属；门禁树（`e9acf62` + 本轮 13 路径，无 tv 改动）本轮前段读数为 **+432 ~1 全过**（`406 → 432` = 17 + 7 + 2 净增） |
+
+去重那条路有两条钉子测试值得单列：`a second press while this process waits on the system gets words, not bytes`（同帧二次按下拿到「不需要重复下载」，且 `engine.started` 只有 1 个——第二次根本没到系统）、`a transfer an earlier process handed over starts no second task`（磁盘笔记 `transferring` + `engine.isLive('held-task')` → 只给文字，`engine.started` 为空）。弹窗侧一条真按下的 widget 测试钉住 D7 的两句话：按 `立即更新` 后读到 `正在后台下载…` 与「安装包正在后台下载」，落盘后读到 `立即安装` 与「已下载完成」——它必须用 `runAsync` 延时与 `tester.pump()` 交替推进，纯 `runAsync` 轮询会把 fake-async 的微任务队列饿死。
+
+#### 三笔不是本轮的账（本轮现读复核过）
+
+- `tool/oracle_data.dart` 的 format 漂移：`dart format --set-exit-if-changed tool/oracle_data.dart` 本轮读到 **`Formatted 1 file (1 changed)`**，该文件不在 `git status` 的 49 条里，即 **HEAD 自带**（`f41351c` 那笔），非本轮引入。本轮没在工作树动它，只在门禁树里格式化过。
+- `dart analyze --fatal-infos packages tool` 的 2 条 `library_private_types_in_public_api`：`packages/core/lib/src/media/progressive_decrypt.dart:31`、`packages/api/test/progressive_lane_test.dart:86`——两条本轮逐字重读命中，都是 11-02 边下边播那轮的面，与更新链路无关。
+- 工作树 `packages/app` 全量的 3 条 `tv_feed_test` 红：该测试文件本身**不在改动列表**（HEAD 内容），而被测面 `packages/app/lib/features/tv/tv_library_page.dart`、`packages/tv/lib/src/environment.dart`、`packages/tv/test/remote_test.dart` 都在另一会话手里（本轮 13 路径一个都没碰）；`v0.3.21` 那棵树同一套在 CI 全绿，故判为**另一会话在飞的 tv 改动**，不是本轮账。
+
+#### 未验证的边界（说白）
+
+- **设备侧一格读数都没有**：本机 `adb devices` 零台、无模拟器，本轮全部跑在 mock 的 `hongguo/update` 通道、替身 `InstallerEngine` 与真临时目录里的真文件上。
+- `SystemInstallerEngine`（`background_downloader 9.6.4` 的真实实现，`update_transfer.dart:223`）**没有被真插件跑过一次**：`transfers.start` / `updates.listen` / `recordsForIds` / `cancelTaskWithId` 的调用形状按 9.6.4 写、由替身打点；通知组文案 `configureNotificationForGroup` 同样只到编译。
+- Kotlin 编译过只证语法与链接，不证 `EXTRA_STATUS` 的两条入口真的各回来一次，也不证详情页兜底在那台小米上解得开。
+- `flutter test` 不能证真机手势：`去系统设置` 跳出去之后回不回得来，是 ROM 的事。
+
+#### 真机复核清单（把 §9.8 的三步扩成两车道各一遍）
+
+前置（共用真机的规矩）：`adb shell dumpsys package com.example.hongguo_app | grep versionCode` 先读当前值，**再决定装哪个 apk**——装旧 versionCode 会被 HyperOS 判成降级并自动卸掉现装的那个包；无线 adb 会话会掉，mDNS 有记录不等于能连。
+
+**A. 进程内车道（`后台下载` 关）**——§9.8 原三步照跑：`appops set … REQUEST_INSTALL_PACKAGES deny` → 点 `立即更新` → 见「安装未知应用」那一行**且弹窗还在**（本轮多一个正面读数：弹窗里应出现 `去系统设置` 出口）→ 不回开关直接切回前台 → 读「还欠着一次更新安装…不需要再点一次」→ `allow` 后再切回一次，`adb logcat | grep -iE "PackageInstaller|installing session"` 应出现**恰好一次**新会话，且这中间没有第二次点击。
+**B. 系统车道（`后台下载` 开）**——① 按下后弹窗应停在 `正在后台下载…`，通知栏出现「正在下载新版本 …」而不是媒体那套话；② **传输中再按两次 `立即更新`**：应读到「安装包已在后台下载…不需要重复下载」，且 `adb shell dumpsys notification` / logcat 里只有一条 task；③ 把应用划掉（杀进程）再打开：回前台应读「安装包仍在后台下载…」，落盘后应读「已下载完成，是否安装？」——这一格同时证 D5 的跨进程判据与 D7 的收养；④ 装成后暂存目录 `<applicationSupport>/updates` 应只剩当前与上一个 tag 的包（D4 的 2 条保留）。
+**C. 权限那一趟的兜底**——若该 ROM 解不开 `ACTION_MANAGE_UNKNOWN_APP_SOURCES`，`去系统设置` 应落在应用详情页（`MainActivity.kt:240-244`）而不是原地不动。
+**D. 已落盘再按**——B③ 之后按 `立即安装` 前应**没有任何下载流量**（`reused` 路径，D5 第三层）。
+
+历轮缺口继续挂着：Mac 真鼠标悬停、Windows 托盘三步、冷启动续位实机读数、iPhone Duo 内屏与半开帧（任务 #1）。
 
 

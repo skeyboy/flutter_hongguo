@@ -18,10 +18,15 @@ class DownloadedRelease {
   final String path;
   final int bytes;
   final String sha256;
+
+  /// Whether these bytes were already on the device, so nothing was fetched.
+  final bool reused;
+
   const DownloadedRelease({
     required this.path,
     required this.bytes,
     required this.sha256,
+    this.reused = false,
   });
 }
 
@@ -38,6 +43,13 @@ class ReleaseDownloader {
 
   final Dio dio;
   final Directory destination;
+
+  /// One live transfer per address, shared by every downloader instance.
+  ///
+  /// A viewer who presses 立即更新 twice -- and a second controller mounted beside
+  /// this one -- must not pay for the same installer twice, and two writers into
+  /// one `.part` file corrupt each other's bytes.
+  static final _inFlight = <String, Future<DownloadedRelease>>{};
 
   const ReleaseDownloader({required this.dio, required this.destination});
 
@@ -57,10 +69,96 @@ class ReleaseDownloader {
         )) {
       throw const UpdateFailure('发布下载地址不是 GitHub，已停止。');
     }
-    final expected = asset.sha256 ?? await _sumFromManifest(asset, release);
+    final live = _inFlight[asset.downloadUrl];
+    if (live != null) {
+      // A shared transfer reports to the caller that started it. The second one
+      // is owed only the value it cannot get from that stream -- the whole file.
+      final file = await live;
+      onProgress?.call(file.bytes, file.bytes);
+      return file;
+    }
+    // Registered before the first await, so a second press inside the same
+    // frame joins this transfer instead of starting its own.
+    final transfer = _take(asset, release, onProgress);
+    _inFlight[asset.downloadUrl] = transfer;
+    try {
+      return await transfer;
+    } finally {
+      // Only the entry this call installed: a later press may own one already.
+      if (identical(_inFlight[asset.downloadUrl], transfer)) {
+        _inFlight.remove(asset.downloadUrl);
+      }
+    }
+  }
+
+  Future<DownloadedRelease> _take(
+    ReleaseAsset asset,
+    ReleaseInfo release,
+    void Function(int received, int total)? onProgress,
+  ) async {
+    final expected = await expectedDigest(asset, release);
     if (expected == null) {
       throw const UpdateFailure('这个发布附件没有可对照的校验值，已停止安装。');
     }
+    final settled = await this.settled(asset, expected);
+    if (settled != null) {
+      // The bar still has to reach its end: a dialog that starts a transfer it
+      // never receives a byte of would sit at 0% over a finished file.
+      onProgress?.call(settled.bytes, settled.bytes);
+      return settled;
+    }
+    return _transfer(asset, expected, onProgress);
+  }
+
+  /// The digest this file has to carry: the feed's own, or its line in the
+  /// release's `SHA256SUMS.txt`. Public because a transfer the system finished
+  /// while this app slept has to be checked against the same number.
+  Future<String?> expectedDigest(
+    ReleaseAsset asset,
+    ReleaseInfo release,
+  ) async => asset.sha256 ?? await _sumFromManifest(asset, release);
+
+  /// Whether the bytes at [path] are the ones the release describes.
+  static Future<bool> verify(
+    String path,
+    String expectedSha256, {
+    int bytes = 0,
+  }) async {
+    try {
+      final file = File(path);
+      final stat = await file.stat();
+      if (stat.type != FileSystemEntityType.file) return false;
+      if (bytes > 0 && stat.size != bytes) return false;
+      return await _sha256(file) == expectedSha256;
+    } on FileSystemException {
+      return false;
+    }
+  }
+
+  /// The verified bytes already on disk, or null.
+  ///
+  /// Decided by hashing, not by a note beside the file: a package that survived a
+  /// storage cleanup keeps its digest, and one that did not survive it whole does
+  /// not get to claim it did.
+  Future<DownloadedRelease?> settled(
+    ReleaseAsset asset,
+    String expectedSha256,
+  ) async {
+    final path = '${destination.path}${Platform.pathSeparator}${asset.name}';
+    if (!await verify(path, expectedSha256, bytes: asset.bytes)) return null;
+    return DownloadedRelease(
+      path: path,
+      bytes: asset.bytes,
+      sha256: expectedSha256,
+      reused: true,
+    );
+  }
+
+  Future<DownloadedRelease> _transfer(
+    ReleaseAsset asset,
+    String expected,
+    void Function(int received, int total)? onProgress,
+  ) async {
     await destination.create(recursive: true);
     final part = File(
       '${destination.path}${Platform.pathSeparator}${asset.name}.part',

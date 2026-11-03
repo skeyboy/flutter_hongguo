@@ -33,6 +33,11 @@ class _FakeAndroid {
   bool silenceInstall = false;
   final _never = Completer<String>();
 
+  /// The words an install this process never asked for left behind: the system
+  /// installer woke the app in its own process, so nobody was listening. Reading
+  /// it consumes it, the way the file beside the session does.
+  String? installResult;
+
   Future<Object?> _handle(MethodCall call) async {
     calls.add(call.method);
     switch (call.method) {
@@ -40,6 +45,10 @@ class _FakeAndroid {
         return granted;
       case 'askPermission':
         return hasSettingsScreen;
+      case 'installResult':
+        final answer = installResult;
+        installResult = null;
+        return answer;
       case 'install':
         if (silenceInstall) return _never.future;
         sessions.add(((call.arguments as Map?)?['path'] ?? '') as String);
@@ -201,6 +210,32 @@ void main() {
       expect(await relaunched().resume(), isNull);
     },
   );
+
+  test(
+    'a return with nothing owed reads what the installer itself left behind',
+    () async {
+      // The defect this closes: the system installer woke the app in a process that
+      // had asked for no session, so its answer had nowhere to go and the next
+      // foreground said 「没有回话」 over an install that had actually finished.
+      android.installResult = '安装完成，重启应用后生效。';
+      expect(await installer.resume(), '安装完成，重启应用后生效。');
+      expect(android.calls, ['installResult']);
+      // And once: the same success is not announced again on the next return.
+      expect(await installer.resume(), isNull);
+      expect(android.calls, ['installResult', 'installResult']);
+    },
+  );
+
+  test('a debt is paid before any leftover word is read', () async {
+    await installer.install(apk);
+    android.granted = true;
+    android.installResult = '上一次安装已完成。';
+    android.calls.clear();
+    expect(await relaunched().resume(), android.sessionAnswer);
+    expect(android.sessions, [apk.path]);
+    // The APK this app owes outranks a note from an install it never started.
+    expect(android.calls, ['canInstall', 'install']);
+  });
 
   test('a desktop with no handler is not blocked by the gate', () async {
     // `hongguo/update` exists only on Android; every other build answers the gate

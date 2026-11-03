@@ -125,12 +125,12 @@ class _UpdateDialogState extends State<UpdateDialog> {
                     ],
                   );
                 }
-                // The owed branch has to be readable too: on Android the handoff
-                // says 「去系统设置开权限」 while `downloading` is already false, and a
-                // prompt that swallows that sentence is what the viewer is left
-                // staring at after the settings screen sends them back.
-                if (controller.message != null &&
-                    (controller.downloading || controller.installOwed)) {
+                // The owed and ready branches have to be readable too: on Android
+                // the handoff says 「去系统设置开权限」 while `downloading` is already
+                // false, and a background transfer reports 已下载完成 with no bar in
+                // flight -- a prompt that swallows either sentence is what the
+                // viewer is left staring at.
+                if (controller.message != null && controller.showsMessage) {
                   return Text(controller.message!);
                 }
                 return const SizedBox.shrink();
@@ -156,6 +156,15 @@ class _UpdateDialogState extends State<UpdateDialog> {
           },
           child: const Text('忽略本次更新'),
         ),
+        // The trip to 「安装未知应用」 sends the viewer out of this app, and coming
+        // back is not something the app can force: the entry point has to stay
+        // reachable from the prompt until the permission is actually on.
+        if (controller.installOwed)
+          TextButton(
+            key: const Key('去系统设置'),
+            onPressed: controller.openInstallSettings,
+            child: const Text('去系统设置'),
+          ),
         if (canInstall)
           ListenableBuilder(
             listenable: controller,
@@ -168,12 +177,22 @@ class _UpdateDialogState extends State<UpdateDialog> {
                       // shown inside it, and closing would hide it. An Android
                       // handoff that could only write the APK down as owed does
                       // the same -- the install has not happened, so there is
-                      // nothing for this prompt to have finished saying.
+                      // nothing for this prompt to have finished saying. A
+                      // backgrounded download leaves it up too, so the bar and
+                      // the 已下载完成 sentence are both on screen when they arrive.
                       final plan = await controller.install();
                       if (plan == null || !context.mounted) return;
                       if (!plan.owesInstall) Navigator.pop(context);
                     },
-              child: Text(controller.downloading ? '正在下载…' : '立即更新'),
+              child: Text(
+                controller.installReady
+                    ? '立即安装'
+                    : controller.downloading
+                    ? '正在下载…'
+                    : controller.transferring
+                    ? '正在后台下载…'
+                    : '立即更新',
+              ),
             ),
           ),
       ],

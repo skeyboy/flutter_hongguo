@@ -10,18 +10,6 @@ import 'package:flutter/services.dart';
 class AndroidUpdate {
   static const MethodChannel channel = MethodChannel('hongguo/update');
 
-  /// The app-private folder the installer is allowed to read. The native side
-  /// creates it, because only it knows what is legal for a provider to serve.
-  static Future<String?> stageDirectory() async {
-    try {
-      return await channel.invokeMethod<String>('stageDir');
-    } on PlatformException {
-      return null;
-    } on MissingPluginException {
-      return null;
-    }
-  }
-
   /// ABIs in the order the device itself prefers, for choosing the APK.
   static Future<List<String>> supportedAbis() async {
     try {
@@ -90,6 +78,22 @@ class AndroidUpdate {
       return error.message ?? '系统没有接受这次安装（${error.code}）。';
     } on MissingPluginException {
       return '这台设备的安装通道不可用，请稍后在系统设置中更新。';
+    }
+  }
+
+  /// The words an install finished with while nothing was listening.
+  ///
+  /// The trip to 「安装未知应用」 takes this activity down, so the session can report
+  /// into a process that has no `install` call left to answer: the native side
+  /// writes those words down rather than dropping them, and the next return reads
+  /// them exactly once -- a repeat would re-announce an install that settled long ago.
+  static Future<String?> lastInstallResult() async {
+    try {
+      return await channel.invokeMethod<String>('installResult');
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
     }
   }
 }
