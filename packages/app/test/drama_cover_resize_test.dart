@@ -90,9 +90,26 @@ Future<void> _settle(WidgetTester tester) async {
   await tester.pump();
 }
 
+/// A decoded cover keeps its file open on Windows until the codec lets go, so the
+/// cases share one fixture directory that is abandoned rather than deleted when a
+/// lock outlives them: a throwing teardown there reports a failure the product
+/// never had, over an assertion that already passed.
+final _fixtures = Directory.systemTemp.createTempSync('cover-resize-');
+
+File _fixture(String name) =>
+    File('macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_16.png')
+        .copySync('${_fixtures.path}/$name.png');
+
 void main() {
   setUp(ResizeGate.instance.debugReset);
   tearDown(() => PaintingBinding.instance.imageCache.clear());
+  tearDownAll(() {
+    try {
+      _fixtures.deleteSync(recursive: true);
+    } on FileSystemException {
+      // The runner's own temp directory reclaims a still-locked cover.
+    }
+  });
 
   test('解码宽度按阶梯取档，同档之内不换档', () {
     // 3× 设备上 140 逻辑像素是 420 设备像素，进到 512 一档。
@@ -121,13 +138,8 @@ void main() {
   });
 
   testWidgets('拖动窗口期间封面不重建元素、不重取图', (tester) async {
-    final folder = Directory.systemTemp.createTempSync('cover-resize-');
-    final file = File(
-      'macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_16.png',
-    ).copySync('${folder.path}/pixel.png');
-    final cache = _Images(file);
+    final cache = _Images(_fixture('drag'));
     CachedNetworkImageProvider.defaultCacheManager = cache;
-    addTearDown(() => folder.deleteSync(recursive: true));
 
     await _mount(tester, 140);
     await _awaitDecoded(tester);
@@ -155,15 +167,15 @@ void main() {
     expect(_decodeSteps(tester), containsAll(<int>[512, 896]));
     expect(tester.takeException(), isNull);
     await _settle(tester);
+    // Out of the tree before the fixture goes: a Windows codec keeps the file it
+    // decoded open until its stream loses its last listener.
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('离开屏幕的封面不留定时器，闸门不为空场合着', (tester) async {
-    final folder = Directory.systemTemp.createTempSync('cover-detach-');
-    final file = File(
-      'macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_16.png',
-    ).copySync('${folder.path}/pixel.png');
-    CachedNetworkImageProvider.defaultCacheManager = _Images(file);
-    addTearDown(() => folder.deleteSync(recursive: true));
+    CachedNetworkImageProvider.defaultCacheManager = _Images(
+      _fixture('detach'),
+    );
 
     await _mount(tester, 140);
     await tester.pump();
@@ -175,12 +187,7 @@ void main() {
   });
 
   testWidgets('补档位不重播淡入，首次出图照旧', (tester) async {
-    final folder = Directory.systemTemp.createTempSync('cover-fade-');
-    final file = File(
-      'macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_16.png',
-    ).copySync('${folder.path}/pixel.png');
-    CachedNetworkImageProvider.defaultCacheManager = _Images(file);
-    addTearDown(() => folder.deleteSync(recursive: true));
+    CachedNetworkImageProvider.defaultCacheManager = _Images(_fixture('fade'));
 
     await _mount(tester, 140);
     expect(_fadeIn(tester), const Duration(milliseconds: 140));
@@ -189,5 +196,6 @@ void main() {
     await _settle(tester);
     expect(_fadeIn(tester), Duration.zero, reason: '同一张封面补档位，不该再明灭一次');
     await _settle(tester);
+    await tester.pumpWidget(const SizedBox());
   });
 }
