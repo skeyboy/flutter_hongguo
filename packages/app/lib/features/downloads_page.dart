@@ -188,6 +188,8 @@ class _DownloadsPageState extends State<DownloadsPage> {
       runtime,
       options: options,
       suggestedTitle: '${first.drama.title} 合集',
+      // 组级入口来自已完成的那一组，默认全选，viewer 只需去掉不要的。
+      preselect: true,
     );
   }
 

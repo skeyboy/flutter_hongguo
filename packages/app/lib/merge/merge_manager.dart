@@ -134,6 +134,13 @@ typedef MergeRunner = MergeHandle Function(
   void Function(int done, int total)? onProgress,
 });
 
+/// How the precheck is answered: the same worker isolate the jobs run in, and a
+/// stand-in for the widget tests, where a real isolate never resumes.
+typedef MergeProbeRunner = Future<MergePrecheckReport> Function(
+  List<MergeProbeRequest> requests,
+  String? productPath,
+);
+
 /// The merge queue: one job at a time, out of the UI isolate, yielded to
 /// playback, and durable across a restart.
 ///
@@ -150,6 +157,9 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
   final String Function(String vid, String quality) sourcePath;
   final bool mobile, television;
   final MergeRunner run;
+
+  /// The precheck reader, injectable for the same reason [run] is.
+  final MergeProbeRunner probe;
   MergeManager({
     required this.backend,
     required this.library,
@@ -158,10 +168,15 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
     this.mobile = false,
     this.television = false,
     MergeRunner? run,
+    MergeProbeRunner? probe,
   }) : run =
            run ??
            ((request, {onProgress}) =>
-               MergeWorker.start(request, onProgress: onProgress));
+               MergeWorker.start(request, onProgress: onProgress)),
+       probe =
+           probe ??
+           ((requests, productPath) =>
+               probeMerge(requests, productPath: productPath));
 
   final _tasks = <String, MergeTask>{};
   final _active = <_ActiveMerge>{};
@@ -441,6 +456,8 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
       if (!_current(active)) return;
       await _finish(task, outcome, video);
     } on MergeFailure catch (e) {
+      // The worker's own sentence -- a refused merge says which episode differs,
+      // not that an exception type was thrown.
       if (_current(active)) _fail(task, e.message);
     } on FileSystemException catch (e) {
       if (_current(active)) {
@@ -800,6 +817,44 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
     await _save();
     _emit();
   });
+
+  /// Why a queued job is standing still, in the words the task card would use.
+  /// The panel hands it to the viewer at enqueue time: 已加入队列 with no reason
+  /// reads as a merge that will not start, when it is waiting for the player.
+  String? get holdReason => _blocked;
+
+  /// What the writer would say about these episodes before a single byte is
+  /// written: the panel's 预检 step, answered off the UI isolate.
+  ///
+  /// [targetMergeId] makes it the append question -- can that product grow in
+  /// place behind the episodes it already holds.
+  Future<MergePrecheckReport> precheck(
+    List<MergeSelection> items, {
+    String? targetMergeId,
+  }) async {
+    if (items.isEmpty) {
+      return const MergePrecheckReport(entries: [], reject: '至少选择两集');
+    }
+    String? productPath;
+    if (targetMergeId != null) {
+      productPath = library.pathFor(targetMergeId);
+      if (!File(productPath).existsSync()) {
+        return MergePrecheckReport(
+          entries: const [],
+          reject: '要追加的合并资源已不存在，请整体重新合成',
+        );
+      }
+    }
+    return probe([
+      for (final item in items)
+        MergeProbeRequest(
+          path: sourcePath(item.vid, item.quality),
+          vid: item.vid,
+          quality: item.quality,
+          index: item.index,
+        ),
+    ], productPath);
+  }
 
   /// What a merge of these episodes needs on disk. An estimate, not a
   /// measurement: no cross-platform free-space question can be asked without a

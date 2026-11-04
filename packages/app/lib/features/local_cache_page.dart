@@ -157,6 +157,9 @@ class _LocalCachePageState extends State<LocalCachePage> {
         options: options,
         suggestedTitle:
             '${group.drama.title.isEmpty ? '合并资源' : group.drama.title} 合集',
+        // The shelf is a set the viewer already finished downloading, so the
+        // episodes on disk start picked and only the exceptions are removed.
+        preselect: true,
       );
     } finally {
       if (mounted) setState(() => busy = false);
@@ -751,6 +754,9 @@ class _LocalEpisodesPageState extends State<LocalEpisodesPage> {
         options: options,
         suggestedTitle:
             '${group.drama.title.isEmpty ? '合并资源' : group.drama.title} 合集',
+        // The shelf is a set the viewer already finished downloading, so the
+        // episodes on disk start picked and only the exceptions are removed.
+        preselect: true,
       );
     } finally {
       if (mounted) setState(() => busy = false);

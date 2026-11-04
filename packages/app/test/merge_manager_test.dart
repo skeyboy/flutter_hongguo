@@ -128,6 +128,17 @@ class MergeHarness {
 
 Uint8List _fixture() => File('test/fixtures/media/clear.mp4').readAsBytesSync();
 
+/// One episode whose media timeline disagrees with its twin, byte for byte
+/// anywhere else -- the difference a merge can only be refused for.
+Uint8List offTimescale() {
+  final out = Uint8List.fromList(_fixture());
+  final box = Mp4Cenc.inspect(MemorySampleStore(out)).moov.descendants
+      .firstWhere((b) => b.type == 'mdhd');
+  ByteData.sublistView(out)
+      .setUint32(box.payload + (out[box.payload] == 1 ? 20 : 12), 12289);
+  return out;
+}
+
 MergeSource episodeSource() => Mp4Merger.read(MemorySampleStore(_fixture()));
 
 void main() {
@@ -397,4 +408,51 @@ void main() {
       expect(h.manager.tasks.where((t) => t.mergeId == mergeId), isEmpty);
     },
   );
+
+  test('the precheck answers with the verdict the writer would give', () async {
+    final first = h.episode('7000000000000000101');
+    final second = h.episode('7000000000000000102', index: 2);
+
+    final report = await h.manager.precheck([first, second]);
+    expect(report.reject, isNull, reason: report.reject ?? '');
+    expect(report.entries.map((e) => e.error).toList(), [null, null]);
+    expect(report.entries.first.durationMs, greaterThan(0));
+    expect(report.sourceBytes, greaterThan(0));
+
+    // The case the old panel let reach the task card: the queue says no before
+    // the first byte, in the words the writer itself uses.
+    File('${h.cache.path}/7000000000000000102_best.mp4')
+        .writeAsBytesSync(offTimescale());
+    expect((await h.manager.precheck([first, second])).reject, contains('时间基'));
+
+    expect((await h.manager.precheck(const [])).reject, contains('至少选择两集'));
+    expect((await h.manager.precheck([first])).reject, contains('至少选择两集'));
+    expect(
+      (await h.manager.precheck([first], targetMergeId: 'gone')).reject,
+      contains('已不存在'),
+    );
+
+    final id = await h.manager.enqueue(
+      title: '预检过的追剧',
+      items: [
+        h.episode('7000000000000000111'),
+        h.episode('7000000000000000112', index: 2),
+      ],
+    );
+    await h.settle();
+    final mergeId = h.manager.tasks.firstWhere((t) => t.id == id).mergeId;
+    // An append asks about the product already on disk, and a fresh episode
+    // answers the same way the queue is about to.
+    final grown = h.episode('7000000000000000113', index: 3);
+    expect(
+      (await h.manager.precheck([grown], targetMergeId: mergeId)).reject,
+      isNull,
+    );
+    File('${h.cache.path}/7000000000000000113_best.mp4')
+        .writeAsBytesSync(offTimescale());
+    expect(
+      (await h.manager.precheck([grown], targetMergeId: mergeId)).reject,
+      contains('时间基'),
+    );
+  });
 }

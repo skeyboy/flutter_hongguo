@@ -73,6 +73,12 @@ class MergeFakeRuntime extends FakeRuntime implements MergeRuntime {
   final mergedPaths = <String>[];
   final preparedLocal = <String>[];
 
+  /// The precheck's verdict, when a test wants the panel to refuse. null lets
+  /// the fake answer 可以无损合成 for every episode it can still see.
+  String? probeReject;
+
+  /// How many files each 预检 was asked about, in the order the panel handed them.
+  final probed = <int>[];
   MergeFakeRuntime._(this.temp, this.cacheDir, this.mergedLibrary) {
     merges = MergeManager(
       backend: MergeMemoryBackend(),
@@ -80,7 +86,7 @@ class MergeFakeRuntime extends FakeRuntime implements MergeRuntime {
       journals: Directory('${temp.path}/merge-journal')
         ..createSync(recursive: true),
       sourcePath: (vid, quality) =>
-          '$cacheDir${Platform.pathSeparator}${vid}_$quality.mp4',
+          '${cacheDir.path}${Platform.pathSeparator}${vid}_$quality.mp4',
       // No job is meant to reach the runner here. If one escapes the held queue,
       // it fails at once instead of leaving the suite waiting on a merge that
       // never started.
@@ -90,6 +96,39 @@ class MergeFakeRuntime extends FakeRuntime implements MergeRuntime {
         ),
         stop: () {},
       ),
+      // The seeded files are zero-filled, so the real reader would refuse them
+      // for the wrong reason. This answers the same question the worker asks --
+      // one entry per file, one verdict for the set -- off the tables the
+      // fixture owns.
+      probe: (requests, productPath) async {
+        probed.add(requests.length);
+        final entries = [
+          for (final request in requests)
+            MergeProbeEntry(
+              vid: request.vid,
+              quality: request.quality,
+              index: request.index,
+              bytes: 1024 * 1024,
+              durationMs: 60000,
+              width: 1080,
+              height: 1920,
+              codec: 'hvc1',
+              audioCodec: 'mp4a',
+              error: File(request.path).existsSync() ? null : '离线文件已不存在，请先重新下载',
+            ),
+        ];
+        final broken = entries
+            .where((entry) => entry.error != null)
+            .firstOrNull;
+        return MergePrecheckReport(
+          entries: entries,
+          reject:
+              probeReject ??
+              (broken == null
+                  ? null
+                  : '第 ${broken.index} 集不能作为合成输入：${broken.error}'),
+        );
+      },
     );
     // Playback is the state that keeps a job queued, so every test inherits it:
     // the viewer can still press everything, and the queue shows what it was
@@ -173,7 +212,7 @@ class MergeFakeRuntime extends FakeRuntime implements MergeRuntime {
 
   @override
   String mediaPath(String vid, String quality) =>
-      '$cacheDir${Platform.pathSeparator}${vid}_$quality.mp4';
+      '${cacheDir.path}${Platform.pathSeparator}${vid}_$quality.mp4';
 
   @override
   PlaybackJob prepareLocal(String vid, {String quality = 'best'}) {

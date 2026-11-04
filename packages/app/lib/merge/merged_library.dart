@@ -23,6 +23,10 @@ class MergedItem {
     required this.addedAt,
   });
 
+  /// How the queue addresses the same file: a product holds one episode at one
+  /// quality, and an append that would write it again is refused.
+  String get key => '${vid}_$quality';
+
   Map<String, dynamic> toJson() => {
     'vid': vid,
     'quality': quality,

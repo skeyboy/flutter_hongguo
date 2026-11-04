@@ -479,6 +479,31 @@ class Mp4Merger {
     return plan;
   }
 
+  /// The verdict this writer would reach for these sources, without keeping the
+  /// plan. A precheck asks it so it can promise only what a merge really does:
+  /// one implementation, no rule that can drift between the panel and the write.
+  /// Returns null when merging exactly these files is accepted.
+  static String? rejectOf(List<MergeSource> sources) {
+    try {
+      plan(sources);
+      return null;
+    } on MergeReject catch (e) {
+      return e.reason;
+    }
+  }
+
+  /// The same question for an append of an earlier product. Returns null when
+  /// the product grows in place, and the reason when it cannot -- including the
+  /// reasons that only show once the grown size is known.
+  static String? growRejectOf(MergeSource existing, List<MergeSource> added) {
+    try {
+      appendPlan(existing, added);
+      return null;
+    } on MergeReject catch (e) {
+      return e.reason;
+    }
+  }
+
   static void _compare(MergeSource base, MergeSource other, int position) {
     if (other.tracks.length != base.tracks.length) {
       throw MergeReject('第 $position 集的轨道数量与第 1 集不同，暂时无法无损合并');

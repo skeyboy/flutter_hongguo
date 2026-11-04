@@ -380,6 +380,184 @@ Future<void> _restoreTail(
   await product.flush();
 }
 
+/// One file a precheck is asked about: where it sits, and how the panel names
+/// it. Nothing here needs the engine, so it crosses to a worker isolate.
+class MergeProbeRequest {
+  final String path, vid, quality;
+  final int index;
+  const MergeProbeRequest({
+    required this.path,
+    required this.vid,
+    required this.quality,
+    required this.index,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'path': path,
+    'vid': vid,
+    'quality': quality,
+    'index': index,
+  };
+
+  factory MergeProbeRequest.fromJson(Map<Object?, Object?> json) =>
+      MergeProbeRequest(
+        path: json['path'] as String,
+        vid: json['vid'] as String,
+        quality: json['quality'] as String,
+        index: json['index'] as int,
+      );
+}
+
+/// What one file's own sample tables said, in a shape the panel can render.
+class MergeProbeEntry {
+  final String vid, quality;
+  final int index, bytes, durationMs, width, height;
+  final String codec, audioCodec;
+
+  /// Set when this file cannot be merge input at all -- gone, encrypted, a shape
+  /// the parser refuses. The panel shows it on the row, not only in the verdict.
+  final String? error;
+  const MergeProbeEntry({
+    required this.vid,
+    required this.quality,
+    required this.index,
+    required this.bytes,
+    required this.durationMs,
+    required this.width,
+    required this.height,
+    required this.codec,
+    required this.audioCodec,
+    this.error,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'vid': vid,
+    'quality': quality,
+    'index': index,
+    'bytes': bytes,
+    'durationMs': durationMs,
+    'width': width,
+    'height': height,
+    'codec': codec,
+    'audioCodec': audioCodec,
+    'error': error,
+  };
+
+  factory MergeProbeEntry.fromJson(Map<Object?, Object?> json) =>
+      MergeProbeEntry(
+        vid: json['vid'] as String,
+        quality: json['quality'] as String,
+        index: json['index'] as int? ?? 0,
+        bytes: json['bytes'] as int? ?? 0,
+        durationMs: json['durationMs'] as int? ?? 0,
+        width: json['width'] as int? ?? 0,
+        height: json['height'] as int? ?? 0,
+        codec: json['codec'] as String? ?? '',
+        audioCodec: json['audioCodec'] as String? ?? '',
+        error: json['error'] as String?,
+      );
+}
+
+/// The precheck's answer. [reject] is the writer's own verdict on exactly these
+/// files -- null means 可以无损合成 is a promise the merge keeps, because the same
+/// comparison produced it, not a second rule that could disagree.
+class MergePrecheckReport {
+  final List<MergeProbeEntry> entries;
+  final String? reject;
+  const MergePrecheckReport({required this.entries, this.reject});
+
+  int get sourceBytes => entries.fold(0, (a, e) => a + e.bytes);
+}
+
+/// Reads every candidate's tables off the UI isolate. Parsing sample tables is
+/// all this does: no media is decoded, so a long selection costs tables, not a
+/// second pass over the files.
+Future<MergePrecheckReport> probeMerge(
+  List<MergeProbeRequest> requests, {
+  String? productPath,
+}) => Isolate.run(() => _probeNow(requests, productPath));
+
+MergePrecheckReport _probeNow(
+  List<MergeProbeRequest> requests,
+  String? productPath,
+) {
+  final handles = <RandomAccessFile>[];
+  MergeSource open(String path) {
+    final handle = File(path).openSync(mode: FileMode.read);
+    handles.add(handle);
+    return Mp4Merger.read(FileSampleStore(handle));
+  }
+
+  try {
+    final entries = <MergeProbeEntry>[];
+    final sources = <MergeSource>[];
+    for (final request in requests) {
+      MergeProbeEntry failed(String reason) => MergeProbeEntry(
+        vid: request.vid,
+        quality: request.quality,
+        index: request.index,
+        bytes: 0,
+        durationMs: 0,
+        width: 0,
+        height: 0,
+        codec: '',
+        audioCodec: '',
+        error: reason,
+      );
+
+      if (!File(request.path).existsSync()) {
+        entries.add(failed('离线文件已不存在，请先重新下载'));
+        continue;
+      }
+      try {
+        final source = open(request.path);
+        sources.add(source);
+        final video = _videoTrack(source);
+        final audio = source.tracks
+            .where((t) => t.handler != 'vide')
+            .firstOrNull;
+        entries.add(
+          MergeProbeEntry(
+            vid: request.vid,
+            quality: request.quality,
+            index: request.index,
+            bytes: source.bytes,
+            durationMs: source.durationMs,
+            width: video?.width ?? 0,
+            height: video?.height ?? 0,
+            codec: video?.codec ?? '',
+            audioCodec: audio?.codec ?? '',
+          ),
+        );
+      } on MergeReject catch (e) {
+        entries.add(failed(e.reason));
+      } on FormatException catch (e) {
+        entries.add(failed('文件不符合预期：${e.message}'));
+      }
+    }
+    final broken = entries.where((e) => e.error != null).toList();
+    String? reject;
+    if (broken.isNotEmpty) {
+      reject = '第 ${broken.first.index} 集不能作为合成输入：${broken.first.error}';
+    } else if (productPath != null) {
+      try {
+        reject = Mp4Merger.growRejectOf(open(productPath), sources);
+      } on MergeReject catch (e) {
+        reject = e.reason;
+      } on FormatException catch (e) {
+        reject = '要追加的合并文件不符合预期：${e.message}';
+      }
+    } else {
+      reject = Mp4Merger.rejectOf(sources);
+    }
+    return MergePrecheckReport(entries: entries, reject: reject);
+  } finally {
+    for (final handle in handles) {
+      handle.closeSync();
+    }
+  }
+}
+
 MergeTrack? _videoTrack(MergeSource? source) {
   if (source == null) return null;
   for (final track in source.tracks) {
@@ -597,8 +775,10 @@ class MergeWorker {
         (outcome) => port.send({'event': 'done', 'value': outcome.toJson()}),
         onError: (Object error) => port.send({
           'event': 'error',
+          // [executeMerge] already turns every refusal into a MergeFailure with
+          // the sentence the viewer should read.
           'type': error is MergeFailure ? error.type : 'MergeFailed',
-          'message': error is MergeFailure ? error.message : '$error',
+          'message': error is MergeFailure ? error.message : '合成未完成：$error',
         }),
       ),
     );

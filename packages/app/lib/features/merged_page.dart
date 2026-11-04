@@ -24,15 +24,11 @@ Future<void> showMergePicker(
   AppRuntime runtime, {
   String? suggestedTitle,
   String? targetMergeId,
-  Iterable<String> skipVids = const [],
 }) async {
   if (runtime is! MergeRuntime) return;
   final List<MergeEpisodeOption> options;
   try {
-    options = mergeOptionsFromFiles(
-      await runtime.localEpisodes(),
-      skipVids: skipVids,
-    );
+    options = mergeOptionsFromFiles(await runtime.localEpisodes());
   } catch (e) {
     _say(context, e is StateError ? e.message : '无法读取本地剧集，请稍后重试');
     return;
@@ -199,7 +195,6 @@ class _MergedPageState extends State<MergedPage> {
       widget.runtime,
       suggestedTitle: video.title,
       targetMergeId: video.mergeId,
-      skipVids: {for (final item in video.items) item.vid},
     );
     if (mounted) setState(() => busy = false);
   }
@@ -389,7 +384,7 @@ class _MergedPageState extends State<MergedPage> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Text(
-              '集数 · 名称 · 起始 / 时长 / 大小',
+              '集数 · 名称 · 起始 / 时长 / 大小 / 源',
               style: theme.textTheme.bodySmall,
             ),
           ),
@@ -432,9 +427,12 @@ class _MergedPageState extends State<MergedPage> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                // The media-cache file this episode was read from, so a product
+                // an unknown bucket contributed can still be traced afterwards.
                 Text(
                   '起始 ${_clock(item.offsetMs)} · 时长 ${_clock(item.durationMs)} · '
-                  '${mergeBytesLabel(item.sourceSize)}',
+                  '${mergeBytesLabel(item.sourceSize)} · ${item.vid} ${item.quality}'
+                  '${item.dramaId.isEmpty ? ' · 来源未知' : ''}',
                   style: tv
                       ? const TextStyle(fontSize: 16)
                       : theme.textTheme.bodySmall,
@@ -581,7 +579,8 @@ class _MergedPageState extends State<MergedPage> {
 
   String _caption(MergedVideo video) =>
       '${video.items.length} 集 · ${_clock(video.durationMs)} · '
-      '${mergeBytesLabel(video.bytes)} · ${_stamp(video.updatedAt)}';
+      '${mergeBytesLabel(video.bytes)}'
+      '${video.codec == null ? '' : ' · ${video.codec}'} · ${_stamp(video.updatedAt)}';
 
   Widget _empty({required bool tv}) => Center(
     child: Padding(

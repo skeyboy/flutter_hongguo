@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_app/catalog/local_library.dart';
 import 'package:hongguo_app/features/local_cache_page.dart';
 import 'package:hongguo_app/features/merge_tasks_page.dart';
@@ -111,7 +112,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('追加剧集 offers only the episodes the product does not hold', (
+  testWidgets('追加剧集 greys the episodes the product already holds', (
     tester,
   ) async {
     final runtime = MergeFakeRuntime();
@@ -129,25 +130,41 @@ void main() {
     await tester.pumpAndSettle();
     final panel = find.byType(MergeSelection);
     expect(panel, findsOneWidget);
-    // vid 1 is already inside the product, so the panel does not offer it --
-    // the page behind it still shows it in 构成, which is not a choice.
+    // vid 1 stays visible and says 已含: hiding it would leave the viewer
+    // choosing against a list they cannot check.
     expect(
       find.descendant(of: panel, matching: find.textContaining('第 1 集')),
-      findsNothing,
-    );
-    expect(
-      find.descendant(of: panel, matching: find.textContaining('第 2 集')),
       findsOneWidget,
     );
     expect(
-      find.descendant(of: panel, matching: find.textContaining('第 3 集')),
+      find.descendant(of: panel, matching: find.text('已含')),
       findsOneWidget,
     );
-    expect(find.byKey(const ValueKey('merge-episode-0')), findsOneWidget);
-    expect(find.byKey(const ValueKey('merge-episode-1')), findsOneWidget);
+    expect(
+      find.descendant(of: panel, matching: find.text('已下')),
+      findsNWidgets(2),
+    );
 
+    // Pressing the tile that is already inside the product tells the viewer so
+    // instead of quietly queueing a job the kernel will refuse.
     await tester.tap(find.byKey(const ValueKey('merge-episode-0')));
     await tester.pumpAndSettle();
+    expect(find.textContaining('已在合并资源中'), findsOneWidget);
+    expect(runtime.merges.tasks, isEmpty);
+    // Let that message expire, or it stands in front of the one being checked
+    // at the end: a messenger shows one snackbar at a time.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('merge-episode-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('merge-next')));
+    await tester.pumpAndSettle();
+    // One episode is enough when the product it grows already exists.
+    expect(find.text('合成预检'), findsOneWidget);
+    expect(find.textContaining('编解码一致'), findsOneWidget);
+    expect(find.textContaining('Σ源 1.0 MB + 5%'), findsOneWidget);
+
     await tester.tap(find.byKey(const ValueKey('confirm-merge')));
     await tester.pumpAndSettle();
 
@@ -157,6 +174,8 @@ void main() {
     expect(task.items.single.vid, '2');
     expect(find.byType(MergeSelection), findsNothing);
     expect(find.textContaining('已加入合成队列'), findsOneWidget);
+    // The queue is held by playback, and the panel says so with the job.
+    expect(find.textContaining('正在播放'), findsOneWidget);
   });
 
   testWidgets('the cache shelf merges offline files with no detail request', (
@@ -178,25 +197,168 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('local-merge')));
     await tester.pumpAndSettle();
-    expect(find.text('新建合成'), findsOneWidget);
-    expect(find.textContaining('需至少两集'), findsOneWidget);
+    expect(find.text('选择剧集进行合成'), findsOneWidget);
+    // A group entry starts from everything the shelf holds.
+    expect(find.textContaining('已选 3 集'), findsOneWidget);
 
+    await tester.tap(find.byKey(const ValueKey('merge-clear')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('merge-episode-0')));
     await tester.pumpAndSettle();
     // One episode cannot become a product of its own.
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const ValueKey('merge-next')))
+          .onPressed,
+      isNull,
+    );
+    expect(find.text('至少选择两集'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('merge-episode-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('merge-next')));
+    await tester.pumpAndSettle();
+    expect(runtime.probed, [2]);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const ValueKey('confirm-merge')))
+          .onPressed,
+      isNotNull,
+    );
+    await tester.tap(find.byKey(const ValueKey('confirm-merge')));
+    await tester.pumpAndSettle();
+
+    expect(runtime.merges.tasks.single.kind, 'merge');
+    expect(runtime.merges.tasks.single.items.length, 2);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a refused precheck keeps 开始合成 pressed out', (tester) async {
+    final runtime = MergeFakeRuntime();
+    addTearDown(runtime.cleanUp);
+    runtime.seedFiles('d1', [1, 2]);
+    runtime.probeReject = '第 2 集的编码参数与第 1 集不同，暂时无法无损合并';
+    final group = groupLocalEpisodes(runtime.files).single;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LocalEpisodesPage(runtime: runtime, initial: group),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('local-merge')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('merge-next')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('编码参数不一致'), findsOneWidget);
+    expect(find.textContaining('编码参数与第 1 集不同'), findsOneWidget);
     expect(
       tester
           .widget<FilledButton>(find.byKey(const ValueKey('confirm-merge')))
           .onPressed,
       isNull,
     );
-    await tester.tap(find.byKey(const ValueKey('merge-episode-1')));
+    expect(runtime.merges.tasks, isEmpty);
+
+    // 返回修改 keeps the choice, so the viewer can drop the odd episode.
+    await tester.tap(find.byKey(const ValueKey('merge-back')));
     await tester.pumpAndSettle();
+    expect(find.textContaining('已选 2 集'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a phone runs the same two steps inside the bottom sheet', (
+    tester,
+  ) async {
+    final runtime = MergeFakeRuntime();
+    addTearDown(runtime.cleanUp);
+    runtime.seedFiles('d1', [1, 2, 3]);
+    // The container is chosen off MediaQuery, so the size has to land on the
+    // view -- a tight RenderView would leave MediaQuery at 800x600 and this
+    // would silently be the desktop dialog again.
+    tester.view.physicalSize = const Size(400, 780);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final group = groupLocalEpisodes(runtime.files).single;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LocalEpisodesPage(runtime: runtime, initial: group),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('local-merge')));
+    await tester.pumpAndSettle();
+    final panel = find.byType(MergeSelection);
+    expect(panel, findsOneWidget);
+    expect(MediaQuery.sizeOf(tester.element(panel)), const Size(400, 780));
+    expect(find.textContaining('已选 3 集 · 合计约'), findsOneWidget);
+
+    // Dropping one episode is a tap on its tile, and the grid still totals.
+    await tester.tap(find.byKey(const ValueKey('merge-episode-0')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('已选 2 集 · 合计约'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('merge-next')));
+    await tester.pumpAndSettle();
+    expect(find.text('合成预检'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('confirm-merge')));
     await tester.pumpAndSettle();
 
-    expect(runtime.merges.tasks.single.kind, 'merge');
     expect(runtime.merges.tasks.single.items.length, 2);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('全选可合 takes only what is on disk', (tester) async {
+    final runtime = MergeFakeRuntime();
+    addTearDown(runtime.cleanUp);
+    runtime.seedFiles('d1', [1, 2]);
+    final detail = DramaDetail(
+      Drama(id: 'd1', title: '山海之间', episodeCount: 4),
+      [for (var i = 1; i <= 4; i++) Episode(vid: '$i', index: i)],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: TextButton(
+                onPressed: () => showMergeSelection(
+                  context,
+                  runtime,
+                  options: [
+                    for (final episode in detail.episodes)
+                      MergeEpisodeOption(
+                        vid: episode.vid,
+                        quality: 'best',
+                        dramaId: 'd1',
+                        label: '第 ${episode.index} 集',
+                        index: episode.index,
+                        bytes: episode.index <= 2 ? 1024 * 1024 : 0,
+                        available: episode.index <= 2,
+                      ),
+                  ],
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('merge-select-all')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('已选 2 集'), findsOneWidget);
+    // The undownloaded tile answers with where to go, not with a selection.
+    await tester.tap(find.byKey(const ValueKey('merge-episode-2')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('该集未下载，请先去下载'), findsOneWidget);
+    expect(find.textContaining('已选 2 集'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

@@ -323,6 +323,38 @@ void main() {
     );
   });
 
+  test('the precheck answers with the verdict the writer would give', () {
+    final clear = bytes('clear.mp4'), base = sourceOf(clear);
+    expect(Mp4Merger.rejectOf([base, base]), isNull);
+    // A lone episode never becomes a product, and the panel has to hear that
+    // before it queues a job rather than after it fails.
+    expect(Mp4Merger.rejectOf([base]), contains('至少选择两集'));
+    expect(
+      Mp4Merger.rejectOf([
+        base,
+        sourceOf(edit(clear, 'mdhd', 0, (v) => v == 1 ? 20 : 12, 12289)),
+      ]),
+      contains('时间基'),
+    );
+
+    final product = MemoryMergeSink();
+    Mp4Merger.write(
+      Mp4Merger.plan([sourceOf(clear), sourceOf(clear)]),
+      product,
+    );
+    final grown = sourceOf(product.takeBytes());
+    expect(Mp4Merger.growRejectOf(grown, [base]), isNull);
+    // The same two refusals the append path throws, word for word.
+    final fast = sourceOf(clear);
+    expect(Mp4Merger.growRejectOf(fast, [fast]), contains('元数据在数据之前'));
+    expect(
+      Mp4Merger.growRejectOf(grown, [
+        sourceOf(edit(clear, 'mdhd', 0, (v) => v == 1 ? 20 : 12, 12289)),
+      ]),
+      contains('时间基'),
+    );
+  });
+
   test('a plan is written by exactly one of the two lanes', () {
     final temp = Directory.systemTemp.createTempSync('hongguo-merge-');
     addTearDown(() => temp.deleteSync(recursive: true));
