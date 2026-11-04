@@ -101,4 +101,4 @@ Selected platform builds and installer completeness checks passed before publish
 Device integration tests were not run in this release workflow; local platform validation limits are documented in the repository.
 Platforms built in this run: {', '.join(platforms)}.
 SHA256SUMS.txt and release-manifest.json describe the attached files.
-''')
+''', encoding='utf-8')
