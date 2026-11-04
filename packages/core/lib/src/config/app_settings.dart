@@ -40,6 +40,10 @@ class AppSettings {
       videoVersion,
       videoVersionCode,
       videoUserAgent;
+
+  /// Where 导出 hands the merged file. Empty means 每次显式选择 —— the export panel
+  /// always asks, and this only remembers the last answer as its starting place.
+  final String mergeExportDir;
   static const defaultVideoUserAgent =
       'com.phoenix.read/71332 (Linux; U; Android 16; zh_CN; 25053RT47C; '
       'Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 '
@@ -74,6 +78,7 @@ class AppSettings {
     this.videoVersion = '7.1.3.32',
     this.videoVersionCode = '71332',
     this.videoUserAgent = defaultVideoUserAgent,
+    this.mergeExportDir = '',
     this.updateChecksEnabled = true,
     this.ignoredUpdateVersion = '',
     this.lastUpdateCheckAt = 0,
@@ -113,6 +118,7 @@ class AppSettings {
     'maxCacheMb': maxCacheMb,
     'concurrentPreparations': concurrentPreparations,
     'downloadConcurrent': downloadConcurrent,
+    'mergeExportDir': mergeExportDir,
     'updateChecksEnabled': updateChecksEnabled,
     'ignoredUpdateVersion': ignoredUpdateVersion,
     'lastUpdateCheckAt': lastUpdateCheckAt,
@@ -158,6 +164,7 @@ class AppSettings {
         defaults.concurrentPreparations,
       ),
       downloadConcurrent: read('downloadConcurrent', 1),
+      mergeExportDir: read('mergeExportDir', ''),
       timeoutSeconds: read('timeoutSeconds', defaults.timeoutSeconds),
       signLists: read('signLists', defaults.signLists),
       apiHost: read('apiHost', defaults.apiHost),
@@ -206,6 +213,7 @@ class AppSettings {
     String? videoVersion,
     String? videoVersionCode,
     String? videoUserAgent,
+    String? mergeExportDir,
     bool? updateChecksEnabled,
     String? ignoredUpdateVersion,
     int? lastUpdateCheckAt,
@@ -236,6 +244,7 @@ class AppSettings {
     'concurrentPreparations':
         concurrentPreparations ?? this.concurrentPreparations,
     'downloadConcurrent': downloadConcurrent ?? this.downloadConcurrent,
+    'mergeExportDir': mergeExportDir ?? this.mergeExportDir,
     'timeoutSeconds': timeoutSeconds ?? this.timeoutSeconds,
     'signLists': signLists ?? this.signLists,
     'apiHost': apiHost ?? this.apiHost,
@@ -271,6 +280,10 @@ class AppSettings {
     }
     if (downloadConcurrent < 1 || downloadConcurrent > 5) {
       throw const FormatException('同时下载数量应为 1～5');
+    }
+    if (mergeExportDir.length > 1024 ||
+        RegExp(r'[\r\n\u0000]').hasMatch(mergeExportDir)) {
+      throw const FormatException('导出目录无效');
     }
     if (timeoutSeconds < 10 || timeoutSeconds > 120) {
       throw const FormatException('请求超时应为 10～120 秒');

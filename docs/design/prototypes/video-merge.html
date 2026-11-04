@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>剧集合成 · 设计原型 v2</title>
+</head>
+<body style="background:#efede8">
+<style>
+.vm-root{--pri:#c74334;--bg:#faf9f6;--card:#fff;--ink:#1b1b1d;--sub:#6b6b70;--line:#e7e4de;--ok:#2e7d32;--warn:#b26a00;--dis:#bdbdbd;
+ font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);background:#efede8;padding:18px;border-radius:12px}
+.vm-root *{box-sizing:border-box;margin:0;padding:0}
+.vm-wrap{max-width:1060px;margin:0 auto}
+.vm-root h1{font-size:19px;margin-bottom:4px}
+.vm-meta{font-size:12px;color:var(--sub);margin-bottom:14px}
+.vm-layout{display:flex;gap:16px;align-items:flex-start}
+.vm-nav{width:190px;flex:none;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.vm-nav button{display:block;width:100%;text-align:left;padding:11px 14px;font-size:13px;border:0;background:none;cursor:pointer;border-left:3px solid transparent;color:var(--sub)}
+.vm-nav button.on{border-left-color:var(--pri);color:var(--pri);background:#fbeceb;font-weight:600}
+.vm-nav .grp{font-size:11px;color:#9a9a9a;padding:9px 14px 3px;letter-spacing:.5px}
+.vm-stage{flex:1;display:flex;justify-content:center;position:relative}
+.vm-phone{width:360px;background:var(--bg);border:1px solid var(--line);border-radius:26px;box-shadow:0 10px 30px rgba(0,0,0,.10);overflow:hidden;display:flex;flex-direction:column;min-height:620px;position:relative}
+.vm-bar{display:flex;align-items:center;gap:8px;padding:12px 14px;background:var(--card);border-bottom:1px solid var(--line)}
+.vm-bar .t{font-size:14px;font-weight:600;flex:1}
+.ico{border:0;background:none;cursor:pointer;font-size:14px;color:var(--pri)}
+.vm-body{flex:1;overflow-y:auto;padding:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px;font-size:12px}
+.card.hot{border-color:var(--pri);box-shadow:0 2px 8px rgba(199,67,52,.12)}
+.row{display:flex;align-items:center;gap:8px}
+.sp{flex:1}
+.pill{font-size:10px;padding:2px 8px;border-radius:99px;background:#fbeceb;color:var(--pri);white-space:nowrap}
+.pill.g{background:#e6f4e6;color:var(--ok)}
+.pill.y{background:#fff3e0;color:var(--warn)}
+.pill.n{background:#eee;color:var(--sub)}
+.btn{border:1px solid var(--pri);color:var(--pri);background:#fff;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer}
+.btn.f{background:var(--pri);color:#fff}
+.btn.d{border-color:var(--line);color:var(--sub)}
+.btn:disabled{border-color:var(--line);color:var(--dis);background:#f5f5f3;cursor:not-allowed}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+.ep{position:relative;border:1.5px solid var(--line);background:var(--card);border-radius:9px;padding:8px 2px;font-size:12px;text-align:center;cursor:pointer}
+.ep.on{border-color:var(--pri);background:#fbeceb;color:var(--pri);font-weight:600}
+.ep.off{color:var(--dis);cursor:not-allowed;background:#f2f1ee}
+.ep .tag{position:absolute;top:-6px;right:-3px;font-size:8px;background:var(--ok);color:#fff;border-radius:6px;padding:0 4px}
+.ep.off .tag{background:var(--dis)}
+.prog{height:5px;background:#eee;border-radius:3px;overflow:hidden;margin:6px 0}
+.prog i{display:block;height:100%;background:var(--pri);border-radius:3px;transition:width .5s}
+.fixed{padding:10px 12px;background:var(--card);border-top:1px solid var(--line);display:flex;gap:8px;align-items:center}
+.mask{position:absolute;inset:0;background:rgba(0,0,0,.35);display:none;align-items:flex-end;justify-content:center;z-index:5}
+.mask.center{align-items:center}
+.sheet{width:100%;background:var(--bg);border-radius:18px 18px 0 0;padding:14px;max-height:88%;display:flex;flex-direction:column}
+.dlg{width:92%;background:var(--bg);border-radius:16px;padding:14px;max-height:84%;display:flex;flex-direction:column}
+.vm-root h4{font-size:14px;margin-bottom:8px}
+.note{font-size:11px;color:var(--sub);line-height:1.7;margin:6px 0}
+.note b{color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:11px;background:#fff}
+th,td{text-align:left;padding:5px 6px;border-bottom:1px solid var(--line)}
+th{color:var(--sub);font-weight:600;background:#f6f4f0}
+.seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;margin:8px 0;font-size:12px}
+.seg button{flex:1;border:0;background:#fff;padding:7px 0;cursor:pointer;color:var(--sub)}
+.seg button.on{background:var(--pri);color:#fff}
+.inp{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;background:#fff;margin:6px 0}
+.tree{font-family:Consolas,monospace;font-size:10.5px;background:#232327;color:#d6d6d6;border-radius:8px;padding:10px;line-height:1.7;margin:6px 0}
+.tree .hl{color:#ff8a80}
+.vm-pc{width:620px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,.16);overflow:hidden;display:none;flex-direction:column;min-height:470px}
+.vm-pc .vm-bar{background:#f4f2ee}
+.vm-pc .vm-body{background:var(--bg)}
+.toast{position:absolute;bottom:76px;left:50%;transform:translateX(-50%);background:#323236;color:#fff;font-size:12px;border-radius:8px;padding:8px 14px;opacity:0;transition:opacity .3s;z-index:9;white-space:nowrap;pointer-events:none;max-width:92%;overflow:hidden;text-overflow:ellipsis}
+.toast.show{opacity:1}
+.legend{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:12px;color:var(--sub);line-height:1.8}
+.legend b{color:var(--ink)}
+.notif{border:1px solid var(--line);background:#2b2b2f;color:#eee;border-radius:12px;padding:9px 11px;margin-bottom:8px;font-size:11px}
+.notif .nt{display:flex;align-items:center;gap:6px;font-weight:600;font-size:12px}
+.notif .pill{background:#4a4a50;color:#ffd9d4}
+.chk{display:flex;align-items:center;gap:8px;font-size:12px;margin:6px 0;cursor:pointer}
+</style>
+<div class="vm-root"><div class="vm-wrap">
+<h1>剧集合成（合并导出）· 交互原型 v2</h1>
+<div class="vm-meta">flutter_hongguo · 设计文档 docs/design/video-merge.md · v2 补充：离线路径直接合成 · 后台执行 · 导出双形态（新片段/在原上追加）</div>
+<div class="vm-layout">
+<div class="vm-nav" id="vmNav"></div>
+<div class="vm-stage">
+
+<div class="vm-phone" id="vmPhone">
+  <div class="vm-bar"><button class="ico" onclick="vmGo('detail')">‹</button><div class="t" id="vmTtl"></div><button class="ico" onclick="vmToast('原型内其他页面略')">⋯</button></div>
+  <div class="vm-body" id="vmScreen"></div>
+  <div class="fixed" id="vmFoot"></div>
+  <div class="toast" id="vmToast"></div>
+
+  <div class="mask" id="mSel"><div class="sheet">
+    <div class="row"><h4 style="flex:1">选择剧集进行合成</h4><button class="ico" onclick="vmCl('mSel')">✕</button></div>
+    <div class="note" id="selModeNote">只有<b>已下载并通过校验</b>的分集可选；灰显项可跳去下载。合成跟随源文件画质，不设画质下拉。</div>
+    <div class="row" style="margin-bottom:4px"><button class="btn d" onclick="vmSelAll(true)">全选可合</button><button class="btn d" onclick="vmSelAll(false)">清空</button><span class="sp"></span><span class="note" id="selHint"></span></div>
+    <div class="grid" id="selGrid" style="overflow-y:auto;max-height:280px"></div>
+    <div class="fixed" style="border-top:1px solid var(--line);margin-top:6px;padding:10px 0 0">
+      <span class="note" id="selCnt"></span><span class="sp"></span><button class="btn f" onclick="vmPrecheck()">预检并继续</button>
+    </div>
+  </div></div>
+
+  <div class="mask" id="mPre"><div class="sheet">
+    <div class="row"><h4 style="flex:1">合成预检</h4><button class="ico" onclick="vmCl('mPre')">✕</button></div>
+    <div class="card">
+      <div class="row"><span class="pill g">编解码一致</span><span class="pill g">1080×1920</span><span class="pill g">hvc1 + aac</span></div>
+      <div class="note">读取每部源 mp4 的 trak/stsd 与 sample 表（复用 Mp4Track 解析，不解码全片）：<br>· 视频编码、分辨率、timescale 可归一 ✓<br>· 音频轨 codec/采样率一致 ✓<br>· 任一不一致 → 提示“编码参数不同，无法无损合并”（P2 走 FFmpeg 重编码兜底）</div>
+    </div>
+    <div class="card">
+      <div class="row"><span class="pill y">磁盘预检</span><span class="sp"></span><span class="note" style="text-align:right">Σ源 872MB + 5% ≈ <b>916MB</b> ✓</span></div>
+    </div>
+    <h4>目标</h4>
+    <div class="seg"><button id="tNew" class="on" onclick="vmTgt('new')">新建合并资源</button><button id="tApp" onclick="vmTgt('app')">追加到已有</button></div>
+    <input class="inp" id="mTitle" value="玫瑰深浅处 · 精选合集">
+    <select class="inp" id="mAppSel" style="display:none"><option>m_0001 玫瑰深浅处 1-3集（30分12秒）</option><option>m_0002 玫瑰深浅处 · 精选合集</option></select>
+    <label class="chk"><input type="checkbox" id="bgChk" checked> 后台执行（离开应用不中断；Android 前台服务通知进度）</label>
+    <div class="fixed" style="padding:10px 0 0"><span class="sp"></span><button class="btn f" onclick="vmStartMerge()">开始合成</button></div>
+  </div></div>
+
+  <div class="mask center" id="mMan"><div class="dlg">
+    <div class="row"><h4 style="flex:1">合并构成 · <span id="manName"></span></h4><button class="ico" onclick="vmCl('mMan')">✕</button></div>
+    <div style="overflow-y:auto"><table id="manTbl"></table></div>
+    <div class="note" id="manFoot"></div>
+    <div class="fixed" style="padding:10px 0 0;border-top:0"><button class="btn" onclick="vmCl('mMan');vmGo('append')">追加剧集</button><span class="sp"></span><button class="btn d" onclick="vmCl('mMan')">关闭</button></div>
+  </div></div>
+</div>
+
+<div class="vm-pc" id="vmPc">
+  <div class="vm-bar"><div class="t">导出合并资源</div><button class="ico" onclick="vmClosePc()">✕</button></div>
+  <div class="vm-body">
+    <div class="row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1">
+        <h4>资源</h4>
+        <div class="card"><b style="font-size:13px">玫瑰深浅处 · 精选合集</b><div class="note">merged/m_0002.mp4 · 872MB · 12 集 · 3 小时 41 分 · 可后台导出</div></div>
+        <h4 style="margin-top:10px">输出形态</h4>
+        <div class="seg"><button id="eNew" class="on" onclick="vmExpMode('new')">导出为新的合成片段</button><button id="eApp" onclick="vmExpMode('app')">在原导出基础上追加</button></div>
+        <div id="eAppBox" style="display:none">
+          <select class="inp"><option>E:/备份/m_0001.mp4（218MB · 10-28 导出 · 3集）</option><option>E:/备份/精选合集_v1.mp4（640MB · 10-30 导出 · 9集）</option><option>浏览其他已导出文件…</option></select>
+          <div class="note">追加 = 对目标文件走尾部快路径：删尾部 moov → 追加 mdat → 写新 moov。<br>预检参数一致 + 大小/sha 与导出记录相符；先写同目录 <span style="font-family:monospace">.part</span>，校验后原子替换——失败不损坏原文件。<br>移动端等价操作 = 应用内追加剧集后整体重新导出到原路径（覆盖确认）。</div>
+        </div>
+        <h4 id="pcPosTitle">目标位置（应用内原件保留，导出不移动）</h4>
+        <div class="row"><input class="inp sp" id="pcPath" value="D:/Videos/红果合集/"><button class="btn" onclick="vmPickDir()">选择目录…</button></div>
+        <div class="note">目标盘剩余 <b>214GB</b> ✓ · 同时导出构成清单 <span style="font-family:monospace">m_0002.merge.json</span> 的可读副本</div>
+        <div class="card" style="margin-top:8px">
+          <div class="row"><span class="pill">导出历史</span></div>
+          <div class="note">2026-11-02 14:20 → <span style="font-family:monospace">E:/备份/m_0001.mp4</span> <span class="pill g">成功 · new</span><br>exports[] 记录 mode:new|append 与 targetOf；同路径重复导出弹出覆盖确认。</div>
+        </div>
+      </div>
+      <div style="width:240px">
+        <h4>目录树</h4>
+        <div class="tree">📁 D:/<br>├─ 📁 Videos/<br>│&nbsp;&nbsp; └─ <span class="hl">📁 红果合集/ ← 目标</span><br>├─ 📁 Downloads/<br>└─ 📁 Documents/</div>
+      </div>
+    </div>
+  </div>
+  <div class="fixed" style="background:var(--card)"><span class="note" id="pcProg"></span><span class="sp"></span><button class="btn d" onclick="vmClosePc()">取消</button><button class="btn f" id="pcGoBtn" onclick="vmDoExport()">导出</button></div>
+</div>
+
+</div></div>
+<div class="legend" id="vmLegend"></div>
+</div></div>
+<script>
+(function(){
+const DOWN=new Set([1,2,3,4,5,6,7,8,9,10,12,15,18,24]);
+let sel=new Set([1,2,3]);
+let phase='idle', frac=0, appends=[], timer=null, bgFrac=.55, bgTimer=null, netOn=true, offlineEntry=false, expMode='new';
+const merges=[
+ {id:'m_0001',name:'玫瑰深浅处 1-3集',codec:'hvc1 1080p',size:'218MB',dur:'30分12秒',date:'10-28',items:[1,2,3]},
+ {id:'m_0002',name:'玫瑰深浅处 · 精选合集',codec:'hvc1 1080p',size:'872MB',dur:'3小时41分',date:'11-02',items:[1,2,3,4,5,6,7,8,9,10,12,15]}
+];
+const SCREENS=[
+ ['grp','入口与选择'],['detail','① 详情页 · 合成入口'],['offline','② 离线剧集 · 下载管理'],['select','③ 剧集多选面板'],
+ ['grp','合成任务'],['task','④ 合成任务进度'],['bg','⑤ 后台执行与续位'],
+ ['grp','合并资源'],['merged','⑥ 合并资源列表'],['append','⑦ 追加剧集'],
+ ['grp','交付'],['export','⑧ 导出 · 新片段/追加'],
+];
+const LEGENDS={
+ detail:'<b>详情页</b>：下载旁新增描边“合成”次按钮，保持播放优先；仅本地 runtime 展示入口（Web 隐藏）。',
+ offline:'<b>② 离线路径</b>（补充需求 7）：下载管理/本地剧集的完成组直接发起“合成本剧分集”；集号与元数据来自 LibraryCache/LocalDramaGroup，无网也照常预检、合成、导出，仅在线动作禁用；未知 vid 桶可合成并在构成中如实标注。',
+ select:'<b>多选面板</b>：复用 showDownloadSelection 骨架——≥720×400 走 Dialog，手机走底部 Sheet；未下载集置灰；无画质下拉（跟随源画质）。从离线入口进入时默认为该组已完成集。',
+ task:'<b>合成任务</b>：MergeManager（ChangeNotifier + merge-tasks.json 持久化，镜像 DownloadManager）；并发 1、播放让位；part → 校验 → 原子 rename 发布。',
+ bg:'<b>⑤ 后台执行</b>（补充需求 8）：job 在 worker isolate 内运行（同 FileDecryptor 模式），UI 只收进度事件；字节检查点写 merge-journal，进程被杀后 reconcile 续位或重做，绝不产生伪完成产物。桌面进程存活即续写；Android 前台服务通知；iOS 回前台续位 + BGProcessingTask 尽力；TV 仅前台。',
+ merged:'<b>合并资源列表</b>：merged/ 目录 + manifest 驱动；一卡一资源：播放 / 查看构成 / 追加 / 导出 / 删除。作为“虚拟剧集”进入本地库分组。',
+ append:'<b>追加合并</b>：已含集置灰；新集需通过同参数校验；快路径 = 删尾部 moov → 追加 mdat → 重写新 moov，不搬移既有视频字节。',
+ export:'<b>⑧ 导出双形态</b>（补充需求 6）：默认“导出为新的合成片段”；也可选择此前导出的文件“在原基础上追加”——PC 对目标文件尾部快路径原地追加（part→校验→原子替换），移动端以“应用内追加后整体重导出”达成等价效果；exports[] 记 mode 与 targetOf。',
+};
+let cur='detail';
+const $=id=>document.getElementById(id);
+function navRender(){$('vmNav').innerHTML=SCREENS.map(s=>s[0]==='grp'?`<div class="grp">${s[1]}</div>`:`<button class="${cur==s[0]?'on':''}" onclick="vmGo('${s[0]}')">${s[1]}</button>`).join('')}
+window.vmGo=function(k){cur=k;$('vmPhone').style.display=(k=='export'?'none':'flex');$('vmPc').style.display=(k=='export'?'flex':'none');navRender();render()};
+window.vmToast=function(t){const e=$('vmToast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2200)};
+function op(id){$(id).style.display='flex'}
+window.vmCl=id=>$(id).style.display='none';
+function render(){
+ const s=$('vmScreen'),f=$('vmFoot');
+ $('vmTtl').textContent={detail:'玫瑰深浅处',offline:'下载管理',select:'选择剧集进行合成',task:'合成任务',bg:'后台任务',merged:'合并资源',append:'追加剧集 · m_0002',export:''}[cur];
+ $('vmLegend').innerHTML=LEGENDS[cur]||'';
+ if(cur=='detail'){
+  s.innerHTML=`<div class="row" style="align-items:flex-start;gap:10px"><div style="width:84px;height:112px;border-radius:10px;background:linear-gradient(160deg,#3b2a2a,#8a4b3b);flex:none"></div><div style="flex:1"><b style="font-size:15px">玫瑰深浅处</b><div class="note">共 24 集 · 都市 · 已下载 ${DOWN.size} 集</div><div class="row"><span class="pill g">全部已校验</span><span class="pill n">hvc1 1080p</span></div></div></div>
+  <div class="row" style="margin:12px 0"><button class="btn f sp" onclick="vmToast('进入播放（既有能力）')">▶ 播放</button><button class="btn sp" onclick="vmToast('下载选集面板（既有）')">下载</button><button class="btn sp" style="border-width:2px" onclick="vmEnterSelect(false)">＋ 合成</button></div>
+  <div class="note">合成入口与下载并列；离线时该入口依旧可用（数据全本地）。</div>
+  <div class="card"><div class="row"><b>已下载分集</b><span class="sp"></span><span class="note">media-cache/{vid}_{quality}.mp4</span></div><div class="note">${[...DOWN].slice(0,12).map(i=>`<span class="pill g" style="margin:2px">第${i}集</span>`).join('')}</div></div>`;
+  f.innerHTML='';
+ }
+ if(cur=='offline'){
+  s.innerHTML=`<div class="row" style="margin-bottom:8px"><span class="pill ${netOn?'g':'y'}">网络：${netOn?'在线':'离线'}</span><span class="sp"></span><button class="btn d" onclick="vmNetToggle()">切换模拟</button></div>
+  <div class="card hot"><div class="row" style="align-items:flex-start"><div style="width:44px;height:58px;border-radius:6px;background:linear-gradient(160deg,#3b2a2a,#8a4b3b);flex:none"></div><div style="flex:1"><b style="font-size:13px">玫瑰深浅处</b><div class="note"><span class="pill g">已完成 ${DOWN.size} 集</span> <span class="pill n">LibraryCache</span></div><div class="note">集号/标题读本地缓存，无需在线详情</div></div></div>
+   <div class="row" style="margin-top:8px"><button class="btn f" onclick="vmEnterSelect(true)">＋ 合成本剧分集</button><button class="btn d" onclick="vmToast('${netOn?'拉取最新剧集：联网后仅排新集（既有能力）':'离线不可用：拉取最新需要在线详情（已禁用）'}')" ${netOn?'':'disabled'}>拉取最新</button><button class="btn d" onclick="vmToast('删除本剧下载（既有能力）')">删除</button></div>
+   <div class="note" style="margin-top:6px">${[...DOWN].slice(0,10).map(i=>`<span class="pill g" style="margin:2px">第${i}集</span>`).join('')} …</div></div>
+  <div class="card"><b>本地剧集页同样入口</b><div class="note">LocalDramaGroup 组行卡提供组级“合成”；未知 vid 桶（散装文件）也可合成，构成清单标注“来源未知”。</div></div>
+  <div class="note">离线全流程可用：面板 → 预检 → 后台合成 → 合并列表 → 导出；仅“拉取最新剧集”一类在线动作置灰。</div>`;
+  f.innerHTML='';
+ }
+ if(cur=='select'){
+  s.innerHTML=`<div class="note">${offlineEntry?'离线路径：面板由本地缓存驱动，本组已完成集已默认勾选，可去选。':'点格子勾选/取消；灰显 = 未下载，不可选。'}</div><div class="grid">${Array.from({length:24},(_,i)=>i+1).map(i=>{
+   const d=DOWN.has(i),on=sel.has(i);
+   return `<div class="ep ${on?'on':''} ${d?'':'off'}" ${d?`onclick="vmTog(${i})"`:`onclick="vmToast('该集未下载，请先去下载')"`}>第${i}集<div class="tag">${d?'已下':'未'}</div></div>`}).join('')}</div>`;
+  f.innerHTML=`<span class="note">已选 <b>${sel.size}</b> 集</span><span class="sp"></span><button class="btn d" onclick="vmSelAll(false)">清空</button><button class="btn f" ${sel.size<2?'disabled':''} onclick="vmOpenSel()">下一步 · 预检</button>`;
+ }
+ if(cur=='task'){
+  const pct=Math.round(frac*100);
+  s.innerHTML=`<div class="card"><div class="row"><b>正在合成</b><span class="sp"></span><span class="pill">${phase=='idle'?'排队中':phase=='read'?'校验源':phase=='write'?'写入':'发布'}</span>${$('bgChk')&&$('bgChk').checked&&phase!='idle'?'<span class="pill n">后台</span>':''}</div>
+   <div style="margin-top:6px;font-size:13px">玫瑰深浅处 · 精选合集（${sel.size||12} 集 → 新 mergeId）</div>
+   <div class="prog"><i style="width:${pct}%"></i></div>
+   <div class="note">${pct}% · ${{idle:'排队（下载/播放占用时让位，并发固定 1）',read:'worker isolate 逐部校验源文件 sha/大小',write:'流式写 merged/&lt;id&gt;.mp4.&lt;ts&gt;.part；journal 记录字节检查点',done:'读回 box 表校验 → 原子 rename 发布 + 写 manifest'}[phase]}</div>
+   <div class="row"><button class="btn d" onclick="vmCancel()">取消（只删 part）</button><button class="btn" onclick="vmGo('bg')">切到后台</button><button class="btn d" onclick="vmGo('merged')">查看产物</button></div></div>
+  <div class="card"><div class="row"><span class="pill g">m_0001 玫瑰深浅处 1-3集</span><span class="sp"></span><span class="note">10-28 已完成</span></div></div>
+  <div class="note">队列持久化 merge-tasks.json（tmp→rename）；失败只删 part，不动已有产物。</div>`;
+  f.innerHTML=`<span class="note">演示：预检通过后自动推进</span><span class="sp"></span><button class="btn" onclick="vmStartMerge(true)">重放合成过程</button>`;
+ }
+ if(cur=='bg'){
+  s.innerHTML=`<div class="notif"><div class="nt">🛠 正在合成 · <span id="bgPct">${Math.round(bgFrac*100)}</span>%<span class="sp"></span><span class="pill">前台服务</span></div>
+   <div>玫瑰深浅处 · 精选合集（12 集 → m_0002）— 点按回到任务页</div>
+   <div class="prog" style="background:#4a4a50"><i id="bgBar" style="width:${bgFrac*100}%"></i></div></div>
+  <div class="notif"><div class="nt">📤 后台导出 · 55%</div><div>E:/备份/m_0001.mp4 ← 在原基础上追加（3 新集）— 完成前请勿弹出磁盘</div></div>
+  <div class="card"><b>任务为什么能离开前台继续</b><div class="note">· job 在专用 worker isolate 执行（同 FileDecryptor 模式），UI 关闭不影响<br>· 字节检查点写 merge-journal，队列写 merge-tasks.json<br>· 桌面：进程存活即继续；Android：前台服务通知防挂起；iOS：回前台续位 + BGProcessingTask 尽力；TV 仅前台</div></div>
+  <div class="card"><b>被杀后怎么恢复</b><div class="note">重启 reconcile：journal 覆盖范围内 → 从 512MB 检查点续写；范围外 → 整个 job 重做。任何情况都不会把未校验产物当“已完成”（发布=校验后原子 rename）。</div></div>
+  <div class="row"><button class="btn" onclick="vmBgDemo()">推进后台进度</button><button class="btn d" onclick="vmToast('reconcile：从 journal 512MB 检查点续写，产物字节序一致')">模拟进程被杀→恢复</button></div>`;
+  f.innerHTML=`<span class="note">通知点击 = 回到应用任务页</span><span class="sp"></span><button class="btn f" onclick="vmGo('task')">回到前台任务</button>`;
+ }
+ if(cur=='merged'){
+  s.innerHTML=merges.map(m=>`<div class="card"><div class="row" style="align-items:flex-start"><div style="width:56px;height:74px;border-radius:8px;background:linear-gradient(160deg,#2a3340,#4b6a8a);flex:none"></div><div style="flex:1"><b style="font-size:13px">${m.name}</b><div class="note"><span class="pill">${m.items.length}集</span> <span class="pill n">${m.codec}</span> <span class="pill n">${m.size}</span> <span class="pill n">${m.dur}</span></div><div class="note">merged/${m.id}.mp4 + ${m.id}.merge.json · 建于 ${m.date} · 追加 ${m.id=='m_0002'?appends.length:0} 次 · 导出 1 次（mode=new）</div></div></div>
+   <div class="row" style="margin-top:8px"><button class="btn f" onclick="vmToast('作为单条虚拟剧集进入播放器（既有本地播放）')">▶ 播放</button><button class="btn" onclick="vmShowManifest('${m.id}')">查看构成</button><button class="btn" onclick="vmGo('append')">追加</button><button class="btn" onclick="vmGo('export')">导出</button><button class="btn d" onclick="vmToast('删除前确认；不级联删除源下载文件')">删除</button></div></div>`).join('')
+   +'<div class="note">列表由 merged/ 目录与 manifest 驱动；删除合并片不影响源文件，源被删只在构成清单标注“源已删除”。</div>';
+  f.innerHTML='';
+ }
+ if(cur=='append'){
+  const inc=new Set(merges[1].items);
+  const extra=new Set([11,13,14,16]);
+  s.innerHTML=`<div class="note">目标：<b>m_0002 玫瑰深浅处 · 精选合集</b>（${merges[1].items.length} 集）。已在 manifest 中的集置灰；新集需通过与既有产物相同的 codec/分辨率参数校验。</div>
+  <div class="grid">${Array.from({length:16},(_,i)=>i+1).map(i=>{const inM=inc.has(i),d=DOWN.has(i)||extra.has(i),on=sel.has(i)&&!inM;
+   return `<div class="ep ${inM?'off':on?'on':''} ${!inM&&!d?'off':''}" ${inM?`onclick="vmToast('第${i}集已在合并资源中')"`:(d?`onclick="vmTog(${i})"`:`onclick="vmToast('未下载，不能作为合成输入')"`)}>`+(inM?'✓'+i:'第'+i)+'集<div class="tag">'+(inM?'已含':d?'可加':'未')+'</div></div>'}).join('')}</div>
+  <div class="card"><div class="row"><span class="pill">快路径</span><span class="sp"></span><span class="note" style="text-align:right">追加不重写既有视频字节</span></div><div class="note">删尾部 moov → 追加新 mdat → 全量 sample 表写新 moov；offsetMs/时长在 manifest 增量累加。追加同样可勾选后台执行。</div></div>`;
+  f.innerHTML=`<span class="note">追加 <b>${sel.size}</b> 集</span><span class="sp"></span><button class="btn f" ${sel.size==0?'disabled':''} onclick="vmDoAppend()">追加合并</button>`;
+ }
+ if(cur=='export'){
+  $('pcProg').textContent=phase=='exporting'?(expMode=='new'?'导出中 ':'追加导出中 ')+Math.round(frac*100)+'% …':'';
+ }
+}
+window.vmEnterSelect=function(offline){offlineEntry=offline;sel=offline?new Set([...DOWN].slice(0,8)):new Set([1,2,3]);vmGo('select');if(offline)vmToast('已默认勾选本组 8 个已完成集（纯本地数据）')};
+window.vmNetToggle=function(){netOn=!netOn;render()};
+window.vmTog=function(i){sel.has(i)?sel.delete(i):sel.add(i);render();if($('mSel').style.display=='flex')drawSel()};
+window.vmSelAll=function(v){sel=v?new Set([...DOWN]):new Set();render();if($('mSel').style.display=='flex')drawSel()};
+function drawSel(){
+ $('selGrid').innerHTML=Array.from({length:24},(_,i)=>i+1).map(i=>{const d=DOWN.has(i),on=sel.has(i);
+  return `<div class="ep ${on?'on':''} ${d?'':'off'}" ${d?`onclick="vmTog(${i})"`:''}>第${i}集<div class="tag">${d?'✓':'未下'}</div></div>`}).join('');
+ $('selCnt').innerHTML=`已选 <b>${sel.size}</b> 集 · 合计约 ${sel.size*73}MB`;
+ $('selHint').textContent=offlineEntry?'离线路径 · 可去选':'未下载集置灰';
+ $('selModeNote').innerHTML=offlineEntry?'离线路径：本组已完成集默认全选，元数据来自本地缓存，<b>无网可用</b>。':'只有<b>已下载并通过校验</b>的分集可选；灰显项可跳去下载。合成跟随源文件画质，不设画质下拉。';
+}
+window.vmOpenSel=function(){drawSel();op('mSel')};
+window.vmTgt=function(k){$('tNew').className=k=='new'?'on':'';$('tApp').className=k=='app'?'on':'';$('mAppSel').style.display=k=='app'?'block':'none';$('mTitle').style.display=k=='new'?'block':'none'};
+window.vmPrecheck=function(){if(sel.size<2){vmToast('至少选择 2 集');return}vmCl('mSel');op('mPre')};
+window.vmStartMerge=function(replay){
+ vmCl('mPre');if(!replay){phase='read';frac=0}
+ const background=$('bgChk')&&$('bgChk').checked;
+ vmGo(background?'bg':'task');bgFrac=0;
+ if(replay&&!background){vmGo('task')}
+ if(timer)clearInterval(timer);
+ const seq=[['read',.05],['read',.2],['write',.35],['write',.55],['write',.75],['write',.9],['done',1]];
+ let i=0;
+ timer=setInterval(()=>{if(i>=seq.length){clearInterval(timer);timer=null;if(background){bgFrac=1}else if(!replay){vmToast('已发布合并产物，可在合并资源查看')}if(cur=='bg')render();return}
+  phase=seq[i][0];frac=seq[i][1];bgFrac=frac;
+  if(cur=='task')render();
+  if(cur=='bg'&&background){const b=$('bgBar'),p=$('bgPct');if(b)b.style.width=Math.round(frac*100)+'%';if(p)p.textContent=Math.round(frac*100)}
+  i++},550);
+ if(background)vmToast('已排入后台队列：worker isolate 执行，journal 记录检查点');
+};
+window.vmBgDemo=function(){if(bgTimer)return;let p=.2;bgTimer=setInterval(()=>{p+=.16;if(p>=1){p=1;clearInterval(bgTimer);bgTimer=null;phase='done';vmToast('后台合成完成：已校验并发布产物')}const b=$('bgBar'),t=$('bgPct');if(b)b.style.width=Math.round(p*100)+'%';if(t)t.textContent=Math.round(p*100)},400)};
+window.vmCancel=function(){if(timer){clearInterval(timer);timer=null}phase='idle';frac=0;render();vmToast('已取消并删除 .part 与 journal（不动已有产物）')};
+window.vmExpMode=function(k){expMode=k;$('eNew').className=k=='new'?'on':'';$('eApp').className=k=='app'?'on':'';
+ $('eAppBox').style.display=k=='app'?'block':'none';
+ $('pcPosTitle').textContent=k=='new'?'目标位置（应用内原件保留，导出不移动）':'追加目标（来自导出历史，或浏览选择）';
+ $('pcGoBtn').textContent=k=='new'?'导出':'追加导出';};
+window.vmShowManifest=function(id){
+ const m=merges.find(x=>x.id==id);$('manName').textContent=m.name;
+ $('manTbl').innerHTML='<tr><th>#</th><th>剧集</th><th>vid</th><th>画质</th><th>时长</th><th>起始偏移</th><th>源文件</th></tr>'+m.items.map((n,idx)=>{const off=idx*18.4;
+  return `<tr><td>${idx+1}</td><td>第${n}集</td><td style="font-family:monospace">7438…${String(n).padStart(2,'0')}</td><td>1080p</td><td>18分24秒</td><td>${(off/60).toFixed(1)}分</td><td><span class="pill g">存在</span></td></tr>`}).join('')
+  +(id=='m_0002'&&appends.length?appends.map(a=>`<tr><td>＋</td><td>第${a}集 <span class="pill y">追加</span></td><td style="font-family:monospace">7438…${a}</td><td>1080p</td><td>18分24秒</td><td>尾部</td><td><span class="pill g">存在</span></td></tr>`).join(''):'');
+ $('manFoot').innerHTML=`createdAt 2026-11-02 · 追加 ${id=='m_0002'?appends.length:0} 次 · 导出记录：E:/备份/${m.id}.mp4（11-02 14:20 成功 · mode=new）· 事实源：merged/${m.id}.merge.json`;
+ op('mMan');
+};
+window.vmDoAppend=function(){if(sel.size==0)return;appends.push(...[...sel]);const m=merges.find(x=>x.id=='m_0002');m.items.push(...[...sel]);m.dur='+'+sel.size*18+'分';sel.clear();vmGo('merged');vmToast('已追加合并（快路径：删尾部 moov → 追加 mdat → 写新 moov）')};
+window.vmPickDir=function(){$('pcPath').value=expMode=='new'?'D:/Videos/红果合集/':'E:/备份/m_0001.mp4';vmToast(expMode=='new'?'file_picker 目录选择（演示）':'file_picker 文件选择：目标=历史导出文件')};
+window.vmClosePc=function(){$('vmPc').style.display='none';vmGo('merged')};
+window.vmDoExport=function(){const e=$('pcProg');let p=0;const lab=expMode=='new'?'导出中':'追加导出中';e.textContent=lab+' 0% …（后台任务，可关窗）';const t=setInterval(()=>{p+=20;if(p>=100){clearInterval(t);e.textContent=expMode=='new'?'✓ 已导出 m_0002.mp4 + manifest 副本（mode=new）':'✓ 已在目标文件尾部追加 3 集（mode=append，原字节未动）';vmToast('导出完成，原件保留在 merged/；exports[] 已记录')}else e.textContent=lab+' '+p+'% …（后台任务，可关窗）'},400)};
+navRender();render();
+})();
+</script>
+
+</body>
+</html>

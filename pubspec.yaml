@@ -29,6 +29,9 @@ dependency_overrides:
   background_downloader: 9.6.4
   window_manager: ^0.5.1
   path_provider: ^2.1.5
+  # 导出选目录（PC）与系统分享（移动端）：均为纯文件/分享通道，不含原生视频链路。
+  file_picker: 13.3.2
+  share_plus: 13.3.1
   cupertino_icons: ^1.0.8
   dio: 5.11.1
   crypto: ^3.0.7

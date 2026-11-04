@@ -8,6 +8,7 @@ cd "$PROJECT_ROOT"
 (cd packages/tv && "$SDK_BIN/flutter" test --no-pub --reporter expanded)
 (cd packages/app && "$SDK_BIN/flutter" test --no-pub --reporter expanded)
 (cd packages/app && "$SDK_BIN/flutter" test test/tv_settings_test.dart --no-pub --dart-define=HONGGUO_TV=true --reporter expanded)
+(cd packages/app && "$SDK_BIN/flutter" test test/local_download_selection_tv_test.dart --no-pub --dart-define=HONGGUO_TV=true --reporter expanded)
 python3 -m unittest discover -s tool/ci/tests -v
 if [[ -n "${1:-}" ]]; then
   cd packages/app

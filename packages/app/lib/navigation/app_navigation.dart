@@ -17,7 +17,10 @@ enum AppScreen {
   settings('AppSettings', '/settings'),
   cache('LocalCache', '/cache'),
   downloads('EpisodeDownloads', '/downloads'),
+  downloadEpisodes('DownloadEpisodes', '/downloads/episodes'),
   localEpisodes('LocalEpisodes', '/cache/episodes'),
+  merged('MergedLibrary', '/merged'),
+  mergeTasks('MergeTasks', '/merge/tasks'),
   cacheMetadata('CacheMetadata', '/cache/metadata');
 
   final String routeName, path;

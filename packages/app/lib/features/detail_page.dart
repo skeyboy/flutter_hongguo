@@ -7,8 +7,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:hongguo_api/hongguo_api.dart';
+import 'package:hongguo_tv/hongguo_tv.dart' show tvBuild;
 
 import '../platform/runtime.dart';
+import '../merge/merge_selection.dart';
 import '../playback/episode_pager.dart';
 import '../recommendations/related_dramas_section.dart';
 import '../widgets/drama_cover.dart';
@@ -118,6 +120,19 @@ class _DetailPageState extends State<DetailPage> {
     catalogThemeHandoff.ask(theme);
     // 主题行是发现页自己的状态，而它在栈底：收掉这一层以上，它才看得见这一次 ask。
     Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  /// 合成 reads the files this device already holds, so the panel is built from
+  /// the cache scan rather than another detail request.
+  Future<void> _merge(DramaDetail data) async {
+    final options = await mergeOptionsFor(widget.runtime, data);
+    if (!mounted || options.isEmpty) return;
+    await showMergeSelection(
+      context,
+      widget.runtime,
+      options: options,
+      suggestedTitle: '${data.drama.title} 合集',
+    );
   }
 
   @override
@@ -287,6 +302,18 @@ class _DetailPageState extends State<DetailPage> {
                                             Icons.download_outlined,
                                           ),
                                           label: const Text('下载'),
+                                        ),
+                                      if (!tvBuild &&
+                                          widget.runtime is MergeRuntime)
+                                        OutlinedButton.icon(
+                                          key: const ValueKey('merge-drama'),
+                                          onPressed: data.episodes.isEmpty
+                                              ? null
+                                              : () => _merge(data),
+                                          icon: const Icon(
+                                            Icons.video_library_outlined,
+                                          ),
+                                          label: const Text('合成'),
                                         ),
                                     ],
                                   ),

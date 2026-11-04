@@ -13,7 +13,7 @@ import 'package:hongguo_tv/hongguo_tv.dart';
 import 'desktop_fakes.dart';
 import 'download_fakes.dart';
 
-/// The two drama-level actions a cached shelf now offers -- 拉取最新剧集 and
+/// The drama-level actions a cached shelf now offers -- 检查最新剧集、挑几集下载 and
 /// 归类删除 -- walked once per family. The remote family is the reason each is its
 /// own labelled target: a row-wide target would hide the destructive one.
 Widget _tv(Widget child) => MaterialApp(
@@ -84,6 +84,29 @@ Future<DownloadFakeRuntime> _shelf(WidgetTester tester, String quality) async {
   return runtime;
 }
 
+/// A shelf that already holds every episode the catalog has, so an online read
+/// has nothing left to offer.
+Future<DownloadFakeRuntime> _fullShelf(
+  WidgetTester tester,
+  String quality,
+) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  final runtime = DownloadFakeRuntime();
+  final detail = await runtime.catalog.detail('123');
+  await runtime.downloads.enqueue(detail, [0, 1, 2], quality);
+  for (final position in [0, 1, 2]) {
+    await drain(tester);
+    await runtime.complete('${11 + position}_$quality');
+  }
+  await drain(tester);
+  expect(
+    runtime.files,
+    hasLength(3),
+    reason: 'the shelf must really hold all 3',
+  );
+  return runtime;
+}
+
 /// A queue left in whatever state the page is supposed to react to.
 Future<DownloadFakeRuntime> _queue(
   WidgetTester tester,
@@ -145,31 +168,150 @@ Future<void> _openGrid(
 }
 
 void main() {
-  testWidgets(
-    '触屏 pulls the newest episodes into the queue and reports the read',
-    (tester) async {
-      final runtime = await _shelf(tester, '1080p');
-      addTearDown(() async {
-        final closing = runtime.dispose();
-        await tester.pump();
-        await closing;
-      });
-      await _openShelf(tester, runtime, tv: false);
+  testWidgets('触屏 checks the online gap and queues none of it', (tester) async {
+    final runtime = await _shelf(tester, '1080p');
+    addTearDown(() async {
+      final closing = runtime.dispose();
+      await tester.pump();
+      await closing;
+    });
+    await _openShelf(tester, runtime, tv: false);
 
-      expect(find.byKey(const ValueKey('local-pull')), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('local-pull')));
-      await drain(tester);
-      await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('local-check')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('local-check')));
+    await drain(tester);
+    await tester.pumpAndSettle();
 
-      expect(runtime.calls, ['11_1080p', '12_1080p']);
-      expect(
-        runtime.downloads.taskFor('13', '1080p')!.phase,
-        DownloadPhase.queued,
-      );
-      expect(find.textContaining('新加入 2 集下载（1080p）'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    },
-  );
+    // The answer is a number, not a queue. The two episodes the shelf does not
+    // hold get named; nothing starts moving until a cell is picked.
+    expect(find.textContaining('2 集可下载'), findsOneWidget);
+    expect(runtime.calls, ['11_1080p']);
+    expect(runtime.downloads.tasks, hasLength(1));
+    expect(runtime.downloads.taskFor('13', '1080p'), isNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('触屏 从缓存剧目挑新集：已缓存那集禁选，只排观众点名的', (tester) async {
+    final runtime = await _shelf(tester, '1080p');
+    addTearDown(() async {
+      final closing = runtime.dispose();
+      await tester.pump();
+      await closing;
+    });
+    await _openShelf(tester, runtime, tv: false);
+
+    await tester.tap(find.byKey(const ValueKey('local-download')));
+    await drain(tester);
+
+    // The detail page's own panel, opened on the online read instead of the
+    // shelf snapshot, and starting at the quality this series was cached at.
+    expect(find.text('下载剧集'), findsOneWidget);
+    expect(find.text('1080p'), findsWidgets);
+    // 第 1 集 is the file already on disk: labelled, and not a target.
+    expect(find.text('已下载'), findsOneWidget);
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.byKey(const ValueKey('download-episode-0')),
+          )
+          .onPressed,
+      isNull,
+    );
+
+    await tester.tap(find.text('全选'));
+    await drain(tester);
+    expect(find.text('下载 2 集'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('confirm-download')));
+    await drain(tester);
+    await tester.pumpAndSettle();
+
+    expect(
+      runtime.downloads.taskFor('12', '1080p')!.phase,
+      isNot(DownloadPhase.ready),
+    );
+    expect(
+      runtime.downloads.taskFor('13', '1080p')!.phase,
+      DownloadPhase.queued,
+    );
+    expect(runtime.calls, ['11_1080p', '12_1080p']);
+    expect(find.textContaining('已加入下载'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('都缓存好了不弹空窗口，只报这次在线读数', (tester) async {
+    final runtime = await _fullShelf(tester, '1080p');
+    addTearDown(() async {
+      final closing = runtime.dispose();
+      await tester.pump();
+      await closing;
+    });
+    await _openShelf(tester, runtime, tv: false);
+
+    await tester.tap(find.byKey(const ValueKey('local-download')));
+    await drain(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.text('下载剧集'), findsNothing);
+    expect(find.textContaining('已是最新：在线 3 集'), findsOneWidget);
+    expect(runtime.downloads.tasks, hasLength(3));
+    expect(runtime.calls, ['11_1080p', '12_1080p', '13_1080p']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('遥控 挑集下载是可聚焦的目标，开的还是同一个选集窗口', (tester) async {
+    final runtime = await _shelf(tester, '720p');
+    addTearDown(() async {
+      final closing = runtime.dispose();
+      await tester.pump();
+      await closing;
+    });
+    await _openShelf(tester, runtime, tv: true);
+
+    // The cell-by-cell walk of the picker belongs to the tv flavor (`HONGGUO_TV`),
+    // which is what test/local_download_selection_tv_test.dart runs; here the
+    // shelf's own action row is the thing under test: a labelled remote target
+    // that reaches the online read.
+    expect(_nodeByLabel(tester, '选择下载新集'), isNotNull);
+    await _activate(tester, '选择下载新集');
+    await drain(tester);
+
+    expect(find.text('下载剧集'), findsOneWidget);
+    // The one episode already on disk arrives labelled as such, so neither
+    // family is offered a file it can already play.
+    expect(find.text('已下载'), findsOneWidget);
+    expect(runtime.calls, ['11_720p']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('长按剧目的面板多一枚挑集下载，开的还是同一个选集窗口', (tester) async {
+    final runtime = await _shelf(tester, 'best');
+    addTearDown(() async {
+      final closing = runtime.dispose();
+      await tester.pump();
+      await closing;
+    });
+    await _openGrid(tester, runtime);
+
+    await tester.longPress(find.byKey(const ValueKey('local-drama-123')));
+    await drain(tester);
+    expect(find.byKey(const ValueKey('local-sheet-download')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('local-sheet-download')));
+    await drain(tester);
+
+    expect(find.text('下载剧集'), findsOneWidget);
+    expect(find.text('已下载'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('download-episode-1')));
+    await drain(tester);
+    await tester.tap(find.byKey(const ValueKey('confirm-download')));
+    await drain(tester);
+    await tester.pumpAndSettle();
+
+    // One named episode went out, not the whole gap the other row would take.
+    expect(runtime.calls, ['11_best', '12_best']);
+    expect(runtime.downloads.taskFor('13', 'best'), isNull);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('触屏 归类删除 asks first, then takes the drama’s files and records', (
     tester,
@@ -202,7 +344,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('遥控 reaches 拉取最新剧集 and answers 删除本剧缓存 alone', (tester) async {
+  testWidgets('遥控 reaches 检查最新剧集 and answers 删除本剧缓存 alone', (tester) async {
     final runtime = await _shelf(tester, '720p');
     addTearDown(() async {
       final closing = runtime.dispose();
@@ -211,9 +353,9 @@ void main() {
     });
     await _openShelf(tester, runtime, tv: true);
 
-    expect(_nodeByLabel(tester, '拉取最新剧集'), isNotNull);
-    await _activate(tester, '拉取最新剧集');
-    expect(runtime.calls, ['11_720p', '12_720p']);
+    expect(_nodeByLabel(tester, '检查最新剧集'), isNotNull);
+    await _activate(tester, '检查最新剧集');
+    expect(runtime.calls, ['11_720p']);
 
     await _activate(tester, '删除本剧缓存');
     expect(find.text('删除本剧全部缓存？'), findsOneWidget);
@@ -309,17 +451,17 @@ void main() {
     // a finger actually has.
     expect(find.textContaining('长按一部剧'), findsOneWidget);
     expect(find.byType(Dialog), findsNothing);
-    expect(find.text('拉取最新剧集'), findsOneWidget);
+    expect(find.text('检查最新剧集'), findsOneWidget);
     expect(find.text('删除本剧缓存'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('local-sheet-pull')));
+    await tester.tap(find.byKey(const ValueKey('local-sheet-check')));
     await drain(tester);
     await tester.pumpAndSettle();
 
     // The card's own press did what the shelf page's button did: ask the catalog
-    // for the newest 集 and queue only what the shelf is missing.
-    expect(runtime.calls, ['11_1080p', '12_1080p']);
-    expect(find.textContaining('新加入 2 集下载（1080p）'), findsOneWidget);
+    // how long the series is now, report the gap, and leave the queue alone.
+    expect(runtime.calls, ['11_1080p']);
+    expect(find.textContaining('2 集可下载'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -347,22 +489,22 @@ void main() {
     );
     await drain(tester);
 
-    // The same two rows and the same keys as the phone's sheet, only in a dialog:
+    // The same rows and the same keys as the phone's sheet, only in a dialog:
     // one gesture per family, one copy of the delete behind one confirmation.
     expect(find.byType(BottomSheet), findsNothing);
     expect(
       find.descendant(
         of: find.byType(Dialog),
-        matching: find.byKey(const ValueKey('local-sheet-pull')),
+        matching: find.byKey(const ValueKey('local-sheet-check')),
       ),
       findsOneWidget,
     );
-    await tester.tap(find.byKey(const ValueKey('local-sheet-pull')));
+    await tester.tap(find.byKey(const ValueKey('local-sheet-check')));
     await drain(tester);
     await tester.pumpAndSettle();
 
-    expect(runtime.calls, ['11_1080p', '12_1080p']);
-    expect(find.textContaining('新加入 2 集下载（1080p）'), findsOneWidget);
+    expect(runtime.calls, ['11_1080p']);
+    expect(find.textContaining('2 集可下载'), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
     expect(tester.takeException(), isNull);
   });
@@ -439,7 +581,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('真人剧'), findsWidgets);
-    expect(find.text('拉取最新剧集'), findsNothing);
+    expect(find.text('检查最新剧集'), findsNothing);
     expect(find.text('删除本剧缓存'), findsNothing);
     expect(find.textContaining('下载更多'), findsNothing);
     expect(find.byTooltip('继续全部下载'), findsNothing);

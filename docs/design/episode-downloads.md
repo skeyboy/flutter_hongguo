@@ -33,16 +33,17 @@
 
 ## 按缓存剧目更新下载
 
-本地剧集页（一剧一组的分集视图）提供两个剧目级动作：
+本地剧集页（一剧一组的分集视图）提供三个剧目级动作：
 
 - “拉取最新剧集”用该组已知的剧目标识在线请求详情，合并元数据后只把本地没有、队列里也没有保留记录的分集按原画质排队下载；已全部缓存则回答“已是最新”，不重复排队，也不改动本地文件。
+- “选择下载新集”问的是同一个在线读数，但**不替观众决定**：把在线详情交给详情页那枚选集窗口，由观众点名要补哪几集。窗口里本地已有的分集显示“已下载”并禁选——包括播放时自动预缓存、下载队列里没有记录的那些，否则会重复取同一个文件；画质默认接着这部剧已有的画质（可在窗口里改），全选只选可下载项。在线比对下来没有新集时不弹一个空窗口，只用一句话报这次读数。
 - “删除本剧缓存”删除整组文件并清掉该剧的未完成下载记录；正在使用的文件保留。
 
-两者都以删除后的实际文件读回结果为准，而不是任务状态。待识别视频没有剧目标识，不显示“拉取最新剧集”；只有能提供剧目归组的本地缓存页与下载管理有这些入口，榜单页没有剧目归组概念，因此不出现“下载更多”类控件。
+在线两个动作共用同一次读取（`scanOnlineEpisodes`：问上游 + 把集数合并进离线库 + 算出缺口），差别只在缺口是自己排队还是交给选集窗口。三者都以删除后的实际文件读回结果为准，而不是任务状态。待识别视频没有剧目标识，不显示这两个在线动作；只有能提供剧目归组的本地缓存页与下载管理有这些入口，榜单页没有剧目归组概念，因此不出现“下载更多”类控件。
 
 ### 触屏族从剧目卡片直接进入
 
-本地缓存剧集的网格卡片有两个手势：点开进分集页，**长按弹出这一部的动作面板**（`拉取最新剧集` / `删除本剧缓存`，标题行写文件数与体积），于是不用先走进分集页再回到页头就能整部刷新或整部删掉。面板里仍是那两个已存在的入口，删除照旧先确认（`删除本剧全部缓存？`），长按不是第三条删除路径。
+本地缓存剧集的网格卡片有两个手势：点开进分集页，**长按弹出这一部的动作面板**（`拉取最新剧集` / `选择下载新集` / `删除本剧缓存`，标题行写文件数与体积），于是不用先走进分集页再回到页头就能整部刷新、挑几集下载或整部删掉。面板里的在线两行复用分集页页头那两个已存在的入口，删除照旧先确认（`删除本剧全部缓存？`），长按不是第三条删除路径；页头那句说明也按 `desktopHost` 分别写「长按/右键一部剧可拉取最新剧集、挑几集下载或整体删除缓存」。
 
 一次只让一个手势办一件事：面板打开期间卡片不再响应第二次长按，因为拉取与删除改写的正是弹出它的那一层，第二个面板会读到第一个面板已经改过的归组。
 
@@ -171,3 +172,74 @@ macOS 验证在临时独立源码副本进行，避免并行 TV 工作清理编�
 
 同一次改动在 Windows 侧的全仓门禁读数（`dart analyze --fatal-infos`、api/update 两项旧失败的归属、两份可移植 oracle、以及本机跑不了的 python3 / ffprobe / `-d windows` 三步）记在 `docs/evidence/windows-verify-2026-11-01/findings.md`。
 
+### 2026-11-03 轮：把「联网看到有新集」交回观众挑
+
+用户诉求（原话）：「本地缓冲剧集中联网刷新到有新的剧集后可增加一个入口来获取提供下载的入口来增加新的下载」「综合分析后执行功能优化可以复用之前的下载选择入口方式和选择下载剧集的功能」。上一轮那枚「拉取最新剧集」是一键把整段缺口按众数画质全排上，观众没有说「这几集我不要」的余地；这一轮把同一个在线读数接进详情页早就有的那枚选集窗口，入口两处，选择权回到观众手上。
+
+改动面（复用优先，没有新建第二套选集 UI）：
+
+- `packages/app/lib/downloads/latest_episode_pull.dart`：把在线读取从「读＋排队」里拆出 `scanOnlineEpisodes`，返回在线详情、本地与队列都还没有的位置、这部剧已有的画质与本地集数；`pullLatestEpisodes` 改为消费它再自己排队，**排队语义一个字节没改**（`latest_episode_pull_test` 原 5 项全过），只是那次「问上游 + 把集数合并进离线库」现在两个动作共用一次。
+- `packages/app/lib/downloads/download_selection.dart`：`showDownloadSelection`/`DownloadSelection` 多两个可空入参——`cachedVids`（已在磁盘上的 vid）与 `initialQuality`（这部剧已有的画质）。缺省值就是详情页原来的行为。`available()` 之外多一个 `_blockedAs()`，把「这一集为什么点不动」讲明白：已有文件说「已下载」，队列里还留着记录的说「已加入」，只因提交在途而暂时禁用的格子仍然不吭声——这条是上一轮那句「不涉及新的下载语义」的反面，所以必须写明它动了单元格的两处渲染（触屏按钮与 `HONGGUO_TV` 的 TvGrid 格子）。
+- `packages/app/lib/downloads/download_selection.dart` 的 `showCachedDramaDownloadSelection`：缓存剧目专用的那层薄封装——先扫一次，没有新集就用一句话回答（不弹一个空窗口），有新集才把在线详情连同「这些已经在磁盘上」交给同一个选集窗口。窗口自己那条「已加入下载，可在“我的 → 下载管理”查看」的提示照旧，因此挑集下载的确认反馈与详情页完全一致。
+- `packages/app/lib/features/local_cache_page.dart`：三个输入族各就各位。分集页页头的动作行多一枚「选择下载新集」（触屏/指针 `local-download`，遥控 `local-download-tv` 同 label 的 `TvFocusable`）；卡片面板 `_GroupActions` 多一行 `local-sheet-download`，长按与右键开的还是同一个私有 widget；两处都走 `_pickDownload`，与既有 `_pull`/`_remove` 一样受同一枚 `busy` 闸门约束（一次只让一个手势改写这一层）。原先那个 `canPull` 标志改名 `canUpdate`，因为它现在管的是两个在线动作。待识别归组照旧一个在线入口都不给。
+
+一处刻意的取舍：`cachedVids` 按 vid 禁选，不按 vid+画质。从缓存剧目进来时，这一集已经在磁盘上了，换画质重取不是这个入口要鼓励的事——画质想改，详情页那枚入口没有这层禁选。
+
+验证读数（2026-11-03，本地 NTFS 克隆 `C:\Users\lee\scratch\hg-newep`：`git archive HEAD` 新鲜展开 + 本轮 6 个文件覆盖，覆盖后逐字节核对与 \\Mac 一致；**该树另带着另一会话未提交的选集窗口 TvGrid 分支**，见下方风险）：
+
+| 范围 | 结果 |
+| --- | --- |
+| `dart format`（本轮 6 个文件） | 首轮 3 个变更（都是新写的单元格/断言换行），复跑 0 变更 |
+| `flutter analyze packages/app` | `No issues found!` |
+| `dart analyze --fatal-infos`（全仓） | 4 项 info，全部在本轮文件之外：`docs/evidence/windows-playback-version-2026-11-03/probe_asks.dart`（2 项 `depend_on_referenced_packages`）、`packages/api/test/progressive_lane_test.dart:86`、`packages/core/lib/src/media/progressive_decrypt.dart:31`（2 项 `library_private_types_in_public_api`） |
+| `test/latest_episode_pull_test.dart` | **6** 项通过（新增「扫描只报告缺口：读在线、合并集数，但不替观众排队」——`runtime.calls` 不变、任务数不变、`episodeCount` 仍合并到 3） |
+| `test/local_cache_management_test.dart` | **13** 项通过（新增 4：触屏分集页挑集——已缓存那集 `onPressed` 为空且标「已下载」，全选只入 2 集；三集全缓存时不弹窗口只报「已是最新：在线 3 集」；遥控那枚目标是可聚焦的且打开同一个窗口；长按卡片面板第三行 `local-sheet-download` 只点名 1 集，另一集没有偷偷排队） |
+| `test/local_download_selection_tv_test.dart` | **1** 项通过（`--dart-define=HONGGUO_TV=true`，`tool/verify_tv.sh` 多一行；默认 flavor 下按条件跳过） |
+| `packages/app` 全量 | **437** 项通过、**2** 项按条件跳过、0 项失败（跳过项＝原有的 TV 构建用例＋本轮这条） |
+
+未验证的部分要说清：
+
+- 没有设备读数。本机 ARM64 建不了原生包（media_kit 只有 x64），所以没有 iPhone/Android/Android TV 真机帧；长按第三行、右键 Dialog、遥控 `TvFocusable` 的命中全部跑在 widget 测试的合成指针与 `tester.view` 的人工尺寸上。
+- 没有真实上游读数。`DownloadFakeRuntime` 的 `catalog.detail` 是一次内存读，「联网刷新发现新集」在这轮的证据里是靠先给 1 集、再把在线列表改成 3 集来模拟的，不是线上接口实测。
+- 一个必须记下的高度：`tvBuild` 是编译期 flavor 标志（`appFlavor == 'tv' || bool.fromEnvironment('HONGGUO_TV')`），**不随 `TvEnvironment` 变**。所以只挂 `TvEnvironment(enabled: true)` 的 TV 形态测试拿到的仍是触屏按钮——第一次把格子断言写在共享文件里就是这么失败的。TV 侧真正要验的 TvGrid 分支只在 `--dart-define=HONGGUO_TV=true` 下存在，也因此本轮把它单独立了一个文件并加进 `tool/verify_tv.sh`。
+- 那条 TvGrid 分支（`_tvCell` 与 `tvBuild ?` 那段）此刻还是工作区里另一会话未提交的改动，本轮只是给它补了「已在磁盘上的格子说『已下载』且点不动」这条覆盖。它进入门禁的方式是 `tool/verify_tv.sh`，不是默认的 `flutter test`；两边都跑过、都绿，但这两处代码谁先提交，另一处就得跟着一起绿。
+
+
+### 2026-11-03 第二轮：下载按剧目归类，「追加下载」只报告缺口
+
+用户诉求（原话）：「1 将下载按照剧集进行归类来执行管理，下载列表中点开剧集才能查看对应每一集的下载进度情况，删除剧集也要与下载进行相互校验关联」「2 剧集中追加更多下载目前存在bug,只有手动选择了对应的集才执行下载不需要刷新数据就加入下载中」。两次选择分别是「改成只检查，下载走选集」与「每剧一张卡片，点开进分集进度页」。
+
+诉求 2 是上一轮那个入口的口径纠正：`pullLatestEpisodes` 把「读在线」和「按众数画质把整段缺口排上队」焊在一起，观众点的是「刷新」，得到的是「下载中多了一串没挑过的集」。这轮把焊接拆开——
+
+- `packages/app/lib/downloads/latest_episode_pull.dart` → **改名** `latest_episode_check.dart`（`git mv`，两个测试文件同步改名），并且**删掉 `pullLatestEpisodes`**：留下的 `scanOnlineEpisodes` 只做一次在线读＋集数合并，`checkLatestEpisodes` 把它包成一句 `EpisodeCheck` 读数（在线 X 集 / 本地 Y 集 / Z 集可下载 / 另有 W 集已在下载中）。这条路径**不再调用 `enqueue`**，一行都不排。
+- 入口的措辞跟着改：`local_cache_page.dart` 两处（卡片面板行与分集页动作）都写成「检查最新剧集」，面板那一行多一句副标题「只比对在线集数，不会自动排队下载」；key 从 `local-sheet-pull` 变成 `local-sheet-check`，`local-check` / `local-check-tv` 是动作行的两枚目标。进入下载中唯一的路仍是那枚选集窗口。
+- 「已在下载中」这一档是新的：队列里 retained 的记录（排队/进行/暂停）不再被当成可下载的新集报出去，否则一句「有 2 集可下载」会把已经在跑的那集也算成缺口。取消掉的记录照旧算缺口、但不被检查复活。
+
+诉求 1 需要一层两边共用的连接模型，否则卡片、分集页与删除各说各话：
+
+- 新文件 `packages/app/lib/downloads/drama_downloads.dart`。`DramaDownloads` 是一部剧的队列记录 join 它在磁盘上的文件，`episodeCount` 取两侧 vid 的并集、`offlineCount` **只认磁盘**，`progress` 恒为确定值（在跑的那集按自己的 fraction 计入，不留一根不收敛的进度条——这条同时是测试能 `pumpAndSettle` 的前提）；`groupDramaDownloads` 按 `drama.id` 分组，只有文件、没有记录的剧**不进这张表**，那是「离线剧集」的主语。`downloadEpisodeRows` 是分集页的行：按 `vid_quality` join，两枚画质是两行，因为删掉一行不该宣称另一行也没了。
+- 新文件 `packages/app/lib/features/download_episodes_page.dart`：点开一张卡片才看到的分集进度页。一行同时说清三件事——记录在说什么（阶段与消息）、磁盘上有没有它的文件、以及只有播放缓存没有记录的那种集（`播放时缓存 · 下载管理里没有这条记录，可直接离线观看`）。主动作按阶段给：在跑→暂停、ready/仅缓存→离线观看、失败→重试下载、其余→继续下载；次动作是在跑→取消下载、否则删除（有记录走 `manager.remove`，只有文件走 `runtime.evict` 并先问「删除本地剧集？」）。
+- `packages/app/lib/features/downloads_page.dart` 整页重写为**每剧一张卡片**：标题＋一行汇总（`已完成 X / N 集 · 下载中 Y · 待继续 Z`）＋确定值进度条，触屏点卡片进分集页（`downloads-drama-<id>`），遥控是同一张卡上的两枚目标（`<title> 分集进度` / `<title> 删除本剧`）。全部/下载中/已完成三个筛选从「按任务」改成「按剧目」（`hasInFlight` / `hasOffline`），空态分两句：没有下载、以及「这个筛选下还没有剧目」。`AppScreen` 多一项 `downloadEpisodes('DownloadEpisodes', '/downloads/episodes')`，路由表由 `AppScreen.values` 生成，不需要另登记。
+- 「相互校验」不是新写的机制，是把已有的机制接到同一份读数上：`removeLocalDrama`、`manager.remove`、`runtime.evict` 三条删除路径都删完再读回缓存，只有读回证明文件没了才算删掉；被播放器占住的那集**留着，它的记录也留着**，卡片继续显示它，回话写成「N 个正在使用中或暂时删不掉」。反向的校验也在：ready 记录的文件被外部清掉后，`reconcile` 把它落成失败（`文件已移除，请重新下载`），卡片的「已完成」当场从 1 掉到 0。
+- 为此必须补的一环：页面原先只在 `initState`/刷新时读一次磁盘，之后 `manager` 的每次 emit 只 `setState`，于是「刚下完一集」的卡片仍按空盘报「已完成 0 / 2 集」。现在两页都用 `queueSignature`（`key:phase` 的指纹）判断：**只有阶段变化才重扫缓存**，进度 tick 不扫——一次传输每秒 emit 多次，把 `localEpisodes()` 挂在上面才是真的贵。
+
+一处与既有习惯的冲突要记下：`downloads_page.dart` 此刻是另一个会话正在写的文件（它在这页加了「合成已下载的分集」入口与 `_mergeDrama`）。本轮三次 `Write` 被「文件自上次读取后已修改」挡回，最后按「整读→立刻整写」落地，并且**逐字保留**他们那枚 `downloads-drama-merge-<id>` 按钮与 `_mergeDrama`（改为从卡片调 `_mergeDrama(group.tasks.first)`，仍然只在 `runtime is MergeRuntime` 且非 TV 时出现）。
+
+验证读数（2026-11-03，本地 NTFS 克隆 `C:\Users\lee\scratch\hg-dl5`：整棵工作区快照（含两会话的未提交改动），`flutter pub get` 通过；本轮文件先覆盖进该树、`dart format` 后逐字节回拷 \Mac）：
+
+| 范围 | 结果 |
+| --- | --- |
+| `dart format`（本轮 12 个文件） | 首轮 3 个变更（新写的换行），复跑 0 变更 |
+| `dart analyze packages/app/lib/downloads ... features/downloads_page.dart` | `No issues found!` |
+| `dart analyze --fatal-infos packages/app` | 3 项，**全部在本轮文件之外**：`integration_test/tv_live_data_test.dart` 未使用导入、`lib/features/merge_tasks_page.dart:350` `use_null_aware_elements`（均属另一会话的合成工作），以及本轮一度报出的 `drama_downloads.dart` 缺 `Drama` 导入——已修 |
+| `test/latest_episode_check_test.dart` | **7** 项通过（改写 3 项为「只报告、不排队」：`runtime.calls` 只有一次 1080p 读、`downloads.taskFor('13','1080p')` 仍为空；新增「暂停中的那集算在下载中、不算新集」） |
+| `test/downloads_tv_test.dart` | **8** 项通过（原 6 项按卡片/分集两层重写；新增「遥控删本剧一次确认带走 2 条记录与 2 个文件，回话来自读盘」与「卡片打开后遥控退格回到卡片列表」） |
+| `test/download_ui_test.dart` | **4** 项通过（详情页选集 → 我的 → 下载管理的旅程改为先点卡片再验 `离线观看`；删除确认那条同样下钻一层） |
+| `test/local_cache_management_test.dart` | **14** 项通过（触屏与遥控两处从「拉取即排队」改成「检查后 `runtime.calls` 只多一次在线读、一条任务都没排」） |
+| 新 `test/download_drama_grouping_test.dart` | **5** 项通过（一卡汇总＋点开才有分集行；两枚画质两行、删一行不骗另一行；只缓存那集删掉后记录一条没动、退回卡片汇总随之变化；文件被外部清空后 ready 记录落成失败且「已完成」归零；`inUse` 文件删不掉时卡片与记录都留着，回话写明 1 个删不掉） |
+| `packages/core` / `packages/tv` | 132 / 38 项全通过 |
+| `packages/app` 全量 | **453** 项通过、2 项按条件跳过、**3** 项失败 |
+
+那 3 项失败必须写清归属，否则下一轮会查错地方：全在 `test/tv_feed_test.dart`（「a late first-page refresh cannot overwrite another theme」等 3 条），异常是 `Tried to build dirty widget in the wrong build scope`（`_FocusInheritedScope`）。用同一棵树把本轮 7 个 lib 文件还原成 HEAD 版本，失败照旧；再另起一棵纯 `git archive HEAD` 的树，只覆盖另一会话未提交的 `lib/features/tv/tv_library_page.dart`，**同样 3 项失败**，纯 HEAD 则 18 项全过。所以它是那次 TV 片单改动带进来的，与下载无关，本轮不动它，交由那条线处理。
+
+未验证的部分要说清：本机 ARM64 建不了原生包（media_kit 只有 x64），**没有任何真机/真窗口读数**——卡片的点按与遥控两枚目标、确认框焦点、下钻与退格、以及「正在使用中删不掉」那条，全部跑在 widget 测试的合成指针与 `tester.view` 的人工尺寸上；`DownloadFakeRuntime.evict` 是 `NativeRuntime.evict` 的镜像（先拒 inUse、删完再 `forget`），所以「删除与下载相互校验」的证据仍然是一次内存读回，不是 macOS 上被 Spotlight/沙盒拒绝一次的真实后果。`queueSignature` 驱动的重扫同样只在 fake 的即时读上验过：真机上那次扫描要多久、会不会和传输抢 IO，本轮没有读数。

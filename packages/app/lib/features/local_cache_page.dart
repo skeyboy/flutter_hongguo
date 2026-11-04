@@ -3,12 +3,15 @@ import 'dart:async';
 import '../navigation/app_navigation.dart';
 
 import 'package:flutter/material.dart';
-import 'package:hongguo_tv/hongguo_tv.dart' show TvEnvironment, TvFocusable;
+import 'package:hongguo_tv/hongguo_tv.dart'
+    show TvEnvironment, TvFocusable, tvBuild;
 
 import '../catalog/local_artwork.dart';
 import '../catalog/local_group_delete.dart';
 import '../catalog/local_library.dart';
-import '../downloads/latest_episode_pull.dart';
+import '../downloads/download_selection.dart';
+import '../downloads/latest_episode_check.dart';
+import '../merge/merge_selection.dart';
 import '../platform/background/host_policy.dart';
 import '../platform/runtime.dart';
 import '../playback/local_playlist.dart';
@@ -32,9 +35,9 @@ class _LocalCachePageState extends State<LocalCachePage> {
   String? error;
   String query = '';
 
-  /// One press at a time: a pull and a delete both rewrite the shelf they were
-  /// opened from, and a second sheet on the same drama would read a group the
-  /// first one already changed.
+  /// One press at a time: a check writes the merged episode count back into the
+  /// shelf and a delete empties it, so a second sheet on the same drama would
+  /// read a group the first one already changed.
   bool busy = false;
   @override
   void initState() {
@@ -96,8 +99,12 @@ class _LocalCachePageState extends State<LocalCachePage> {
   /// confirm-first delete are the same widget either way.
   Future<void> _groupActions(LocalDramaGroup group) async {
     if (busy) return;
-    final canPull = widget.runtime is DownloadRuntime && !group.unidentified;
-    final actions = _GroupActions(group: group, canPull: canPull);
+    final canUpdate = widget.runtime is DownloadRuntime && !group.unidentified;
+    final actions = _GroupActions(
+      group: group,
+      canUpdate: canUpdate,
+      canMerge: _canMerge,
+    );
     final size = MediaQuery.sizeOf(context);
     final picked = size.width >= 720 && size.height >= 400
         ? await showDialog<String>(
@@ -115,25 +122,87 @@ class _LocalCachePageState extends State<LocalCachePage> {
             builder: (_) => SafeArea(top: false, child: actions),
           );
     if (!mounted || picked == null) return;
-    if (picked == 'pull') {
-      await _pull(group);
+    if (picked == 'check') {
+      await _check(group);
+    } else if (picked == 'download') {
+      await _pickDownload(group);
+    } else if (picked == 'merge') {
+      await _merge(group);
     } else {
       await _remove(group);
     }
   }
 
-  Future<void> _pull(LocalDramaGroup group) async {
+  /// 合成 works on the files this shelf already holds, so it is offered wherever
+  /// a drama has episodes to offer -- and never on a remote, which has no way to
+  /// name where the product should go.
+  bool get _canMerge => widget.runtime is MergeRuntime && !tvBuild;
+
+  /// The panel reads the cache scan rather than the network: the whole point of
+  /// a merge is that it is made of what is already on this device.
+  Future<void> _merge(LocalDramaGroup group) async {
+    if (busy) return;
+    final runtime = widget.runtime;
+    if (runtime is! MergeRuntime) return;
+    final options = mergeOptionsFromFiles(group.files);
+    if (options.isEmpty) {
+      _notice('本剧没有可用于合成的缓存');
+      return;
+    }
+    setState(() => busy = true);
+    try {
+      await showMergeSelection(
+        context,
+        runtime,
+        options: options,
+        suggestedTitle:
+            '${group.drama.title.isEmpty ? '合并资源' : group.drama.title} 合集',
+      );
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  /// A read, not a write: the shelf asks the catalog how long the series is now
+  /// and reports the gap. Nothing enters 下载中 here -- that is 选择下载新集's job,
+  /// so a viewer who only wanted to know whether the show grew gets an answer
+  /// rather than a queue full of episodes they never named.
+  Future<void> _check(LocalDramaGroup group) async {
     if (busy) return;
     setState(() => busy = true);
     try {
-      final result = await pullLatestEpisodes(widget.runtime, group);
+      final result = await checkLatestEpisodes(widget.runtime, group);
       await _load();
       _notice(result.caption);
     } on StateError catch (e) {
       _notice(e.message);
     } catch (_) {
       await _load();
-      _notice('在线拉取最新剧集失败，本地缓存仍可播放，请稍后重试。');
+      _notice('在线检查最新剧集失败，本地缓存仍可播放，请稍后重试。');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  /// The card's third gesture target: the same online read as 检查最新剧集, but
+  /// the answer goes to 详情 用的那枚选集面板, so a shelf can top up the episodes
+  /// it wants instead of taking the whole gap at the cached quality.
+  Future<void> _pickDownload(LocalDramaGroup group) async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      final notice = await showCachedDramaDownloadSelection(
+        context,
+        widget.runtime,
+        group,
+      );
+      await _load();
+      if (notice != null) _notice(notice);
+    } on StateError catch (e) {
+      _notice(e.message);
+    } catch (_) {
+      await _load();
+      _notice('在线获取最新剧集失败，本地缓存仍可播放，请稍后重试。');
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -355,7 +424,7 @@ class _LocalCachePageState extends State<LocalCachePage> {
                                     // nobody there uses.
                                     tv
                                         ? '按剧目整理，可直接离线播放已缓存分集。'
-                                        : '按剧目整理，可直接离线播放已缓存分集；${desktopHost ? '右键' : '长按'}一部剧可拉取最新剧集或整体删除缓存。',
+                                        : '按剧目整理，可直接离线播放已缓存分集；${desktopHost ? '右键' : '长按'}一部剧可检查最新剧集、挑几集下载或整体删除缓存。',
                                     style: TextStyle(fontSize: tv ? 18 : null),
                                   ),
                                   const SizedBox(height: 18),
@@ -430,13 +499,18 @@ class _LocalCachePageState extends State<LocalCachePage> {
   }
 }
 
-/// The two whole-shelf actions of one cached drama, in whichever container the
+/// The whole-shelf actions of one cached drama, in whichever container the
 /// window can host: the rows, keys and labels are the same, so the delete still
 /// goes through exactly one confirmation path however it was reached.
 class _GroupActions extends StatelessWidget {
   final LocalDramaGroup group;
-  final bool canPull;
-  const _GroupActions({required this.group, required this.canPull});
+  final bool canUpdate;
+  final bool canMerge;
+  const _GroupActions({
+    required this.group,
+    required this.canUpdate,
+    required this.canMerge,
+  });
 
   @override
   Widget build(BuildContext context) => Column(
@@ -450,12 +524,29 @@ class _GroupActions extends StatelessWidget {
         ),
       ),
       const Divider(height: 1),
-      if (canPull)
+      if (canUpdate)
         ListTile(
-          key: const ValueKey('local-sheet-pull'),
+          key: const ValueKey('local-sheet-check'),
           leading: const Icon(Icons.sync),
-          title: const Text('拉取最新剧集'),
-          onTap: () => Navigator.pop(context, 'pull'),
+          title: const Text('检查最新剧集'),
+          subtitle: const Text('只比对在线集数，不会自动排队下载'),
+          onTap: () => Navigator.pop(context, 'check'),
+        ),
+      if (canUpdate)
+        ListTile(
+          key: const ValueKey('local-sheet-download'),
+          leading: const Icon(Icons.download_outlined),
+          title: const Text('选择下载新集'),
+          subtitle: const Text('联网比对后自己挑要下哪几集'),
+          onTap: () => Navigator.pop(context, 'download'),
+        ),
+      if (canMerge && group.files.isNotEmpty)
+        ListTile(
+          key: const ValueKey('local-sheet-merge'),
+          leading: const Icon(Icons.video_library_outlined),
+          title: const Text('合成成本地资源'),
+          subtitle: const Text('把已缓存的分集拼成一个可导出文件'),
+          onTap: () => Navigator.pop(context, 'merge'),
         ),
       ListTile(
         key: const ValueKey('local-sheet-remove'),
@@ -571,21 +662,46 @@ class _LocalEpisodesPageState extends State<LocalEpisodesPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
-  /// Asks the catalog what this drama has online now, then queues only the
-  /// episodes the cache is missing. The local files are untouched whether or
-  /// not the network answered, so a failed pull still leaves the shelf playable.
-  Future<void> _pull() async {
+  /// Asks the catalog what this drama has online now and reports the gap. The
+  /// queue is untouched either way -- a viewer who checks first and wants three
+  /// of the five new episodes picks them in 选择下载新集, and a failed check still
+  /// leaves the shelf playable.
+  Future<void> _check() async {
     if (busy) return;
     setState(() => busy = true);
     try {
-      final result = await pullLatestEpisodes(widget.runtime, group);
+      final result = await checkLatestEpisodes(widget.runtime, group);
       await _load();
       _notice(result.caption);
     } on StateError catch (e) {
       _notice(e.message);
     } catch (_) {
       await _load();
-      _notice('在线拉取最新剧集失败，本地缓存仍可播放，请稍后重试。');
+      _notice('在线检查最新剧集失败，本地缓存仍可播放，请稍后重试。');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  /// The third way to use that read: hand the episodes the shelf is missing to
+  /// 详情页那枚选集面板, so the viewer names the ones to fetch -- with what is
+  /// already on disk shown as 已下载 rather than offered again.
+  Future<void> _pickDownload() async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      final notice = await showCachedDramaDownloadSelection(
+        context,
+        widget.runtime,
+        group,
+      );
+      await _load();
+      if (notice != null) _notice(notice);
+    } on StateError catch (e) {
+      _notice(e.message);
+    } catch (_) {
+      await _load();
+      _notice('在线获取最新剧集失败，本地缓存仍可播放，请稍后重试。');
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -616,10 +732,37 @@ class _LocalEpisodesPageState extends State<LocalEpisodesPage> {
     }
   }
 
-  /// The two drama-level actions as one row per family: a remote needs each to
-  /// be its own focus target, and a touch screen needs labels it can read.
+  /// 合成 from the drama page offers exactly what this shelf holds: the panel is
+  /// fed by the cache scan, so an offline drama is mergeable with no network.
+  Future<void> _merge() async {
+    if (busy) return;
+    final runtime = widget.runtime;
+    if (runtime is! MergeRuntime) return;
+    final options = mergeOptionsFromFiles(group.files);
+    if (options.isEmpty) {
+      _notice('本剧没有可用于合成的缓存');
+      return;
+    }
+    setState(() => busy = true);
+    try {
+      await showMergeSelection(
+        context,
+        runtime,
+        options: options,
+        suggestedTitle:
+            '${group.drama.title.isEmpty ? '合并资源' : group.drama.title} 合集',
+      );
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  /// The drama-level actions as one row per family: a remote needs each to be
+  /// its own focus target, and a touch screen needs labels it can read.
   Widget _groupActions({required bool tv}) {
-    final canPull = widget.runtime is DownloadRuntime && !group.unidentified;
+    final canUpdate = widget.runtime is DownloadRuntime && !group.unidentified;
+    final canMerge =
+        !tvBuild && widget.runtime is MergeRuntime && group.files.isNotEmpty;
     Widget action({
       required String id,
       required String label,
@@ -652,12 +795,26 @@ class _LocalEpisodesPageState extends State<LocalEpisodesPage> {
       spacing: 8,
       runSpacing: 4,
       children: [
-        if (canPull)
+        if (canUpdate)
           action(
-            id: 'pull',
-            label: '拉取最新剧集',
-            onTap: busy ? null : _pull,
+            id: 'check',
+            label: '检查最新剧集',
+            onTap: busy ? null : _check,
             icon: Icons.sync,
+          ),
+        if (canUpdate)
+          action(
+            id: 'download',
+            label: '选择下载新集',
+            onTap: busy ? null : _pickDownload,
+            icon: Icons.download_outlined,
+          ),
+        if (canMerge)
+          action(
+            id: 'merge',
+            label: '合成成本地资源',
+            onTap: busy ? null : _merge,
+            icon: Icons.video_library_outlined,
           ),
         if (group.files.isNotEmpty)
           action(

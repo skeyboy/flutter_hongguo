@@ -7,4 +7,5 @@ export 'src/crypto/spade.dart';
 export 'src/crypto/media_url.dart';
 export 'src/diagnostics.dart';
 export 'src/media/mp4.dart';
+export 'src/media/mp4_merger.dart';
 export 'src/config/app_settings.dart';

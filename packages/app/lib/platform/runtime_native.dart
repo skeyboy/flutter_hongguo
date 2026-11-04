@@ -1,4 +1,6 @@
 import '../downloads/download_manager.dart';
+import '../merge/merge_manager.dart';
+import '../merge/merged_library.dart';
 import '../personal/personal_library.dart';
 import '../search/search_history.dart';
 
@@ -46,7 +48,15 @@ Future<AppRuntime> createRuntime() async {
   } catch (_) {
     store.warning = '手动下载记录暂时不可用，请在下载管理中重试；已保留现有文件。';
   }
+  try {
+    // Merge journals are read before the queue shows anything: a product that
+    // reached disk is finished work, and a cut that never published is redone.
+    await runtime.merges.reconcile();
+  } catch (_) {
+    store.warning = '合成记录暂时不可用，请在合并资源页重试；已保留现有文件。';
+  }
   runtime.downloads.attachLifecycle();
+  runtime.merges.attachLifecycle();
   return runtime;
 }
 
@@ -60,11 +70,16 @@ class NativeRuntime
         PersonalLibraryRuntime,
         SearchHistoryRuntime,
         DownloadRuntime,
+        MergeRuntime,
         TransferLaneRuntime,
         PlaybackDiagnosticsRuntime {
   final SettingsStore store;
   @override
   late final DownloadManager downloads;
+  @override
+  late final MergeManager merges;
+  @override
+  late final MergedLibrary mergedLibrary;
   @override
   late final PersonalLibrary personalLibrary;
   @override
@@ -181,7 +196,22 @@ class NativeRuntime
         return _NativeJob(lease, _cache);
       },
     );
+    mergedLibrary = MergedLibrary(Directory('${root.path}/merged'));
+    merges = MergeManager(
+      backend: FilePreferencesBackend(File('${root.path}/merge-tasks.json')),
+      library: mergedLibrary,
+      journals: Directory('${root.path}/merge-journal'),
+      sourcePath: mediaPath,
+      mobile: Platform.isAndroid || Platform.isIOS,
+      television: tvBuild,
+    );
   }
+
+  /// The published media-cache file for one episode. A merge reads exactly what
+  /// the media lane validated, so it is addressed the same way everywhere.
+  @override
+  String mediaPath(String vid, String quality) =>
+      '${_cache.directory.path}/${vid}_$quality.mp4';
   Future<void> restoreDownloads() async {
     try {
       await _downloads.restore(_cache.adoptDownloaded);
@@ -375,6 +405,16 @@ class NativeRuntime
   PlaybackJob prepareLocal(String vid, {String quality = 'best'}) =>
       _NativeJob(_cache.prepareCached(vid, quality: quality), _cache);
 
+  /// A merged product lives outside the media cache, in the library's own
+  /// directory: the player gets the file it already has, with nothing to pin.
+  @override
+  PlaybackJob prepareMerged(String mergeId) {
+    final path = mergedLibrary.pathFor(mergeId);
+    return File(path).existsSync()
+        ? _MergedJob(File(path).uri.toString())
+        : _MergedJob(null);
+  }
+
   @override
   Future<void> rememberDrama(DramaDetail detail) async {
     await libraryCache.rememberDetail(detail);
@@ -429,6 +469,8 @@ class NativeRuntime
   Future<void> dispose() async {
     await downloads.shutdown();
     downloads.dispose();
+    await merges.shutdown();
+    merges.dispose();
     await personalLibrary.flush();
     personalLibrary.dispose();
     await searchHistory.flush();
@@ -458,4 +500,20 @@ class _NativeJob implements PlaybackJob, EarlyPlayableJob {
   void cancel() => lease.cancel();
   @override
   void release() => cache.release(lease);
+}
+
+/// A merged product, already a plain file on disk: no lease, no progress, and
+/// the player's own error path reports the one case that can fail -- the file
+/// was removed between the list opening and the tap.
+class _MergedJob implements PlaybackJob {
+  final String? uri;
+  _MergedJob(this.uri);
+  @override
+  Future<String> get source => uri == null
+      ? Future.error(StateError('合并资源已不存在，请重新合成'))
+      : Future.value(uri);
+  @override
+  void cancel() {}
+  @override
+  void release() {}
 }

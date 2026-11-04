@@ -1,8 +1,8 @@
 // 下载管理 has to be drivable with a remote alone on an Android TV: the three
-// filters, both AppBar actions and each half of every task row are `TvFocusable`
-// targets there, because a ChoiceChip or an IconButton leaves the viewer holding
-// a focus nobody can see. The page is shared with the phone and desktop builds,
-// so the assertions pin the `TvEnvironment` branch rather than the Android flavor.
+// filters, both AppBar actions and every card and row are `TvFocusable` targets
+// there, because a ChoiceChip or an IconButton leaves the viewer holding a focus
+// nobody can see. The list is one card per drama and the per-episode actions live
+// on the page a card opens, so this suite walks the whole trip.
 //
 // Targets are exercised through the real key path -- a `select` event travelling
 // `TvNavigation` -> `TvFocusable` -- and the destructive one through its
@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hongguo_app/downloads/download_manager.dart';
+import 'package:hongguo_app/features/download_episodes_page.dart';
 import 'package:hongguo_app/features/downloads_page.dart';
 import 'package:hongguo_app/platform/runtime.dart';
 import 'package:hongguo_tv/hongguo_tv.dart';
@@ -121,57 +122,90 @@ Future<void> _useTvView(WidgetTester tester) async {
   addTearDown(() => tester.binding.setSurfaceSize(null));
 }
 
+/// The one way into a drama's rows with a remote: the card, never a long press.
+Future<void> _openDrama(WidgetTester tester) async {
+  await _activate(tester, '山海之间 分集进度');
+  await tester.pumpAndSettle();
+  expect(find.byType(DownloadEpisodesPage), findsOneWidget);
+}
+
 void main() {
   group('下载管理 on TV', () {
-    testWidgets(
-      'filters, app bar and both halves of each row are remote targets',
-      (tester) async {
-        await _useTvView(tester);
-        final runtime = await _transferring(tester, episodes: 2);
-        await tester.pumpWidget(_tv(DownloadsPage(runtime: runtime)));
-        await tester.pump();
-        await _finish(tester, runtime, '11_best');
-        _report(runtime, '12_best');
-        await tester.pumpAndSettle();
+    testWidgets('a drama card is one target, and it opens the episode rows', (
+      tester,
+    ) async {
+      await _useTvView(tester);
+      final runtime = await _transferring(tester, episodes: 2);
+      await tester.pumpWidget(_tv(DownloadsPage(runtime: runtime)));
+      await tester.pump();
+      await _finish(tester, runtime, '11_best');
+      _report(runtime, '12_best');
+      await tester.pumpAndSettle();
 
-        for (final label in const [
-          '查看离线剧集',
-          '刷新下载',
-          '全部',
-          '下载中',
-          '已完成',
-          '山海之间 第 1 集 离线观看',
-          '山海之间 第 1 集 删除下载记录',
-          '山海之间 第 2 集 暂停下载',
-          '山海之间 第 2 集 取消下载',
-        ]) {
-          expect(_targets(tester), contains(label));
-        }
-        // Touch-only chrome of the phone layout must not survive on TV: an
-        // IconButton or ChoiceChip leaves the remote holding an invisible focus.
-        expect(find.byType(IconButton), findsNothing);
-        expect(find.byType(ChoiceChip), findsNothing);
-        expect(_nodeByLabel(tester, '刷新下载')!.skipTraversal, isFalse);
+      for (final label in const [
+        '查看离线剧集',
+        '刷新下载',
+        '全部',
+        '下载中',
+        '已完成',
+        '山海之间 分集进度',
+        '山海之间 删除本剧',
+      ]) {
+        expect(_targets(tester), contains(label));
+      }
+      // Touch-only chrome of the phone layout must not survive on TV: an
+      // IconButton or ChoiceChip leaves the remote holding an invisible focus.
+      expect(find.byType(IconButton), findsNothing);
+      expect(find.byType(ChoiceChip), findsNothing);
+      // The card answers for the whole drama in one line, so the viewer knows
+      // what is still missing before opening it.
+      expect(find.text('已完成 1 / 2 集 · 下载中 1'), findsOneWidget);
+      // The per-episode rows are not on this page at all.
+      expect(_nodeByLabel(tester, '山海之间 第 1 集 离线观看'), isNull);
 
-        await _activate(tester, '已完成');
-        // The active filter is filled, not just ringed: the ring only says
-        // where the remote sits.
-        expect(
-          tester
-              .widget<TvFocusable>(
-                find.byKey(const ValueKey('downloads-filter-tv-2')),
-              )
-              .selected,
-          isTrue,
-        );
-        expect(_nodeByLabel(tester, '山海之间 第 2 集 暂停下载'), isNull);
-        expect(_nodeByLabel(tester, '山海之间 第 1 集 离线观看'), isNotNull);
+      await _openDrama(tester);
+      for (final label in const [
+        '山海之间 第 1 集 离线观看',
+        '山海之间 第 1 集 删除下载记录',
+        '山海之间 第 2 集 暂停下载',
+        '山海之间 第 2 集 取消下载',
+      ]) {
+        expect(_nodeByLabel(tester, label), isNotNull, reason: label);
+      }
+      expect(find.textContaining('40%'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
 
-        await _activate(tester, '全部');
-        expect(_nodeByLabel(tester, '山海之间 第 2 集 取消下载'), isNotNull);
-        expect(tester.takeException(), isNull);
-      },
-    );
+    testWidgets('the filters run on dramas, not on single rows', (
+      tester,
+    ) async {
+      await _useTvView(tester);
+      final runtime = await _transferring(tester);
+      await tester.pumpWidget(_tv(DownloadsPage(runtime: runtime)));
+      await tester.pump();
+      await _finish(tester, runtime, '11_best');
+      await tester.pumpAndSettle();
+
+      await _activate(tester, '下载中');
+      expect(
+        tester
+            .widget<TvFocusable>(
+              find.byKey(const ValueKey('downloads-filter-tv-1')),
+            )
+            .selected,
+        isTrue,
+      );
+      // Nothing is moving for this drama anymore, so the series leaves the list
+      // entirely -- and the empty state says where to look instead of blaming
+      // the viewer.
+      expect(_nodeByLabel(tester, '山海之间 分集进度'), isNull);
+      expect(find.textContaining('这个筛选下还没有剧目'), findsOneWidget);
+
+      await _activate(tester, '已完成');
+      expect(_nodeByLabel(tester, '山海之间 分集进度'), isNotNull);
+      expect(find.text('已完成 1 / 1 集'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets('离线观看 is the ready row primary action', (tester) async {
       await _useTvView(tester);
@@ -180,7 +214,7 @@ void main() {
       await tester.pump();
       await _finish(tester, runtime, '11_best');
       await tester.pumpAndSettle();
-      expect(runtime.downloads.tasks.single.phase, DownloadPhase.ready);
+      await _openDrama(tester);
 
       // The player needs a real media pipeline, so the watch path is proved
       // from its own first step: the file goes away, and the row answers with
@@ -195,11 +229,15 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(find.text('本地文件已移除，请重新下载'), findsOneWidget);
-      // With no file left the record is resumable, so the same slot now offers
-      // 继续下载.
-      expect(_nodeByLabel(tester, '山海之间 第 1 集 继续下载'), isNotNull);
+      // With no file left the record is a failed one, so the same slot now asks
+      // the queue to run it again.
+      expect(_nodeByLabel(tester, '山海之间 第 1 集 重试下载'), isNotNull);
       expect(_nodeByLabel(tester, '山海之间 第 1 集 离线观看'), isNull);
+      // The card behind the rows reloaded against the same empty disk, so it
+      // no longer claims an offline copy the viewer cannot watch.
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
+      expect(find.text('已完成 0 / 1 集 · 待继续 1'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -212,6 +250,7 @@ void main() {
       await tester.pump();
       await _finish(tester, runtime, '11_best');
       await tester.pumpAndSettle();
+      await _openDrama(tester);
 
       await _activate(tester, '山海之间 第 1 集 删除下载记录');
       expect(find.text('删除已下载视频？'), findsOneWidget);
@@ -230,6 +269,36 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('删除本剧 takes the records and the files in one confirm', (
+      tester,
+    ) async {
+      await _useTvView(tester);
+      final runtime = await _transferring(tester, episodes: 2);
+      await tester.pumpWidget(_tv(DownloadsPage(runtime: runtime)));
+      await tester.pump();
+      await _finish(tester, runtime, '11_best');
+      await _finish(tester, runtime, '12_best');
+      await tester.pumpAndSettle();
+      expect(runtime.files, hasLength(2));
+
+      await _activate(tester, '山海之间 删除本剧');
+      expect(find.text('删除本剧全部下载？'), findsOneWidget);
+      expect(find.textContaining('2 条下载记录与 2 个本地缓存文件一并删除'), findsOneWidget);
+      expect(_focus(), '取消');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(_focus(), '删除全部');
+      await tester.sendKeyEvent(LogicalKeyboardKey.select);
+      await tester.pumpAndSettle();
+
+      expect(runtime.downloads.tasks, isEmpty);
+      expect(runtime.files, isEmpty);
+      // The report is read back off the disk, not from what was attempted.
+      expect(find.textContaining('已删除 2 个文件'), findsOneWidget);
+      expect(find.byType(DownloadsPage), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('a transferring row is pause and cancel, two separate keys', (
       tester,
     ) async {
@@ -239,10 +308,10 @@ void main() {
       await tester.pump();
       _report(runtime, '11_best');
       await tester.pumpAndSettle();
+      await _openDrama(tester);
 
       expect(_nodeByLabel(tester, '山海之间 第 1 集 暂停下载'), isNotNull);
       expect(_nodeByLabel(tester, '山海之间 第 1 集 取消下载'), isNotNull);
-      expect(find.textContaining('40%'), findsOneWidget);
 
       await _activate(tester, '山海之间 第 1 集 暂停下载');
       expect(runtime.downloads.tasks.single.phase, DownloadPhase.paused);
@@ -252,6 +321,10 @@ void main() {
       expect(_nodeByLabel(tester, '山海之间 第 1 集 暂停下载'), isNull);
       expect(_nodeByLabel(tester, '山海之间 第 1 集 删除下载记录'), isNotNull);
       expect(_nodeByLabel(tester, '山海之间 第 1 集 取消下载'), isNull);
+      // The card behind it says the same thing the row just became.
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('已完成 0 / 1 集 · 待继续 1'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -314,18 +387,25 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(TvFocusable), findsNothing);
-      // The row was never a ListTile, and it is still not one: the phone keeps
-      // its two trailing icon buttons per task.
+      // The list is no longer a wall of rows: one card for the drama, and the
+      // rows it hides are the reason the card is tappable.
       expect(find.byType(ListTile), findsNothing);
-      // The two app bar actions, the drama header's whole-drama delete and the
-      // ready row's play and delete pair plus the transferring row's pause and
-      // cancel pair. Nothing is waiting to continue here, so 继续全部 stays away.
-      expect(find.byType(IconButton), findsNWidgets(7));
+      expect(find.byType(DownloadEpisodesPage), findsNothing);
+      // The two app bar actions and the card's whole-drama delete. Nothing is
+      // waiting to continue here, so 继续全部 stays away.
+      expect(find.byType(IconButton), findsNWidgets(3));
       expect(find.byType(ChoiceChip), findsNWidgets(3));
-      expect(find.byTooltip('离线观看'), findsOneWidget);
       expect(find.byTooltip('删除本剧全部下载'), findsOneWidget);
+      expect(find.text('分集进度'), findsOneWidget);
+      expect(find.text('已完成 1 / 2 集 · 下载中 1'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('downloads-drama-123')));
+      await tester.pumpAndSettle();
+      expect(find.byType(DownloadEpisodesPage), findsOneWidget);
+      expect(find.byTooltip('离线观看'), findsOneWidget);
       expect(find.byTooltip('删除下载记录'), findsOneWidget);
       expect(find.byTooltip('暂停下载'), findsOneWidget);
+      expect(find.byTooltip('取消下载'), findsOneWidget);
 
       await tester.tap(find.byTooltip('删除下载记录'));
       await tester.pumpAndSettle();
@@ -339,6 +419,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('删除'));
       await tester.pumpAndSettle();
+      // Only the ready episode's file went, with its record; the transferring
+      // one never had a file to lose.
       expect(runtime.files, isEmpty);
       expect(runtime.downloads.tasks, hasLength(1));
       expect(tester.takeException(), isNull);

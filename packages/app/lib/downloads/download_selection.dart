@@ -2,17 +2,22 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:hongguo_api/hongguo_api.dart';
+import 'package:hongguo_tv/hongguo_tv.dart';
 
+import '../catalog/local_library.dart';
 import '../features/downloads_page.dart';
 import '../navigation/app_navigation.dart';
 import '../platform/runtime.dart';
 import 'download_manager.dart';
+import 'latest_episode_check.dart';
 
 Future<void> showDownloadSelection(
   BuildContext context,
   AppRuntime runtime,
-  DramaDetail detail,
-) async {
+  DramaDetail detail, {
+  Set<String> cachedVids = const {},
+  String? initialQuality,
+}) async {
   if (runtime is! DownloadRuntime) return;
   final size = MediaQuery.sizeOf(context);
   final bool? accepted;
@@ -23,7 +28,12 @@ Future<void> showDownloadSelection(
         child: SizedBox(
           width: 720,
           height: math.min(680, size.height * .82),
-          child: DownloadSelection(runtime: runtime, detail: detail),
+          child: DownloadSelection(
+            runtime: runtime,
+            detail: detail,
+            cachedVids: cachedVids,
+            initialQuality: initialQuality,
+          ),
         ),
       ),
     );
@@ -37,7 +47,12 @@ Future<void> showDownloadSelection(
         top: false,
         child: SizedBox(
           height: size.height * (size.height < 400 ? .95 : .78),
-          child: DownloadSelection(runtime: runtime, detail: detail),
+          child: DownloadSelection(
+            runtime: runtime,
+            detail: detail,
+            cachedVids: cachedVids,
+            initialQuality: initialQuality,
+          ),
         ),
       ),
     );
@@ -61,13 +76,52 @@ Future<void> showDownloadSelection(
   }
 }
 
+/// The shelf's route into the picker the detail page already uses: read what a
+/// cached drama has online now, and let the viewer choose among the episodes
+/// that arrived since. 检查最新剧集 only reports that gap; this is the way in.
+/// Everything already on disk comes pre-marked, and a drama
+/// with nothing new answers in place instead of opening an empty window.
+///
+/// Returns the line for the page's own notice, or null once the picker spoke
+/// for itself.
+Future<String?> showCachedDramaDownloadSelection(
+  BuildContext context,
+  AppRuntime runtime,
+  LocalDramaGroup group,
+) async {
+  final online = await scanOnlineEpisodes(runtime, group);
+  if (!online.hasNew) {
+    return '已是最新：在线 ${online.detail.episodes.length} 集，本地都有缓存或在下载中';
+  }
+  await showDownloadSelection(
+    context,
+    runtime,
+    online.detail,
+    cachedVids: {for (final f in group.files) f.vid},
+    initialQuality: online.quality,
+  );
+  return null;
+}
+
 class DownloadSelection extends StatefulWidget {
   final DownloadRuntime runtime;
   final DramaDetail detail;
+
+  /// Videos already on disk that the queue has no record of. An episode cached
+  /// while playing never entered 下载管理, so without this the picker reached
+  /// from a cached drama would offer to fetch the same file a second time.
+  final Set<String> cachedVids;
+
+  /// The shelf opens this panel on a drama it already partly holds, so the new
+  /// episodes start at the quality the rest of the series was cached at rather
+  /// than the app-wide default -- a top-up should not silently switch track.
+  final String? initialQuality;
   const DownloadSelection({
     super.key,
     required this.runtime,
     required this.detail,
+    this.cachedVids = const {},
+    this.initialQuality,
   });
   @override
   State<DownloadSelection> createState() => _DownloadSelectionState();
@@ -75,7 +129,8 @@ class DownloadSelection extends StatefulWidget {
 
 class _DownloadSelectionState extends State<DownloadSelection> {
   late final manager = widget.runtime.downloads;
-  late String quality = settingsFor(widget.runtime).defaultQuality;
+  late String quality =
+      widget.initialQuality ?? settingsFor(widget.runtime).defaultQuality;
   final selected = <int>{};
   bool loading = true, busy = false;
   String? error;
@@ -115,11 +170,28 @@ class _DownloadSelectionState extends State<DownloadSelection> {
     }
   }
 
-  bool available(int i) => ![
-    DownloadPhase.ready,
-    DownloadPhase.running,
-    DownloadPhase.queued,
-  ].contains(manager.taskFor(widget.detail.episodes[i].vid, quality)?.phase);
+  bool available(int i) {
+    final episode = widget.detail.episodes[i];
+    if (widget.cachedVids.contains(episode.vid)) return false;
+    return ![
+      DownloadPhase.ready,
+      DownloadPhase.running,
+      DownloadPhase.queued,
+    ].contains(manager.taskFor(episode.vid, quality)?.phase);
+  }
+
+  /// Why a cell cannot be picked. A file the shelf already holds says 已下载 even
+  /// when the queue never heard of it; an episode still held by a paused or
+  /// failed task says 已加入; a cell disabled only by the in-flight submit stays
+  /// silent, the way it did before this view knew about cached files.
+  String? _blockedAs(int i) {
+    final episode = widget.detail.episodes[i];
+    if (widget.cachedVids.contains(episode.vid)) return '已下载';
+    final task = manager.taskFor(episode.vid, quality);
+    if (task == null) return null;
+    return task.phase == DownloadPhase.ready ? '已下载' : '已加入';
+  }
+
   Future<void> _submit() async {
     setState(() {
       busy = true;
@@ -140,6 +212,33 @@ class _DownloadSelectionState extends State<DownloadSelection> {
         });
       }
     }
+  }
+
+  /// The TV cell carries the same facts as the touch button but no button of
+  /// its own: TvGrid owns the focus ring and the OK activation.
+  Widget _tvCell(int i) {
+    final episode = widget.detail.episodes[i];
+    final enabled = available(i) && !busy;
+    final blocked = enabled ? null : _blockedAs(i);
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      key: ValueKey('download-episode-$i'),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: selected.contains(i) ? scheme.primaryContainer : null,
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text('第 ${episode.index} 集'),
+          if (blocked != null)
+            Text(blocked, style: const TextStyle(fontSize: 12)),
+          if (selected.contains(i)) const Icon(Icons.check, size: 16),
+        ],
+      ),
+    );
   }
 
   @override
@@ -234,6 +333,26 @@ class _DownloadSelectionState extends State<DownloadSelection> {
         Expanded(
           child: loading
               ? const Center(child: CircularProgressIndicator())
+              : tvBuild
+              ? TvGrid(
+                  // A lazy GridView never builds the rows the remote has not
+                  // reached, so focus dies at the viewport edge; TvGrid
+                  // materialises cells by id and keeps the ring whole.
+                  maxExtent: 190,
+                  aspectRatio: 1.25,
+                  ids: [
+                    for (var i = 0; i < widget.detail.episodes.length; i++)
+                      'e$i',
+                  ],
+                  label: (i) => '第 ${widget.detail.episodes[i].index} 集',
+                  activate: (i) {
+                    if (!available(i) || busy) return;
+                    setState(() {
+                      if (!selected.add(i)) selected.remove(i);
+                    });
+                  },
+                  itemBuilder: (context, i) => _tvCell(i),
+                )
               : GridView.builder(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,
@@ -248,8 +367,8 @@ class _DownloadSelectionState extends State<DownloadSelection> {
                   itemCount: widget.detail.episodes.length,
                   itemBuilder: (context, i) {
                     final episode = widget.detail.episodes[i];
-                    final task = manager.taskFor(episode.vid, quality);
                     final enabled = available(i) && !busy;
+                    final blocked = enabled ? null : _blockedAs(i);
                     return Semantics(
                       selected: selected.contains(i),
                       child: OutlinedButton(
@@ -269,11 +388,9 @@ class _DownloadSelectionState extends State<DownloadSelection> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text('第 ${episode.index} 集'),
-                            if (!enabled && task != null)
+                            if (blocked != null)
                               Text(
-                                task.phase == DownloadPhase.ready
-                                    ? '已下载'
-                                    : '已加入',
+                                blocked,
                                 style: const TextStyle(fontSize: 10),
                               ),
                             if (selected.contains(i))

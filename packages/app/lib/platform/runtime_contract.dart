@@ -1,4 +1,6 @@
 import '../downloads/download_manager.dart';
+import '../merge/merge_manager.dart';
+import '../merge/merged_library.dart';
 import '../personal/personal_library.dart';
 import '../search/search_history.dart';
 
@@ -157,6 +159,21 @@ SearchHistory searchHistoryFor(AppRuntime runtime) =>
 
 abstract interface class DownloadRuntime implements LocalMediaRuntime {
   DownloadManager get downloads;
+}
+
+/// Runtimes that keep downloaded video files on disk can merge them: the input
+/// is the published media-cache product, so a runtime without one has nothing
+/// to join. Web hides both entries for the same reason.
+abstract interface class MergeRuntime implements LocalMediaRuntime {
+  MergeManager get merges;
+  MergedLibrary get mergedLibrary;
+
+  /// The published media-cache file for one episode, whether or not it exists.
+  String mediaPath(String vid, String quality);
+
+  /// A merged product plays from the path the library owns; it never passed
+  /// through the media cache, so there is no lease to pin.
+  PlaybackJob prepareMerged(String mergeId);
 }
 
 /// The media scheduler's own record of how many transfers it had in flight at

@@ -24,6 +24,8 @@ dependencies:
   background_downloader: any
   window_manager: any
   path_provider: any
+  file_picker: any
+  share_plus: any
   cupertino_icons: any
   dio: any
   flutter_riverpod: any

@@ -3,7 +3,8 @@ import '../navigation/app_navigation.dart';
 
 import 'package:flutter/material.dart';
 import 'package:hongguo_api/hongguo_api.dart';
-import 'package:hongguo_tv/hongguo_tv.dart' show TvEnvironment, TvFocusable;
+import 'package:hongguo_tv/hongguo_tv.dart'
+    show TvEnvironment, TvFocusable, tvBuild;
 
 import '../personal/personal_library.dart';
 import '../platform/runtime.dart';
@@ -13,6 +14,8 @@ import '../widgets/tv_confirm.dart';
 import 'detail_page.dart';
 import '../widgets/drama_cover.dart';
 import 'local_cache_page.dart';
+import 'merged_page.dart';
+import 'merge_tasks_page.dart';
 import 'player_page.dart';
 import 'settings_page.dart';
 import 'tv/tv_detail_page.dart';
@@ -29,6 +32,9 @@ class _MyPageState extends State<MyPage> {
   late final PersonalLibrary library;
   bool favorites = false, loading = true, working = false;
   int? cachedCount;
+
+  /// The products in `merged/`; null when this runtime cannot report them.
+  int? mergedCount;
   String? error;
   @override
   void initState() {
@@ -37,6 +43,7 @@ class _MyPageState extends State<MyPage> {
     library.addListener(_changed);
     final runtime = widget.runtime;
     if (runtime is DownloadRuntime) runtime.downloads.addListener(_changed);
+    if (runtime is MergeRuntime) runtime.merges.addListener(_changed);
     _load();
   }
 
@@ -49,6 +56,7 @@ class _MyPageState extends State<MyPage> {
     library.removeListener(_changed);
     final runtime = widget.runtime;
     if (runtime is DownloadRuntime) runtime.downloads.removeListener(_changed);
+    if (runtime is MergeRuntime) runtime.merges.removeListener(_changed);
     super.dispose();
   }
 
@@ -64,9 +72,18 @@ class _MyPageState extends State<MyPage> {
           // A cache scan failure must not hide favorites and watch progress.
         }
       }
+      int? merged;
+      if (runtime is MergeRuntime) {
+        try {
+          merged = (await runtime.mergedLibrary.list()).length;
+        } catch (_) {
+          // Same as the cache scan: the rest of the page still has a use.
+        }
+      }
       if (mounted) {
         setState(() {
           cachedCount = files?.map((e) => e.vid).toSet().length;
+          mergedCount = merged;
           loading = false;
           error = null;
         });
@@ -249,6 +266,61 @@ class _MyPageState extends State<MyPage> {
       ),
     );
   }
+
+  /// 合并 lives beside the files it reads, and a remote has no file-manager
+  /// semantics for it, so these are the phone/PC-only siblings of
+  /// [_downloadsCard]; the caller keeps them out of the TV layout.
+  Widget _mergeCard(MergeRuntime runtime) => Column(
+    children: [
+      Card(
+        elevation: 0,
+        child: ListTile(
+          key: const ValueKey('my-merged'),
+          leading: const Icon(Icons.video_library_outlined),
+          title: const Text('合并资源'),
+          subtitle: Text(
+            mergedCount == null ? '当前不可用' : '$mergedCount 部 · 离线可播 · 可导出',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: working
+              ? null
+              : () => _run(() async {
+                  await pushAppPage<void>(
+                    context,
+                    AppScreen.merged,
+                    (_) => MergedPage(runtime: runtime),
+                  );
+                  if (mounted) await _load();
+                }),
+        ),
+      ),
+      Card(
+        elevation: 0,
+        child: ListTile(
+          key: const ValueKey('my-merge-tasks'),
+          leading: const Icon(Icons.merge_type),
+          title: const Text('合成任务'),
+          subtitle: Text(
+            runtime.merges.pendingCount == 0
+                ? '暂无进行中的任务'
+                : '${runtime.merges.pendingCount} 个任务进行中',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: working
+              ? null
+              : () => _run(() async {
+                  await pushAppPage<void>(
+                    context,
+                    AppScreen.mergeTasks,
+                    (_) => MergeTasksPage(runtime: runtime),
+                  );
+                  if (mounted) await _load();
+                }),
+        ),
+      ),
+      const SizedBox(height: 16),
+    ],
+  );
 
   String _progressLine(WatchRecord record) =>
       '第 ${record.episode} 集 · '
@@ -561,6 +633,8 @@ class _MyPageState extends State<MyPage> {
                               .downloads
                               .readyCount,
                         ),
+                      if (!tvBuild && widget.runtime is MergeRuntime)
+                        _mergeCard(widget.runtime as MergeRuntime),
                       Row(
                         children: [
                           Expanded(

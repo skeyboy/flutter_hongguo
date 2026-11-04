@@ -41,6 +41,14 @@ class PlayerPage extends StatefulWidget {
   final Duration initialOffset;
   final bool cachedOnly, resumeLastEpisode;
   final String? cachedQuality;
+
+  /// A merged product plays from the library's own file instead of a cached
+  /// episode: [detail] then holds one synthetic episode whose vid is the merge
+  /// id, and this names the resource the player should open.
+  ///
+  /// That id is not a catalog drama, so a product records no watch history: 我的
+  /// 页 could not resolve it, and 继续观看 would offer a row that cannot resume.
+  final String? mergeId;
   final PlaybackReturnRecommendations? returnRecommendations;
   const PlayerPage({
     super.key,
@@ -51,6 +59,7 @@ class PlayerPage extends StatefulWidget {
     this.cachedOnly = false,
     this.resumeLastEpisode = false,
     this.cachedQuality,
+    this.mergeId,
     this.returnRecommendations,
   });
   @override
@@ -113,7 +122,8 @@ class _PlayerPageState extends State<PlayerPage>
   Duration _resumeSnapshotOffset = Duration.zero;
 
   void _saveHistory({bool force = false}) {
-    if (!_episodePlayed ||
+    if (widget.mergeId != null ||
+        !_episodePlayed ||
         _historyVid == null ||
         _historyVid != sourceVid ||
         preparing) {
@@ -319,6 +329,7 @@ class _PlayerPageState extends State<PlayerPage>
     super.initState();
     final runtime = widget.runtime;
     if (runtime is DownloadRuntime) runtime.downloads.playbackEntered();
+    if (runtime is MergeRuntime) runtime.merges.playbackEntered();
     if (!widget.cachedOnly && runtime is LibraryCacheRuntime) {
       unawaited(
         rememberDramaMetadata(runtime, widget.detail).catchError((Object _) {}),
@@ -799,7 +810,7 @@ class _PlayerPageState extends State<PlayerPage>
         if (mounted) _redraw(() => playbackNotice = '观看记录暂不可用，将从头播放');
       }
       if (!mounted || ticket != generation) return;
-      if (widget.cachedOnly) {
+      if (widget.cachedOnly && widget.mergeId == null) {
         final files = await (widget.runtime as LocalMediaRuntime)
             .localEpisodes();
         if (!mounted || ticket != generation) return;
@@ -811,7 +822,9 @@ class _PlayerPageState extends State<PlayerPage>
         if (available == null) throw StateError('该集本地缓存已不存在，连播已停止；不会自动联网下载。');
         quality = available;
       }
-      final active = widget.cachedOnly
+      final active = widget.mergeId != null
+          ? (widget.runtime as MergeRuntime).prepareMerged(widget.mergeId!)
+          : widget.cachedOnly
           ? (widget.runtime as LocalMediaRuntime).prepareLocal(
               widget.detail.episodes[selected].vid,
               quality: quality,
@@ -1033,6 +1046,10 @@ class _PlayerPageState extends State<PlayerPage>
     edgeNoticeTimer?.cancel();
     if (fullscreen) unawaited(defaultExitNativeFullscreen());
     generation++;
+    // The queues yielded their bandwidth to this page; leaving it hands it back.
+    final runtime = widget.runtime;
+    if (runtime is DownloadRuntime) runtime.downloads.playbackLeft();
+    if (runtime is MergeRuntime) runtime.merges.playbackLeft();
     WidgetsBinding.instance.removeObserver(this);
     // Leaving the page must not stop the television: the cast service outlives
     // this state and the floating window is what brings the controls back.

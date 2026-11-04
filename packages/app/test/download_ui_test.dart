@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hongguo_app/downloads/download_manager.dart';
+import 'package:hongguo_app/features/download_episodes_page.dart';
 import 'package:hongguo_app/features/detail_page.dart';
 import 'package:hongguo_app/features/my_page.dart';
 import 'package:hongguo_app/features/downloads_page.dart';
@@ -77,7 +78,13 @@ void main() {
         await tester.tap(find.byKey(const ValueKey('my-downloads')));
         await tester.pumpAndSettle();
         expect(find.byType(DownloadsPage), findsOneWidget);
+        // 下载管理列的是剧目；那一集的状态要点开卡片才看得到。
+        await tester.tap(find.byKey(const ValueKey('downloads-drama-123')));
+        await tester.pumpAndSettle();
+        expect(find.byType(DownloadEpisodesPage), findsOneWidget);
         expect(find.byTooltip('离线观看'), findsOneWidget);
+        await tester.pageBack();
+        await tester.pumpAndSettle();
         await tester.tap(find.byTooltip('查看离线剧集'));
         await tester.pumpAndSettle();
         expect(find.byType(LocalCachePage), findsOneWidget);
@@ -104,6 +111,8 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: DownloadsPage(runtime: runtime)),
       );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('downloads-drama-123')));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('删除下载记录'));
       await tester.pumpAndSettle();

@@ -1,15 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:hongguo_tv/hongguo_tv.dart' show TvEnvironment, TvFocusable;
 
 import '../catalog/local_group_delete.dart';
 import '../catalog/local_library.dart';
+import '../downloads/drama_downloads.dart';
 import '../downloads/download_manager.dart';
+import '../merge/merge_selection.dart';
 import '../platform/runtime.dart';
 import '../navigation/app_navigation.dart';
-import '../playback/local_playlist.dart';
 import '../widgets/tv_confirm.dart';
+import 'download_episodes_page.dart';
 import 'local_cache_page.dart';
-import 'player_page.dart';
 
 class DownloadsPage extends StatefulWidget {
   final DownloadRuntime runtime;
@@ -20,9 +23,16 @@ class DownloadsPage extends StatefulWidget {
 
 class _DownloadsPageState extends State<DownloadsPage> {
   late final manager = widget.runtime.downloads;
+
+  /// The disk is read alongside the queue: a drama's progress is how many files
+  /// it actually owns, and a record whose file has gone is a failed download --
+  /// `reconcile` says so, this list only reports what the two together agree on.
+  List<LocalEpisode> files = const [];
+  String _seen = '';
   bool loading = true, working = false;
   String? error;
   int filter = 0;
+
   @override
   void initState() {
     super.initState();
@@ -30,8 +40,25 @@ class _DownloadsPageState extends State<DownloadsPage> {
     _load();
   }
 
+  /// The queue emits on every progress tick; only a record changing phase means
+  /// the disk should now hold something else, so that is the one that re-scans.
   void _changed() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    final seen = queueSignature(manager);
+    if (seen == _seen) return;
+    _seen = seen;
+    unawaited(_syncFiles());
+  }
+
+  Future<void> _syncFiles() async {
+    try {
+      final read = await widget.runtime.localEpisodes();
+      if (mounted) setState(() => files = read);
+    } catch (_) {
+      // A background refresh that failed leaves the last good list standing;
+      // 刷新 and every deliberate action still report the read error.
+    }
   }
 
   @override
@@ -43,8 +70,11 @@ class _DownloadsPageState extends State<DownloadsPage> {
   Future<void> _load() async {
     try {
       await manager.reconcile();
+      final onDisk = await widget.runtime.localEpisodes();
       if (mounted) {
+        _seen = queueSignature(manager);
         setState(() {
+          files = onDisk;
           loading = false;
           error = null;
         });
@@ -77,51 +107,21 @@ class _DownloadsPageState extends State<DownloadsPage> {
     }
   }
 
-  Future<void> _watch(EpisodeDownload task) async {
-    final runtime = widget.runtime;
-    final files = await runtime.localEpisodes();
-    final group = groupLocalEpisodes(files)
-        .where((g) => g.files.any((f) => '${f.vid}_${f.quality}' == task.key))
-        .firstOrNull;
-    if (group == null) {
-      await _load();
-      throw StateError('本地文件已移除，请重新下载');
-    }
-    final file = group.files.firstWhere(
-      (f) => '${f.vid}_${f.quality}' == task.key,
-    );
-    final queue = localPlaybackQueue(group, file);
-    if (!mounted) return;
+  Future<void> _open(DramaDownloads group) async {
     await pushAppPage<void>(
       context,
-      AppScreen.player,
-      (_) => PlayerPage(
-        runtime: runtime,
-        detail: queue.detail,
-        initialPosition: queue.initialPosition,
-        cachedOnly: true,
-        cachedQuality: task.quality,
+      AppScreen.downloadEpisodes,
+      (_) => DownloadEpisodesPage(
+        runtime: widget.runtime,
+        dramaId: group.id,
+        dramaTitle: group.drama.title,
       ),
     );
     if (mounted) await _load();
   }
 
-  Future<void> _remove(EpisodeDownload task) async {
-    if (task.phase == DownloadPhase.ready) {
-      final confirmed = await showTvConfirm(
-        context,
-        title: '删除已下载视频？',
-        body:
-            '${task.drama.title} · 第 ${task.episode.index} 集\n删除后需重新下载才能离线观看。',
-        confirmLabel: '删除',
-      );
-      if (confirmed != true || !mounted) return;
-    }
-    await _action(() => manager.remove(task.key));
-  }
-
   /// One key for a queue a restart, a dropped network or a cancelled batch left
-  /// in pieces. The per-task 继续下载 stays for a single episode; this is the
+  /// in pieces. The per-episode 继续下载 lives on the drill-in page; this is the
   /// answer to 「我刚把后台下载打开」.
   Future<void> _resumeAll() async {
     if (working) return;
@@ -142,28 +142,23 @@ class _DownloadsPageState extends State<DownloadsPage> {
 
   /// 归类删除 for the queue: the drama's records and its cached files go together,
   /// because a viewer who is done with a series never wants one leftover episode
-  /// holding the shelf open.
-  Future<void> _removeDrama(EpisodeDownload first, int taskCount) async {
+  /// holding the shelf open. The report comes from reading the cache back.
+  Future<void> _removeDrama(DramaDownloads group) async {
     if (working) return;
     final confirmed = await showTvConfirm(
       context,
       title: '删除本剧全部下载？',
-      body: '${first.drama.title}\n$taskCount 条下载记录与本地缓存文件一并删除，删除后需重新下载才能离线观看。',
+      body:
+          '${group.drama.title}\n${group.tasks.length} 条下载记录与 ${group.files.length} 个本地缓存文件一并删除，删除后需重新下载才能离线观看。',
       confirmLabel: '删除全部',
     );
     if (confirmed != true || !mounted) return;
-    final files = await widget.runtime.localEpisodes();
-    final group =
-        groupLocalEpisodes(files)
-            .where((g) => g.id == first.drama.id)
-            .firstOrNull ??
-        LocalDramaGroup(
-          id: first.drama.id,
-          drama: first.drama,
-          files: const [],
-        );
     await _action(() async {
-      final result = await removeLocalDrama(widget.runtime, group);
+      final result = await removeLocalDrama(
+        widget.runtime,
+        LocalDramaGroup(id: group.id, drama: group.drama, files: group.files),
+      );
+      await _load();
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(result.caption)));
@@ -171,203 +166,151 @@ class _DownloadsPageState extends State<DownloadsPage> {
     });
   }
 
-  String _episodeLine(EpisodeDownload task) =>
-      '第 ${task.episode.index} 集 · ${task.quality == 'best' || task.quality == 'auto' ? '自动画质' : task.quality}';
-
-  String _messageLine(EpisodeDownload task) =>
-      '${task.message}${task.phase == DownloadPhase.running && task.fraction != null ? " · ${(task.fraction!.clamp(0, 1) * 100).floor()}%" : ""}';
-
-  Widget _task(EpisodeDownload task, {required bool tv}) =>
-      tv ? _tvTask(task) : _touchTask(task);
-
-  bool _inFlight(DownloadPhase phase) =>
-      phase == DownloadPhase.queued || phase == DownloadPhase.running;
-
-  // One task as two remote targets, like the cache page's file row: a row-wide
-  // target would swallow the destructive action at its end.
-  Widget _tvTask(EpisodeDownload task) {
-    final inFlight = _inFlight(task.phase);
-    final ready = task.phase == DownloadPhase.ready;
-    // Title plus index keeps the label unique per row, so the viewer knows
-    // which episode the confirm key acts on.
-    final name = '${task.drama.title} 第 ${task.episode.index} 集';
-    final primaryLabel = inFlight
-        ? '暂停下载'
-        : ready
-        ? '离线观看'
-        : '继续下载';
-    final primaryIcon = inFlight
-        ? Icons.pause
-        : ready
-        ? Icons.play_arrow
-        : Icons.refresh;
-    final VoidCallback primaryAction = inFlight
-        ? () => manager.pause(task.key)
-        : ready
-        ? () => _action(() => _watch(task))
-        : () => manager.resume(task.key);
-    final secondaryLabel = inFlight ? '取消下载' : '删除下载记录';
-    final secondaryIcon = inFlight ? Icons.close : Icons.delete_outline;
-    final VoidCallback secondaryAction = inFlight
-        ? () => manager.cancel(task.key)
-        : () => _remove(task);
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: TvFocusable(
-              label: '$name $primaryLabel',
-              onActivate: working ? null : primaryAction,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 14,
-                ),
-                child: Row(
-                  children: [
-                    Icon(primaryIcon, size: 26),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _episodeLine(task),
-                            style: const TextStyle(fontSize: 22),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _messageLine(task),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 17),
-                          ),
-                          if (task.phase == DownloadPhase.running)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: LinearProgressIndicator(
-                                value: task.fraction?.clamp(0, 1),
-                                minHeight: 2,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          TvFocusable(
-            label: '$name $secondaryLabel',
-            onActivate: working ? null : secondaryAction,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              child: Icon(secondaryIcon, size: 26),
-            ),
-          ),
-        ],
-      ),
+  /// 合成 for the whole drama, fed by the cache scan rather than the queue: the
+  /// rows say what was asked for, only the files on disk say what can be merged.
+  Future<void> _mergeDrama(EpisodeDownload first) async {
+    if (working) return;
+    final runtime = widget.runtime;
+    if (runtime is! MergeRuntime) return;
+    final files = await runtime.localEpisodes();
+    final group = groupLocalEpisodes(files)
+        .where((g) => g.id == first.drama.id)
+        .firstOrNull;
+    final options = mergeOptionsFromFiles(group?.files ?? const []);
+    if (!mounted) return;
+    if (options.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('本剧还没有可合成的已完成下载')));
+      return;
+    }
+    await showMergeSelection(
+      context,
+      runtime,
+      options: options,
+      suggestedTitle: '${first.drama.title} 合集',
     );
   }
 
-  Widget _touchTask(EpisodeDownload task) => Card(
+  bool _matches(DramaDownloads group) => switch (filter) {
+    1 => group.hasInFlight,
+    2 => group.hasOffline,
+    _ => true,
+  };
+
+  Widget _cardBody(DramaDownloads group, {required bool tv}) => Padding(
+    padding: EdgeInsets.symmetric(
+      horizontal: tv ? 16 : 12,
+      vertical: tv ? 14 : 10,
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          group.drama.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: tv
+              ? const TextStyle(fontSize: 24)
+              : Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          group.caption,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: tv
+              ? const TextStyle(fontSize: 18)
+              : Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        LinearProgressIndicator(value: group.progress, minHeight: 4),
+      ],
+    ),
+  );
+
+  Widget _deleteIcon(bool tv) =>
+      Icon(Icons.delete_sweep_outlined, size: tv ? 20 : 24);
+
+  Widget _tvCard(DramaDownloads group) => Card(
     elevation: 0,
-    margin: const EdgeInsets.symmetric(vertical: 4),
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-      child: Row(
-        children: [
-          Icon(
-            task.phase == DownloadPhase.ready
-                ? Icons.download_done
-                : Icons.downloading_outlined,
-            size: 22,
+    margin: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(
+      children: [
+        Expanded(
+          child: TvFocusable(
+            key: ValueKey('downloads-drama-tv-${group.id}'),
+            label: '${group.drama.title} 分集进度',
+            onActivate: working ? null : () => _open(group),
+            child: _cardBody(group, tv: true),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+        TvFocusable(
+          key: ValueKey('downloads-drama-delete-tv-${group.id}'),
+          label: '${group.drama.title} 删除本剧',
+          onActivate: working ? null : () => _removeDrama(group),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(_episodeLine(task)),
-                const SizedBox(height: 4),
-                Text(
-                  _messageLine(task),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                if (task.phase == DownloadPhase.running)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: LinearProgressIndicator(
-                      value: task.fraction?.clamp(0, 1),
-                      minHeight: 2,
-                    ),
-                  ),
+                Icon(Icons.delete_sweep_outlined, size: 20),
+                SizedBox(width: 6),
+                Text('删除本剧', style: TextStyle(fontSize: 18)),
               ],
             ),
           ),
-          if (task.phase == DownloadPhase.running ||
-              task.phase == DownloadPhase.queued) ...[
-            IconButton(
-              tooltip: '暂停下载',
-              onPressed: working ? null : () => manager.pause(task.key),
-              icon: const Icon(Icons.pause),
+        ),
+      ],
+    ),
+  );
+
+  Widget _touchCard(DramaDownloads group) => Card(
+    elevation: 0,
+    margin: const EdgeInsets.symmetric(vertical: 6),
+    child: InkWell(
+      key: ValueKey('downloads-drama-${group.id}'),
+      onTap: working ? null : () => _open(group),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _cardBody(group, tv: false),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 4, 4),
+            child: Row(
+              children: [
+                const Icon(Icons.chevron_right, size: 20),
+                Text('分集进度', style: Theme.of(context).textTheme.bodySmall),
+                const Spacer(),
+                if (widget.runtime is MergeRuntime)
+                  IconButton(
+                    key: ValueKey('downloads-drama-merge-${group.id}'),
+                    tooltip: '合成已下载的分集',
+                    onPressed: working
+                        ? null
+                        : () => _mergeDrama(group.tasks.first),
+                    icon: const Icon(Icons.video_library_outlined),
+                  ),
+                IconButton(
+                  key: ValueKey('downloads-drama-delete-${group.id}'),
+                  tooltip: '删除本剧全部下载',
+                  onPressed: working ? null : () => _removeDrama(group),
+                  icon: _deleteIcon(false),
+                ),
+              ],
             ),
-            IconButton(
-              tooltip: '取消下载',
-              onPressed: working ? null : () => manager.cancel(task.key),
-              icon: const Icon(Icons.close),
-            ),
-          ] else ...[
-            IconButton(
-              tooltip: task.phase == DownloadPhase.ready
-                  ? '离线观看'
-                  : task.phase == DownloadPhase.failed
-                  ? '重试下载'
-                  : '继续下载',
-              onPressed: working
-                  ? null
-                  : task.phase == DownloadPhase.ready
-                  ? () => _action(() => _watch(task))
-                  : () => manager.resume(task.key),
-              icon: Icon(
-                task.phase == DownloadPhase.ready
-                    ? Icons.play_arrow
-                    : Icons.refresh,
-              ),
-            ),
-            IconButton(
-              tooltip: '删除下载记录',
-              onPressed: working ? null : () => _remove(task),
-              icon: const Icon(Icons.delete_outline),
-            ),
-          ],
+          ),
         ],
       ),
     ),
   );
+
   @override
   Widget build(BuildContext context) {
     // The flag comes from `build`, because `TvEnvironment.of` registers a
     // dependency and an async callback cannot ask again after an await.
     final tv = TvEnvironment.of(context);
-    final groups = <String, List<EpisodeDownload>>{};
-    for (final task in manager.tasks) {
-      if (filter == 1 &&
-          ![
-            DownloadPhase.queued,
-            DownloadPhase.running,
-            DownloadPhase.paused,
-          ].contains(task.phase)) {
-        continue;
-      }
-      if (filter == 2 && task.phase != DownloadPhase.ready) continue;
-      (groups[task.drama.id] ??= []).add(task);
-    }
+    final all = groupDramaDownloads(manager, files);
+    final groups = all.where(_matches).toList();
     return Scaffold(
       appBar: AppBar(
         title: const Text('下载管理'),
@@ -535,7 +478,9 @@ class _DownloadsPageState extends State<DownloadsPage> {
                               child: Padding(
                                 padding: const EdgeInsets.all(24),
                                 child: Text(
-                                  '暂无下载\n去剧集详情页选择想离线观看的集数',
+                                  all.isEmpty
+                                      ? '暂无下载\n去剧集详情页选择想离线观看的集数'
+                                      : '这个筛选下还没有剧目\n切回「全部」看看其余的下载',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(fontSize: tv ? 20 : null),
                                 ),
@@ -552,91 +497,8 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                 ),
                                 physics: const AlwaysScrollableScrollPhysics(),
                                 children: [
-                                  for (final group in groups.values) ...[
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        top: 16,
-                                        bottom: 8,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              group.first.drama.title,
-                                              style: tv
-                                                  ? const TextStyle(
-                                                      fontSize: 24,
-                                                    )
-                                                  : Theme.of(context)
-                                                        .textTheme
-                                                        .titleMedium,
-                                            ),
-                                          ),
-                                          if (tv)
-                                            TvFocusable(
-                                              key: ValueKey(
-                                                'downloads-drama-tv-${group.first.drama.id}',
-                                              ),
-                                              label:
-                                                  '${group.first.drama.title} 删除本剧',
-                                              onActivate: working
-                                                  ? null
-                                                  : () => _removeDrama(
-                                                      group.first,
-                                                      group.length,
-                                                    ),
-                                              child: const Padding(
-                                                padding: EdgeInsets.symmetric(
-                                                  horizontal: 10,
-                                                  vertical: 6,
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      Icons
-                                                          .delete_sweep_outlined,
-                                                      size: 20,
-                                                    ),
-                                                    SizedBox(width: 6),
-                                                    Text(
-                                                      '删除本剧',
-                                                      style: TextStyle(
-                                                        fontSize: 18,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            )
-                                          else
-                                            IconButton(
-                                              key: ValueKey(
-                                                'downloads-drama-${group.first.drama.id}',
-                                              ),
-                                              tooltip: '删除本剧全部下载',
-                                              onPressed: working
-                                                  ? null
-                                                  : () => _removeDrama(
-                                                      group.first,
-                                                      group.length,
-                                                    ),
-                                              icon: const Icon(
-                                                Icons.delete_sweep_outlined,
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                    for (final task
-                                        in group..sort(
-                                          (a, b) => a.episode.index.compareTo(
-                                            b.episode.index,
-                                          ),
-                                        ))
-                                      _task(task, tv: tv),
-                                  ],
+                                  for (final group in groups)
+                                    tv ? _tvCard(group) : _touchCard(group),
                                 ],
                               ),
                             ),
