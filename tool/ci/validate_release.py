@@ -25,7 +25,7 @@ if signed and not (folder / f'Hongguo-{release}-ios-arm64.ipa').is_file():
 ios = 'Signed IPA included; install only on devices covered by its provisioning profile.' if signed else 'iOS was not built in this run. Enable signed iOS explicitly to attach an installable IPA.'
 tv = ('Android TV APKs carry a leanback launcher, a home-screen banner and no touchscreen requirement; '
       'every attached TV APK was checked against its own badging before upload.') if 'android-tv' in platforms else 'Android TV was not built in this run.'
-(folder / 'iOS-signing-status.txt').write_text(ios + '\n')
+(folder / 'iOS-signing-status.txt').write_text(ios + '\n', encoding='utf-8')
 notes = ROOT / 'build/release-notes.md'
 notes.parent.mkdir(exist_ok=True)
 notes.write_text(f'''Native Flutter / shared Dart release {release}.
