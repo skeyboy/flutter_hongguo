@@ -5,8 +5,8 @@
 /// three -- which is what keeps the update prompt from telling a user they are
 /// current while the tag says otherwise.
 class AppRelease {
-  static const version = '0.3.26';
-  static const build = 38;
+  static const version = '0.3.27';
+  static const build = 39;
 
   /// The published releases of this repository are the update feed.
   static const repository = 'skeyboy/flutter_hongguo';
