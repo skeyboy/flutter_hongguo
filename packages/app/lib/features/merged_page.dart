@@ -367,6 +367,10 @@ class _MergedPageState extends State<MergedPage> {
         _field('名称', video.title),
         _field('时长', _clock(video.durationMs)),
         _field('大小', mergeBytesLabel(video.bytes)),
+        _field(
+          '方式',
+          video.isCompatible ? '兼容合成 · 重编码为 H.264，其他设备也能播' : '无损合成 · 直接搬运源文件字节',
+        ),
         _field('编码', resolution),
         _field('创建', _stamp(video.createdAt)),
         _field('更新', _stamp(video.updatedAt)),
@@ -580,6 +584,9 @@ class _MergedPageState extends State<MergedPage> {
   String _caption(MergedVideo video) =>
       '${video.items.length} 集 · ${_clock(video.durationMs)} · '
       '${mergeBytesLabel(video.bytes)}'
+      // Which lane wrote it: a re-encoded product is the one that plays on a
+      // phone without the source codec, and that is worth reading off the list.
+      '${video.isCompatible ? ' · 兼容合成' : ''}'
       '${video.codec == null ? '' : ' · ${video.codec}'} · ${_stamp(video.updatedAt)}';
 
   Widget _empty({required bool tv}) => Center(

@@ -501,16 +501,19 @@ class _MergeTasksPageState extends State<MergeTasksPage> {
   }
 }
 
+/// Which lane a job runs on, in the words its card is titled with. A re-encode
+/// is different work -- slower, and it cannot pick up where it stopped -- so the
+/// title says so rather than leaving the viewer to guess from a progress bar.
 String _kindLabel(MergeTask task) => switch (task.kind) {
   'append' => '追加',
   'export' => '导出',
-  _ => '合成',
+  _ => task.isCompatible ? '兼容合成' : '合成',
 };
 
 IconData _kindIcon(MergeTask task) => switch (task.kind) {
   'append' => Icons.playlist_add,
   'export' => Icons.ios_share,
-  _ => Icons.merge_type,
+  _ => task.isCompatible ? Icons.autorenew : Icons.merge_type,
 };
 
 /// One control of one task card: named for the key the phase is looked up by, so

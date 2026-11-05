@@ -268,6 +268,95 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('a split precheck queues one job per 片 in one confirm', (
+    tester,
+  ) async {
+    final runtime = MergeFakeRuntime();
+    addTearDown(runtime.cleanUp);
+    runtime.seedFiles('d1', [1, 2, 3, 4]);
+    // The worker's answer for a selection in two formats: the writer refuses the
+    // set as a whole and offers the 片 it does accept, with the lone episode
+    // carrying the reason it is on its own.
+    runtime.probeReject = '第 3 集的编码参数与第 1 集不同，暂时无法无损合并';
+    runtime.probeGroups = [
+      [1, 2],
+      [3, 4],
+    ];
+    final group = groupLocalEpisodes(runtime.files).single;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LocalEpisodesPage(runtime: runtime, initial: group),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('local-merge')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('merge-next')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('可拆成 2 片'), findsOneWidget);
+    expect(find.textContaining('第 1-2 集'), findsOneWidget);
+    expect(find.textContaining('第 3-4 集'), findsOneWidget);
+    // Nothing is thrown away by the split, so the size stays the whole selection.
+    expect(find.textContaining('将排入 2 片 · 4 集'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const ValueKey('confirm-merge')))
+          .onPressed,
+      isNotNull,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('confirm-merge')));
+    await tester.pumpAndSettle();
+
+    final tasks = runtime.merges.tasks;
+    expect(tasks, hasLength(2));
+    // The 片 are named apart: the shelf's title plus the order they were queued
+    // in, so two products from one click do not collide in the list.
+    expect(tasks.map((t) => t.title).toList(), ['山海之间 合集 2', '山海之间 合集 1']);
+    expect(tasks.map((t) => t.items.map((i) => i.index).toList()).toList(), [
+      [3, 4],
+      [1, 2],
+    ]);
+    expect(find.byType(MergeSelection), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a 片 left alone is not queued, and says so', (tester) async {
+    final runtime = MergeFakeRuntime();
+    addTearDown(runtime.cleanUp);
+    runtime.seedFiles('d1', [1, 2, 3]);
+    runtime.probeReject = '第 3 集的编码参数与第 1 集不同，暂时无法无损合并';
+    runtime.probeGroups = [
+      [1, 2],
+      [3],
+    ];
+    final group = groupLocalEpisodes(runtime.files).single;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LocalEpisodesPage(runtime: runtime, initial: group),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('local-merge')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('merge-next')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('可合成一片'), findsOneWidget);
+    expect(find.textContaining('落单'), findsOneWidget);
+    expect(find.textContaining('将排入 1 片 · 2 集'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('confirm-merge')));
+    await tester.pumpAndSettle();
+
+    final task = runtime.merges.tasks.single;
+    expect(task.items.map((i) => i.index).toList(), [1, 2]);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a phone runs the same two steps inside the bottom sheet', (
     tester,
   ) async {
@@ -405,4 +494,172 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('an ffmpeg machine is offered 兼容合成 and joins what 无损 split', (
+    tester,
+  ) async {
+    final runtime = MergeFakeRuntime(lane: MergeUiTranscoder());
+    addTearDown(runtime.cleanUp);
+    runtime.seedFiles('d1', [1, 2, 3]);
+    runtime.probeReject = '第 3 集的编码参数与第 1 集不同，暂时无法无损合并';
+    runtime.probeGroups = [
+      [1, 2],
+      [3],
+    ];
+    final group = groupLocalEpisodes(runtime.files).single;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LocalEpisodesPage(runtime: runtime, initial: group),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('local-merge')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('merge-next')));
+    await tester.pumpAndSettle();
+
+    // Two lanes, named: 无损 stays the default, and the refusal points at the
+    // other one instead of ending the conversation.
+    expect(find.text('合成方式'), findsOneWidget);
+    expect(find.text('无损合成'), findsOneWidget);
+    expect(find.text('兼容合成'), findsOneWidget);
+    expect(find.byKey(const ValueKey('merge-mode-escape')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('merge-mode-compatible')));
+    await tester.pumpAndSettle();
+
+    // Every file reads 1080x1920 here, so the encoder takes the whole selection
+    // as one product -- the reason the lane exists. Nothing is re-probed: the
+    // same 预检 answer, simply read by the other rule.
+    expect(find.text('重编码可合成一片'), findsOneWidget);
+    expect(find.textContaining('ffmpeg · libx264'), findsOneWidget);
+    expect(find.textContaining('源文件合计 3.0 MB'), findsOneWidget);
+    expect(find.textContaining('将排入 1 片 · 3 集 · 产物约'), findsOneWidget);
+
+    // Back to 无损: the split and the invitation both come back, unchanged.
+    await tester.tap(find.byKey(const ValueKey('merge-mode-lossless')));
+    await tester.pumpAndSettle();
+    expect(find.text('可合成一片'), findsOneWidget);
+    expect(find.byKey(const ValueKey('merge-mode-escape')), findsOneWidget);
+    expect(find.textContaining('将排入 1 片 · 2 集'), findsOneWidget);
+
+    // The refusal's own button says the same thing as the segment, from where the
+    // viewer was already looking.
+    final escape = find.byKey(const ValueKey('merge-mode-escape'));
+    await tester.ensureVisible(escape);
+    await tester.pumpAndSettle();
+    await tester.tap(escape);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('将排入 1 片 · 3 集 · 产物约'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('confirm-merge')));
+    await tester.pumpAndSettle();
+
+    final task = runtime.merges.tasks.single;
+    expect(task.mode, 'compatible');
+    expect(task.isCompatible, isTrue);
+    expect(task.items.map((i) => i.index).toList(), [1, 2, 3]);
+
+    await tester.pumpWidget(
+      MaterialApp(home: MergeTasksPage(runtime: runtime)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('兼容合成 · 山海之间 合集'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a device with no ffmpeg is shown one way to merge', (
+    tester,
+  ) async {
+    final runtime = MergeFakeRuntime();
+    addTearDown(runtime.cleanUp);
+    runtime.seedFiles('d1', [1, 2, 3]);
+    runtime.probeReject = '第 3 集的编码参数与第 1 集不同，暂时无法无损合并';
+    runtime.probeGroups = [
+      [1, 2],
+      [3],
+    ];
+    final group = groupLocalEpisodes(runtime.files).single;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LocalEpisodesPage(runtime: runtime, initial: group),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('local-merge')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('merge-next')));
+    await tester.pumpAndSettle();
+
+    // No second lane, and no invitation to a lane that would only fail: the
+    // refusal stands on its own, as it did before the encoder existed.
+    expect(find.text('合成方式'), findsNothing);
+    expect(find.byKey(const ValueKey('merge-mode-escape')), findsNothing);
+    expect(find.text('可合成一片'), findsOneWidget);
+    expect(find.textContaining('将排入 1 片 · 2 集'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('追加 keeps the one lane that can grow a file in place', (
+    tester,
+  ) async {
+    final runtime = MergeFakeRuntime(lane: MergeUiTranscoder());
+    addTearDown(runtime.cleanUp);
+    runtime.seedFiles('d1', [1, 2, 3]);
+    runtime.seedProduct(items: [item(1, vid: '1')]);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MergedPage(runtime: runtime, mergeId: 'm1'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('merged-append')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('merge-episode-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('merge-next')));
+    await tester.pumpAndSettle();
+
+    // A re-encode writes a whole new file, so it has nothing to offer an append;
+    // the choice disappears with the target rather than failing on press.
+    expect(find.text('合成方式'), findsNothing);
+    expect(find.textContaining('编解码一致'), findsOneWidget);
+    expect(runtime.merges.tasks, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a product says which lane wrote it', (tester) async {
+    final runtime = MergeFakeRuntime();
+    addTearDown(runtime.cleanUp);
+    runtime.seedFiles('d1', [1, 2]);
+    runtime.seedProduct(items: [item(1), item(2)], mode: 'compatible');
+    runtime.seedProduct(
+      mergeId: 'm2',
+      title: '无损的那一份',
+      items: [
+        item(3, vid: '3'),
+        item(4, vid: '4'),
+      ],
+    );
+    await tester.pumpWidget(MaterialApp(home: MergedPage(runtime: runtime)));
+    await tester.pumpAndSettle();
+
+    // A list of products is a list of lanes: only the re-encoded one is marked,
+    // because that is the one that plays on a phone without the source codec.
+    expect(find.textContaining('· 兼容合成 ·'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('merged-m1')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('兼容合成 · 重编码为 H.264'), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('merged-m2')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('无损合成 · 直接搬运源文件字节'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

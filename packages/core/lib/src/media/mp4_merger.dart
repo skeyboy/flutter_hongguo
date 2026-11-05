@@ -8,13 +8,37 @@ import 'mp4.dart';
 ///
 /// Every input must share one track structure and one sample entry per track, so
 /// the merged file can keep the first source's `stsd` and only re-base the sample
-/// tables. Anything else is refused: this lane never re-encodes.
+/// tables. Differences that live only in the tables -- a track order, a timescale,
+/// a missing or differently-versioned `ctts` -- are normalised into the one table
+/// set the product is written with. Anything that would change a decoded byte is
+/// refused: this lane never re-encodes.
+
+/// What a refusal is about. The panel needs the distinction because the two
+/// answers differ: a format difference the viewer can undo by re-downloading one
+/// quality is worth naming, and a structural one is not.
+enum MergeRejectCode {
+  /// The tracks cannot be paired one for one.
+  tracks,
+
+  /// Same description, different picture size -- only a re-encode can agree.
+  resolution,
+
+  /// The sample entry itself differs -- only a re-encode can agree.
+  codec,
+
+  /// Timescales cannot be reconciled into one exact common timescale.
+  timescale,
+}
 
 /// The sources cannot be joined without changing their media bytes. The reason is
 /// shown as it is — only the deferred re-encode lane can satisfy it.
 class MergeReject implements Exception {
   final String reason;
-  const MergeReject(this.reason);
+
+  /// The 1-based source the verdict is about, when a comparison produced it.
+  final int? position;
+  final MergeRejectCode? code;
+  const MergeReject(this.reason, {this.position, this.code});
   @override
   String toString() => 'MergeReject: $reason';
 }
@@ -26,6 +50,11 @@ typedef MergeProgress = void Function(int done, int total);
 class MergeTrack {
   final String handler, codec;
   final int timescale, duration, width, height;
+
+  /// The frame the sample entry states, for a video track; 0 for anything else.
+  /// `tkhd`'s display size is a hint a muxer may leave at zero, so a size that
+  /// has to be real -- an encode's, or the even-edge H.264 demands -- reads here.
+  final int codedWidth, codedHeight;
 
   /// Bytes that must agree across sources for one `stsd` to describe them all.
   final Uint8List signature;
@@ -39,13 +68,15 @@ class MergeTrack {
   // ignore: library_private_types_in_public_api
   final List<_Time> times;
 
-  /// Null when the file has no `ctts`; a mixed structure is refused rather than
-  /// patched with composition offsets whose convention differs by version.
+  /// Null when the file has no `ctts`: every one of its samples is then a plain
+  /// DTS-to-CTS pass-through, and the merged table says so with zero offsets
+  /// rather than refusing a mix.
   // ignore: library_private_types_in_public_api
   final List<_Composition>? composition;
 
-  /// The `ctts` version carried over unchanged: one merged table can only be
-  /// written with the convention every source agreed on.
+  /// The `ctts` version this file was written with. One merged table is written
+  /// with the widest convention any part needs, so a mix of versions is carried
+  /// rather than refused.
   final int cttsVersion;
   final List<int>? syncSamples;
   const MergeTrack({
@@ -55,6 +86,8 @@ class MergeTrack {
     required this.duration,
     required this.width,
     required this.height,
+    this.codedWidth = 0,
+    this.codedHeight = 0,
     required this.signature,
     required this.sizes,
     required this.offsets,
@@ -291,13 +324,22 @@ class Mp4Merger {
         wide ? v.u64(co.payload + 8 + i * 8) : v.u32(co.payload + 8 + i * 4),
     ];
     final dim = v.u8(tkhd.payload) == 1 ? 88 : 76;
+    final handler = v.text(hdlr.payload + 8, 4);
+    // ISO 14496-12 puts the coded frame at the 24th byte of a video sample
+    // entry's fixed fields; an audio entry has other numbers there, so only a
+    // `vide` track is read.
+    final coded = handler == 'vide' && entry.size - entry.header >= 28
+        ? [v.u16(entry.payload + 24), v.u16(entry.payload + 26)]
+        : const [0, 0];
     return MergeTrack(
-      handler: v.text(hdlr.payload + 8, 4),
+      handler: handler,
       codec: samples.codec,
       timescale: _mdhdTimescale(v, mdhd),
       duration: _mdhdDuration(v, mdhd),
       width: v.u16(tkhd.payload + dim),
       height: v.u16(tkhd.payload + dim + 2),
+      codedWidth: coded[0],
+      codedHeight: coded[1],
       signature: _signature(v, entry),
       sizes: samples.sizes,
       offsets: samples.offsets,
@@ -357,8 +399,9 @@ class Mp4Merger {
   static MergePlan plan(List<MergeSource> sources) {
     if (sources.length < 2) throw const MergeReject('至少选择两集');
     final base = sources.first;
+    final pairings = [_identity(base)];
     for (var i = 1; i < sources.length; i++) {
-      _compare(base, sources[i], i + 1);
+      pairings.add(_compare(base, sources[i], i + 1));
     }
     final media = _mediaOf(sources);
     // The header width follows the mdat box alone: widening it later would move
@@ -369,16 +412,18 @@ class Mp4Merger {
     };
     final copies = <_Copy>[];
     var position = base.lead.length + width;
-    for (final source in sources) {
-      for (var t = 0; t < source.tracks.length; t++) {
-        final track = source.tracks[t];
+    for (var si = 0; si < sources.length; si++) {
+      final source = sources[si];
+      for (var t = 0; t < base.tracks.length; t++) {
+        final at = pairings[si][t];
+        final track = source.tracks[at];
         var first = 0;
         for (final count in track.chunkCounts) {
           chunks[t]!.add(_OutChunk(offset: position, samples: count));
           copies.add(
             _Copy(
               source: source,
-              track: t,
+              track: at,
               firstSample: first,
               sampleCount: count,
             ),
@@ -394,12 +439,17 @@ class Mp4Merger {
     }
     return _assemble(
       sources,
+      pairings,
       chunks,
       copies,
       mediaBytes: media,
       mdatWidth: width,
     );
   }
+
+  static List<int> _identity(MergeSource base) => [
+    for (var t = 0; t < base.tracks.length; t++) t,
+  ];
 
   /// Grows an earlier product by appending [added] behind the media it already
   /// holds. Its own chunk offsets are reused untouched, which is what keeps a
@@ -410,8 +460,9 @@ class Mp4Merger {
   /// caller then falls back to [plan], which rewrites everything.
   static MergePlan appendPlan(MergeSource existing, List<MergeSource> added) {
     if (added.isEmpty) throw const MergeReject('没有要追加的分集');
+    final pairings = [_identity(existing)];
     for (var i = 0; i < added.length; i++) {
-      _compare(existing, added[i], i + 2);
+      pairings.add(_compare(existing, added[i], i + 2));
     }
     final mdat = existing._moov.top.where((b) => b.type == 'mdat').toList();
     if (mdat.length != 1) {
@@ -440,16 +491,18 @@ class Mp4Merger {
     }
     final copies = <_Copy>[];
     var position = box.end;
-    for (final source in added) {
-      for (var t = 0; t < source.tracks.length; t++) {
-        final track = source.tracks[t];
+    for (var si = 0; si < added.length; si++) {
+      final source = added[si];
+      for (var t = 0; t < existing.tracks.length; t++) {
+        final at = pairings[si + 1][t];
+        final track = source.tracks[at];
         var first = 0;
         for (final count in track.chunkCounts) {
           chunks[t]!.add(_OutChunk(offset: position, samples: count));
           copies.add(
             _Copy(
               source: source,
-              track: t,
+              track: at,
               firstSample: first,
               sampleCount: count,
             ),
@@ -465,6 +518,7 @@ class Mp4Merger {
     }
     final plan = _assemble(
       [existing, ...added],
+      pairings,
       chunks,
       copies,
       mediaBytes: position - box.payload,
@@ -504,32 +558,117 @@ class Mp4Merger {
     }
   }
 
-  static void _compare(MergeSource base, MergeSource other, int position) {
-    if (other.tracks.length != base.tracks.length) {
-      throw MergeReject('第 $position 集的轨道数量与第 1 集不同，暂时无法无损合并');
+  /// Why [other] cannot join a product built on [base], or null when it can. The
+  /// verdict is structured, so a caller can say what the viewer would have to do
+  /// about it -- a different picture size is a re-download, a different sample
+  /// entry is a re-encode.
+  static MergeReject? rejectAgainst(
+    MergeSource base,
+    MergeSource other, {
+    int position = 2,
+  }) {
+    try {
+      _compare(base, other, position);
+      return null;
+    } on MergeReject catch (e) {
+      return e;
     }
+  }
+
+  /// Everything one product can hold in common: the parts of a source's shape that
+  /// no table rebuild can reconcile.
+  ///
+  /// Two sources with the same key are candidates for one file, and the key is
+  /// built from exactly what [_compare] inspects, so a candidate list never hides
+  /// a difference the writer would object to. [rejectOf] is still what turns a
+  /// candidate into a promise: a pathological timescale pair can be refused by
+  /// the rebuild even with identical keys.
+  static String compatibilityKeyOf(MergeSource source) {
+    final parts = [
+      for (final t in source.tracks)
+        '${t.handler}|${t.width}x${t.height}|${t.codec}|${_fnv(t.signature)}',
+    ]..sort();
+    return parts.join(';');
+  }
+
+  /// A short digest of one sample entry. Only compared within one precheck, so it
+  /// needs no cross-run stability -- and a collision still lands on the writer's
+  /// own verdict rather than a wrong promise.
+  static String _fnv(List<int> bytes) {
+    var hash = 0x811c9dc5;
+    for (final b in bytes) {
+      hash = ((hash ^ b) * 0x01000193) & 0x7fffffff;
+    }
+    return hash.toRadixString(16);
+  }
+
+  /// The rule the writer and the precheck share. Answers with how [other]'s
+  /// tracks line up with the output tracks, so a plan and a promise cannot drift.
+  ///
+  /// Only what a decoded byte depends on has to agree. Track order, timescale and
+  /// the shape of `ctts` live entirely in the sample tables, and the rebuild
+  /// normalises them, so they are not compared here.
+  static List<int> _compare(MergeSource base, MergeSource other, int position) {
+    if (other.tracks.length != base.tracks.length) {
+      throw MergeReject(
+        '第 $position 集的轨道数量与第 1 集不同，暂时无法无损合并',
+        position: position,
+        code: MergeRejectCode.tracks,
+      );
+    }
+    final pairing = _pairing(base, other, position);
     for (var t = 0; t < base.tracks.length; t++) {
-      final a = base.tracks[t], b = other.tracks[t];
+      final a = base.tracks[t], b = other.tracks[pairing[t]];
       final what = a.handler == 'vide' ? '视频' : '音频';
-      if (a.handler != b.handler) {
-        throw MergeReject('第 $position 集的轨道顺序与第 1 集不同，暂时无法无损合并');
-      }
       if (a.width != b.width || a.height != b.height) {
-        throw MergeReject('第 $position 集的分辨率与第 1 集不同，暂时无法无损合并');
-      }
-      if (a.timescale != b.timescale) {
-        throw MergeReject('第 $position 集的$what时间基与第 1 集不同，暂时无法无损合并');
-      }
-      if ((a.composition == null) != (b.composition == null)) {
-        throw MergeReject('第 $position 集的$what帧结构与第 1 集不同，暂时无法无损合并');
-      }
-      if (a.cttsVersion != b.cttsVersion) {
-        throw MergeReject('第 $position 集的$what显示顺序表版本与第 1 集不同，暂时无法无损合并');
+        throw MergeReject(
+          '第 $position 集的$what分辨率与第 1 集不同，暂时无法无损合并',
+          position: position,
+          code: MergeRejectCode.resolution,
+        );
       }
       if (!_sameBytes(a.signature, b.signature)) {
-        throw MergeReject('第 $position 集的$what编码参数与第 1 集不同，暂时无法无损合并');
+        throw MergeReject(
+          '第 $position 集的$what编码参数与第 1 集不同，暂时无法无损合并',
+          position: position,
+          code: MergeRejectCode.codec,
+        );
+      }
+      if (a.timescale < 1 || b.timescale < 1) {
+        throw MergeReject(
+          '第 $position 集的$what时间基无效，暂时无法无损合并',
+          position: position,
+          code: MergeRejectCode.timescale,
+        );
       }
     }
+    return pairing;
+  }
+
+  /// Tracks pair by what they are, not by where they sit: two episodes whose
+  /// audio and video merely swapped places are still the same format.
+  static List<int> _pairing(MergeSource base, MergeSource other, int position) {
+    final taken = List<bool>.filled(other.tracks.length, false);
+    final pairing = <int>[];
+    for (final a in base.tracks) {
+      var at = -1;
+      for (var i = 0; i < other.tracks.length; i++) {
+        if (!taken[i] && other.tracks[i].handler == a.handler) {
+          at = i;
+          break;
+        }
+      }
+      if (at < 0) {
+        throw MergeReject(
+          '第 $position 集的轨道构成与第 1 集不同，暂时无法无损合并',
+          position: position,
+          code: MergeRejectCode.tracks,
+        );
+      }
+      taken[at] = true;
+      pairing.add(at);
+    }
+    return pairing;
   }
 
   static int _mediaOf(List<MergeSource> sources) =>
@@ -537,6 +676,7 @@ class Mp4Merger {
 
   static MergePlan _assemble(
     List<MergeSource> sources,
+    List<List<int>> pairings,
     Map<int, List<_OutChunk>> chunks,
     List<_Copy> copies, {
     required int mediaBytes,
@@ -547,9 +687,12 @@ class Mp4Merger {
   }) {
     final merged = [
       for (var t = 0; t < sources.first.tracks.length; t++)
-        _MergedTrack(
+        _MergedTrack.build(
           template: sources.first.tracks[t],
-          parts: [for (final s in sources) s.tracks[t]],
+          parts: [
+            for (var i = 0; i < sources.length; i++)
+              sources[i].tracks[pairings[i][t]],
+          ],
           chunks: chunks[t]!,
         ),
     ];
@@ -750,20 +893,120 @@ class _Copy {
 }
 
 /// An output track and everything the merged tables take from it.
+///
+/// Each part counts time in its own timescale, so the rebuild settles on one
+/// common timescale and re-dates every duration, delta and composition offset
+/// into it. The settle is exact, not rounded: the common timescale is the least
+/// multiple of every part's, so a re-dated tick count is the same length of time.
 class _MergedTrack {
   final MergeTrack template;
   final List<MergeTrack> parts;
   final List<_OutChunk> chunks;
-  const _MergedTrack({
+
+  /// The timescale the merged `mdhd`, `stts` and `ctts` are written with.
+  final int timescale;
+
+  /// One factor per part: [timescale] divided by that part's own timescale.
+  final List<int> scales;
+
+  _MergedTrack._({
     required this.template,
     required this.parts,
     required this.chunks,
+    required this.timescale,
+    required this.scales,
   });
 
+  static _MergedTrack build({
+    required MergeTrack template,
+    required List<MergeTrack> parts,
+    required List<_OutChunk> chunks,
+  }) {
+    var common = 1;
+    for (final p in parts) {
+      common = _lcm(common, p.timescale);
+    }
+    final scales = [for (final p in parts) common ~/ p.timescale];
+    for (var i = 0; i < parts.length; i++) {
+      final scale = scales[i];
+      // A delta only has to fit the field it is written to, so a wild timescale
+      // pair is refused here rather than truncated into a wrong timeline.
+      for (final e in parts[i].times) {
+        if (e.delta * scale > 0xffffffff) throw _tooWideTimescale();
+      }
+      for (final c in parts[i].composition ?? const <_Composition>[]) {
+        if (c.offset.abs() * scale > 0x7fffffff) throw _tooWideTimescale();
+      }
+    }
+    return _MergedTrack._(
+      template: template,
+      parts: parts,
+      chunks: chunks,
+      timescale: common,
+      scales: scales,
+    );
+  }
+
   int get samples => parts.fold(0, (a, p) => a + p.samples);
-  int get duration => parts.fold(0, (a, p) => a + p.duration);
-  bool get hasComposition => parts.first.composition != null;
+
+  /// The merged length in [timescale] ticks: every part re-dated before it is
+  /// summed, which is what a raw tick sum could only claim when the timescales
+  /// already agreed.
+  int get duration {
+    var sum = 0;
+    for (var i = 0; i < parts.length; i++) {
+      sum += parts[i].duration * scales[i];
+    }
+    return sum;
+  }
+
+  bool get hasComposition => parts.any((p) => p.composition != null);
+
+  /// One `stts` entry per part entry, re-dated into [timescale].
+  List<_Time> get runs => [
+    for (var i = 0; i < parts.length; i++)
+      for (final e in parts[i].times) _Time(e.count, e.delta * scales[i]),
+  ];
+
+  /// Composition offsets in [timescale]. A part whose file has no `ctts` says
+  /// every sample is a pass-through, and that is exactly a run of zero offsets.
+  List<_Composition> get compositions => [
+    for (var i = 0; i < parts.length; i++)
+      for (final c
+          in parts[i].composition ?? [_Composition(parts[i].samples, 0)])
+        _Composition(c.count, c.offset * scales[i]),
+  ];
+
+  /// The widest convention any part needs: v1 carries signed offsets, so a single
+  /// negative one -- or a source already written that way -- lifts the whole
+  /// table, and every v0 offset still reads the same.
+  int get cttsVersion {
+    if (!hasComposition) return 0;
+    if (compositions.any((c) => c.offset < 0)) return 1;
+    return parts.any((p) => p.cttsVersion == 1) ? 1 : 0;
+  }
 }
+
+/// The smallest timescale both can be re-dated into exactly, or a refusal when
+/// the two have nothing in common that still fits the field.
+int _lcm(int a, int b) {
+  if (a < 1 || b < 1) {
+    throw const MergeReject(
+      '所选各集的时间基无效，无法归一为同一时间轴',
+      code: MergeRejectCode.timescale,
+    );
+  }
+  final g = _gcd(a, b);
+  if (a ~/ g > 0xffffffff ~/ b) throw _tooWideTimescale();
+  return a ~/ g * b;
+}
+
+int _gcd(int a, int b) => b == 0 ? a : _gcd(b, a % b);
+
+MergeReject _tooWideTimescale() => const MergeReject(
+  '所选各集的时间基差异过大，无法归一为同一时间轴，请分成多次合成',
+  code: MergeRejectCode.timescale,
+);
 
 /// The template `moov`: boxes to copy, and the fixed fields of the ones rebuilt.
 class _Moov {
@@ -856,7 +1099,9 @@ Uint8List _moovBytes(_Moov base, List<_MergedTrack> merged) {
   var movieDuration = 0;
   final durations = <int>[];
   for (final m in merged) {
-    final inMovie = m.duration * base.timescale ~/ m.template.timescale;
+    // The track counts time in the timescale the merge settled on, the movie in
+    // its own.
+    final inMovie = m.duration * base.timescale ~/ m.timescale;
     durations.add(inMovie);
     if (inMovie > movieDuration) movieDuration = inMovie;
   }
@@ -868,11 +1113,19 @@ Uint8List _moovBytes(_Moov base, List<_MergedTrack> merged) {
         'trak',
         Uint8List.fromList([
           ..._boxBytes('tkhd', _tkhd(template.tkhd, durations[t])),
-          if (template.edts != null) ..._edts(template.edts!, m.duration),
+          if (template.edts != null)
+            ..._edts(
+              template.edts!,
+              m.duration,
+              m.timescale ~/ m.template.timescale,
+            ),
           ..._boxBytes(
             'mdia',
             Uint8List.fromList([
-              ..._boxBytes('mdhd', _mdhd(template.mdhd, m.duration)),
+              ..._boxBytes(
+                'mdhd',
+                _mdhd(template.mdhd, m.duration, m.timescale),
+              ),
               ...template.hdlr,
               ..._boxBytes(
                 'minf',
@@ -947,10 +1200,14 @@ void _copyVersion(Uint8List out, Uint8List template) {
   out.setRange(1, 4, template.sublist(1, 4));
 }
 
-Uint8List _mdhd(Uint8List template, int duration) {
+/// The template's `mdhd` with the merged length and the timescale the merge
+/// settled on -- the two have to move together, or every table below it counts a
+/// different length of time.
+Uint8List _mdhd(Uint8List template, int duration, int timescale) {
   final version = template[0];
   final out = Uint8List.fromList(template);
   if (version == 1) {
+    _putU32(out, 20, timescale);
     _putU64(out, 24, duration);
     return out;
   }
@@ -962,17 +1219,21 @@ Uint8List _mdhd(Uint8List template, int duration) {
     _putU64(wide, 4, _readU32(template, 4));
     _putU64(wide, 12, _readU32(template, 8));
     wide.setRange(20, 24, template.sublist(12, 16));
+    _putU32(wide, 20, timescale);
     _putU64(wide, 24, duration);
     wide.setRange(32, 36, template.sublist(20, 24));
     return wide;
   }
+  _putU32(out, 12, timescale);
   _putU32(out, 16, duration);
   return out;
 }
 
-/// The template's single-segment edit list, re-dated to the merged duration and
-/// keeping its media time, which is where an encoder's priming offset lives.
-List<int> _edts(Uint8List edts, int duration) {
+/// The template's single-segment edit list, re-dated to the merged duration. The
+/// media time is in the media's own timescale, so it moves by the same factor the
+/// tables were re-dated by; it keeps its value, which is where an encoder's
+/// priming offset lives.
+List<int> _edts(Uint8List edts, int duration, int scale) {
   final boxes = _childrenOf(edts);
   final out = <int>[];
   for (final b in boxes) {
@@ -991,13 +1252,22 @@ List<int> _edts(Uint8List edts, int duration) {
     }
     if (version == 1) {
       _putU64(rebuilt, 8, duration);
+      _putU64(rebuilt, 16, _readI64(rebuilt, 16) * scale);
     } else {
       _putU32(rebuilt, 8, duration);
+      _putU32(rebuilt, 12, _readI32(rebuilt, 12) * scale);
     }
     out.addAll(_boxBytes('elst', rebuilt));
   }
   return _boxBytes('edts', Uint8List.fromList(out));
 }
+
+/// `elst` media times are signed, and the field is read back to be re-dated.
+int _readI32(Uint8List b, int at) =>
+    ByteData.sublistView(b).getInt32(at, Endian.big);
+
+int _readI64(Uint8List b, int at) =>
+    ByteData.sublistView(b).getInt64(at, Endian.big);
 
 List<int> _stbl(Uint8List stsd, _MergedTrack m) {
   final out = <int>[...stsd];
@@ -1019,16 +1289,14 @@ List<int> _stbl(Uint8List stsd, _MergedTrack m) {
 
 Uint8List _stts(_MergedTrack m) {
   final entries = <_Time>[];
-  for (final part in m.parts) {
-    for (final e in part.times) {
-      if (entries.isNotEmpty && entries.last.delta == e.delta) {
-        entries[entries.length - 1] = _Time(
-          entries.last.count + e.count,
-          e.delta,
-        );
-      } else {
-        entries.add(e);
-      }
+  for (final e in m.runs) {
+    if (entries.isNotEmpty && entries.last.delta == e.delta) {
+      entries[entries.length - 1] = _Time(
+        entries.last.count + e.count,
+        e.delta,
+      );
+    } else {
+      entries.add(e);
     }
   }
   final body = Uint8List(8 + entries.length * 8);
@@ -1136,14 +1404,14 @@ Uint8List? _stss(_MergedTrack m) {
   return null;
 }
 
+/// The composition offsets, already re-dated into the merged timescale. A part
+/// whose own file has no `ctts` contributes one run of zeros, which is what its
+/// missing table asserts.
 Uint8List? _ctts(_MergedTrack m) {
   if (!m.hasComposition) return null;
-  final entries = <_Composition>[];
-  for (final part in m.parts) {
-    entries.addAll(part.composition!);
-  }
+  final entries = m.compositions;
   final head = Uint8List(8);
-  head[0] = m.parts.first.cttsVersion;
+  head[0] = m.cttsVersion;
   _putU32(head, 4, entries.length);
   final body = Uint8List(entries.length * 8);
   for (var i = 0; i < entries.length; i++) {

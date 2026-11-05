@@ -8,7 +8,9 @@ import '../navigation/app_navigation.dart';
 import '../playback/local_playlist.dart';
 import '../platform/runtime.dart';
 import 'merge_manager.dart' as merge;
-import 'merge_worker.dart' show MergePrecheckReport;
+import 'merge_transcode.dart'
+    show TranscodeSource, planTranscode, transcodeRejectOf, transcodeSourceOf;
+import 'merge_worker.dart' show MergePrecheckReport, MergeProbeEntry;
 import 'merged_library.dart';
 
 /// One episode the panel can offer, already resolved to a file on disk.
@@ -214,6 +216,31 @@ class MergeSelection extends StatefulWidget {
 
 enum _MergeStep { select, precheck }
 
+/// What one mode would make of a 预检 answer: the 片 a confirm queues, and the
+/// reason the whole selection is not a single product.
+///
+/// 无损 hands back the buckets the writer itself accepted. 兼容 re-asks those
+/// very same tables with the encoder's rule, which is wider -- files whose
+/// `stsd` differs only in profile or level are one product once something
+/// decodes them and writes them again -- and narrower in one respect: a source
+/// an encoder cannot open is no use to it either. Both readings come from the
+/// precheck's single table read, so the two lanes cannot disagree about what is
+/// on disk, only about what can be made of it.
+class _MergeReading {
+  /// The episodes of every 片, in the order the selection holds them.
+  final List<List<MergeProbeEntry>> parts;
+
+  /// The lane's own sentence on why these files are not one product; null means
+  /// 可以合成一片 is a promise the merge keeps.
+  final String? reject;
+
+  /// What the products are expected to weigh. Only 兼容 has a number of its own:
+  /// the rates promised to the encoder over the promised length, because a
+  /// re-encode writes a different file rather than the sum of the sources.
+  final int? productBytes;
+  const _MergeReading({required this.parts, this.reject, this.productBytes});
+}
+
 class _MergeSelectionState extends State<MergeSelection> {
   late final manager = widget.runtime.merges;
   late final name = TextEditingController(text: widget.suggestedTitle ?? '');
@@ -233,6 +260,13 @@ class _MergeSelectionState extends State<MergeSelection> {
 
   /// The last 预检 answer; null until it arrives.
   MergePrecheckReport? report;
+
+  /// `lossless` copies every source byte, `compatible` re-encodes them into one
+  /// H.264 file. The default is the lane that cannot lose quality, and 兼容 is
+  /// only reachable when a machine has answered with an encoder.
+  String mode = 'lossless';
+
+  bool get _compatible => mode == 'compatible' && !_appending;
 
   @override
   void initState() {
@@ -309,7 +343,13 @@ class _MergeSelectionState extends State<MergeSelection> {
 
   bool get _appending => appendTarget != null;
 
-  String get _actionLabel => _appending ? '开始追加' : '开始合成';
+  /// The button says how many products one click makes, so 拆成两片 is never a
+  /// surprise after pressing it.
+  String _actionLabel(_MergeReading read) {
+    if (_appending) return '开始追加';
+    final parts = read.parts.length;
+    return parts > 1 ? '合成 $parts 片' : '开始合成';
+  }
 
   /// A product needs more than one episode; growing a product that already
   /// exists needs at least the episode being added.
@@ -333,14 +373,110 @@ class _MergeSelectionState extends State<MergeSelection> {
   }
 
   /// Untitled merges are named by the range they hold, which is what the viewer
-  /// recognises later in a list of products.
-  String get _titleFor {
+  /// recognises later in a list of products. A split names each 片 by its own
+  /// range, so two products from one click tell apart; a typed name is numbered
+  /// for the same reason.
+  String _titleFor(List<merge.MergeSelection> items, int at, int total) {
     final typed = name.text.trim();
-    if (typed.isNotEmpty) return typed;
-    final items = _queue();
+    if (typed.isNotEmpty) return total > 1 ? '$typed ${at + 1}' : typed;
     if (items.isEmpty) return '合并资源';
     final first = items.first.index, last = items.last.index;
     return first == last ? '第 $first 集' : '第 $first-$last 集';
+  }
+
+  /// The 片 the current mode would write. Empty before the precheck answers, or
+  /// when this lane cannot make a product out of the selection at all.
+  ///
+  /// 兼容 splits with [transcodeRejectOf] -- the rule the lane applies before it
+  /// spawns anything -- so a 片 named here is a job the queue will take, and the
+  /// split shown is the split the encoder's own limits force.
+  _MergeReading _read(MergePrecheckReport? answer) {
+    if (answer == null) return const _MergeReading(parts: []);
+    if (!_compatible) {
+      final groups = <List<MergeProbeEntry>>[];
+      for (final batch in answer.ready) {
+        final keys = batch.keys.toSet();
+        groups.add([
+          for (final entry in answer.entries)
+            if (keys.contains(entry.key)) entry,
+        ]);
+      }
+      return _MergeReading(parts: groups, reject: answer.reject);
+    }
+    if (answer.entries.any((entry) => entry.error != null)) {
+      // A file the tables would not open is not something an encoder can read
+      // either, and the viewer has to take it out of the selection first. The
+      // 无损 wording already names it, so this says the same thing.
+      return _MergeReading(parts: const [], reject: answer.reject);
+    }
+    final parts = <List<MergeProbeEntry>>[];
+    var open = <MergeProbeEntry>[];
+    for (final entry in answer.entries) {
+      if (open.isEmpty ||
+          transcodeRejectOf(_sourcesOf([...open, entry])) == null) {
+        open = [...open, entry];
+      } else {
+        parts.add(open);
+        open = [entry];
+      }
+    }
+    if (open.isNotEmpty) parts.add(open);
+    // One episode alone is not a product: it stays on the shelf, where the
+    // offline list plays it in order anyway.
+    final written = parts.where((part) => part.length >= 2).toList();
+    var bytes = 0;
+    for (final part in written) {
+      bytes += planTranscode(_sourcesOf(part)).expectedBytes;
+    }
+    return _MergeReading(
+      parts: written,
+      reject: transcodeRejectOf(_sourcesOf(answer.entries)),
+      productBytes: bytes,
+    );
+  }
+
+  /// The encoder's facts for these episodes: the tables 预检 already read, plus
+  /// where each file sits. No file is opened here.
+  List<TranscodeSource> _sourcesOf(Iterable<MergeProbeEntry> episodes) => [
+    for (final entry in episodes)
+      transcodeSourceOf(entry, manager.sourcePath(entry.vid, entry.quality)),
+  ];
+
+  /// Choosing the lane is not choosing the files: the tables behind 预检 stay as
+  /// they are, so the same answer is simply read by another rule.
+  void _setMode(String value) {
+    setState(() {
+      mode = value;
+      error = null;
+    });
+  }
+
+  /// The episodes of one 片, in the order the queue keeps.
+  List<merge.MergeSelection> _itemsOf(List<MergeProbeEntry> episodes) {
+    final keys = {for (final entry in episodes) entry.key};
+    return _queue()
+        .where((item) => keys.contains('${item.vid}_${item.quality}'))
+        .toList();
+  }
+
+  /// The footer's number: what 开始合成 would actually put in the queue. A split
+  /// is smaller than what was picked, and the episodes left out are said in the
+  /// 预检 card rather than silently dropped from the size.
+  String _footnote(_MergeReading read) {
+    final parts = read.parts;
+    final queued = step == _MergeStep.precheck && parts.isNotEmpty;
+    final items = queued
+        ? [for (final part in parts) ..._itemsOf(part)]
+        : _queue();
+    if (queued && _compatible) {
+      return '将排入 ${parts.length} 片 · ${items.length} 集 · '
+          '产物约 ${mergeBytesLabel(read.productBytes ?? 0)}';
+    }
+    final mb = (manager.expectedBytes(items) / 1024 / 1024).toStringAsFixed(1);
+    if (!queued) {
+      return '已选 ${items.length} 集 · 合计约 $mb MB';
+    }
+    return '将排入 ${parts.length} 片 · ${items.length} 集 · 约 $mb MB';
   }
 
   String get _backgroundNote => manager.television
@@ -393,27 +529,45 @@ class _MergeSelectionState extends State<MergeSelection> {
       appendTarget = id;
       _applyIncluded();
       report = null;
+      // An append grows a file in place, which a re-encode cannot do, so the
+      // choice of lane goes away with the choice of target.
+      if (id != null) mode = 'lossless';
     });
     if (step == _MergeStep.precheck && _enough) await _probe();
   }
 
-  Future<void> _submit() async {
+  /// Queue every 片 this mode's verdict accepted, in one click. A mixed selection
+  /// is a set of products, and the viewer chose them together -- making them
+  /// confirm each 片 would only hide that the rest were dropped.
+  Future<void> _submit(_MergeReading read) async {
+    final batches = read.parts;
     setState(() {
       busy = true;
       error = null;
     });
+    var queued = 0;
     try {
-      await manager.enqueue(
-        items: _queue(),
-        title: _titleFor,
-        targetMergeId: appendTarget,
-      );
+      for (var at = 0; at < batches.length; at++) {
+        final items = _itemsOf(batches[at]);
+        await manager.enqueue(
+          items: items,
+          title: _titleFor(items, at, batches.length),
+          targetMergeId: appendTarget,
+          mode: _compatible ? 'compatible' : 'lossless',
+        );
+        queued++;
+      }
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
         setState(() {
           busy = false;
-          error = e is StateError ? e.message : '未能加入合成，请检查存储空间后重试';
+          // Jobs already in the queue keep running; saying what landed is the
+          // difference between a half-done click and a failed one.
+          error = queued == 0
+              ? (e is StateError ? e.message : '未能加入合成，请检查存储空间后重试')
+              : '已加入 $queued/${batches.length} 片，其余未能加入：'
+                    '${e is StateError ? e.message : '请检查存储空间后重试'}';
         });
       }
     }
@@ -427,116 +581,129 @@ class _MergeSelectionState extends State<MergeSelection> {
   }
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Padding(
-        padding: const EdgeInsets.only(left: 20, right: 4),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                step == _MergeStep.select ? '选择剧集进行合成' : '合成预检',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            if (step == _MergeStep.precheck)
-              TextButton(
-                key: const ValueKey('merge-back'),
-                onPressed: busy
-                    ? null
-                    : () => setState(() {
-                        step = _MergeStep.select;
-                        report = null;
-                      }),
-                child: const Text('返回修改'),
-              ),
-            IconButton(
-              tooltip: '关闭合成选集',
-              onPressed: busy ? null : () => Navigator.pop(context),
-              icon: const Icon(Icons.close),
-            ),
-          ],
-        ),
-      ),
-      Expanded(
-        child: loading
-            ? const Center(child: CircularProgressIndicator())
-            : step == _MergeStep.select
-            ? _select(context)
-            : _precheck(context),
-      ),
-      if (error != null)
+  Widget build(BuildContext context) {
+    // One reading per frame: the card, the footer and the button all quote it,
+    // so 将排入 N 片 cannot disagree with what 开始合成 actually queues.
+    final read = _read(step == _MergeStep.select ? null : report);
+    return Column(
+      children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.only(left: 20, right: 4),
           child: Row(
             children: [
               Expanded(
                 child: Text(
-                  error!,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ),
-              if (!busy) TextButton(onPressed: _load, child: const Text('重试')),
-            ],
-          ),
-        ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                '已选 ${selected.length} 集 · 合计约 '
-                '${(manager.expectedBytes(_queue()) / 1024 / 1024).toStringAsFixed(1)} MB',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-            if (step == _MergeStep.select) ...[
-              TextButton(
-                key: const ValueKey('merge-clear'),
-                onPressed: busy || selected.isEmpty
-                    ? null
-                    : () => setState(selected.clear),
-                child: const Text('清空'),
-              ),
-              SizedBox(
-                width: 176,
-                child: FilledButton.icon(
-                  key: const ValueKey('merge-next'),
-                  onPressed: busy || !_enough ? null : _toPrecheck,
-                  icon: const Icon(Icons.arrow_forward),
-                  label: Text(_enough ? '下一步 · 预检' : '至少选择两集'),
-                ),
-              ),
-            ] else
-              SizedBox(
-                width: 176,
-                child: FilledButton.icon(
-                  key: const ValueKey('confirm-merge'),
-                  onPressed: _canStart ? _submit : null,
-                  icon: const Icon(Icons.merge_type),
-                  label: Text(
-                    busy
-                        ? '正在加入…'
-                        : probing
-                        ? '正在预检…'
-                        : _actionLabel,
+                  step == _MergeStep.select ? '选择剧集进行合成' : '合成预检',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-          ],
+              if (step == _MergeStep.precheck)
+                TextButton(
+                  key: const ValueKey('merge-back'),
+                  onPressed: busy
+                      ? null
+                      : () => setState(() {
+                          step = _MergeStep.select;
+                          report = null;
+                        }),
+                  child: const Text('返回修改'),
+                ),
+              IconButton(
+                tooltip: '关闭合成选集',
+                onPressed: busy ? null : () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
         ),
-      ),
-    ],
-  );
+        Expanded(
+          child: loading
+              ? const Center(child: CircularProgressIndicator())
+              : step == _MergeStep.select
+              ? _select(context)
+              : _precheck(context, read),
+        ),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    error!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+                if (!busy)
+                  TextButton(onPressed: _load, child: const Text('重试')),
+              ],
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _footnote(read),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              if (step == _MergeStep.select) ...[
+                TextButton(
+                  key: const ValueKey('merge-clear'),
+                  onPressed: busy || selected.isEmpty
+                      ? null
+                      : () => setState(selected.clear),
+                  child: const Text('清空'),
+                ),
+                SizedBox(
+                  width: 176,
+                  child: FilledButton.icon(
+                    key: const ValueKey('merge-next'),
+                    onPressed: busy || !_enough ? null : _toPrecheck,
+                    icon: const Icon(Icons.arrow_forward),
+                    label: Text(_enough ? '下一步 · 预检' : '至少选择两集'),
+                  ),
+                ),
+              ] else
+                SizedBox(
+                  width: 176,
+                  child: FilledButton.icon(
+                    key: const ValueKey('confirm-merge'),
+                    onPressed: _canStart(read) ? () => _submit(read) : null,
+                    icon: const Icon(Icons.merge_type),
+                    label: Text(
+                      busy
+                          ? '正在加入…'
+                          : probing
+                          ? '正在预检…'
+                          : _actionLabel(read),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
-  bool get _canStart =>
-      !busy && !probing && _enough && report != null && report!.reject == null;
+  bool _canStart(_MergeReading read) =>
+      !busy &&
+      !probing &&
+      _enough &&
+      report != null &&
+      // The lane's own verdict on at least one 片: a green button is a promise
+      // the merge keeps, whether the selection is one product or several.
+      read.parts.isNotEmpty;
 
   // ------------------------------------------------------------------- 选择
 
@@ -681,20 +848,24 @@ class _MergeSelectionState extends State<MergeSelection> {
 
   // ------------------------------------------------------------------- 预检
 
-  Widget _precheck(BuildContext context) {
+  Widget _precheck(BuildContext context, _MergeReading read) {
     final answer = report;
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       children: [
+        _modeSegment(context),
         if (probing || answer == null)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 36),
             child: Center(child: CircularProgressIndicator()),
           )
         else ...[
-          _verdict(context, answer),
+          _verdict(context, answer, read),
+          // The lane's reason goes with the verdict it produced, above the fold:
+          // what one confirm queues has to be readable before pressing it.
+          if (read.reject != null) _rejectNote(context, answer, read),
           const SizedBox(height: 10),
-          _diskCard(context, answer),
+          _diskCard(context, answer, read),
           if (_appending) ...[
             const SizedBox(height: 10),
             Text(
@@ -710,26 +881,103 @@ class _MergeSelectionState extends State<MergeSelection> {
         if (_appending) _targetPicker(context) else _titleField(context),
         const SizedBox(height: 8),
         Text(_backgroundNote, style: Theme.of(context).textTheme.bodySmall),
-        if (answer != null && answer.reject != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: Text(
-              answer.reject!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ),
       ],
     );
   }
 
-  Widget _verdict(BuildContext context, MergePrecheckReport answer) {
+  /// 合成方式: the two lanes side by side, shown only where a second lane exists.
+  ///
+  /// 无损 is the default and stays the recommendation -- it copies the source
+  /// bytes, so nothing can be lost. 兼容 is the escape for files the writer will
+  /// not take together, and the panel says what it costs: a re-encode, and a job
+  /// that starts over after a pause instead of resuming where it stopped.
+  Widget _modeSegment(BuildContext context) {
+    if (_appending || !manager.transcoderAvailable) {
+      return const SizedBox.shrink();
+    }
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('合成方式', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: _segmentButton(
+                  'merge-mode-lossless',
+                  '无损合成',
+                  on: !_compatible,
+                  onTap: () => _setMode('lossless'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _segmentButton(
+                  'merge-mode-compatible',
+                  '兼容合成',
+                  on: _compatible,
+                  onTap: () => _setMode('compatible'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _compatible
+                ? '${manager.transcoderLabel}：解码后重新编码再拼接，不缩放画面，'
+                      '码率与帧率只取各源的最高，产物是 H.264 + AAC、元数据前置，'
+                      '换到其他手机也能播。暂停或退出后从头重编。'
+                : '直接搬运源文件字节，画质与源完全一致；要求各集编码参数一致。',
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _segmentButton(
+    String key,
+    String label, {
+    required bool on,
+    required VoidCallback onTap,
+    bool enabled = true,
+  }) => OutlinedButton(
+    key: ValueKey(key),
+    onPressed: !busy && enabled ? onTap : null,
+    style: OutlinedButton.styleFrom(
+      backgroundColor: on
+          ? Theme.of(context).colorScheme.secondaryContainer
+          : null,
+    ),
+    child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+  );
+
+  Widget _verdict(
+    BuildContext context,
+    MergePrecheckReport answer,
+    _MergeReading read,
+  ) {
     final theme = Theme.of(context);
     final labels = {
       for (final option in widget.options) option.key: option.label,
     };
     final readable = answer.entries.where((entry) => entry.error == null);
     final first = readable.isEmpty ? null : readable.first;
-    final ok = answer.reject == null;
+    final ok = read.reject == null;
+    final parts = read.parts;
+    // What one click puts in the queue: the whole selection when this lane took
+    // it as one file, otherwise every 片 it accepts on its own.
+    final inProduct = {
+      for (final part in parts)
+        for (final e in part) e.key,
+    };
+    final sizes = {
+      for (final part in parts)
+        if (part.isNotEmpty) '${part.first.width}×${part.first.height}',
+    };
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -743,9 +991,26 @@ class _MergeSelectionState extends State<MergeSelection> {
             spacing: 6,
             runSpacing: 6,
             children: [
-              _pill(ok ? '编解码一致' : '编码参数不一致', good: ok),
-              if (first != null && first.width > 0)
+              _pill(
+                ok
+                    ? _compatible
+                          ? '重编码可合成一片'
+                          : '编解码一致'
+                    : parts.isEmpty
+                    ? _compatible
+                          ? '不能兼容合成'
+                          : '编码参数不一致'
+                    : parts.length > 1
+                    ? '可拆成 ${parts.length} 片'
+                    : '可合成一片',
+                good: ok || parts.isNotEmpty,
+              ),
+              // 无损 has one size for the whole selection; 兼容 can hold two, and
+              // then the honest number is the one each 片 is written at, below.
+              if (!_compatible && first != null && first.width > 0)
                 _pill('${first.width}×${first.height}', good: true),
+              if (_compatible && sizes.length == 1)
+                _pill(sizes.first, good: true),
               if (first != null && first.codec.isNotEmpty)
                 _pill(
                   first.audioCodec.isEmpty
@@ -757,9 +1022,38 @@ class _MergeSelectionState extends State<MergeSelection> {
           ),
           const SizedBox(height: 8),
           Text(
-            '读取每部源文件的 trak/stsd 与 sample 表，不解码全片；任一不一致即无法无损合并。',
+            _compatible
+                ? '读取每部源文件的时长、画面与码率，按码率与帧率最高的一集设定目标，'
+                      '再解码重编成一条 H.264。分辨率不同或边长为奇数会分开合成：'
+                      '兼容合成不缩放画面，画质不降。'
+                : '读取每部源文件的 trak/stsd 与 sample 表，不解码全片。'
+                      '画质、编码参数、轨道构成需一致；时间基、轨道顺序、ctts 的差异由内核归一。',
             style: theme.textTheme.bodySmall,
           ),
+          if (!ok && !_compatible && parts.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            for (final part in answer.batches)
+              _partRow(
+                _rangeOf(part.keys.toSet()),
+                part.mergeable
+                    ? '${part.keys.length} 集可无损合成一片'
+                    : (part.reason ?? '不能合成一片'),
+                good: part.mergeable,
+              ),
+          ],
+          if (_compatible && parts.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            for (final part in parts)
+              _partRow(
+                _rangeOf({for (final entry in part) entry.key}),
+                '${part.length} 集可兼容合成一片 · '
+                '${part.first.width}×${part.first.height}',
+                good: true,
+              ),
+            for (final entry in answer.entries)
+              if (!inProduct.contains(entry.key))
+                _partRow('第 ${entry.index} 集', '落单，不必合成', good: false),
+          ],
           const SizedBox(height: 8),
           for (final entry in answer.entries)
             Padding(
@@ -789,10 +1083,109 @@ class _MergeSelectionState extends State<MergeSelection> {
                       ),
                     ),
                   ),
-                  if (entry.error == null) const Icon(Icons.check, size: 16),
+                  if (entry.error != null)
+                    const Icon(Icons.error_outline, size: 16)
+                  else if (inProduct.contains(entry.key))
+                    const Icon(Icons.check, size: 16)
+                  else
+                    // Hollow: readable, but no product this lane accepts holds it.
+                    Icon(
+                      Icons.radio_button_unchecked,
+                      size: 16,
+                      color: theme.colorScheme.outline,
+                    ),
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  /// One 片 inside the verdict card: the range it holds, and what the lane would
+  /// do with it.
+  Widget _partRow(String range, String detail, {required bool good}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 2),
+    child: Row(
+      children: [
+        SizedBox(
+          width: 96,
+          child: Text(range, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+        Expanded(
+          child: Text(
+            detail,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: good
+                  ? Theme.of(context).colorScheme.onSurfaceVariant
+                  : Theme.of(context).colorScheme.error,
+            ),
+          ),
+        ),
+        Icon(good ? Icons.check : Icons.close, size: 16),
+      ],
+    ),
+  );
+
+  /// How a 片 is titled in the verdict card: the range of episodes it holds.
+  String _rangeOf(Set<String> keys) {
+    final indexes = [
+      for (final entry in report?.entries ?? const <MergeProbeEntry>[])
+        if (keys.contains(entry.key)) entry.index,
+    ]..sort();
+    if (indexes.isEmpty) return '一片';
+    final first = indexes.first, last = indexes.last;
+    return first == last ? '第 $first 集' : '第 $first-$last 集';
+  }
+
+  /// The lane's reason the whole selection is not one file. With a split on the
+  /// table that is not a dead end: the 片 list above says what one confirm
+  /// queues, and only episodes no 片 holds are named as left out. Where a second
+  /// lane exists, a refusal is also an invitation -- and the escape says what
+  /// switching would cost.
+  Widget _rejectNote(
+    BuildContext context,
+    MergePrecheckReport answer,
+    _MergeReading read,
+  ) {
+    final held = {
+      for (final part in read.parts)
+        for (final entry in part) entry.key,
+    };
+    final dropped = answer.entries.length - held.length;
+    final reason = read.reject!;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            read.parts.isEmpty
+                ? reason
+                : '整体不能并成一片：$reason\n'
+                      '确认后将排入 ${read.parts.length} 个合成任务'
+                      '${dropped > 0 ? '；另有 $dropped 集落单，不必合成，在离线列表里连续播放即可' : ''}。',
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+          if (!_compatible && !_appending && manager.transcoderAvailable) ...[
+            const SizedBox(height: 4),
+            Text(
+              '编码参数的差异无损合不成，但重编码可以：兼容合成按最高的码率与帧率'
+              '重新编码，不缩放画面，代价是耗时和暂停后从头重编。',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const ValueKey('merge-mode-escape'),
+                onPressed: busy ? null : () => _setMode('compatible'),
+                icon: const Icon(Icons.autorenew, size: 16),
+                label: const Text('改用兼容合成'),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -812,9 +1205,59 @@ class _MergeSelectionState extends State<MergeSelection> {
     );
   }
 
-  Widget _diskCard(BuildContext context, MergePrecheckReport answer) {
+  Widget _diskCard(
+    BuildContext context,
+    MergePrecheckReport answer,
+    _MergeReading read,
+  ) {
     final theme = Theme.of(context);
-    final sources = answer.sourceBytes;
+    // What a merge would actually read: every ready 片, not the episodes the
+    // writer left out. With nothing accepted the number stays the picked total,
+    // because the refusal is about the set as a whole.
+    final parts = read.parts.length;
+    if (_compatible) {
+      // A re-encode writes a file of its own, sized by the rates promised to the
+      // encoder rather than by the sources it read. The sources still get said:
+      // they are what the viewer has on disk, and what the encode costs time on.
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  '产物预检${parts > 1 ? ' · $parts 片' : ''}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.tertiary,
+                  ),
+                ),
+                const Spacer(),
+                Flexible(
+                  child: Text(
+                    '约 ${mergeBytesLabel(read.productBytes ?? 0)}',
+                    textAlign: TextAlign.right,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '按目标码率 × 时长估算，实际以编码器写出的为准；'
+              '源文件合计 ${mergeBytesLabel(answer.sourceBytes)}。',
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
+      );
+    }
+    final sources = parts > 0 ? answer.batchedBytes : answer.sourceBytes;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -824,7 +1267,7 @@ class _MergeSelectionState extends State<MergeSelection> {
       child: Row(
         children: [
           Text(
-            '磁盘预检',
+            '磁盘预检${parts > 1 ? ' · $parts 片' : ''}',
             style: TextStyle(
               fontWeight: FontWeight.w600,
               color: theme.colorScheme.tertiary,
@@ -845,41 +1288,24 @@ class _MergeSelectionState extends State<MergeSelection> {
   }
 
   Widget _targetSegment(BuildContext context) {
-    Widget button(
-      String key,
-      String label, {
-      required bool on,
-      required bool enabled,
-      required String? Function() next,
-    }) => OutlinedButton(
-      key: ValueKey(key),
-      onPressed: !busy && enabled ? () => _setTarget(next()) : null,
-      style: OutlinedButton.styleFrom(
-        backgroundColor: on
-            ? Theme.of(context).colorScheme.secondaryContainer
-            : null,
-      ),
-      child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-    );
     return Row(
       children: [
         Expanded(
-          child: button(
+          child: _segmentButton(
             'merge-target-new',
             '新建合并资源',
             on: !_appending,
-            enabled: true,
-            next: () => null,
+            onTap: () => _setTarget(null),
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: button(
+          child: _segmentButton(
             'merge-target-append',
             '追加到已有',
             on: _appending,
             enabled: targets.isNotEmpty,
-            next: () => appendTarget ?? targets.first.mergeId,
+            onTap: () => _setTarget(appendTarget ?? targets.first.mergeId),
           ),
         ),
       ],

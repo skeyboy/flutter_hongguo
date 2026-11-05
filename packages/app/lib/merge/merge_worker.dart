@@ -359,10 +359,28 @@ Future<void> abandonMerge(MergeRequest request) async {
         handle.closeSync();
       }
     }
-  } else if (await part.exists()) {
-    await part.delete();
+  } else {
+    await _discard(part);
   }
   await _clear(request.journalPath, journal?.tailPath);
+}
+
+/// Throws a job's scratch file away, asking more than once.
+///
+/// A file this process has only just closed can still be held by the machine for
+/// a moment -- an antivirus scan on Windows, a child process that has not
+/// finished dying -- and a part left in `merged/` is gigabytes the listing never
+/// shows, so a cancel retries the delete before it gives up.
+Future<void> _discard(File part) async {
+  for (var attempt = 0; attempt < 5; attempt++) {
+    if (!await part.exists()) return;
+    try {
+      await part.delete();
+      return;
+    } on FileSystemException {
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+    }
+  }
 }
 
 /// Puts the metadata an in-place append cut off back on the end of the file, so
@@ -414,6 +432,21 @@ class MergeProbeEntry {
   final int index, bytes, durationMs, width, height;
   final String codec, audioCodec;
 
+  /// The two tracks' own averages, measured from their sample sizes rather than
+  /// the container: a compatible merge needs a target rate it can promise is not
+  /// below the source, and the file's total rate includes both tracks plus every
+  /// box. Zero means the track is missing or too short to measure.
+  final int videoBitrate, audioBitrate;
+
+  /// The video track's average frame rate, in milli-fps (29970 = 29.97), so an
+  /// integer survives the isolate hop. Zero when it cannot be measured.
+  final int fpsMilli;
+
+  /// What a product would have in common with this file. The kernel builds it
+  /// from exactly what its writer compares, so files with the same [groupKey] are
+  /// files one `stsd` can describe -- and the panel can offer them as one 片.
+  final String groupKey;
+
   /// Set when this file cannot be merge input at all -- gone, encrypted, a shape
   /// the parser refuses. The panel shows it on the row, not only in the verdict.
   final String? error;
@@ -427,8 +460,15 @@ class MergeProbeEntry {
     required this.height,
     required this.codec,
     required this.audioCodec,
+    this.videoBitrate = 0,
+    this.audioBitrate = 0,
+    this.fpsMilli = 0,
+    this.groupKey = '',
     this.error,
   });
+
+  /// How the queue addresses this file, and how the panel names it.
+  String get key => '${vid}_$quality';
 
   Map<String, dynamic> toJson() => {
     'vid': vid,
@@ -440,6 +480,10 @@ class MergeProbeEntry {
     'height': height,
     'codec': codec,
     'audioCodec': audioCodec,
+    'videoBitrate': videoBitrate,
+    'audioBitrate': audioBitrate,
+    'fpsMilli': fpsMilli,
+    'groupKey': groupKey,
     'error': error,
   };
 
@@ -454,19 +498,60 @@ class MergeProbeEntry {
         height: json['height'] as int? ?? 0,
         codec: json['codec'] as String? ?? '',
         audioCodec: json['audioCodec'] as String? ?? '',
+        videoBitrate: json['videoBitrate'] as int? ?? 0,
+        audioBitrate: json['audioBitrate'] as int? ?? 0,
+        fpsMilli: json['fpsMilli'] as int? ?? 0,
+        groupKey: json['groupKey'] as String? ?? '',
         error: json['error'] as String?,
       );
+}
+
+/// One product the precheck found inside a selection: the files that can share a
+/// file, or the reason they cannot.
+class MergeBatch {
+  /// [MergeProbeEntry.key] of every episode in the batch, in selection order.
+  final List<String> keys;
+
+  /// Null means the writer itself accepted exactly these files.
+  final String? reason;
+  const MergeBatch({required this.keys, this.reason});
+
+  bool get mergeable => reason == null && keys.isNotEmpty;
 }
 
 /// The precheck's answer. [reject] is the writer's own verdict on exactly these
 /// files -- null means 可以无损合成 is a promise the merge keeps, because the same
 /// comparison produced it, not a second rule that could disagree.
+///
+/// When that verdict is a difference the kernel cannot normalise, [batches] says
+/// what the selection does divide into: the same writer's rule, asked per bucket.
 class MergePrecheckReport {
   final List<MergeProbeEntry> entries;
   final String? reject;
-  const MergePrecheckReport({required this.entries, this.reject});
+  final List<MergeBatch> batches;
+  const MergePrecheckReport({
+    required this.entries,
+    this.reject,
+    this.batches = const [],
+  });
 
   int get sourceBytes => entries.fold(0, (a, e) => a + e.bytes);
+
+  /// The products the queue can be handed. A 片 with a reason is an offer the
+  /// writer would take back, so it never reaches the task list.
+  List<MergeBatch> get ready => batches.where((b) => b.mergeable).toList();
+
+  /// The sources a merge would actually read: everything inside a ready 片.
+  int get batchedBytes {
+    final bytes = {for (final e in entries) e.key: e.bytes};
+    var sum = 0;
+    for (final batch in ready) {
+      for (final key in batch.keys) {
+        sum += bytes[key] ?? 0;
+      }
+    }
+    return sum;
+  }
 }
 
 /// Reads every candidate's tables off the UI isolate. Parsing sample tables is
@@ -490,7 +575,7 @@ MergePrecheckReport _probeNow(
 
   try {
     final entries = <MergeProbeEntry>[];
-    final sources = <MergeSource>[];
+    final probed = <_ProbedSource>[];
     for (final request in requests) {
       MergeProbeEntry failed(String reason) => MergeProbeEntry(
         vid: request.vid,
@@ -511,24 +596,27 @@ MergePrecheckReport _probeNow(
       }
       try {
         final source = open(request.path);
-        sources.add(source);
         final video = _videoTrack(source);
         final audio = source.tracks
             .where((t) => t.handler != 'vide')
             .firstOrNull;
-        entries.add(
-          MergeProbeEntry(
-            vid: request.vid,
-            quality: request.quality,
-            index: request.index,
-            bytes: source.bytes,
-            durationMs: source.durationMs,
-            width: video?.width ?? 0,
-            height: video?.height ?? 0,
-            codec: video?.codec ?? '',
-            audioCodec: audio?.codec ?? '',
-          ),
+        final entry = MergeProbeEntry(
+          vid: request.vid,
+          quality: request.quality,
+          index: request.index,
+          bytes: source.bytes,
+          durationMs: source.durationMs,
+          width: _frameWidth(video),
+          height: _frameHeight(video),
+          codec: video?.codec ?? '',
+          audioCodec: audio?.codec ?? '',
+          videoBitrate: _averageBitrate(video),
+          audioBitrate: _averageBitrate(audio),
+          fpsMilli: _milliFps(video),
+          groupKey: Mp4Merger.compatibilityKeyOf(source),
         );
+        entries.add(entry);
+        probed.add(_ProbedSource(entry, source));
       } on MergeReject catch (e) {
         entries.add(failed(e.reason));
       } on FormatException catch (e) {
@@ -537,25 +625,136 @@ MergePrecheckReport _probeNow(
     }
     final broken = entries.where((e) => e.error != null).toList();
     String? reject;
+    var batches = const <MergeBatch>[];
     if (broken.isNotEmpty) {
+      // A file that is gone or encrypted is not a choice to split around: the
+      // viewer has to take it out of the selection (or re-download) first.
       reject = '第 ${broken.first.index} 集不能作为合成输入：${broken.first.error}';
     } else if (productPath != null) {
       try {
-        reject = Mp4Merger.growRejectOf(open(productPath), sources);
+        reject = Mp4Merger.growRejectOf(open(productPath), _sourcesOf(probed));
       } on MergeReject catch (e) {
         reject = e.reason;
       } on FormatException catch (e) {
         reject = '要追加的合并文件不符合预期：${e.message}';
       }
+      // One product, one append: splitting would mean writing two products, and
+      // the viewer asked to grow one.
+      batches = [
+        MergeBatch(keys: [for (final p in probed) p.entry.key], reason: reject),
+      ];
     } else {
-      reject = Mp4Merger.rejectOf(sources);
+      reject = Mp4Merger.rejectOf(_sourcesOf(probed));
+      batches = reject == null
+          ? [
+              MergeBatch(keys: [for (final p in probed) p.entry.key]),
+            ]
+          : _splitByFormat(probed, reject);
     }
-    return MergePrecheckReport(entries: entries, reject: reject);
+    return MergePrecheckReport(
+      entries: entries,
+      reject: reject,
+      batches: batches,
+    );
   } finally {
     for (final handle in handles) {
       handle.closeSync();
     }
   }
+}
+
+/// A candidate the tables opened, and the source those tables came from -- kept
+/// together so the panel can group what the writer can merge.
+class _ProbedSource {
+  final MergeProbeEntry entry;
+  final MergeSource source;
+  const _ProbedSource(this.entry, this.source);
+}
+
+List<MergeSource> _sourcesOf(List<_ProbedSource> probed) => [
+  for (final p in probed) p.source,
+];
+
+/// The products a mixed selection does divide into.
+///
+/// The buckets come from [Mp4Merger.compatibilityKeyOf], but every 片 is then
+/// re-asked with the writer's own verdict, so the panel offers a split only when
+/// the merge would actually accept it. A 片 the writer refuses keeps its reason
+/// and stays out of [MergePrecheckReport.ready].
+List<MergeBatch> _splitByFormat(
+  List<_ProbedSource> probed,
+  String? wholeReject,
+) {
+  final buckets = <String, List<_ProbedSource>>{};
+  for (final p in probed) {
+    buckets.putIfAbsent(p.entry.groupKey, () => []).add(p);
+  }
+  if (buckets.length == 1) {
+    // Nothing to split: the selection is one format the writer still refuses.
+    return [
+      MergeBatch(
+        keys: [for (final p in probed) p.entry.key],
+        reason: wholeReject ?? '所选各集不能合成一个文件',
+      ),
+    ];
+  }
+  // The episode the leftovers are compared against, for the copy that says why
+  // they are on their own: whichever 片 actually becomes a product.
+  _ProbedSource? peerOf(List<_ProbedSource> bucket) {
+    for (final other in buckets.values) {
+      if (other.length > 1 && other != bucket) return other.first;
+    }
+    for (final other in buckets.values) {
+      if (other != bucket) return other.first;
+    }
+    return null;
+  }
+
+  final batches = <MergeBatch>[];
+  for (final bucket in buckets.values) {
+    final keys = [for (final p in bucket) p.entry.key];
+    if (bucket.length < 2) {
+      // A lone episode never becomes a product, so a reason is always said: the
+      // difference from the 片 it was left out of, or the plain fact that it is
+      // alone.
+      final peer = peerOf(bucket);
+      batches.add(
+        MergeBatch(
+          keys: keys,
+          reason: peer == null
+              ? '第 ${bucket.first.entry.index} 集与其他各集不能合成一个文件'
+              : _differFrom(bucket.first, peer) ??
+                    '第 ${bucket.first.entry.index} 集落单，合成一片至少要有两集',
+        ),
+      );
+      continue;
+    }
+    batches.add(
+      MergeBatch(keys: keys, reason: Mp4Merger.rejectOf(_sourcesOf(bucket))),
+    );
+  }
+  return batches;
+}
+
+/// Why one episode cannot join another, in the words the panel shows -- the
+/// kernel's own reason code, so the sentence and the refusal never diverge.
+String? _differFrom(_ProbedSource one, _ProbedSource other) {
+  final reject = Mp4Merger.rejectAgainst(
+    other.source,
+    one.source,
+    position: one.entry.index,
+  );
+  if (reject == null) return null;
+  final at = reject.position ?? one.entry.index;
+  return switch (reject.code) {
+    MergeRejectCode.resolution =>
+      '第 $at 集画质与第 ${other.entry.index} 集不同，重下同一画质即可并成一片',
+    MergeRejectCode.codec => '第 $at 集编码参数与第 ${other.entry.index} 集不同',
+    MergeRejectCode.tracks => '第 $at 集轨道构成与第 ${other.entry.index} 集不同',
+    MergeRejectCode.timescale =>
+      '第 $at 集时间基与第 ${other.entry.index} 集差异过大，需分开合成',
+    null => '第 $at 集与第 ${other.entry.index} 集不能合成一个文件',
+  };
 }
 
 MergeTrack? _videoTrack(MergeSource? source) {
@@ -564,6 +763,35 @@ MergeTrack? _videoTrack(MergeSource? source) {
     if (track.handler == 'vide') return track;
   }
   return null;
+}
+
+/// A track's own average rate in bits per second, from the sizes its sample
+/// table already lists. A track that is missing, empty or too short to divide
+/// answers 0, which the caller reads as "not measurable".
+int _averageBitrate(MergeTrack? track) {
+  if (track == null || track.durationMs <= 0) return 0;
+  return track.bytes * 8000 ~/ track.durationMs;
+}
+
+/// The video track's average frame rate in milli-fps: sample count over the
+/// table's own duration, so a variable-rate file yields its true mean.
+int _milliFps(MergeTrack? track) {
+  if (track == null || track.durationMs <= 0 || track.samples <= 0) return 0;
+  return track.samples * 1000000 ~/ track.durationMs;
+}
+
+/// The frame a viewer reads off this file, and the one a re-encode preserves:
+/// the size the sample entry states. `tkhd` says what the muxer meant to show,
+/// and a file that leaves it at zero still carries a real picture, so the coded
+/// size wins wherever it is known.
+int _frameWidth(MergeTrack? track) {
+  if (track == null) return 0;
+  return track.codedWidth > 0 ? track.codedWidth : track.width;
+}
+
+int _frameHeight(MergeTrack? track) {
+  if (track == null) return 0;
+  return track.codedHeight > 0 ? track.codedHeight : track.height;
 }
 
 /// The metadata an append is about to cut, kept aside so cancelling the job can

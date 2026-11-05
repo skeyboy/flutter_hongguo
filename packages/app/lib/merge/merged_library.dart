@@ -119,6 +119,12 @@ class MergedVideo {
   final DateTime createdAt, updatedAt;
   final List<MergedItem> items;
   final List<MergedExport> exports;
+
+  /// `lossless` means every media byte is the download's own; `compatible` means
+  /// the whole product was re-encoded into one H.264 stream so a device without
+  /// the source codec can still play it. The viewer copies these files onto other
+  /// phones, so the manifest says which promise the bytes keep.
+  final String mode;
   const MergedVideo({
     required this.mergeId,
     required this.title,
@@ -131,7 +137,10 @@ class MergedVideo {
     this.bytes = 0,
     this.items = const [],
     this.exports = const [],
+    this.mode = 'lossless',
   });
+
+  bool get isCompatible => mode == 'compatible';
 
   int get durationMs =>
       items.isEmpty ? 0 : items.last.offsetMs + items.last.durationMs;
@@ -151,6 +160,7 @@ class MergedVideo {
     updatedAt: updatedAt,
     items: items,
     exports: exports,
+    mode: mode,
   );
 
   Map<String, dynamic> toJson() => {
@@ -162,6 +172,7 @@ class MergedVideo {
     'codec': codec,
     'width': width,
     'height': height,
+    'mode': mode,
     'items': items.map((i) => i.toJson()).toList(),
     'exports': exports.map((e) => e.toJson()).toList(),
   };
@@ -181,6 +192,7 @@ class MergedVideo {
     width: json['width'] as int? ?? 0,
     height: json['height'] as int? ?? 0,
     bytes: bytes,
+    mode: json['mode'] as String? ?? 'lossless',
     createdAt:
         DateTime.tryParse(json['createdAt'] as String? ?? '') ??
         DateTime.fromMillisecondsSinceEpoch(0),

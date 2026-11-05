@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_app/merge/merge_manager.dart';
+import 'package:hongguo_app/merge/merge_transcode.dart';
 import 'package:hongguo_app/merge/merge_worker.dart';
 import 'package:hongguo_app/merge/merged_library.dart';
 import 'package:hongguo_app/platform/runtime.dart';
@@ -77,9 +78,23 @@ class MergeFakeRuntime extends FakeRuntime implements MergeRuntime {
   /// the fake answer 可以无损合成 for every episode it can still see.
   String? probeReject;
 
+  /// The 片 a refused precheck finds inside the selection: the episode indexes of
+  /// each candidate, in selection order. A group of one keeps [probeReject] as
+  /// its reason, the way the worker's split leaves a lone episode out.
+  List<List<int>>? probeGroups;
+
   /// How many files each 预检 was asked about, in the order the panel handed them.
   final probed = <int>[];
-  MergeFakeRuntime._(this.temp, this.cacheDir, this.mergedLibrary) {
+
+  /// The encoder lane this machine has: null means there is no ffmpeg, which is
+  /// the phone case -- the panel then never offers 兼容合成.
+  final MergeTranscoder? lane;
+  MergeFakeRuntime._(
+    this.temp,
+    this.cacheDir,
+    this.mergedLibrary, {
+    this.lane,
+  }) {
     merges = MergeManager(
       backend: MergeMemoryBackend(),
       library: mergedLibrary,
@@ -114,21 +129,44 @@ class MergeFakeRuntime extends FakeRuntime implements MergeRuntime {
               height: 1920,
               codec: 'hvc1',
               audioCodec: 'mp4a',
+              videoBitrate: 2000000,
+              audioBitrate: 128000,
+              fpsMilli: 30000,
               error: File(request.path).existsSync() ? null : '离线文件已不存在，请先重新下载',
             ),
         ];
         final broken = entries
             .where((entry) => entry.error != null)
             .firstOrNull;
+        final reject =
+            probeReject ??
+            (broken == null
+                ? null
+                : '第 ${broken.index} 集不能作为合成输入：${broken.error}');
         return MergePrecheckReport(
           entries: entries,
-          reject:
-              probeReject ??
-              (broken == null
-                  ? null
-                  : '第 ${broken.index} 集不能作为合成输入：${broken.error}'),
+          reject: reject,
+          // The same shape the worker's split answers with: one 片 for the whole
+          // set when the writer takes it, otherwise the groups the test asks for
+          // -- and a 片 that holds one episode is never a product.
+          batches: [
+            if (reject == null)
+              MergeBatch(keys: [for (final entry in entries) entry.key])
+            else if (probeReject != null && broken == null)
+              for (final group in probeGroups ?? const <List<int>>[])
+                MergeBatch(
+                  keys: [
+                    for (final entry in entries)
+                      if (group.contains(entry.index)) entry.key,
+                  ],
+                  reason: group.length < 2 ? probeReject : null,
+                ),
+          ],
         );
       },
+      // A device without an ffmpeg: 兼容合成 stays unoffered, exactly as on a
+      // phone, until a test hands this runtime a lane of its own.
+      transcoder: lane ?? const UnavailableTranscoder(),
     );
     // Playback is the state that keeps a job queued, so every test inherits it:
     // the viewer can still press everything, and the queue shows what it was
@@ -136,7 +174,7 @@ class MergeFakeRuntime extends FakeRuntime implements MergeRuntime {
     merges.playbackEntered();
   }
 
-  factory MergeFakeRuntime({bool mobile = false}) {
+  factory MergeFakeRuntime({bool mobile = false, MergeTranscoder? lane}) {
     final temp = Directory.systemTemp.createTempSync('hongguo-merge-ui-');
     Directory dir(String name) =>
         Directory('${temp.path}/$name')..createSync(recursive: true);
@@ -145,6 +183,7 @@ class MergeFakeRuntime extends FakeRuntime implements MergeRuntime {
       temp,
       dir('media-cache'),
       MergeMemoryLibrary(merged),
+      lane: lane,
     );
     runtime.mobile = mobile;
     return runtime;
@@ -183,6 +222,8 @@ class MergeFakeRuntime extends FakeRuntime implements MergeRuntime {
     String title = '山海之间 合集',
     List<MergedItem> items = const [],
     List<MergedExport> exports = const [],
+    String mode = 'lossless',
+    String? codec = 'h264',
   }) {
     final now = DateTime.now();
     final video = MergedVideo(
@@ -191,12 +232,13 @@ class MergeFakeRuntime extends FakeRuntime implements MergeRuntime {
       filePath: mergedLibrary.pathFor(mergeId),
       createdAt: now,
       updatedAt: now,
-      codec: 'h264',
+      codec: codec,
       width: 1080,
       height: 1920,
       bytes: 4 * 1024 * 1024,
       items: items,
       exports: exports,
+      mode: mode,
     );
     File(mergedLibrary.pathFor(mergeId))
         .writeAsBytesSync(List<int>.filled(4 * 1024 * 1024, 0));
@@ -245,6 +287,34 @@ class _StaticJob implements PlaybackJob {
   void cancel() {}
   @override
   void release() {}
+}
+
+/// The encoder lane as a widget test sees it: present, named, and never asked to
+/// run -- the fake queue holds every job, so an encode that reached this would
+/// be a panel bug rather than a test.
+class MergeUiTranscoder implements MergeTranscoder {
+  @override
+  bool get available => true;
+  @override
+  String? get encoder => 'libx264';
+  @override
+  String get label => 'ffmpeg · libx264';
+  @override
+  Future<void> warmUp() async {}
+  @override
+  TranscodeHandle run(
+    List<String> args, {
+    required int totalDurationMs,
+    void Function(int doneMs, int totalMs)? onProgress,
+  }) => TranscodeHandle(
+    result: Future.error(
+      StateError('the merge UI fake holds the queue; an encode must not run'),
+    ),
+    stop: () {},
+  );
+
+  @override
+  void close() {}
 }
 
 MergedItem item(int index, {String? vid, DateTime? addedAt}) => MergedItem(

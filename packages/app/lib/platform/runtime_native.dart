@@ -1,5 +1,6 @@
 import '../downloads/download_manager.dart';
 import '../merge/merge_manager.dart';
+import '../merge/merge_transcode.dart';
 import '../merge/merged_library.dart';
 import '../personal/personal_library.dart';
 import '../search/search_history.dart';
@@ -204,6 +205,13 @@ class NativeRuntime
       sourcePath: mediaPath,
       mobile: Platform.isAndroid || Platform.isIOS,
       television: tvBuild,
+      // 兼容合成 needs a native H.264 encoder. On a desktop the viewer may already
+      // have one on PATH, and the lane probes for it; on a phone the FFmpeg build
+      // itself would have to ship inside the app, which is the native step still
+      // open in the design (docs/design/video-merge.md, 二期设计).
+      transcoder: Platform.isWindows || Platform.isLinux || Platform.isMacOS
+          ? FfmpegTranscoder()
+          : const UnavailableTranscoder(reason: '手机端暂未内置 ffmpeg，请改用无损合成'),
     );
   }
 

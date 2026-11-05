@@ -40,7 +40,9 @@ Matcher refusedBy(String reason) =>
     isA<MergeReject>().having((e) => e.reason, 'reason', contains(reason));
 
 /// A size-preserving edit of one box field, so a source differs from its twin in
-/// exactly the way the merge precheck has to notice.
+/// exactly the way the merge precheck has to notice. Boxes are big-endian, and a
+/// timescale written the other way is a different number than the one the test
+/// names -- which matters as soon as the merge has to compute with it.
 Uint8List edit(
   Uint8List source,
   String type,
@@ -56,9 +58,9 @@ Uint8List edit(
   final view = ByteData.sublistView(out);
   final at = box.payload + field(out[box.payload]);
   if (width == 2) {
-    view.setUint16(at, value);
+    view.setUint16(at, value, Endian.big);
   } else {
-    view.setUint32(at, value);
+    view.setUint32(at, value, Endian.big);
   }
   return out;
 }
@@ -69,6 +71,75 @@ Uint8List bumpLast(Uint8List source, String type) {
       .firstWhere((b) => b.type == type);
   out[box.end - 1] = out[box.end - 1] + 1;
   return out;
+}
+
+/// One table the file no longer claims to have, with every offset left exactly
+/// where it was: a box renamed to `free` keeps its size and is skipped by the
+/// readers, which is how a source without `ctts` is stood up.
+Uint8List hideBox(Uint8List source, String type) {
+  final out = Uint8List.fromList(source);
+  final box = Mp4Cenc.inspect(MemorySampleStore(out)).moov.descendants
+      .firstWhere((b) => b.type == type);
+  out.setRange(box.start + 4, box.start + 8, latin1.encode('free'));
+  return out;
+}
+
+Uint8List setVersion(Uint8List source, String type, int value) {
+  final out = Uint8List.fromList(source);
+  final box = Mp4Cenc.inspect(MemorySampleStore(out)).moov.descendants
+      .firstWhere((b) => b.type == type);
+  out[box.payload] = value;
+  return out;
+}
+
+/// One track renamed to a different kind: the same number of tracks, and the one
+/// pairing genuinely cannot answer.
+Uint8List setHandler(Uint8List source, int index, String handler) {
+  final out = Uint8List.fromList(source);
+  final hdlr = Mp4Cenc.inspect(MemorySampleStore(out)).moov.descendants
+      .where((b) => b.type == 'hdlr')
+      .toList()[index];
+  out.setRange(hdlr.payload + 8, hdlr.payload + 12, latin1.encode(handler));
+  return out;
+}
+
+/// Reverses the two `trak` boxes inside `moov`, which keeps the metadata the same
+/// length and so leaves every chunk offset pointing at its sample: one file with
+/// its tracks in the other order, nothing else changed.
+Uint8List swapTraks(Uint8List source) {
+  final traks = Mp4Cenc.inspect(MemorySampleStore(source)).moov.descendants
+      .where((b) => b.type == 'trak')
+      .toList();
+  if (traks.length != 2) throw StateError('需要两条轨道');
+  final a = traks[0], b = traks[1];
+  final out = Uint8List(source.length);
+  var at = 0;
+  void copy(List<int> bytes) {
+    out.setRange(at, at + bytes.length, bytes);
+    at += bytes.length;
+  }
+
+  copy(source.sublist(0, a.start));
+  copy(source.sublist(b.start, b.end));
+  copy(source.sublist(a.start, a.end));
+  copy(source.sublist(b.end));
+  return out;
+}
+
+/// The `elst` media time of the first track: where the encoder's priming offset
+/// lives, and the field a timescale change has to move with it.
+int firstMediaTime(Uint8List file) {
+  final elst = Mp4Cenc.inspect(MemorySampleStore(file)).moov.descendants
+      .firstWhere((b) => b.type == 'elst');
+  final view = ByteData.sublistView(file);
+  return file[elst.payload] == 1
+      ? view.getInt64(elst.payload + 16, Endian.big)
+      : view.getInt32(elst.payload + 12, Endian.big);
+}
+
+int firstTimescale(Uint8List file, String handler) {
+  final source = Mp4Merger.read(MemorySampleStore(file));
+  return source.tracks.firstWhere((t) => t.handler == handler).timescale;
 }
 
 void main() {
@@ -283,15 +354,99 @@ void main() {
     );
   });
 
+  test('a frame size is read from the sample entry, not the display hint', () {
+    final clear = bytes('clear.mp4');
+    final video = sourceOf(clear).tracks.firstWhere((t) => t.handler == 'vide');
+    // A muxer may leave `tkhd`'s display size empty and still describe a real
+    // picture: this file states 160x288 in its `avc1` entry and 160x0 in its
+    // header. The coded frame is the number a decoder, and a re-encode, uses.
+    expect([video.width, video.height], [160, 0]);
+    expect([video.codedWidth, video.codedHeight], [160, 288]);
+
+    // Editing the hint moves `width/height` alone, so the two fields keep their
+    // separate meanings: what is shown versus what is stored.
+    final hinted = edit(
+      clear,
+      'tkhd',
+      0,
+      (version) => version == 1 ? 90 : 78,
+      576,
+      width: 2,
+    );
+    final hintedVideo = sourceOf(hinted).tracks
+        .firstWhere((t) => t.handler == 'vide');
+    expect(hintedVideo.height, 576);
+    expect(hintedVideo.codedHeight, 288);
+
+    // An audio entry keeps numbers of its own where a video entry keeps its
+    // frame, so nothing is invented for a track that has no picture.
+    final sound = sourceOf(clear).tracks.firstWhere((t) => t.handler != 'vide');
+    expect([sound.codedWidth, sound.codedHeight], [0, 0]);
+  });
+
+  test('episodes that differ only in their tables are re-dated, not refused', () {
+    final clear = bytes('clear.mp4'), base = sourceOf(clear);
+    final originals = sourceSamples(clear);
+    Uint8List merge(Uint8List other) {
+      final sink = MemoryMergeSink();
+      Mp4Merger.write(Mp4Merger.plan([base, sourceOf(other)]), sink);
+      return sink.takeBytes();
+    }
+
+    // A timescale is only a way of counting seconds, so two of them become the
+    // least multiple of both and every delta, duration and edit follows.
+    final wide = edit(clear, 'mdhd', 0, (v) => v == 1 ? 20 : 12, 15360);
+    final rescaled = merge(wide);
+    expect(Mp4Merger.rejectOf([base, sourceOf(wide)]), isNull);
+    expect(firstTimescale(rescaled, 'vide'), 61440);
+    // 18432/12288 + 18432/15360, counted in the timescale the merge settled on.
+    expect(
+      Mp4Merger.read(MemorySampleStore(rescaled)).tracks.first.durationMs,
+      2700,
+    );
+    expect(firstMediaTime(rescaled), firstMediaTime(clear) * 5);
+    expect(sourceSamples(rescaled), [
+      for (final t in originals) [...t, ...t],
+    ]);
+
+    // A file with no composition table says its samples are pass-throughs, which
+    // is one run of zero offsets in the shared table.
+    final plain = merge(hideBox(clear, 'ctts'));
+    final kept = Mp4Merger.read(MemorySampleStore(plain));
+    expect(kept.tracks.first.composition!.fold(0, (a, c) => a + c.count), 36);
+    expect(kept.tracks.first.composition!.last.offset, 0);
+    expect(sourceSamples(plain), [
+      for (final t in originals) [...t, ...t],
+    ]);
+
+    // v1 is the signed form of the same table: one v1 source lifts the merged
+    // table without changing any offset.
+    final signed = Mp4Merger.read(
+      MemorySampleStore(merge(setVersion(clear, 'ctts', 1))),
+    );
+    expect(signed.tracks.first.cttsVersion, 1);
+    expect(
+      signed.tracks.first.composition!.take(18).map((c) => c.offset).toList(),
+      base.tracks.first.composition!.map((c) => c.offset).toList(),
+    );
+
+    // Two tracks in the other order are the same two tracks.
+    final swapped = swapTraks(clear);
+    expect(Mp4Merger.rejectOf([base, sourceOf(swapped)]), isNull);
+    final out = merge(swapped);
+    expect(
+      Mp4Merger.read(MemorySampleStore(out)).tracks.map((t) => t.handler),
+      ['vide', 'soun'],
+    );
+    final other = sourceSamples(swapped);
+    expect(sourceSamples(out), [
+      [...originals[0], ...other[1]],
+      [...originals[1], ...other[0]],
+    ]);
+  });
+
   test('episodes that do not share a format are refused with the reason', () {
     final clear = bytes('clear.mp4'), base = sourceOf(clear);
-    expect(
-      () => Mp4Merger.plan([
-        base,
-        sourceOf(edit(clear, 'mdhd', 0, (v) => v == 1 ? 20 : 12, 12289)),
-      ]),
-      throwsA(refusedBy('时间基')),
-    );
     expect(
       () => Mp4Merger.plan([
         base,
@@ -299,16 +454,42 @@ void main() {
           edit(clear, 'tkhd', 0, (v) => v == 1 ? 88 : 76, 158, width: 2),
         ),
       ]),
-      throwsA(refusedBy('分辨率')),
+      throwsA(
+        isA<MergeReject>()
+            .having((e) => e.reason, 'reason', contains('分辨率'))
+            .having((e) => e.code, 'code', MergeRejectCode.resolution)
+            .having((e) => e.position, 'position', 2),
+      ),
     );
     expect(
       () => Mp4Merger.plan([base, sourceOf(bumpLast(clear, 'avcC'))]),
-      throwsA(refusedBy('编码参数')),
+      throwsA(
+        isA<MergeReject>()
+            .having((e) => e.reason, 'reason', contains('编码参数'))
+            .having((e) => e.code, 'code', MergeRejectCode.codec),
+      ),
     );
     expect(
       () =>
           Mp4Merger.plan([base, sourceOf(edit(clear, 'stsz', 1, (_) => 8, 0))]),
       throwsA(refusedBy('轨道数量')),
+    );
+    expect(
+      () => Mp4Merger.plan([base, sourceOf(setHandler(clear, 1, 'subt'))]),
+      throwsA(refusedBy('轨道构成')),
+    );
+    // Timescales do reconcile, until the common one cannot be written: this pair
+    // has no multiple that fits the field, and that is said plainly.
+    expect(
+      () => Mp4Merger.plan([
+        base,
+        sourceOf(edit(clear, 'mdhd', 0, (v) => v == 1 ? 20 : 12, 1000003)),
+      ]),
+      throwsA(
+        isA<MergeReject>()
+            .having((e) => e.reason, 'reason', contains('时间基'))
+            .having((e) => e.code, 'code', MergeRejectCode.timescale),
+      ),
     );
   });
 
@@ -334,7 +515,11 @@ void main() {
         base,
         sourceOf(edit(clear, 'mdhd', 0, (v) => v == 1 ? 20 : 12, 12289)),
       ]),
-      contains('时间基'),
+      isNull,
+    );
+    expect(
+      Mp4Merger.rejectOf([base, sourceOf(bumpLast(clear, 'avcC'))]),
+      contains('编码参数'),
     );
 
     final product = MemoryMergeSink();
@@ -348,11 +533,43 @@ void main() {
     final fast = sourceOf(clear);
     expect(Mp4Merger.growRejectOf(fast, [fast]), contains('元数据在数据之前'));
     expect(
-      Mp4Merger.growRejectOf(grown, [
-        sourceOf(edit(clear, 'mdhd', 0, (v) => v == 1 ? 20 : 12, 12289)),
-      ]),
-      contains('时间基'),
+      Mp4Merger.growRejectOf(grown, [sourceOf(bumpLast(clear, 'avcC'))]),
+      contains('编码参数'),
     );
+    // And the same normalisations: a product whose tables already settled on one
+    // timescale still accepts an episode counted in another.
+    expect(
+      Mp4Merger.growRejectOf(grown, [
+        sourceOf(edit(clear, 'mdhd', 0, (v) => v == 1 ? 20 : 12, 15360)),
+      ]),
+      isNull,
+    );
+  });
+
+  test('the key the precheck groups by is what the writer compares', () {
+    final clear = bytes('clear.mp4'), base = sourceOf(clear);
+    final key = Mp4Merger.compatibilityKeyOf(base);
+    // Every difference the rebuild normalises leaves the key where it was.
+    for (final other in [
+      edit(clear, 'mdhd', 0, (v) => v == 1 ? 20 : 12, 15360),
+      hideBox(clear, 'ctts'),
+      setVersion(clear, 'ctts', 1),
+      swapTraks(clear),
+    ]) {
+      final source = sourceOf(other);
+      expect(Mp4Merger.compatibilityKeyOf(source), key);
+      expect(Mp4Merger.rejectOf([base, source]), isNull);
+    }
+    // Every difference it cannot answer moves the key, so a batch the panel forms
+    // out of these keys is a batch the writer agrees to.
+    for (final other in [
+      edit(clear, 'tkhd', 0, (v) => v == 1 ? 88 : 76, 158, width: 2),
+      bumpLast(clear, 'avcC'),
+    ]) {
+      final source = sourceOf(other);
+      expect(Mp4Merger.compatibilityKeyOf(source), isNot(key));
+      expect(Mp4Merger.rejectOf([base, source]), isNotNull);
+    }
   });
 
   test('a plan is written by exactly one of the two lanes', () {

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 
 import '../settings/settings_store.dart';
+import 'merge_transcode.dart';
 import 'merge_worker.dart';
 import 'merged_library.dart';
 
@@ -48,6 +49,12 @@ class MergeTask {
   final List<MergeSelection> items;
   final DateTime createdAt;
 
+  /// `lossless` rewrites only the tables and copies every byte of media;
+  /// `compatible` re-encodes the whole selection into one H.264 product, which
+  /// is what a phone without the source codec can play. The kind stays the shape
+  /// of the work, the mode says how the bytes were made.
+  final String mode;
+
   /// For `append`: the merge this job grows. For `export`: the merge delivered.
   final String? targetMergeId;
 
@@ -65,6 +72,7 @@ class MergeTask {
     required this.kind,
     required this.items,
     required this.createdAt,
+    this.mode = 'lossless',
     this.targetMergeId,
     this.exportPath,
     this.exportMode,
@@ -76,11 +84,16 @@ class MergeTask {
 
   bool get isExport => kind == 'export';
 
+  /// A compatible job re-encodes, so it has no checkpoint to return to and a
+  /// different sentence to say while it runs.
+  bool get isCompatible => mode == 'compatible';
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'mergeId': mergeId,
     'title': title,
     'kind': kind,
+    'mode': mode,
     'items': items.map((i) => i.toJson()).toList(),
     'targetMergeId': targetMergeId,
     'exportPath': exportPath,
@@ -97,11 +110,17 @@ class MergeTask {
     if (!const ['merge', 'append', 'export'].contains(kind)) {
       throw const FormatException('Invalid merge kind');
     }
+    // A queue written before the compatible lane existed is a lossless queue.
+    final mode = json['mode'] as String? ?? 'lossless';
+    if (!const ['lossless', 'compatible'].contains(mode)) {
+      throw const FormatException('Invalid merge mode');
+    }
     return MergeTask(
       id: json['id'] as String,
       mergeId: json['mergeId'] as String,
       title: json['title'] as String? ?? '合并视频',
       kind: kind,
+      mode: mode,
       items: [
         for (final item in (json['items'] as List? ?? const []))
           MergeSelection.fromJson(Map<String, dynamic>.from(item as Map)),
@@ -122,7 +141,10 @@ class MergeTask {
 
 class _ActiveMerge {
   final MergeTask task;
-  MergeHandle? handle;
+
+  /// Whatever can stop the work in flight: a killed isolate for a lossless job,
+  /// a killed process for a compatible one.
+  void Function()? stop;
   DateTime? lastProgress, lastCheckpoint;
   _ActiveMerge(this.task);
 }
@@ -160,6 +182,11 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
 
   /// The precheck reader, injectable for the same reason [run] is.
   final MergeProbeRunner probe;
+
+  /// The compatible lane's only door to a native FFmpeg. The default is a device
+  /// with none, so an app built without a transcoder keeps the behaviour it had:
+  /// 无损合成 only, and the panel never offers the other.
+  final MergeTranscoder transcoder;
   MergeManager({
     required this.backend,
     required this.library,
@@ -169,6 +196,7 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
     this.television = false,
     MergeRunner? run,
     MergeProbeRunner? probe,
+    MergeTranscoder? transcoder,
   }) : run =
            run ??
            ((request, {onProgress}) =>
@@ -176,14 +204,19 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
        probe =
            probe ??
            ((requests, productPath) =>
-               probeMerge(requests, productPath: productPath));
+               probeMerge(requests, productPath: productPath)),
+       transcoder = transcoder ?? const UnavailableTranscoder();
 
   final _tasks = <String, MergeTask>{};
   final _active = <_ActiveMerge>{};
   final _abandons = <Future<void>>[];
   Future<void>? _loading;
   Future<void> _writes = Future.value(), _mutations = Future.value();
-  bool _loaded = false, _closed = false, _attached = false, _foreground = true;
+  bool _loaded = false,
+      _closed = false,
+      _attached = false,
+      _foreground = true,
+      _transcoderWarmed = false;
   int _players = 0, _sequence = 0;
   String? warning;
 
@@ -252,6 +285,12 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
     }
     _loaded = true;
     _emit();
+    if (!_transcoderWarmed) {
+      // The panel asks 能不能兼容合成 before the viewer has pressed anything, so
+      // the machine is asked once, here, and the card repaints when it answers.
+      _transcoderWarmed = true;
+      unawaited(transcoder.warmUp().then((_) => _emit()));
+    }
   }
 
   Future<void> _save() {
@@ -314,17 +353,21 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
       '${(_sequence++).toRadixString(36)}';
 
   /// Queues a merge of [items]: a new product when [targetMergeId] is null, or
-  /// an append that grows an existing one. Returns the job id.
+  /// an append that grows an existing one. [mode] chooses the lane -- `lossless`
+  /// copies every media byte, `compatible` re-encodes them into one H.264 file.
+  /// Returns the job id.
   Future<String> enqueue({
     required List<MergeSelection> items,
     required String title,
     String? targetMergeId,
-  }) => _serialized(() => _enqueue(items, title, targetMergeId));
+    String mode = 'lossless',
+  }) => _serialized(() => _enqueue(items, title, targetMergeId, mode));
 
   Future<String> _enqueue(
     List<MergeSelection> items,
     String title,
     String? targetMergeId,
+    String mode,
   ) async {
     if (_closed) throw StateError('合成队列已关闭');
     await load();
@@ -333,6 +376,18 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
     // the next episode on its own.
     if (targetMergeId == null && items.length < 2) throw StateError('至少选择两集');
     if (items.length > 200) throw StateError('一次最多合成 200 集');
+    if (mode == 'compatible') {
+      // An append grows a file in place by keeping its media bytes where they
+      // are, which is the one thing a re-encode cannot do.
+      if (targetMergeId != null) {
+        throw StateError('兼容合成只能新建合集，不能追加到已有资源，请整体重新合成');
+      }
+      if (!transcoderAvailable) {
+        // The lane says why in a full sentence -- nothing here repeats it, and
+        // 无损 stays the default the panel has already shown.
+        throw StateError('无法执行兼容合成：$transcoderLabel');
+      }
+    }
     for (final item in items) {
       if (!RegExp(r'^\d{1,30}$').hasMatch(item.vid) ||
           !RegExp(r'^(best|auto|\d{3,4}p)$').hasMatch(item.quality)) {
@@ -357,10 +412,11 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
       mergeId: mergeId,
       title: title,
       kind: targetMergeId == null ? 'merge' : 'append',
+      mode: mode,
       targetMergeId: targetMergeId,
       items: items,
       createdAt: DateTime.now(),
-      message: _blocked ?? '等待合成',
+      message: _blocked ?? (mode == 'compatible' ? '等待兼容合成' : '等待合成'),
     );
     _tasks[task.id] = task;
     try {
@@ -459,6 +515,12 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
       // The worker's own sentence -- a refused merge says which episode differs,
       // not that an exception type was thrown.
       if (_current(active)) _fail(task, e.message);
+    } on TranscodeReject catch (e) {
+      // The panel's 画质优先 rule, re-asked at run time: the split it refused to
+      // promise is the split this job reports.
+      if (_current(active)) _fail(task, e.reason);
+    } on TranscodeFailure catch (e) {
+      if (_current(active)) _fail(task, e.message);
     } on FileSystemException catch (e) {
       if (_current(active)) {
         _fail(task, '写入失败，请检查剩余空间：${e.osError?.message ?? e.message}');
@@ -521,6 +583,7 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
       );
     }
     final product = library.pathFor(task.mergeId);
+    if (task.isCompatible) return _transcode(active, task, product);
     final grows = task.kind == 'append' && video != null;
     return _execute(
       active,
@@ -547,32 +610,129 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
     final handle = run(
       request,
       onProgress: (done, total) {
-        if (!_current(active)) return;
-        task.fraction = total <= 0 ? null : (done / total).clamp(0.0, 1.0);
-        task.message = switch (task.kind) {
-          'export' => '正在导出',
-          'append' => '正在追加剧集',
-          _ => '正在合成',
-        };
-        final now = DateTime.now();
-        if (active.lastProgress == null ||
-            now.difference(active.lastProgress!).inMilliseconds >= 200) {
-          active.lastProgress = now;
-          _emit();
-        }
-        if (active.lastCheckpoint == null ||
-            now.difference(active.lastCheckpoint!).inSeconds >= 1) {
-          active.lastCheckpoint = now;
-          _checkpoint();
-        }
+        _report(
+          active,
+          total <= 0 ? null : (done / total).clamp(0.0, 1.0),
+          switch (task.kind) {
+            'export' => '正在导出',
+            'append' => '正在追加剧集',
+            _ => '正在合成',
+          },
+        );
       },
     );
-    active.handle = handle;
+    active.stop = handle.stop;
     try {
       return await handle.result;
     } finally {
-      active.handle = null;
+      active.stop = null;
     }
+  }
+
+  /// One card repaint per 200 ms and one saved record per second, whichever lane
+  /// is moving.
+  void _report(_ActiveMerge active, double? fraction, String message) {
+    if (!_current(active)) return;
+    active.task.fraction = fraction;
+    active.task.message = message;
+    final now = DateTime.now();
+    if (active.lastProgress == null ||
+        now.difference(active.lastProgress!).inMilliseconds >= 200) {
+      active.lastProgress = now;
+      _emit();
+    }
+    if (active.lastCheckpoint == null ||
+        now.difference(active.lastCheckpoint!).inSeconds >= 1) {
+      active.lastCheckpoint = now;
+      _checkpoint();
+    }
+  }
+
+  /// The compatible lane: ask the tables what has to be preserved, run one
+  /// encode pass into a part file, and publish only a product that reads back as
+  /// the H.264 file the mode promised.
+  ///
+  /// Nothing here resumes. A re-encode cannot pick up mid-stream, so a pause, a
+  /// playback hand-off or a killed process starts the job over -- the price 画质优
+  /// 先 pays for a file another phone can play, and what the task card says out
+  /// loud instead of hiding.
+  Future<MergeOutcome> _transcode(
+    _ActiveMerge active,
+    MergeTask task,
+    String product,
+  ) async {
+    final encoder = transcoder.encoder;
+    if (encoder == null || !transcoderAvailable) {
+      throw TranscodeFailure('这台设备没有可用的 H.264 编码器：$transcoderLabel');
+    }
+    // The same tables the panel showed, read again now: an episode re-downloaded
+    // between 确认 and 执行 is this lane's to notice, not the panel's.
+    final report = await precheck(task.items);
+    final plan = planTranscode([
+      for (final entry in report.entries)
+        transcodeSourceOf(entry, sourcePath(entry.vid, entry.quality)),
+    ]);
+    final part = '$product.${task.id}.part';
+    final handle = transcoder.run(
+      ffmpegArgs(plan, encoder: encoder, output: part),
+      totalDurationMs: plan.totalDurationMs,
+      onProgress: (done, total) => _report(
+        active,
+        total <= 0 ? null : (done / total).clamp(0.0, 1.0),
+        '正在兼容合成',
+      ),
+    );
+    active.stop = handle.stop;
+    try {
+      await handle.result;
+    } finally {
+      active.stop = null;
+    }
+    // Read the encode back through the same table reader the queue trusts: a
+    // product that is not the length it promised, or not H.264 at all, never
+    // reaches 合并资源 as a finished thing.
+    final written = await probe([
+      MergeProbeRequest(
+        path: part,
+        vid: task.items.first.vid,
+        quality: task.items.first.quality,
+        index: 1,
+      ),
+    ], null);
+    final check = written.entries.firstOrNull;
+    if (check == null || check.error != null) {
+      throw TranscodeFailure('兼容合成的产物读不回来：${check?.error ?? 'ffmpeg 没有写出文件'}');
+    }
+    if (!h264Fourcc.contains(check.codec)) {
+      throw TranscodeFailure('兼容合成的产物不是 H.264（实际为 ${check.codec}），未发布');
+    }
+    if ((check.durationMs - plan.totalDurationMs).abs() >
+        _durationSlack(plan)) {
+      throw const TranscodeFailure('兼容合成的时长与预期不符，请重试');
+    }
+    final file = File(part);
+    final bytes = await file.length();
+    if (await File(product).exists()) await File(product).delete();
+    await file.rename(product);
+    return MergeOutcome(
+      bytes: bytes,
+      totalDurationMs: check.durationMs,
+      durations: [for (final source in plan.sources) source.durationMs],
+      resumedBytes: 0,
+      codec: check.codec,
+      width: check.width,
+      height: check.height,
+    );
+  }
+
+  /// How far a re-encode may land from the sum of its sources. Each segment is
+  /// rounded to a frame boundary the encoder chooses, not the one the source
+  /// table used, so a few frames per 片 is expected; anything larger is a
+  /// truncated or half-written file and must not be trusted.
+  int _durationSlack(TranscodePlan plan) {
+    final frameMs = plan.fpsMilli <= 0 ? 40 : 1000000 ~/ plan.fpsMilli;
+    final slack = frameMs * 2 * plan.sources.length + 500;
+    return slack > 1000 ? slack : 1000;
   }
 
   /// Publishes the record next to the bytes: the composition the viewer reads
@@ -641,6 +801,7 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
         width: outcome.width,
         height: outcome.height,
         bytes: outcome.bytes,
+        mode: task.mode,
         createdAt: video?.createdAt ?? now,
         updatedAt: now,
         items: [...carried, ...added],
@@ -668,7 +829,7 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
   void _stop(MergeTask task) {
     for (final active in _active.where((a) => a.task == task).toList()) {
       _active.remove(active);
-      active.handle?.stop();
+      active.stop?.call();
     }
   }
 
@@ -707,6 +868,20 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
       ];
     }
     final product = library.pathFor(task.mergeId);
+    if (task.isCompatible) {
+      // The encode owns one file and no journal: abandoning it is throwing the
+      // part away, which is what [abandonMerge] does for an action it has never
+      // checkpointed.
+      return [
+        MergeRequest(
+          jobId: task.id,
+          action: 'transcode',
+          partPath: '$product.${task.id}.part',
+          publishPath: product,
+          journalPath: _journalFor(task.id),
+        ),
+      ];
+    }
     return [
       MergeRequest(
         jobId: task.id,
@@ -726,7 +901,9 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
     }
     _stop(task);
     task.phase = MergePhase.paused;
-    task.message = '已暂停，继续时从检查点接着写';
+    // A lossless job keeps the bytes it wrote; a re-encode keeps nothing, and the
+    // card has to say which of the two the viewer is waiting for.
+    task.message = task.isCompatible ? '已暂停，继续时重新从头编码' : '已暂停，继续时从检查点接着写';
     task.automaticPause = false;
     _checkpoint();
     _emit();
@@ -822,6 +999,12 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
   /// The panel hands it to the viewer at enqueue time: 已加入队列 with no reason
   /// reads as a merge that will not start, when it is waiting for the player.
   String? get holdReason => _blocked;
+
+  /// Whether this device can re-encode, and what it would use. The panel shows
+  /// the 兼容 mode only when this answers true, and the label travels onto the
+  /// task card so the promise can be audited after the fact.
+  bool get transcoderAvailable => transcoder.available;
+  String get transcoderLabel => transcoder.label;
 
   /// What the writer would say about these episodes before a single byte is
   /// written: the panel's 预检 step, answered off the UI isolate.
@@ -934,7 +1117,7 @@ class MergeManager extends ChangeNotifier with WidgetsBindingObserver {
     // bytes already written are the next run's starting point.
     for (final active in _active.toList()) {
       _active.remove(active);
-      active.handle?.stop();
+      active.stop?.call();
     }
     for (final task in _tasks.values) {
       if (task.phase == MergePhase.running || task.phase == MergePhase.queued) {
