@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the update installer may hand to the system: the app-private files
+     root, whose `flutter_support/updates` subtree is where the verified APK is
+     staged (`update_transfer.dart`'s stage directory under
+     `getApplicationSupportDirectory()`). A staged file outside this root finds
+     no match and the install answers in words instead of crashing. -->
+<paths>
+    <files-path name="updates" path="." />
+</paths>

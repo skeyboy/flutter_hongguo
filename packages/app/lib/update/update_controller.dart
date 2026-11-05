@@ -172,11 +172,13 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Coming back to the app answers three things, in this order: the daily check,
   /// then a package the system finished while the app was away, then the install
-  /// the settings screen was blocking -- last, so that the system's own words about
-  /// the session are what the viewer reads.
+  /// the settings screen was blocking -- last, so the viewer reads the sentence
+  /// about the APK they were owed before anything else.
   ///
   /// Only Android owes the third one. Every other platform finishes its handoff
-  /// inside [install], and the desktop builds have no `hongguo/update` handler.
+  /// inside [install], and the permission/intent plugins exist for Android only.
+  /// What no return can say is whether the install itself finished: the plugin's
+  /// intent is fire-and-forget, so the words are about the handoff.
   Future<void> _returnToForeground() async {
     await runQuietly();
     await settleOnReturn();
@@ -479,10 +481,10 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// Back from the 「安装未知应用」 screen the prompt sent the viewer to. Android-only:
-  /// every other platform finishes its handoff inside [install].
-  Future<void> openInstallSettings() async {
-    await AndroidUpdate.openInstallPermissionSettings();
-  }
+  /// every other platform finishes its handoff inside [install]. Goes through
+  /// `permission_handler` again rather than a hand-rolled settings intent, so the
+  /// retry lands on the same screen the first ask did.
+  Future<void> openInstallSettings() => _android.gateway.requestPermission();
 
   /// One notification per percentage point, not per socket chunk.
   ///

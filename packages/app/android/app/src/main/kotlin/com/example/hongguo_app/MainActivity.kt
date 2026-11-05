@@ -1,13 +1,9 @@
 package com.example.hongguo_app
 
-import android.app.PendingIntent
 import android.app.PictureInPictureParams
 import android.content.Intent
 import android.content.res.Configuration
-import android.net.Uri
 import android.os.Build
-import android.os.Bundle
-import android.provider.Settings
 import android.util.Rational
 import android.view.KeyEvent
 import com.ryanheise.audioservice.AudioServiceActivity
@@ -18,10 +14,6 @@ class MainActivity : AudioServiceActivity() {
     private var playbackChannel: MethodChannel? = null
     private var multicastLock: android.net.wifi.WifiManager.MulticastLock? = null
     private var tvBackDown = false
-
-    /// The `install` call stays unanswered until the system reports on the
-    /// session, because a commit the viewer has to confirm is not yet an install.
-    private var installReply: MethodChannel.Result? = null
 
     @Suppress("DEPRECATION")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -49,97 +41,6 @@ class MainActivity : AudioServiceActivity() {
             return
         }
         super.onBackPressed()
-    }
-
-    /// The session's status [PendingIntent] is addressed to this activity, so a
-    /// running app takes it here. [android.content.pm.PackageInstaller] answers a
-    /// commit that needs the viewer's own confirmation with
-    /// [android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION] and the
-    /// dialog wrapped in [Intent.EXTRA_INTENT] -- launching that wrapped intent is
-    /// the only way the installer UI appears.
-    ///
-    /// The trip to 「安装未知应用」 is exactly when Android takes this process, and the
-    /// status intent is then what starts it again -- so the same answer also arrives
-    /// in [getIntent], where nothing is waiting for it.
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        intent?.let { handleInstallResult(it) }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        handleInstallResult(intent)
-    }
-
-    private fun handleInstallResult(intent: Intent) {
-        if (intent.action != INSTALL_RESULT_ACTION) return
-        val status = intent.getIntExtra(
-            android.content.pm.PackageInstaller.EXTRA_STATUS,
-            android.content.pm.PackageInstaller.STATUS_FAILURE
-        )
-        if (status == android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION) {
-            // Only a call still waiting may open the confirmation: a launch the
-            // installer itself started would otherwise raise a second dialog over
-            // the one already on screen.
-            if (installReply == null) return
-            val confirm = confirmIntent(intent)
-            val opened = confirm != null && runCatching { startActivity(confirm) }.isSuccess
-            answerInstall(
-                if (opened) "已交给系统安装器，请在弹窗中确认安装。"
-                else "系统安装器没能打开，请在设置里允许本应用安装未知应用后重试。"
-            )
-        } else answerInstall(installWords(status, intent))
-    }
-
-    @Suppress("DEPRECATION")
-    private fun confirmIntent(intent: Intent): Intent? =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-            intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
-        else intent.getParcelableExtra(Intent.EXTRA_INTENT)
-
-    private fun installWords(
-        status: Int,
-        intent: Intent
-    ): String = when (status) {
-        android.content.pm.PackageInstaller.STATUS_SUCCESS ->
-            "新版本已安装，重新打开应用即可使用。"
-        else -> {
-            val reason = intent.getStringExtra(
-                android.content.pm.PackageInstaller.EXTRA_STATUS_MESSAGE
-            )
-            "系统没有完成安装${if (reason == null) "" else "（$reason）"}，" +
-                "请检查「安装未知应用」权限后重试。"
-        }
-    }
-
-    /// Answers the waiting `install` call exactly once: the system can deliver a
-    /// second status after a rotation or a late confirm, and a [MethodChannel.Result]
-    /// that has already been used must not be touched again.
-    ///
-    /// With nothing waiting -- the launch the installer itself started -- the words
-    /// are written down instead of dropped, because 「新版本已安装」 arriving in a
-    /// process that has no call to answer is the only answer the viewer will get.
-    private fun answerInstall(message: String) {
-        val reply = installReply
-        if (reply == null) {
-            runCatching { resultFile().writeText(message) }
-            return
-        }
-        installReply = null
-        reply.success(message)
-    }
-
-    private fun resultFile() = java.io.File(filesDir, INSTALL_RESULT_FILE)
-
-    /// The words a launch without a waiting call kept, taken once: reading them
-    /// again on a later return would repeat a sentence about an install that has
-    /// long since settled.
-    private fun takeInstallResult(): String? {
-        val file = resultFile()
-        if (!file.isFile) return null
-        val words = runCatching { file.readText() }.getOrNull()
-        runCatching { file.delete() }
-        return words
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -205,103 +106,16 @@ class MainActivity : AudioServiceActivity() {
                 else -> result.notImplemented()
             }
         }
+        // The update flow's permission question is answered by `permission_handler`
+        // and its install intent by `flutter_app_installer`; this channel only
+        // says which ABIs the device runs, which is what picks the APK.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "hongguo/update")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "abi" -> result.success(Build.SUPPORTED_ABIS.toList())
-                    "canInstall" -> result.success(canRequestInstalls())
-                    "askPermission" -> result.success(openInstallPermissionSettings())
-                    "install" -> beginInstall(call.argument<String>("path"), result)
-                    "installResult" -> result.success(takeInstallResult())
                     else -> result.notImplemented()
                 }
             }
-    }
-
-    /// Whether this app may put an APK in front of the installer at all. Below
-    /// Android 8 the toggle is a global one the installer itself prompts for, so
-    /// there is nothing per-app to ask -- report it as allowed and let the system
-    /// dialog decide.
-    private fun canRequestInstalls(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()
-
-    /// Opens this app's 「安装未知应用」 row. Android 8+ keeps that permission out
-    /// of the runtime dialog, so the only way to get it is a settings screen.
-    ///
-    /// `ACTION_MANAGE_UNKNOWN_APP_SOURCES` is not on every ROM, and an
-    /// `startActivity` that finds nothing fails quietly in the middle of an update,
-    /// so the app-details page is the fallback that resolves on every device. A
-    /// `false` here now means neither screen exists -- the only case where the
-    /// caller has to name the switch by hand instead of pointing at it.
-    private fun openInstallPermissionSettings(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
-        val packageUri = Uri.parse("package:$packageName")
-        if (openIfAvailable(
-                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, packageUri)
-            )
-        ) return true
-        return openIfAvailable(
-            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
-        )
-    }
-
-    private fun openIfAvailable(intent: Intent): Boolean {
-        val resolver = packageManager.resolveActivity(
-            intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY
-        )
-        if (resolver == null) return false
-        return runCatching {
-            startActivity(intent)
-            true
-        }.getOrDefault(false)
-    }
-
-    /// Installs through a [android.content.pm.PackageInstaller] session, which
-    /// streams the bytes from a path only this app can read -- so no FileProvider
-    /// and no file:// URI, the shape that Android 24+ refuses outright.
-    ///
-    /// [reply] is left unanswered on success: the answer comes from [onNewIntent]
-    /// once the system says what it did with the session.
-    private fun beginInstall(path: String?, reply: MethodChannel.Result) {
-        val file = path?.let { java.io.File(it) }
-        if (file == null || !file.isFile) {
-            reply.success("更新文件已经不在了，请重新检查更新。")
-            return
-        }
-        // The UI asks before it gets here; this is the race where the viewer
-        // revokes the permission in between, and a session committed without it
-        // fails silently -- so refuse in words instead.
-        if (!canRequestInstalls()) {
-            reply.success("还没有允许本应用安装未知应用，请在系统设置中打开该权限后重试。")
-            return
-        }
-        val installer = packageManager.packageInstaller
-        var sessionId = -1
-        installReply = reply
-        try {
-            val params = android.content.pm.PackageInstaller.SessionParams(
-                android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL
-            )
-            sessionId = installer.createSession(params)
-            installer.openSession(sessionId).use { session ->
-                java.io.FileInputStream(file).use { input ->
-                    session.openWrite(file.name, 0, file.length()).use { output ->
-                        input.copyTo(output)
-                        session.fsync(output)
-                    }
-                }
-                val status = Intent(this, javaClass)
-                    .setAction(INSTALL_RESULT_ACTION)
-                    .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                else PendingIntent.FLAG_UPDATE_CURRENT
-                session.commit(PendingIntent.getActivity(this, sessionId, status, flags).intentSender)
-            }
-        } catch (error: Exception) {
-            if (sessionId >= 0) runCatching { installer.abandonSession(sessionId) }
-            answerInstall("系统没有接受这次安装，请检查「安装未知应用」权限后重试。")
-        }
     }
 
     override fun onPictureInPictureModeChanged(active: Boolean, config: Configuration) {
@@ -313,16 +127,6 @@ class MainActivity : AudioServiceActivity() {
         // the user has not enabled background playback.
         playbackChannel?.invokeMethod("pip", false)
         multicastLock?.let { if (it.isHeld) it.release() }
-        // A dead activity cannot answer a channel call that died with it.
-        installReply = null
         super.onDestroy()
-    }
-
-    companion object {
-        private const val INSTALL_RESULT_ACTION = "hongguo.update.result"
-
-        /// Where install words are written down when no Dart call is around to hear
-        /// them, so the next `resume` can hand them over.
-        private const val INSTALL_RESULT_FILE = "hongguo-install-result.txt"
     }
 }

@@ -28,6 +28,8 @@ dependencies:
   share_plus: any
   cupertino_icons: any
   dio: any
+  permission_handler: any
+  flutter_app_installer: any
   flutter_riverpod: any
   get_it: any
   hongguo_core:

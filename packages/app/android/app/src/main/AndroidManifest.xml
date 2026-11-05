@@ -40,6 +40,19 @@
         <receiver android:name="com.ryanheise.audioservice.MediaButtonReceiver" android:exported="true">
             <intent-filter><action android:name="android.intent.action.MEDIA_BUTTON"/></intent-filter>
         </receiver>
+        <!-- Hands a downloaded APK to the system installer: flutter_app_installer
+             resolves its staged file through this provider as
+             <applicationId>.fileProvider, the shape ACTION_VIEW accepts on 7+.
+             The paths it may see are declared in res/xml/file_paths.xml. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileProvider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

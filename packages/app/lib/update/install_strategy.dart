@@ -54,64 +54,71 @@ class _PendingApk {
 /// it is exactly when Android takes this process away. So the verified APK is
 /// written down as owed, and [resume] pays it on the next return, whichever
 /// return that is: from the settings screen, or a launch the system started.
+///
+/// The permission question and the install itself are the two plugins' --
+/// `permission_handler` answers 「may this app install at all」 and
+/// `flutter_app_installer` opens the system installer over the verified APK.
+/// What the plugin cannot give back is the install's outcome: the intent is
+/// fire-and-forget, so the app reports the handoff, never a 已安装 it did not see.
 class AndroidInstaller {
-  AndroidInstaller({required this.stageDirectory});
+  AndroidInstaller({
+    required this.stageDirectory,
+    AndroidInstallerGateway? gateway,
+  }) : gateway = gateway ?? AndroidInstallerGateway();
 
   /// The directory the release downloader wrote into, so a later launch finds the
   /// APK and its note under the same names.
   final Future<String> Function() stageDirectory;
+
+  /// Injectable because the suite has neither plugin to hand an install to, and
+  /// the order of the questions -- permission first, intent second -- is the
+  /// thing under test.
+  final AndroidInstallerGateway gateway;
 
   Future<File> _markerFile() async => File(
     '${await stageDirectory()}${Platform.pathSeparator}hongguo-pending-install.json',
   );
 
   Future<InstallPlan> install(DownloadedRelease file) async {
-    if (await AndroidUpdate.canInstallPackages()) {
+    if (await gateway.canInstall()) {
       await _forget();
-      return InstallPlan(message: await AndroidUpdate.installApk(file.path));
+      return InstallPlan(message: await gateway.installApk(file.path));
     }
-    final opened = await AndroidUpdate.openInstallPermissionSettings();
+    await gateway.requestPermission();
     final marker = await _markerFile();
     await marker.writeAsString(
       jsonEncode(_PendingApk(path: file.path, bytes: file.bytes).toJson()),
     );
-    return InstallPlan(
-      message: opened
-          ? '需要先允许本应用安装未知应用：请在设置中打开该权限，回到应用后会自动继续安装。'
-          : '请先在系统设置的应用权限里允许本应用安装未知应用，回到应用后会自动继续安装。',
+    return const InstallPlan(
+      message: '需要先允许本应用安装未知应用：请在设置中打开该权限，回到应用后会自动继续安装。',
       owesInstall: true,
     );
   }
 
   /// A return to the app, and what it has to say about the install it found
-  /// owed. Null means this app owed nothing and the system had no words for it --
-  /// the common case on every platform without an installer path, and on Android
-  /// once the note has been paid.
+  /// owed. Null means this app owed nothing -- the common case on every platform
+  /// without an installer path, and on Android once the note has been paid.
   ///
   /// A debt that is still unpaid answers in words. Staying silent here was the
   /// hole a viewer lands in most often: they press 立即更新, Android takes the app to
   /// the settings screen, they come back without turning the switch -- and
   /// nothing on screen says the update is still waiting, because the prompt
   /// closed on the way out and the only trace was a file nobody reads.
-  ///
-  /// With no debt left, the answer can still be a sentence the system wrote while
-  /// this process was gone: the session reports into the launch the installer
-  /// itself started, where no `install` call is waiting to hear it.
   Future<String?> resume() async {
     final pending = await _read();
-    if (pending == null) return AndroidUpdate.lastInstallResult();
-    if (!await AndroidUpdate.canInstallPackages()) {
+    if (pending == null) return null;
+    if (!await gateway.canInstall()) {
       return '还欠着一次更新安装：本应用仍未被允许安装未知应用。在系统设置里打开该权限后回到应用会自动继续，不需要再点一次。';
     }
     if (!await _intact(pending)) {
       await _forget();
       return '安装包已经不完整或被系统清理，请重新点「立即更新」下载。';
     }
-    // Spent before the session opens: the system dialog that follows can sit on
-    // the screen while the viewer decides, and a launch inside that window must
-    // not commit a second session for the same APK.
+    // Spent before the installer opens: the system dialog that follows can sit
+    // on the screen while the viewer decides, and a return inside that window
+    // must not hand the same APK over a second time.
     await _forget();
-    return AndroidUpdate.installApk(pending.path);
+    return gateway.installApk(pending.path);
   }
 
   /// Whether an install is owed right now, which is the note's existence rather

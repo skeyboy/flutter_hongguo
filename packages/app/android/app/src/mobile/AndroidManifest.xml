@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- The in-app update hands a verified APK to a PackageInstaller session.
-         The TV flavor has no update path at all, so it never asks for this. -->
+    <!-- The in-app update asks permission_handler for this one and hands the
+         verified APK to the installer intent through the FileProvider declared
+         in the main manifest. The TV flavor has no update path at all, so it
+         never asks for this. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <application><activity android:name="com.example.hongguo_app.MainActivity">
         <intent-filter>
