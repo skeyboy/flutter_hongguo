@@ -347,21 +347,125 @@ void main() {
       dio.close();
     },
   );
+  test('an answer on the first try costs no second registration', () async {
+    final adapter = FakeAdapter('https://test.fqnovel.com/info');
+    final dio = Dio()..httpClientAdapter = adapter;
+    final devices = RotatingDevices();
+    await VideoModelClient(
+      dio: dio,
+      builder: builder(),
+      devices: devices,
+    ).fetchTrack('123');
+    expect(devices.issued, 1);
+    dio.close();
+  });
+  test('a kept answer is reused without registering or asking again', () async {
+    final adapter = FakeAdapter('https://test.fqnovel.com/info');
+    final dio = Dio()..httpClientAdapter = adapter;
+    final devices = RotatingDevices();
+    final client = VideoModelClient(
+      dio: dio,
+      builder: builder(),
+      devices: devices,
+    );
+    final first = await client.fetchTrack('123');
+    final again = await client.fetchTrack('123');
+    final qualities = await client.fetchQualities('123');
+    expect(again.url, first.url);
+    expect(qualities, isNotEmpty);
+    // One registration and one player POST for the whole session: this is
+    // what a batch queue and the next online play now share instead of each
+    // asking the upstream per episode.
+    expect(devices.issued, 1);
+    expect(
+      adapter.requests.where((request) => request.method == 'POST'),
+      hasLength(1),
+    );
+    dio.close();
+  });
   test(
-    'an answer on the first try costs no second registration',
+    'an answer dropped from the shared table is asked from upstream again',
     () async {
       final adapter = FakeAdapter('https://test.fqnovel.com/info');
       final dio = Dio()..httpClientAdapter = adapter;
       final devices = RotatingDevices();
-      await VideoModelClient(
+      // The runtime holds this one table and empties a vid from it when
+      // MediaCache.evict deletes the file that was resolved from it.
+      final kept = <String, PlaybackInfoEntry>{};
+      final client = VideoModelClient(
         dio: dio,
         builder: builder(),
         devices: devices,
-      ).fetchTrack('123');
+        info: kept,
+      );
+      await client.fetchTrack('123');
+      await client.fetchTrack('123');
       expect(devices.issued, 1);
+      kept.remove('123');
+      await client.fetchTrack('123');
+      expect(devices.issued, 2);
       dio.close();
     },
   );
+  test('a kept answer expires on its own', () async {
+    final adapter = FakeAdapter('https://test.fqnovel.com/info');
+    final dio = Dio()..httpClientAdapter = adapter;
+    final devices = RotatingDevices();
+    var clock = DateTime(2026, 11, 6, 12);
+    final client = VideoModelClient(
+      dio: dio,
+      builder: builder(),
+      devices: devices,
+      now: () => clock,
+      trackTtl: const Duration(minutes: 3),
+    );
+    await client.fetchTrack('123');
+    await client.fetchTrack('123');
+    expect(devices.issued, 1, reason: 'the second ask rode the kept answer');
+    clock = clock.add(const Duration(minutes: 4));
+    await client.fetchTrack('123');
+    expect(
+      devices.issued,
+      2,
+      reason: 'past the TTL the upstream is asked again',
+    );
+    dio.close();
+  });
+  test('the shared table stops at its ceiling', () async {
+    final adapter = FakeAdapter('https://test.fqnovel.com/info');
+    final dio = Dio()..httpClientAdapter = adapter;
+    final devices = RotatingDevices();
+    final clock = DateTime(2026, 11, 6, 12);
+    // Full before anything ages out, which is what a long batch does: every
+    // episode is answered inside the TTL of the first one.
+    final kept = <String, PlaybackInfoEntry>{
+      for (var n = 0; n < 256; n++)
+        'fill$n': (
+          expires: clock.add(Duration(seconds: 600 + n)),
+          value: const <String, dynamic>{'kept': 0},
+        ),
+    };
+    final client = VideoModelClient(
+      dio: dio,
+      builder: builder(),
+      devices: devices,
+      now: () => clock,
+      info: kept,
+    );
+    await client.fetchTrack('123');
+    expect(
+      kept.length,
+      256,
+      reason: 'the table does not grow past its ceiling',
+    );
+    expect(
+      kept.containsKey('fill0'),
+      isFalse,
+      reason: 'the answer closest to its own end went first',
+    );
+    expect(kept['123']!.value, isNotEmpty);
+    dio.close();
+  });
   test('the player hop recovers over a wider window than a catalog hop', () {
     final catalog = NetworkRetry();
     final playback = VideoModelClient.playbackRetry();

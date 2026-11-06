@@ -173,6 +173,10 @@ class MediaCache {
   /// Explicit user downloads survive ordinary LRU and cache clearing.
   final bool Function(String vid, String quality)? retainFile;
 
+  /// Lets the holder of resolved playback info forget a deleted episode, so a
+  /// kept answer cannot outlive the file it produced.
+  final void Function(String vid, String quality)? onEvict;
+
   /// Turns an encrypted transfer into a mid-download loopback stream when on.
   /// The answer is sampled per job, so a settings change applies to the next
   /// preparation without restarting the cache.
@@ -228,6 +232,7 @@ class MediaCache {
     this.maxConcurrent = 2,
     this.maxDownloadConcurrent = 1,
     this.retainFile,
+    this.onEvict,
     this.progressivePlayback,
     this.progressiveMetadataBytes = 8 * 1024 * 1024,
     this.progressiveOpenFloorBytes = 256 * 1024,
@@ -1068,6 +1073,9 @@ class MediaCache {
 
   Future<void> evict(String vid, {String quality = 'best'}) async {
     final path = '${directory.path}/${_key(vid, quality)}.mp4';
+    // Whether or not the file survives, an answer kept for it may no longer
+    // be handed to a player.
+    onEvict?.call(vid, quality);
     if (_pins.containsKey(path)) return;
     for (final name in [path, '$path.json']) {
       try {

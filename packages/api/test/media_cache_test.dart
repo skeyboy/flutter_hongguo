@@ -362,6 +362,29 @@ void main() {
       expect(await cache.entries(), isEmpty);
     },
   );
+  test(
+    'evict names the deleted episode to the holder of its playback info',
+    () async {
+      final named = <String>[];
+      final local = MediaCache(
+        directory: temp,
+        dio: dio,
+        resolve: (_, _) async => track,
+        onEvict: (vid, quality) => named.add('${vid}_$quality'),
+      );
+      addTearDown(local.close);
+      final job = local.prepare('123');
+      await job.result;
+      // While the file is pinned the delete is refused, but the kept answer
+      // still goes: the next ask must re-read the upstream rather than hand
+      // out a URL whose file the viewer just threw away.
+      await local.evict('123');
+      expect(named, ['123_best']);
+      local.release(job);
+      await local.evict('123', quality: '720p');
+      expect(named, ['123_best', '123_720p']);
+    },
+  );
   test('offline-only acquisition pins cached file and never resolves a missing file', () async {
     final job = cache.prepare('123');
     final path = await job.result;

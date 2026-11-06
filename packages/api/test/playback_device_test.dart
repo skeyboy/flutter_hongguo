@@ -175,6 +175,7 @@ void main() {
     addTearDown(dio.close);
     final registry = PlaybackDeviceRegistry(
       dio: dio,
+      registerInterval: Duration.zero,
       clockMillis: () => 1700000000123,
       entropy: lcgEntropy(1000),
       uuid: countedUuid(),
@@ -212,7 +213,7 @@ void main() {
       final dio = Dio()..httpClientAdapter = adapter;
       addTearDown(dio.close);
       await expectLater(
-        PlaybackDeviceRegistry(dio: dio).get(),
+        PlaybackDeviceRegistry(dio: dio, registerInterval: Duration.zero).get(),
         throwsA(
           isA<IncompleteCatalogResponse>().having(
             (IncompleteCatalogResponse e) => '$e',
@@ -224,12 +225,19 @@ void main() {
     },
   );
   test(
-    'a failed registration is not cached, so the next playback may ask again',
+    'a refused registration is held for a cooldown instead of re-hit per ask',
     () async {
       final adapter = RegisterAdapter('{"code":7}');
       final dio = Dio()..httpClientAdapter = adapter;
       addTearDown(dio.close);
-      final registry = PlaybackDeviceRegistry(dio: dio);
+      final registry = PlaybackDeviceRegistry(
+        dio: dio,
+        registerInterval: Duration.zero,
+        registerFailureCooldown: const Duration(milliseconds: 250),
+      );
+      // A batch queue asks once per episode. While the endpoint is refusing,
+      // those asks must not each buy their own POST -- that is the burst which
+      // the viewer's next online play then pays for.
       await expectLater(
         registry.get(),
         throwsA(isA<IncompleteCatalogResponse>()),
@@ -238,27 +246,93 @@ void main() {
         registry.get(),
         throwsA(isA<IncompleteCatalogResponse>()),
       );
-      expect(adapter.requests, hasLength(2));
+      await expectLater(
+        registry.get(),
+        throwsA(isA<IncompleteCatalogResponse>()),
+      );
+      expect(
+        adapter.requests,
+        hasLength(1),
+        reason: 'two asks rode the cooldown',
+      );
+      // The cooldown is a pause, not a verdict: after it the endpoint is asked
+      // again, and a fresh answer ends it.
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      final ok = RegisterAdapter(responseText);
+      dio.httpClientAdapter = ok;
+      final device = await registry.get();
+      expect(device.deviceId, '7661622467441478681');
+      expect(ok.requests, hasLength(1));
     },
   );
-  test(
-    'concurrent asks share the in-flight registration, then each ask registers again',
-    () async {
-      final adapter = RotatingRegisterAdapter();
-      final dio = Dio()..httpClientAdapter = adapter;
-      addTearDown(dio.close);
-      final registry = PlaybackDeviceRegistry(dio: dio);
-      // A burst of simultaneous resolutions registers once, not once per
-      // caller -- the endpoint is a log service, not a per-request toll.
-      final racing = await Future.wait([registry.get(), registry.get()]);
-      expect(racing.first.deviceId, racing.last.deviceId);
-      expect(adapter.requests, hasLength(1));
-      // Whoever asks after that registration has settled is handed a pair
-      // this process never spent, because replaying a spent pair only buys
-      // the HTTP 200 with nothing the player gives a refused identity.
-      final renewed = await registry.get();
-      expect(renewed.deviceId, isNot(racing.first.deviceId));
-      expect(adapter.requests, hasLength(2));
-    },
-  );
+  test('a batch of asks shares one registration, and the next one waits its interval', () async {
+    final adapter = RotatingRegisterAdapter();
+    final dio = Dio()..httpClientAdapter = adapter;
+    addTearDown(dio.close);
+    final registry = PlaybackDeviceRegistry(
+      dio: dio,
+      registerInterval: const Duration(milliseconds: 80),
+    );
+    // Five resolutions released by one batch task register once, not once
+    // per caller -- the endpoint is a log service, not a per-request toll.
+    final racing = await Future.wait([
+      registry.get(),
+      registry.get(),
+      registry.get(),
+      registry.get(),
+      registry.get(),
+    ]);
+    expect(racing.map((device) => device.deviceId).toSet(), hasLength(1));
+    expect(adapter.requests, hasLength(1));
+    // The ask after that is a fresh identity, but its start is spaced: the
+    // queue's next episode does not join a burst at the log endpoint.
+    final gate = Stopwatch()..start();
+    final next = await registry.get();
+    expect(next.deviceId, isNot(racing.first.deviceId));
+    expect(
+      gate.elapsed,
+      greaterThanOrEqualTo(const Duration(milliseconds: 60)),
+      reason: 'the second registration paid the interval, not the queue',
+    );
+    expect(adapter.requests, hasLength(2));
+  });
+  test('a failed registration is not cached as an identity', () async {
+    final adapter = RegisterAdapter('{"code":7}');
+    final dio = Dio()..httpClientAdapter = adapter;
+    addTearDown(dio.close);
+    final registry = PlaybackDeviceRegistry(
+      dio: dio,
+      registerInterval: Duration.zero,
+      registerFailureCooldown: Duration.zero,
+    );
+    await expectLater(
+      registry.get(),
+      throwsA(isA<IncompleteCatalogResponse>()),
+    );
+    await expectLater(
+      registry.get(),
+      throwsA(isA<IncompleteCatalogResponse>()),
+    );
+    expect(adapter.requests, hasLength(2));
+  });
+  test('concurrent asks share the in-flight registration, then each ask registers again', () async {
+    final adapter = RotatingRegisterAdapter();
+    final dio = Dio()..httpClientAdapter = adapter;
+    addTearDown(dio.close);
+    final registry = PlaybackDeviceRegistry(
+      dio: dio,
+      registerInterval: Duration.zero,
+    );
+    // A burst of simultaneous resolutions registers once, not once per
+    // caller -- the endpoint is a log service, not a per-request toll.
+    final racing = await Future.wait([registry.get(), registry.get()]);
+    expect(racing.first.deviceId, racing.last.deviceId);
+    expect(adapter.requests, hasLength(1));
+    // Whoever asks after that registration has settled is handed a pair
+    // this process never spent, because replaying a spent pair only buys
+    // the HTTP 200 with nothing the player gives a refused identity.
+    final renewed = await registry.get();
+    expect(renewed.deviceId, isNot(racing.first.deviceId));
+    expect(adapter.requests, hasLength(2));
+  });
 }

@@ -50,12 +50,32 @@ class PlaybackDeviceRegistry {
   final Uint8List Function(int) entropy;
   final String Function() uuid;
 
+  /// Smallest gap between two `device_register` POSTs, and how long a failed
+  /// registration keeps its answer. A batch queue resolves every uncached
+  /// episode, and since 11-03 each resolve carries its own fresh registration
+  /// (a spent pair is never replayed), so an unspaced batch is a burst of
+  /// identical-shaped POSTs at a log service that rate-limits bursts -- and the
+  /// viewer's next online play then asks while that is being refused.
+  final Duration registerInterval, registerFailureCooldown;
+
+  /// Monotonic, so a settings clock or an NTP jump cannot move the gate.
+  final _clock = Stopwatch()..start();
+
+  /// Seeded in the past: the very first ask of a session must not pay for an
+  /// interval that was never spent.
+  Duration _lastRegistration = const Duration(seconds: -1);
+  Future<void> _queue = Future.value();
+  Duration? _cooldownUntil;
+  Object? _cooldownError;
+
   PlaybackDeviceRegistry({
     required this.dio,
     this.timeout = const Duration(seconds: 8),
     int Function()? clockMillis,
     Uint8List Function(int)? entropy,
     String Function()? uuid,
+    this.registerInterval = const Duration(milliseconds: 800),
+    this.registerFailureCooldown = const Duration(seconds: 5),
   }) : clockMillis =
            clockMillis ?? (() => DateTime.now().millisecondsSinceEpoch),
        entropy = entropy ?? secureBytes,
@@ -70,41 +90,81 @@ class PlaybackDeviceRegistry {
   /// fetch would spend that fetch's first try on a known refusal. Concurrent
   /// asks do share the one in-flight registration; whoever gets refused
   /// simply asks again and is handed a fresh pair.
+  ///
+  /// Fresh-pair-per-ask is right for the player endpoint and wrong for the
+  /// registration endpoint: a batch queue asks once per episode, so the starts
+  /// are spaced (`registerInterval`) and a refusal is held for a moment
+  /// (`registerFailureCooldown`) instead of being re-hit per ask.
   Future<PlaybackDevice>? _pending;
-  Future<PlaybackDevice> get({CancelToken? cancelToken}) =>
-      _pending ??= _register(cancelToken: cancelToken);
+  Future<PlaybackDevice> get({CancelToken? cancelToken}) {
+    if (_cooldownUntil != null && _clock.elapsed < _cooldownUntil!) {
+      final held =
+          _cooldownError ?? const IncompleteCatalogResponse('播放设备注册失败，请稍后重试');
+      return Future<PlaybackDevice>.error(held);
+    }
+    return _pending ??= _post(cancelToken: cancelToken);
+  }
 
-  Future<PlaybackDevice> _register({CancelToken? cancelToken}) async {
+  /// One `device_register` POST, started only after the previous one has been
+  /// answered for at least [registerInterval]. The gate serialises the starts,
+  /// not the exchanges: a slow registration must not hold the next one back
+  /// for longer than its own interval.
+  Future<PlaybackDevice> _post({CancelToken? cancelToken}) async {
+    final slot = _queue.then((_) async {
+      final wait = registerInterval - (_clock.elapsed - _lastRegistration);
+      if (wait > Duration.zero) await Future<void>.delayed(wait);
+      _lastRegistration = _clock.elapsed;
+    });
+    _queue = slot.catchError((Object _) {});
     try {
-      final now = clockMillis();
-      final cdid = uuid();
-      final body = buildBody(now, cdid);
-      final response = await dio.fetch<String>(
-        Options(
-              method: 'POST',
-              headers: requestHeaders(now, body),
-              responseType: ResponseType.plain,
-              followRedirects: false,
-              sendTimeout: timeout,
-              receiveTimeout: timeout,
-            )
-            .compose(
-              dio.options,
-              registerUrl,
-              data: Stream<Uint8List>.value(body),
-              cancelToken: cancelToken,
-            )
-            .copyWith(connectTimeout: timeout),
-      );
-      if (response.statusCode != 200) {
-        throw StateError('register HTTP ${response.statusCode}');
+      await slot;
+      final device = await _register(cancelToken: cancelToken);
+      _cooldownUntil = null;
+      _cooldownError = null;
+      return device;
+    } catch (error) {
+      // A cancellation is this app stopping, not the endpoint refusing: it
+      // says nothing about whether the next ask would be answered.
+      if (!_isCancelled(error)) {
+        _cooldownUntil = _clock.elapsed + registerFailureCooldown;
+        _cooldownError = error;
       }
-      return parseDevice(response.data ?? '', cdid);
+      rethrow;
     } finally {
       // Whether it answered a pair or failed outright, this registration is
       // settled: the next ask starts a new one instead of replaying it.
       _pending = null;
     }
+  }
+
+  static bool _isCancelled(Object error) =>
+      error is DioException && error.type == DioExceptionType.cancel;
+
+  Future<PlaybackDevice> _register({CancelToken? cancelToken}) async {
+    final now = clockMillis();
+    final cdid = uuid();
+    final body = buildBody(now, cdid);
+    final response = await dio.fetch<String>(
+      Options(
+            method: 'POST',
+            headers: requestHeaders(now, body),
+            responseType: ResponseType.plain,
+            followRedirects: false,
+            sendTimeout: timeout,
+            receiveTimeout: timeout,
+          )
+          .compose(
+            dio.options,
+            registerUrl,
+            data: Stream<Uint8List>.value(body),
+            cancelToken: cancelToken,
+          )
+          .copyWith(connectTimeout: timeout),
+    );
+    if (response.statusCode != 200) {
+      throw StateError('register HTTP ${response.statusCode}');
+    }
+    return parseDevice(response.data ?? '', cdid);
   }
 
   /// The envelope bytes, split out so a test can replay a pinned oracle vector

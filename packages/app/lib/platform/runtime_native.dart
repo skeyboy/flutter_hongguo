@@ -114,6 +114,11 @@ class NativeRuntime
   bool _clientsReady = false;
   late CatalogClient _catalog;
   late VideoModelClient _model;
+
+  /// Answers kept per vid across client rebuilds, so a settings change in the
+  /// middle of a batch cannot make the rest of the queue re-register and
+  /// re-ask for episodes the upstream already answered for.
+  final _videoInfo = <String, PlaybackInfoEntry>{};
   late final MediaCache _cache;
   late final NativeDownloads _downloads;
   final _retained = <String>{};
@@ -152,6 +157,7 @@ class NativeRuntime
       maxConcurrent: tvBuild ? 1 : settings.concurrentPreparations,
       maxDownloadConcurrent: settings.downloadConcurrent,
       retainFile: (vid, quality) => downloads.retains(vid, quality),
+      onEvict: (vid, quality) => _videoInfo.remove(vid),
       progressivePlayback: () => settings.progressivePlayback && !tvBuild,
       resolve: (vid, quality) => _model.fetchTrack(vid, quality: quality),
     );
@@ -261,6 +267,7 @@ class NativeRuntime
       onTiming: (value) => _retain(_metadataTimings, value),
       devices: _playbackDevices,
       builder: VideoRequestBuilder(protocol: settings),
+      info: _videoInfo,
     );
     _clientsReady = true;
   }
@@ -472,7 +479,11 @@ class NativeRuntime
   @override
   Future<int> cacheBytes() => _cache.cacheBytes();
   @override
-  Future<void> clearCache() => _cache.clear();
+  Future<void> clearCache() async {
+    await _cache.clear();
+    _videoInfo.clear();
+  }
+
   @override
   Future<void> dispose() async {
     await downloads.shutdown();

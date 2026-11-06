@@ -184,6 +184,11 @@ class VideoTrack {
   });
 }
 
+/// One answered playback info, with the moment it stops being reusable. Held
+/// across client rebuilds by the runtime, so a settings change in the middle of
+/// a batch does not reopen every episode the upstream already answered for.
+typedef PlaybackInfoEntry = ({DateTime expires, Map<String, dynamic> value});
+
 /// Native direct-upstream POC. Web should use a remote API adapter instead.
 /// Redirects are disabled so an unchecked location never receives signed headers.
 class VideoModelClient {
@@ -192,16 +197,34 @@ class VideoModelClient {
   final NetworkRetry retry;
   final PlaybackDeviceRegistry devices;
   final CatalogRequests _requests;
+
+  /// How long one vid's answered playback info is kept. Every uncached episode
+  /// of a batch asks this hop, and each ask costs a fresh device registration
+  /// plus a signed POST; the answer itself does not change episode by episode
+  /// within a short window. Kept well under the signed media URL's own life, so
+  /// an old URL costs a re-ask, never a broken play.
+  final Duration trackTtl;
+  final DateTime Function() now;
+  final Map<String, PlaybackInfoEntry> _info;
+
+  /// A batch resolves every episode it touches, so an unbounded table would
+  /// keep the whole drama's answers for the length of the session.
+  static const _infoCeiling = 256;
   VideoModelClient({
     required this.dio,
     VideoRequestBuilder? builder,
     NetworkRetry? retry,
     PlaybackDeviceRegistry? devices,
     Duration requestDeadline = const Duration(seconds: 20),
+    this.trackTtl = const Duration(minutes: 3),
+    DateTime Function()? now,
     void Function(MetadataTiming)? onTiming,
+    Map<String, PlaybackInfoEntry>? info,
   }) : builder = builder ?? VideoRequestBuilder(),
        retry = retry ?? playbackRetry(),
        devices = devices ?? PlaybackDeviceRegistry(dio: dio),
+       now = now ?? DateTime.now,
+       _info = info ?? <String, PlaybackInfoEntry>{},
        _requests = CatalogRequests(
          deadline: requestDeadline,
          onTiming: onTiming,
@@ -220,11 +243,40 @@ class VideoModelClient {
       Duration(milliseconds: 4000 + Random().nextInt(501)),
     ],
   );
-  Future<Map<String, dynamic>> fetchVideoInfo(String vid) => _requests.run(
-    'video:$vid',
-    () => _fetchVideoInfo(vid),
-    label: 'video.metadata',
-  );
+
+  /// Answers kept per vid are dropped after [trackTtl], or when the episode is
+  /// declined upstream or its file is deleted.
+  Future<Map<String, dynamic>> fetchVideoInfo(String vid) async {
+    final kept = _info[vid];
+    if (kept != null && kept.expires.isAfter(now())) return kept.value;
+    try {
+      final value = await _requests.run(
+        'video:$vid',
+        () => _fetchVideoInfo(vid),
+        label: 'video.metadata',
+      );
+      if (_info.length >= _infoCeiling) {
+        final clock = now();
+        _info.removeWhere((_, entry) => !entry.expires.isAfter(clock));
+        if (_info.length >= _infoCeiling) {
+          // A long batch can fill the table before anything ages out. The
+          // answer closest to its own end goes first: the queue reaches the
+          // next episode long before it revisits that one.
+          final oldest = _info.entries.reduce(
+            (a, b) => a.value.expires.isBefore(b.value.expires) ? a : b,
+          );
+          _info.remove(oldest.key);
+        }
+      }
+      _info[vid] = (expires: now().add(trackTtl), value: value);
+      return value;
+    } on PlaybackUnavailable {
+      // A refusal is an answer about this episode, so a kept record for it can
+      // only be an old one; drop it and let the next ask read upstream again.
+      _info.remove(vid);
+      rethrow;
+    }
+  }
 
   Duration _timeout(int maximum) => RequestBudget.current.timeout(
     Duration(
