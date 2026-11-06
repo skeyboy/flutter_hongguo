@@ -1,22 +1,27 @@
 <!DOCTYPE html>
 <!--
-  视频详情承接页 · 可预览原型（点击发现/分类/榜单里的卡片进入的二级页）
-  风格与 discover-filters-ranking.html 同一套：色板、卡片、读出窗、meta 条全部沿用，
-  并共用它的 API.feed（同一批实机样本的剧、真实集数与评分）。
-  标签 / 面板词 / 推荐轨条目来自 docs/evidence/detail-related-2026-10-30/live-sample-2.json
-  （packages/api/tool/related_vocab_sample.dart，18:04 那次捕获：主题 29 / 设定 42 / 背景 11）。
+  视频详情承接页 · 可预览原型（App 客户端形态）
+  规格出处：../video-detail-redesign.md —— 逐块结构、版面分派、TV 焦点序、「禁止的网页形态」清单都在那份文档里，
+  这一份只是它的可点预览。上一版原型是「网页落地页塞进设备外框」：自带顶栏 logo/搜索/头像、hero 头图、
+  右侧标签侧栏、?ep= 地址栏导航、auto-fill 卡片墙；这些在 App 里都不存在，本文档 §0 逐条给了代码读数并删掉。
+  四个视图按 宽度 × 输入族 分派（手机竖 / 手机横 / 平板与电脑客户端 / TV 遥控族），
+  切视图的控件属于原型 chrome，画框之内只有 App 真有的东西。
+  剧与集数 = 与发现页原型同一份实机常量；标签 / 面板词 / 推荐轨条目来自
+  docs/evidence/detail-related-2026-10-30/live-sample-2.json（主题 29 / 设定 42 / 背景 11）。
   简介文案、观看进度、海报是设计演示值——勾选顶部「标注演示数据」把所有演示位描成虚线。
-  设计说明见 ../video-detail-redesign.md。无网络依赖，双击即开。
+  无网络依赖，双击即开。
 -->
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>原型 · 视频详情承接页（电脑 / 手机 / 平板）</title>
+<title>原型 · 视频详情承接页（手机 / 平板 / 电脑客户端 / TV）</title>
 <style>
   :root{
     --ink:#15171c; --ink2:#454a57; --ink3:#8b909e; --line:#e3e5ea;
-    --bg:#f6f7f9; --card:#fff; --brand:#ff2d55; --brand-soft:#fff0f3;
+    --bg:#f6f7f9; --card:#fff; --brand:#c74334; --brand-soft:#fff0f3;
+    /* --brand 是客户端亮色主题的 primary 常量（main.dart:41 `#c74334`），不是 iOS 系统红；
+       --brand-soft 只是 primaryContainer 的近似，代码里没有这个字面量。 */
     --hot:#fa7705; --gold:#c08a12; --radius:12px;
   }
   *{box-sizing:border-box}
@@ -34,7 +39,9 @@
   .meta label{display:flex;align-items:center;gap:6px;color:#c8ccd6}
   .meta .hint{color:#9aa0ad;font-size:12px}
   .stage{padding:18px}
-  .frame{margin:0 auto;max-width:1280px;transition:max-width .18s}
+  /* 画框宽度过渡删掉了：EpisodePager 的列数是「切完尺寸立刻用 clientWidth 现算」的，
+     带 .18s 过渡时量到的是中间值（390 的手机量出 786 → 7 列），原型会把自己的算式演示错。 */
+  .frame{margin:0 auto;max-width:1280px}
   /* ---------- 读出窗 ---------- */
   .readout{margin:0 16px 14px;background:#15171c;color:#dfe3ea;border-radius:10px;padding:10px 12px;
            font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace}
@@ -54,21 +61,21 @@
   .chip[aria-pressed=true]{background:var(--brand-soft);color:var(--brand);font-weight:600;border-color:#ffd0da}
   .chip .n{font-size:11px;opacity:.72;margin-left:3px}
   button:focus-visible{outline:2px solid #4a90ff;outline-offset:2px}
-  .card{background:var(--card);border-radius:var(--radius);overflow:hidden;position:relative;text-align:left;
-        box-shadow:0 1px 3px rgba(20,22,28,.07)}
-  .cover{aspect-ratio:3/4;position:relative;background:linear-gradient(158deg,var(--c,#3b3f52),#0e1015)}
-  .cover .eps{position:absolute;right:6px;bottom:6px;font-size:11px;color:#fff;background:rgba(0,0,0,.45);
-              padding:1px 6px;border-radius:8px}
-  .cover .badge{position:absolute;left:6px;top:6px;font-size:10px;color:#fff;background:rgba(0,0,0,.42);
-                padding:2px 6px;border-radius:6px}
-  .cover .badge.hot{background:rgba(250,119,5,.9)}
-  .card .tit{font-size:14px;font-weight:600;line-height:1.35;margin:8px 8px 2px;
+  /* DramaCard 本体：Column(封面 + 标题 + 副标)，无底色无投影（drama_card.dart:22-83，
+     InkWell 只给 12 圆角的点击水波纹）。整张卡 150×268，封面吃满剩余高度。 */
+  .card{border-radius:12px;position:relative;text-align:left;overflow:hidden;display:flex;flex-direction:column}
+  .cover{position:relative;display:block;width:100%;background:linear-gradient(158deg,var(--c,#3b3f52),#0e1015)}
+  .card .cover{flex:1 1 auto;min-height:0}
+  /* 封面角标 = DramaCard:38-56 那一枚：左下 8/8、黑 70% 底、圆角 6、白字 11、padding 4×8。
+     只有列表卡有；详情页头部用裸 DramaCover（drama_cover.dart 全文没有任何角标）。 */
+  .cover .eps{position:absolute;left:8px;bottom:8px;font-size:11px;color:#fff;background:rgba(0,0,0,.7);
+              padding:4px 8px;border-radius:6px}
+  .card .tit{font-size:15px;font-weight:600;line-height:1.4;margin:10px 8px 4px;
              display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .card .tags{margin:0 8px 10px;font-size:12px;color:var(--ink3);white-space:nowrap;overflow:hidden;
-              text-overflow:ellipsis}
-  .card .heat{display:flex;gap:6px;align-items:center;margin:0 8px 10px;font-size:12px;color:var(--hot);
-              font-weight:600}
-  .card .heat .sc{color:var(--ink3);font-weight:400}
+  .card .sub{margin:0 8px 10px;font-size:12px;color:#6d6a66;white-space:nowrap;overflow:hidden;
+             text-overflow:ellipsis}
+  /* 卡片上没有热度角标也没有分数：列表行没有可信 published_at/score，
+     related_dramas.dart:6-12 的类型里刻意不带任何 最新/热度 标记。 */
   /* ---------- 播放器画面 ---------- */
   .vid{position:relative;background:#0b0d12;border-radius:14px;overflow:hidden}
   .vid .bgfill{position:absolute;inset:-25%;background:linear-gradient(140deg,var(--c,#3b3f52),#0e1015);
@@ -97,103 +104,102 @@
   .bigplay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
   .bigplay span{width:54px;height:54px;border-radius:50%;background:rgba(255,255,255,.18);color:#fff;
                 display:flex;align-items:center;justify-content:center;font-size:24px;backdrop-filter:blur(4px)}
-  .kpihint{margin:8px 2px 0;font-size:11px;color:var(--ink3)}
-  /* ---------- 电脑 / 平板外壳（沿用发现页原型的浅色客户端底） ---------- */
-  .desk{display:none;background:var(--card);border-radius:16px;overflow:hidden;position:relative;
+  /* ---------- 客户端窗口外壳（窗口装饰，不是页面内容） ----------
+     只有 macOS 这一族有自绘标题条：MacWindowFrame 第一行就是 `if (!macHost) return child`
+     （packages/app/lib/platform/macos_window.dart:63），Windows/Linux 拿不到这条 32px，
+     窗口装饰由系统画。所以外壳开关切到 Windows 时这一整条要消失，而不是换一套 ─▢✕。 */
+  .desk{display:none;background:#faf9f6;border-radius:16px;overflow:hidden;position:relative;   /* scaffoldBackgroundColor（main.dart:45） */
         box-shadow:0 6px 24px rgba(20,22,28,.10)}
-  .desk.on{display:block}
-  .desk-top{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--line);
-            background:#fbfbfd}
-  .lights{display:flex;gap:8px;flex:0 0 auto}
-  .lights i{width:12px;height:12px;border-radius:50%;display:block}
+  .desk.on{display:flex;flex-direction:column;height:900px}
+  /* 32px 高、灯 13×13、每枚占位宽 24（macos_window.dart:80-116、:143-160）；
+     条里没有标题文字——标题是 window_manager.setTitle 交给系统的（window_title_native.dart:8-14），
+     灯后面整段是一条透明的拖拽区。 */
+  .winbar{display:flex;align-items:center;height:32px;padding:0 6px;background:var(--card)}
+  .desk[data-os=win] .winbar{display:none}
+  .lights{display:flex;flex:0 0 auto}
+  .lights i{width:13px;height:13px;border-radius:50%;display:block;margin-right:11px}
   .lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}
   .lights i:nth-child(3){background:#28c840}
-  .wcap{display:none;gap:2px;margin-left:auto}
-  .wcap button{width:40px;height:26px;border-radius:5px;font-size:11px;color:var(--ink2)}
-  .wcap button:hover{background:#e9ebf0}
-  .wcap button.x:hover{background:#e11d48;color:#fff}
-  .desk[data-os=win] .lights{display:none}
-  .desk[data-os=win] .wcap{display:flex}
-  .desk[data-os=win] .desk-top .search{margin-left:6px}
-  .logo{font-weight:700;color:var(--brand);letter-spacing:.5px;flex:0 0 auto}
-  .back{display:flex;align-items:center;gap:4px;font-size:13px;color:var(--ink2);padding:5px 10px;
-        border-radius:8px;flex:0 0 auto}
-  .back:hover{background:#eef0f4;color:var(--ink)}
-  .desk-top .search{flex:1;max-width:360px;height:34px;border-radius:17px;background:var(--bg);color:var(--ink3);
-                    font-size:13px;display:flex;align-items:center;padding:0 14px;margin-left:auto}
-  .desk-top .me{width:30px;height:30px;border-radius:50%;background:linear-gradient(140deg,#ff5f7e,#b0234a);
-                color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
-  .hero{position:relative;padding:20px 24px;color:#fff;background:linear-gradient(150deg,var(--c,#3b3f52),#0e1015)}
-  .hero::after{content:"";position:absolute;inset:0;
-               background:radial-gradient(90% 130% at 10% 0%,rgba(0,0,0,.12),rgba(0,0,0,.6))}
-  .hero .inner{position:relative;z-index:2;display:flex;gap:22px}
-  .hero .poster{flex:0 0 140px}
-  .hero .poster .cover{box-shadow:0 10px 28px rgba(0,0,0,.42)}
-  .hero h1{font-size:26px;font-weight:700;letter-spacing:-.5px;margin:2px 0 8px}
-  .hero .sub{font-size:13px;color:rgba(255,255,255,.74);margin-bottom:12px}
-  .hero .chip{background:rgba(255,255,255,.15);color:#fff}
-  .hero .chip:hover{background:rgba(255,255,255,.26)}
-  .hero .chip[aria-pressed=true]{background:#fff;color:var(--brand);border-color:#fff}
-  .cta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px}
+  .winbar .wdrag{flex:1;height:100%}
+  /* ---------- AppBar：这一页只有 返回 · 剧名 · 收藏。上一版原型在这里画了 logo、搜索胶囊和头像，
+     那是网页顶栏；App 的详情页是 Scaffold+AppBar(title, actions:[FavoriteButton])
+     ——detail_page.dart:81-85，全局搜索属于客户端外壳，不在这条路由上。 ---------- */
+  .appbar{display:flex;align-items:center;gap:2px;height:56px;flex:0 0 auto;padding:0 8px;background:#faf9f6}
+          /* 高度 = kToolbarHeight 56；底色 = scaffoldBackgroundColor（main.dart:45、:51-53）；主题里没有 shape → 没有分隔线 */
+  .appbar .ttl{flex:1;min-width:0;font-size:22px;font-weight:400;padding-left:8px;   /* titleLarge（M3 默认，代码里没给 style） */
+               white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .appbar .ic{width:44px;height:44px;border-radius:50%;font-size:18px;color:var(--ink2);flex:0 0 auto;
+              display:flex;align-items:center;justify-content:center}
+  .appbar .ic:hover{background:#eef0f4}
+  /* ---------- 正文：单列 + 最宽 960 居中 ----------
+     App 的详情正文是 Center + ConstrainedBox(maxWidth:960) 的一条 CustomScrollView
+     （detail_page.dart:140-143）。上一版原型在这里画的 330px 右侧标签栏（选集/接下来播放/缓存）
+     在客户端里根本不存在，而且「宽屏 = 两栏」本身是网页栅格思路：≥720 只是同一列变宽、
+     行数从 3 变 4、弹层从底部抽屉换成居中对话框，不产生第二种布局。 */
+  .page{background:#faf9f6;overflow:auto;scrollbar-width:none}   /* scaffoldBackgroundColor（main.dart:45）；卡片才用 surface 白 */
+  .page::-webkit-scrollbar{display:none}
+  .col{max-width:960px;margin:0 auto;padding:24px}
+  .offline{display:flex;align-items:center;gap:10px;padding:8px 0 20px;font-size:13px;color:var(--ink2)}
+           /* 代码里就是一行 Row（detail_page.dart:145-170），没有分隔线 */
+  .offline button{margin-left:auto;color:var(--brand);padding:4px 10px;border-radius:8px}
+  /* ---------- 头部：封面 + 标题 + 集数 + 进度 + 两枚主操作（不是 hero 头图） ---------- */
+  .hdr{display:flex;gap:24px;align-items:flex-start}
+  .hdr .poster{flex:0 0 130px}
+  .hdr .poster .cover{aspect-ratio:130/180}
+  .hdr h1{font-size:26px;font-weight:700;letter-spacing:-.7px;margin:0;line-height:1.25}
+  .hdr .sub{font-size:13px;color:#8a8279;margin-top:10px}
+  .hdr .last{font-size:12px;color:var(--ink3);margin-top:16px}
+  .cta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px}
   .btn{height:42px;padding:0 20px;border-radius:21px;font-size:15px;display:inline-flex;align-items:center;gap:7px}
   .btn.pri{background:var(--brand);color:#fff;font-weight:600}
-  .btn.gh{border:1px solid rgba(255,255,255,.34);color:#fff;background:rgba(255,255,255,.1)}
-  .btn.gh:hover{background:rgba(255,255,255,.2)}
-  .hero .todo{border-color:rgba(255,255,255,.32);color:rgba(255,255,255,.7);background:rgba(255,255,255,.06)}
-  .wrap{display:flex;gap:20px;padding:20px 24px 6px}
-  .col-main{flex:1;min-width:0}
-  .side{flex:0 0 330px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fcfcfe;
-        display:flex;flex-direction:column}
-  .tabs{display:flex;border-bottom:1px solid var(--line);background:#fff}
-  .tabs button{flex:1;padding:11px 0;font-size:14px;color:var(--ink2)}
-  .tabs button[aria-selected=true]{color:var(--brand);font-weight:600;box-shadow:inset 0 -2px 0 var(--brand)}
-  .side .body{padding:12px;max-height:520px;overflow:auto}
-  .epseg{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
-  .epseg button{padding:4px 10px;border-radius:7px;font-size:12px;background:#eef0f4;color:var(--ink2)}
-  .epseg button[aria-pressed=true]{background:var(--ink);color:#fff}
-  .epgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:7px}
-  .epgrid button{height:34px;border-radius:8px;background:#eef0f4;font-size:13px;color:var(--ink2);position:relative}
-  .epgrid button:hover{background:#e2e5eb}
-  .epgrid button.now{background:var(--brand);color:#fff;font-weight:600}
-  .epgrid button.done::after{content:"";position:absolute;right:4px;top:4px;width:5px;height:5px;
-        border-radius:50%;background:var(--gold)}
-  .switchrow{display:flex;align-items:center;gap:8px;margin:12px 2px 0;font-size:13px;color:var(--ink2)}
-  .switchrow i{width:34px;height:20px;border-radius:10px;background:#d6dae2;position:relative;margin-left:auto}
-  .switchrow i::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
-        background:#fff;transition:transform .15s}
-  .switchrow[aria-pressed=true] i{background:var(--brand)}
-  .switchrow[aria-pressed=true] i::after{transform:translateX(14px)}
-  .queue{display:flex;flex-direction:column;gap:8px}
-  .queue .q{display:flex;gap:10px;align-items:center;padding:7px;border-radius:10px}
-  .queue .q:hover{background:#f1f3f7}
-  .queue .q .cover{flex:0 0 42px;aspect-ratio:3/4}
-  .queue .q .n{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .queue .q .o{font-size:11px;color:var(--ink3)}
-  .intro{font-size:14px;line-height:1.85;color:var(--ink2);max-height:4.6em;overflow:hidden;position:relative}
-  .intro.open{max-height:none}
-  .intro .fade{position:absolute;left:0;right:0;bottom:0;height:1.4em;background:linear-gradient(transparent,#fff)}
-  .intro.open .fade{display:none}
-  .more{font-size:13px;color:var(--brand);margin-top:6px;padding:2px 0}
-  .sect{padding:8px 24px 4px}
-  .sect-h{display:flex;align-items:baseline;gap:8px;margin:14px 0 10px;flex-wrap:wrap}
-  .sect-h h3{margin:0;font-size:19px;font-weight:700}
-  .sect-h .why{font-size:12px;color:var(--ink3);border:1px solid var(--line);border-radius:8px;padding:2px 7px}
-  .sect-h .why:hover{color:var(--brand);border-color:#ffd0da;background:var(--brand-soft)}
-  .sect-h .req{margin-left:auto;font-size:11px;color:var(--ink3);font-family:ui-monospace,Menlo,monospace}
-  .rail{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px}
-  .rail .card{flex:0 0 150px}
-  .grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
-  .peek{position:absolute;left:8px;right:8px;bottom:8px;background:rgba(21,23,28,.92);color:#fff;font-size:11px;
-        line-height:1.5;padding:7px 8px;border-radius:8px;opacity:0;transform:translateY(6px);transition:.14s;
-        pointer-events:none}
-  .card:hover .peek{opacity:1;transform:none}
-  .pop{position:absolute;z-index:70;background:#fff;border:1px solid var(--line);border-radius:12px;
-       box-shadow:0 10px 30px rgba(20,22,28,.16);padding:12px 14px;font-size:12px;line-height:1.75;
-       color:var(--ink2);max-width:360px;display:none}
-  .pop.on{display:block}
-  .pop h4{margin:0 0 6px;font-size:13px;color:var(--ink)}
-  .pop code{background:#f2f4f7;padding:1px 5px;border-radius:5px;font-size:11px}
-  .empty{margin:6px 24px 16px;padding:14px;border:1px dashed #c6cbd6;border-radius:12px;font-size:13px;
+  .btn.gh{border:1px solid var(--line);color:var(--ink2);background:#fff}
+  .btn.gh:hover{background:#f2f4f7}
+  .btn[disabled]{opacity:.4;cursor:not-allowed}
+  .chips{margin-top:16px}
+  .chips .todo{margin-left:2px}
+  /* ---------- 选集：EpisodePager 的读数 ----------
+     高度恒等于 rows 行、页内不滚动、页脚是 箭头 +「第 a/b 页」+ 箭头（episode_pager.dart:240-260,340-372）。
+     列数由 cellExtent 除可用宽度现算，单元格只有集数（:310-325），比例 1.5、间距 10。 */
+  .blk{margin:32px 0 0;font-size:22px;font-weight:600}
+  .blksub{margin:8px 0 14px;font-size:13px;color:#8a8279}
+  /* 分页器本体没有任何卡片装饰：它就是 Padding(24,8,24,32) 里的一个 Column(grid+页脚)
+     （detail_page.dart:278-293）。上一版给它套了边框和底色，等于给客户端画了一张网页 card。 */
+  .pager{padding:0}
+  .pgrid{display:grid;gap:10px}
+  .pgrid button{aspect-ratio:1.5;border-radius:10px;background:transparent;font-size:16px;color:var(--ink2);
+               border:1px solid #c6cbd6;position:relative;display:flex;align-items:center;justify-content:center}
+  .pgrid button:hover{background:#f3f5f8}
+  /* 格子只印一个集数：没有「已看」角标、没有时长点、没有热度。
+     在播格 = primaryContainer 底 + primary 描边 1px + primary 加粗字（episode_pager.dart:310-325、:494-505）；
+     只有鼠标键盘族拿到焦点时描边才加粗到 3px。 */
+  .pgrid button.now{background:var(--brand-soft);border-color:var(--brand);color:var(--brand);font-weight:700}
+  .pfoot{display:flex;align-items:center;gap:10px;margin-top:12px}
+  .pfoot button{min-width:44px;height:36px;border-radius:8px;background:#eef0f4;color:var(--ink2);font-size:15px}
+  .pfoot button:hover{background:#e2e5eb}
+  .pfoot button[disabled]{opacity:.35;cursor:not-allowed}
+  .pfoot .pg{flex:1;text-align:center;font-size:14px;color:var(--ink2)}
+  /* 简介：detail_page.dart:255-259 = Text(intro, TextStyle(height:1.8))，整段展开、无截断、无「展开」钮。
+     只有 TV 是 maxLines:2 省略（tv_detail_page.dart:162-167），见 .tvintro。 */
+  .intro{font-size:14px;line-height:1.8;color:var(--ink2);margin-top:24px}
+  /* ---------- 推荐：一块、两个名字、零个角标（related_dramas.dart:6-12） ----------
+     上一版原型在正文末尾铺了一屏 auto-fill 卡片墙「大家都在看」并给每张角标分数；
+     App 里只有一块，卡片 150×268、标题字号 22，无命中 / 失败 / 空页时整块不出现
+     （related_dramas_section.dart:61-71）。 */
+  .sect{margin-top:40px}
+  .sect-h{display:flex;align-items:baseline;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+  .sect-h h3{margin:0;font-size:22px;font-weight:600}
+  /* 「来源」是原型注记，不是页面控件：不给盒子、不给 hover 底色，只留虚下划线 + 帮助光标，
+     点它只开读出窗（§0 第 10 行的裁定：删掉假「来源说明」按钮与坐标浮层） */
+  .sect-h .req,.msec-h .req{font:11px/1.5 ui-monospace,Menlo,monospace;color:var(--ink3);
+         background:none;border:0;border-bottom:1px dashed #c6cbd6;border-radius:0;
+         padding:0 2px;cursor:help;text-align:left}
+  .sect-h .req:hover,.msec-h .req:hover{color:var(--ink2);border-bottom-style:solid}
+  .rail{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none;height:268px}
+  .rail::-webkit-scrollbar{display:none}
+  /* 卡片尺寸只有两套：150×268（手机/平板/桌面同一支）与 168×284（tvLayout）
+     —— related_dramas_section.dart:61-62,76-84。宽屏不会把卡片变大。 */
+  .rail .card{flex:0 0 150px;height:268px}
+  .empty{margin-top:16px;padding:14px;border:1px dashed #c6cbd6;border-radius:12px;font-size:13px;
          color:var(--ink2);background:repeating-linear-gradient(135deg,#fafbfc 0 8px,#f3f5f8 8px 16px)}
   /* ---------- 手机 / 平板设备框 ---------- */
   .device{display:none;background:#0b0d12;border-radius:34px;padding:10px;position:relative;margin:0 auto;
@@ -205,20 +211,30 @@
   .sbar .r{font-weight:500;font-size:11px;color:#dfe3ea}
   .hind{position:absolute;left:50%;transform:translateX(-50%);bottom:4px;width:112px;height:4px;border-radius:2px;
         background:rgba(255,255,255,.55);z-index:70;pointer-events:none}
-  .screen{border-radius:24px;overflow:hidden;background:#fff;height:742px;display:flex;flex-direction:column}
+  .screen{border-radius:24px;overflow:hidden;background:#faf9f6;height:742px;display:flex;flex-direction:column;   /* 页面底色 = scaffoldBackgroundColor，AppBar 与它同色 */
+          position:relative}
   .device.land .screen{height:352px}
-  .mnav{display:flex;align-items:center;gap:8px;height:44px;padding:0 10px;font-size:14px;color:#fff;
-        position:absolute;top:32px;left:0;right:0;z-index:22}
-  .mnav .ttl{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-             text-shadow:0 1px 6px rgba(0,0,0,.55)}
-  .mnav .ic{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-            font-size:16px;color:#fff;background:rgba(0,0,0,.3);backdrop-filter:blur(6px)}
-  .screen.mode-page .mnav{position:static;color:var(--ink);background:#fff;border-bottom:1px solid rgba(0,0,0,.07)}
-  .screen.mode-page .mnav .ttl{text-shadow:none}
-  .screen.mode-page .mnav .ic{color:var(--ink2);background:transparent;backdrop-filter:none}
-  .screen.mode-page .mnav .ic:hover{background:rgba(0,0,0,.06)}
-  .mbody{flex:1;min-height:0;overflow-y:auto;background:#fff;overscroll-behavior:contain}
-  .mbody.flat{overflow:hidden;background:#0b0d12}
+  /* 详情页的 AppBar：‹ 返回 · 剧名 · ♡ 收藏。上一版这里还有一枚 ⋯ 溢出菜单，
+     App 的 AppBar.actions 只有 FavoriteButton 一枚（detail_page.dart:82-85），假控件删掉。 */
+  .mnav{display:flex;align-items:center;gap:2px;height:56px;padding:0 4px;background:#faf9f6;flex:0 0 auto;font-size:15px;color:var(--ink)}
+        /* 高度 = kToolbarHeight 56；AppBar 背景 = scaffoldBackgroundColor（main.dart:45、:51-53），主题里没有 shape/bottom → 没有分隔线 */
+  .mnav .ttl{flex:1;min-width:0;font-size:22px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;   /* titleLarge */
+             padding-left:6px}
+  .mnav .ic{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+            font-size:18px;color:var(--ink2)}
+  .mnav .ic:hover{background:#eef0f4}
+  /* 播放页的标题与退出入口覆盖在画面上，不是一条 AppBar
+     ——immersive-playback.md 第 3 行：播放页铺满视频，不使用 AppBar、侧边导航或底部导航。 */
+  .mnav.ov{position:absolute;top:0;left:0;right:0;z-index:22;background:transparent;border-bottom:0;color:#fff}
+  .mnav.ov .ttl{text-shadow:0 1px 6px rgba(0,0,0,.55)}
+  .mnav.ov .ic{background:rgba(0,0,0,.3);color:#fff;backdrop-filter:blur(6px)}
+  /* 手机正文与桌面同一套留白：detail_page.dart:173 是 EdgeInsets.all(24)，触控族不缩成 14。
+     滚动条不占位：Flutter 的 CustomScrollView 没有占宽度的经典滚动条，留着它会让
+     「390 宽 → 3 列」的算式在原型里量成 2 列。 */
+  .mbody{flex:1;min-height:0;overflow-y:auto;background:#fff;overscroll-behavior:contain;padding:24px;
+         scrollbar-width:none}
+  .mbody::-webkit-scrollbar{display:none}
+  .mbody.flat{overflow:hidden;background:#0b0d12;padding:0}
   .imm{position:relative;height:100%}
   .imm .vid{position:absolute;inset:0;border-radius:0}
   .imm .vid .portrait{width:100%;height:100%;aspect-ratio:auto;border-radius:0}
@@ -232,66 +248,224 @@
   .mfoot .jump{margin-top:8px;height:30px;padding:0 12px;border-radius:15px;background:rgba(255,255,255,.16);
                color:#fff;font-size:12px;display:inline-flex;align-items:center;gap:6px;backdrop-filter:blur(4px)}
   .swipe{position:absolute;left:0;right:0;bottom:40px;text-align:center;font-size:11px;color:rgba(255,255,255,.5);z-index:12}
-  .mseg{display:flex;margin:8px 12px 12px;background:#f2f4f7;border-radius:9px;padding:2px}
-  .mseg button{flex:1;padding:7px 0;font-size:13px;border-radius:7px;color:var(--ink2)}
-  .mseg button[aria-selected=true]{background:#fff;color:var(--ink);font-weight:600;
-                                   box-shadow:0 1px 3px rgba(0,0,0,.12)}
-  .mhero{display:flex;gap:14px;padding:14px}
-  .mhero .poster{flex:0 0 100px}
-  .mhero h2{margin:2px 0 6px;font-size:20px;font-weight:700;line-height:1.25}
-  .mhero .s{font-size:12px;color:var(--ink3);margin-bottom:10px}
-  .mrow3{display:flex;gap:8px;padding:0 14px 12px}
-  .mrow3 button{flex:1;height:42px;border-radius:21px;font-size:14px;display:flex;align-items:center;
-                justify-content:center;gap:5px}
-  .mrow3 .pri{background:var(--brand);color:#fff;font-weight:600}
-  .mrow3 .gh{background:#f2f4f7;color:var(--ink2)}
-  .msec{padding:2px 14px 14px}
+  /* ---------- 路由层：详情页 ⇄ 播放页 是 push/pop，不是同一页换 class ----------
+     转场按 slidePageTransitions（app_navigation.dart:46-73）：新页从右侧进入，旧页左移 0.3 退场。
+     上一版原型用 classList.toggle('playing') + scrollIntoView 表示「正在播放」，那是 SPA 页内状态；
+     App 里点任意一集走的是 pushAppPage(AppScreen.player)（detail_page.dart:125-138）。
+     屏内那条「播放中 / 详情 / 推荐」底部段控也删了：immersive-playback.md 第 3 行写明
+     播放页不使用 AppBar、侧边导航或底部导航，二级页更不该自带一条 tab 栏。 */
+  .routes{flex:1;min-height:0;position:relative;overflow:hidden;background:#0b0d12}
+  .route{position:absolute;inset:0;display:flex;flex-direction:column;background:#fff;
+         transition:transform .22s ease-out}
+  .routes.pushed .route.base{transform:translateX(-30%)}
+  .route.top{transform:translateX(100%);background:#0b0d12}
+  .routes.pushed .route.top{transform:none}
+  /* 播放页顶部那一行是覆盖在画面上的标题 + 退出入口，不是 AppBar；3 秒无操作自动收起 */
+  .pnav{display:flex;align-items:center;gap:12px;padding:14px 18px;color:#fff;font-size:14px;flex:0 0 auto;
+        background:linear-gradient(rgba(0,0,0,.62),transparent)}
+  .pnav .ic{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:15px;
+            display:flex;align-items:center;justify-content:center}
+  .pnav b{font-size:16px}
+  .pnav .sp{flex:1}
+  .pnav .todo{border-color:rgba(255,255,255,.34);color:rgba(255,255,255,.78);background:rgba(255,255,255,.08)}
+  #desk-player .vid{flex:1;min-height:0;border-radius:0}
+  #desk-player{background:#0b0d12}
+  /* 播放页的选集 = 右侧覆盖面板（episode_workspace.dart:218-267）：
+     宽 min(340, 80%)、5 秒自动隐藏（未钉住时）、I 键开合、Back 先关它、点遮罩收起。 */
+  .wsbox{position:absolute;inset:0;z-index:26;display:flex}
+  .wsscrim{flex:1;background:rgba(0,0,0,.12)}
+  .wspanel{width:min(340px,80%);background:#fff;display:flex;flex-direction:column;
+           box-shadow:-12px 0 30px rgba(10,12,18,.28)}   /* Material elevation:12 */
+  .wspanel.pinned{box-shadow:none}                        /* episode_workspace.dart:170 pinned ? 0 : 12 */
+  .wspanel header{display:flex;align-items:center;gap:2px;padding:10px 8px 10px 16px}   /* 头部是裸 Row，代码里没有 Divider */
+  .wspanel header b{flex:1;min-width:0;font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;   /* titleSmall */
+                    text-overflow:ellipsis}
+  .wspanel header .ic{width:36px;height:36px;border-radius:50%;color:var(--ink2);font-size:15px;
+                      display:flex;align-items:center;justify-content:center}
+  .wspanel header .ic:hover{background:#eef0f4}
+  .wspanel header .ic[aria-pressed=true]{color:var(--brand)}
+  .wsbody{flex:1;min-height:0;overflow:auto;padding:14px 20px;scrollbar-width:none}   /* 横向 20 = SliverPadding(20,4,20,24)（player_page.dart:1467）；客户端没有可见滚动条 */
+  .wsbody::-webkit-scrollbar{display:none}
+  .wsbody .now{font-size:22px;font-weight:600;margin-bottom:10px}
+  .wsbody .pre{font-size:12px;color:var(--ink3);margin-bottom:12px}
+  .wsrow{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .wsrow .sp{flex:1}
+  .wsrow .q{height:32px;padding:0 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;
+            color:var(--ink2);white-space:nowrap}
+  .wsrow .q:hover{background:#eef0f4}
+  .wsfav{display:flex;justify-content:flex-end;margin-bottom:2px}
+  .wsfav .ic{width:34px;height:34px;border-radius:50%;font-size:17px;color:var(--brand)}
+  .wsfav .ic:hover{background:#eef0f4}
+  .wsrow button{flex:1;height:38px;border-radius:10px;font-size:14px}
+  .wsrow .prev{border:1px solid var(--line);color:var(--ink2)}
+  .wsrow .next{background:var(--brand);color:#fff;font-weight:600}
+  .wsrow .sw{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);flex:0 0 auto}
+  .wsrow .sw i{width:34px;height:20px;border-radius:10px;background:var(--brand);position:relative}
+  .wsrow .sw i::after{content:"";position:absolute;top:3px;right:3px;width:14px;height:14px;border-radius:50%;background:#fff}
+  /* 面板里的选集格：maxCrossAxisExtent 80、比例 1.25（player_page.dart:1468-1505） */
+  .wsgrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(64px,1fr))}
+  .wsgrid button{aspect-ratio:1.25;border-radius:10px;background:#eef0f4;font-size:15px;color:var(--ink);
+                 display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+  .wsgrid button i{font-size:9px;font-style:normal;color:var(--ink3)}
+  .wsgrid button.now{background:var(--brand);color:#fff;font-weight:700}
+  .wsgrid button.now i{color:#fff}
+  .sheet header .ic{width:36px;height:36px;border-radius:50%;color:var(--ink2);font-size:15px;
+                    display:flex;align-items:center;justify-content:center;margin-left:auto}
+  .sheet header .ic+.ic{margin-left:0}
+  .sheet header .ic:hover{background:#eef0f4}
+  .sheet .dlrow{padding:10px 14px 4px}
+  .sheet .dlstatus{padding:2px 14px 6px}
+  .sheet .body{padding:8px 14px 16px}
+  /* ---------- 弹层容器按尺寸分派（download_selection.dart:16-47）：
+     触控窄屏 = 底部弹层 + 遮罩；宽 ≥720 且高 ≥400 = 居中对话框。同一段表单，两种呈现。 ---------- */
+  .mask{position:absolute;inset:0;z-index:40;background:rgba(10,12,18,.4);opacity:0;pointer-events:none;transition:.2s}
+  .mask.on{opacity:1;pointer-events:auto}
+  .dlgwrap{position:absolute;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+           background:rgba(10,12,18,.4)}
+  .dlg{background:#fff;border-radius:16px;width:min(720px,92%);height:min(680px,82%);display:flex;flex-direction:column;
+       overflow:hidden;box-shadow:0 18px 48px rgba(10,12,18,.28)}
+  .dlg header{display:flex;align-items:center;gap:10px;padding:14px 20px 14px 18px}   /* 代码里是裸 Row（download_selection.dart:180-197），没有 Divider */
+  .dlg header b{font-size:18px;font-weight:600}
+  .dlg .body{padding:8px 20px 12px;overflow:auto;flex:1;min-height:0;scrollbar-width:none}
+  .dlg .body::-webkit-scrollbar{display:none}
+  .dlg footer{padding:8px 20px 12px}
+  .dlg .x{margin-left:auto;width:36px;height:36px;border-radius:50%;color:var(--ink2);font-size:15px}
+  .dlg .x:hover{background:#eef0f4}
+  /* 下载表单的这一段照抄客户端实现：画质下拉 + 全选/清空 + 「N 集」 + 前后台与并发说明 +
+     第 X 集格子（maxCrossAxisExtent 110 / 比例 1.25）+ 通栏「下载 N 集」（download_selection.dart:177-370） */
+  .dlrow{display:flex;align-items:center;gap:12px;padding:12px 20px 4px}
+  .dlq{height:36px;padding:0 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;color:var(--ink2)}
+  .dlall{height:36px;padding:0 10px;border-radius:8px;font-size:14px;color:var(--brand)}
+  .dlall:hover{background:var(--brand-soft)}
+  .dlcount{margin-left:auto;font-size:14px;color:var(--ink2)}
+  .dlstatus{padding:2px 20px 6px;font-size:12px;color:var(--ink3)}
+  .dlgrid{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
+  .dlgrid button{aspect-ratio:1.25;border:1px solid var(--line);border-radius:10px;font-size:14px;color:var(--brand);   /* OutlinedButton：labelLarge 14 + foregroundColor=primary（download_selection.dart:306-313） */
+                 display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+  .dlgrid button[aria-pressed=true]{background:var(--brand-soft)}   /* 选中只换底色（primaryContainer），描边不变 */
+  .dlgrid button .chk{font-size:14px;font-weight:400;line-height:1}  /* Icons.check size 14（:331） */
+  .dlgrid button[disabled]{opacity:.45}
+  .dlgrid button i{font-size:10px;font-style:normal;color:var(--ink3)}
+  .dlgrid.istv{gap:14px;grid-template-columns:repeat(auto-fill,minmax(152px,1fr))}   /* TvGrid 两轴间距恒 14（grid.dart:169-170） */
+  .dlgrid.istv button{font-size:16px}   /* _tvCell 的「第 N 集」没有 style → 主题默认 16；副行 12（download_selection.dart:164-168） */
+  .dlgrid.istv button i{font-size:12px}
+  .dlgo{width:100%;justify-content:center}
+  .dlgwrap.tvd .dlg{background:#14161c;color:#f2f3f7}   /* 深色 Dialog 没有描边：Material 只给底色，代码里没有 shape/border */
+  .dlgwrap.tvd .dlq,.dlgwrap.tvd .dlgrid button{border-color:#2f3340;color:#c8ccd6}
+  .dlgwrap.tvd .dlgrid button[aria-pressed=true]{background:#2f211f}   /* _tvCell 选中只换 primaryContainer，描边仍是 outlineVariant（:157-159） */
+  .dlgwrap.tvd .dlgrid button i{color:#8b90a3}
+  .dlgwrap.tvd .dlstatus,.dlgwrap.tvd .dlcount{color:#9aa0ad}
+  .dlgwrap.tvd .x:hover{background:#22242e}
+  /* ---------- TV（遥控族）：无 AppBar，返回是可达焦点项（tv_detail_page.dart:136-146）。
+     尺寸取自已实施代码：外边距 36、简介 21px 两行、动作行 24/20、选集 4 行 × cellExtent 170、
+     推荐轨标题 26、卡片 168×284（tv_detail_page.dart:128-251、related_dramas_section.dart:61-71）；
+     焦点 = 3px colorScheme.primary 描边、选中 = primaryContainer 底色，两种信号分开
+     （packages/tv/lib/src/focusable.dart:113-128）。这套色由 seedColor 0xffd54738 派生
+     （main.dart:34-46），本原型里的 #f08475 / #2f211f 只是它的近似取值，不是代码里的常量。 ---------- */
+  .tv{display:none}
+  .tv.on{display:block}
+  /* 遥控族的画布是那块 1920×1080 的屏，不是「浏览器窗口有多宽」：窗口窄就整体 scale 放下，
+     布局盒仍按 1920 算 —— 否则分页器可用宽不足 1848，§8 那张 10 列的格子会掉成 9 列。
+     行高一律用缩放后的 --tvh，键盘提示条（原型 chrome）才不会被 1080 的布局盒顶下去。 */
+  .tvbox{margin:0 auto;display:grid;justify-items:start;align-items:start;grid-template-rows:var(--tvh,1080px) auto}
+  .tvsurface{position:relative;width:1920px;height:1080px;background:#101014;color:#f2f3f7;
+             border-radius:14px;overflow:hidden;transform-origin:top left;transform:scale(var(--tvk,1))}
+  /* 正文那一层才是 SingleChildScrollView(padding: all 36)；播放页与下载对话框是它上面的路由覆盖层，
+     不跟着正文滚，所以分成两个盒子画。 */
+  .tvscroll{position:absolute;inset:0;overflow:hidden auto;padding:36px;display:flex;flex-direction:column;
+            scrollbar-width:none}
+  /* 块间距照 tv_detail_page.dart 的 SizedBox：16 / 20 / 24 / 12 / 32（不是统一 gap） */
+  .tvrow{display:flex;align-items:center;gap:16px;flex:0 0 auto}
+  #tv-acts{margin-top:20px}
+  .tvbtn{border:3px solid transparent;border-radius:12px;padding:5px;background:none;color:inherit}
+  /* 动作项 = TvFocusable(Padding(all:14) + Text)：开始观看 24、下载剧集 20、收藏 20
+     （tv_detail_page.dart:190-219、favorite_button.dart:90-96）；分页箭头 = Padding(12,4) + Icon(26)。 */
+  .tvbtn .in{display:block;padding:14px;border-radius:8px;font-size:20px;white-space:nowrap}
+  [data-act="play"] .in{font-size:24px}
+  .tvfoot .tvbtn .in{padding:4px 12px;font-size:26px;line-height:1}
+  /* TvFocusable 只有 padding:5 + radius:12 + 3px 边框（focus 才上色），没有缩放、没有 disabled 态：
+     禁用的是箭头里的 Icon 自己变灰（episode_pager.dart:379-385 注释写明了这条理由）。 */
+  .tvbtn.focus{border-color:#f08475}
+  .tvbtn[disabled] .in{color:grey}
+  .tvtitle{font-size:32px;font-weight:700;line-height:1.2;flex:1;min-width:0;
+           white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tvintro{font-size:21px;color:#b8bcc8;line-height:1.45;max-height:61px;overflow:hidden;flex:0 0 auto;margin-top:16px}
+  .tvtip{font-size:18px;color:#8b90a3;margin-top:12px}
+  .tvh{font-size:26px;font-weight:600}
+  #tv-relh{margin-top:32px}
+  /* 客户端里 EpisodePager 是 Column 的直接子项，没有任何卡片外壳；
+     上一版给它套了 border+radius+padding:12，可用宽因此少了 26px，列数会算错。 */
+  .tvpager{flex:0 0 auto;margin-top:24px}
+  .tveps{display:grid;gap:10px}
+  .tvep{aspect-ratio:1.5;border:3px solid transparent;border-radius:12px;padding:5px;background:none;color:inherit}
+  .tvep .in{height:100%;display:flex;align-items:center;justify-content:center;font-size:16px;color:#f2f3f7}
+  .tvep.now{background:#2f211f}
+  .tvep.now .in{color:#f08475;font-weight:700}
+  .tvep.focus{border-color:#f08475}
+  .tvfoot{display:flex;align-items:center;gap:10px}
+  .tvfoot .pg{flex:1;text-align:center;font-size:14px;color:#b8bcc8}
+  .tvrel{display:flex;gap:20px;overflow:hidden;flex:0 0 auto;height:284px;margin-top:12px}
+  .tvc{display:flex;flex-direction:column;border:3px solid transparent;border-radius:12px;padding:5px;
+       background:none;color:inherit;flex:0 0 168px;width:168px;height:284px;text-align:left}
+  .tvc .cv{flex:1;min-height:0;border-radius:10px;position:relative;overflow:hidden;
+           background:linear-gradient(158deg,var(--c,#3b3f52),#0e1015)}
+  .tvc .tt{font-size:18px;line-height:1.35;margin-top:8px;max-height:49px;overflow:hidden}
+  .tvc.focus{border-color:#f08475}
+  .tvplayer{position:absolute;inset:0;background:#000;display:flex;flex-direction:column;
+            align-items:center;justify-content:center;gap:18px;z-index:30}
+  .tvplayer.on{display:flex}
+  .tvplayer .frame-in{position:static}
+  .tvkeys{max-width:1280px;margin:10px auto 0;padding:0 16px;font:12px/1.9 ui-monospace,SFMono-Regular,Menlo,monospace;
+          color:#4a4f5c}
+  .tvkeys kbd{background:#fff;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;
+              padding:1px 7px;font:11px ui-monospace,Menlo,monospace;color:#15171c}
+  .tvkeys .z{background:#15171c;color:#7ee0a0;border-radius:6px;padding:2px 8px}
+  /* 手机正文的分区不再自带左右留白——那份 24 由 .mbody 统一给，和桌面 .col 同一档。
+     原来这里的 .mhero/.mrow3 是另一套手机版式（100px 封面 + 通栏按钮行），已并回 .hdr 那一套。 */
+  .msec{padding:0}
   .msec-h{display:flex;align-items:baseline;gap:6px;margin:8px 0 10px;flex-wrap:wrap}
   .msec-h h3{margin:0;font-size:17px;font-weight:700}
   .msec-h .why{font-size:11px;color:var(--ink3);border:1px solid var(--line);border-radius:7px;padding:1px 6px}
-  .mrail{display:flex;gap:12px;overflow-x:auto;scrollbar-width:none;padding-bottom:4px}
+  .mrail{display:flex;gap:14px;overflow-x:auto;scrollbar-width:none;padding-bottom:4px;height:268px}
   .mrail::-webkit-scrollbar{display:none}
-  .mrail .card{flex:0 0 110px;background:none;box-shadow:none}
-  .mrail .card .tit{margin:6px 2px 0;font-size:13px}
-  .mrail .card .tags{margin:2px 2px 0}
+  .mrail .card{flex:0 0 150px;height:268px}
+  .mrail .card .tit{margin-left:2px;margin-right:2px}
+  .mrail .card .sub{margin-left:2px;margin-right:2px}
   .sheet{position:absolute;left:0;right:0;bottom:0;z-index:40;background:#fff;border-radius:18px 18px 0 0;
          box-shadow:0 -10px 30px rgba(10,12,18,.22);transform:translateY(100%);transition:transform .22s;
-         display:flex;flex-direction:column;max-height:76%}
+         display:flex;flex-direction:column}   /* 高度只由 JS 按代码写 .78/.95/.65，不加 max-height 兜底 */
   .sheet.on{transform:none}
   .sheet .grab{width:36px;height:4px;border-radius:2px;background:#d6dae2;margin:9px auto 4px}
-  .sheet header{display:flex;align-items:center;gap:8px;padding:2px 14px 8px;border-bottom:1px solid var(--line)}
-  .sheet header b{font-size:15px}
+  .sheet header{display:flex;align-items:center;gap:8px;padding:2px 14px 8px}   /* 两处头部都是裸 Row，代码里没有 Divider */
+  .sheet header b{font-size:16px}   /* 选集：player_page.dart:1053 无 style → 主题默认 */
+  .sheet header b.dl{font-size:18px;font-weight:600}   /* 下载剧集：download_selection.dart:185-188 */
   .sheet header .seg{margin-left:auto;background:#f2f4f7;border-radius:8px;padding:2px}
   .sheet header .seg button{padding:4px 10px;font-size:12px;color:var(--ink2);border-radius:6px}
   .sheet header .seg button[aria-pressed=true]{background:#fff;color:var(--ink);font-weight:600;
         box-shadow:0 1px 3px rgba(0,0,0,.1)}
-  .sheet .body{padding:12px 14px 18px;overflow:auto}
-  .sheet .epgrid{grid-template-columns:repeat(5,1fr)}
-  .mask{position:absolute;inset:0;z-index:35;background:rgba(10,12,18,.4);opacity:0;pointer-events:none;transition:.2s}
-  .mask.on{opacity:1;pointer-events:auto}
-  .mnote{padding:10px 14px 18px;font-size:11px;color:var(--ink3);line-height:1.75}
-  /* 触控族：去掉 hover 专属件、放大点击目标 */
-  body.touch .peek,body.touch .kpihint{display:none}
+  .sheet .body{padding:12px 14px 18px;overflow:auto;scrollbar-width:none}
+  .sheet .body::-webkit-scrollbar{display:none}
+  .mnote{padding:14px 0 0;font-size:11px;color:var(--ink3);line-height:1.75}
+  /* 触控族：点击目标放大到 ≥44。
+     正文左右留白三端都是 24（detail_page.dart:173、:280），触控族不缩成 16；
+     格子也不加 min-height——它的高度由 cellExtent/1.5 现算，加高会把 gridHeight 的算式改掉。 */
   body.touch .btn{height:48px;padding:0 22px;font-size:16px}
   body.touch .chip{height:34px;padding:0 14px;font-size:14px}
-  body.touch .tabs button{padding:14px 0;font-size:15px}
-  body.touch .epgrid button{height:44px;font-size:14px}
-  body.touch .card .tit{font-size:15px}
-  .frame.narrow .side{flex:0 0 262px}
-  .frame.narrow .wrap{gap:14px;padding:16px 16px 6px}
-  .frame.narrow .sect{padding-left:16px;padding-right:16px}
-  .frame.narrow .epgrid{grid-template-columns:repeat(5,1fr)}
-  /* 播放页态：点某一集后播放器吃满、详情收成一行标题；URL 带 ?ep=N，刷新/深链都能回到这一集 */
-  .nowbar{display:flex;align-items:center;gap:10px;padding:11px 0 2px;font-size:13px;color:var(--ink2)}
-  .nowbar[hidden]{display:none}
-  .nowbar b{font-size:15px;color:var(--ink)}
-  .nowbar .sp{flex:1}
-  #desk.playing .hero{padding:11px 24px}
-  #desk.playing .hero .poster,#desk.playing .hero .chips,#desk.playing .hero .cta{display:none}
-  #desk.playing .hero .inner{display:block}
-  #desk.playing .hero h1{font-size:17px;margin:0}
-  #desk.playing .wrap{padding-top:12px}
-  body.touch .nowbar{font-size:14px}
+  /* 键盘提示只属于鼠标键盘族，且印在画框外（上一版把它写在播放器下面，等于把快捷键做成页面内容） */
+  .keys{max-width:1280px;margin:12px auto 0;padding:0 16px;font:12px/1.9 ui-monospace,SFMono-Regular,Menlo,monospace;
+        color:#4a4f5c}
+  .keys kbd{background:#fff;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;
+            padding:1px 7px;font:11px ui-monospace,Menlo,monospace;color:#15171c}
+  /* SnackBar：确认后的唯一反馈，落在当前页的 Scaffold 底部（download_selection.dart:46-62）。
+     带「查看」动作和关闭图标，不是详情页上的第三枚按钮。 */
+  .snack{position:absolute;left:0;right:0;bottom:0;z-index:60;display:flex;align-items:center;gap:14px;
+         padding:13px 16px;background:#2b2f3a;color:#f2f3f7;font-size:14px;box-shadow:0 -6px 18px rgba(8,10,14,.28)}
+  .snack .act{color:var(--brand);font-weight:600;margin-left:auto;white-space:nowrap}
+  .snack .close{color:#9aa0ad;font-size:15px}
+  .tvsurface .snack{background:#232630;font-size:18px;padding:16px 20px}
+  #tv .ic.focus{outline:3px solid #f08475;outline-offset:2px}
+  .chip[data-dead]{cursor:default;color:var(--ink3)}
+  .chip[data-dead]:hover{background:#eef0f4}
   .foot{max-width:1280px;margin:16px auto 0;font-size:12px;color:var(--ink3);line-height:1.85}
   .foot b{color:var(--ink2)}
 </style>
@@ -299,25 +473,27 @@
 <body>
 
 <div class="meta">
-  <b>视频详情承接页</b>
+  <b>视频详情承接页 · 客户端形态</b>
   <div class="seg" id="seg-platform" role="group" aria-label="设备族">
-    <button data-dom="desk" data-w="1280" data-touch="0" aria-pressed="true">电脑客户端</button>
-    <button data-dom="phone" data-w="390" data-touch="1" aria-pressed="false">手机 竖</button>
-    <button data-dom="phone" data-w="740" data-touch="1" aria-pressed="false">手机 横</button>
-    <button data-dom="desk" data-w="820" data-touch="1" aria-pressed="false">平板 竖</button>
-    <button data-dom="desk" data-w="1080" data-touch="1" aria-pressed="false">平板 横</button>
+    <button data-dom="desk" data-w="1280" data-h="800" data-touch="0" aria-pressed="true">电脑客户端</button>
+    <button data-dom="phone" data-w="390" data-h="844" data-touch="1" aria-pressed="false">手机 竖</button>
+    <button data-dom="phone" data-w="740" data-h="352" data-touch="1" aria-pressed="false">手机 横</button>
+    <button data-dom="desk" data-w="820" data-h="1180" data-touch="1" aria-pressed="false">平板 竖</button>
+    <button data-dom="desk" data-w="1080" data-h="820" data-touch="1" aria-pressed="false">平板 横</button>
+    <button data-dom="tv" data-w="1920" data-h="1080" data-touch="0" aria-pressed="false">TV 遥控族</button>
+  </div>
+  <div class="seg" id="seg-route" role="group" aria-label="页面栈">
+    <button data-v="detail" aria-pressed="true">停在详情页</button>
+    <button data-v="player" aria-pressed="false">已 push 播放页</button>
   </div>
   <div class="seg" id="seg-os" role="group" aria-label="电脑窗口外壳">
     <button data-v="mac" aria-pressed="true">macOS</button>
     <button data-v="win" aria-pressed="false">Windows</button>
   </div>
   <div class="seg" id="seg-seed" role="group" aria-label="进来的那部剧"></div>
-  <div class="seg" id="seg-mobilemode" role="group" aria-label="手机形态">
-    <button data-v="imm" aria-pressed="true">沉浸播放</button>
-    <button data-v="page" aria-pressed="false">详情可滚</button>
-  </div>
   <label><input type="checkbox" id="cb-demo"> 标注演示数据</label>
-  <span class="hint">剧名 · 集数 · 评分 = 与发现页原型同一份实机常量；标签 / 面板词 / 推荐轨 = 实机样本；简介 · 进度 · 海报 = 演示值</span>
+  <span class="hint">剧名 · 集数 = 与发现页原型同一份实机常量；标签 / 面板词 / 推荐轨 = 实机样本；
+    简介 · 进度 · 海报 = 演示值。卡片上的分数一律不画（列表行无可信 score/published_at）。</span>
 </div>
 
 <div class="readout" id="readout"></div>
@@ -327,36 +503,63 @@
 
   <!-- ========= 电脑 / 平板：同一套 DOM ========= -->
   <section class="desk on" id="desk" data-os="mac">
-    <div class="desk-top">
-      <span class="lights"><i></i><i></i><i></i></span>
-      <span class="logo">红果短剧</span>
-      <button class="back" id="desk-back">‹ 返回</button>
-      <div class="search">⌕ 搜索剧名、题材</div>
-      <span class="me">我</span>
-      <span class="wcap"><button>─</button><button>▢</button><button class="x">✕</button></span>
+    <div class="winbar" id="desk-winbar">
+      <span class="lights"><i></i><i></i><i></i></span><span class="wdrag"></span>
     </div>
 
-    <div class="hero" id="hero">
-      <div class="inner">
-        <div class="poster"><div class="cover" id="hero-cover"></div></div>
-        <div style="flex:1;min-width:0">
-          <h1 id="hero-title"></h1>
-          <div class="sub" id="hero-sub"></div>
-          <div class="chips" id="hero-chips"></div>
-          <div class="cta">
-            <button class="btn pri" id="desk-play">▶ <span id="desk-play-label"></span></button>
-            <button class="btn gh" id="desk-fav">♡ 收藏</button>
-            <button class="btn gh" id="desk-dl">⭳ 下载全集</button>
-            <span class="todo" title="上游详情接口没有评分以外的口碑字段">评论 / 弹幕 未证实</span>
-            <span class="todo">演职人员 未证实</span>
+    <div class="routes" id="desk-routes">
+      <!-- 路由 1 · 详情页（从发现/分类/榜单 pushAppPage 进来，占满整个窗口内容区） -->
+      <div class="route base" id="desk-detail">
+        <div class="appbar">
+          <button class="ic" id="desk-back" title="返回 = pop 回列表页原位">‹</button>
+          <span class="ttl" id="desk-apptitle"></span>
+          <button class="ic" id="desk-fav" title="收藏">♡</button>
+        </div>
+        <div class="page">
+          <div class="col">
+            <div class="offline" id="desk-offline" hidden>
+              <span>网络加载失败，正在显示已保存的剧集信息</span>
+              <button id="desk-offline-retry">重试刷新</button>
+            </div>
+            <div class="hdr">
+              <div class="poster" id="desk-poster"></div>
+              <div style="flex:1;min-width:0">
+                <h1 id="desk-title"></h1>
+                <div class="sub" id="desk-sub"></div>
+                <div class="last" id="desk-last" data-demo></div>
+                <div class="cta">
+                  <button class="btn pri" id="desk-play">▶ <span id="desk-play-label"></span></button>
+                  <button class="btn gh" id="desk-dl">⭳ 下载</button>
+                  <span class="todo" title="上游详情接口没有评分以外的口碑字段">评论 / 弹幕 未证实</span>
+                  <span class="todo">演职人员 未证实</span>
+                </div>
+                <!-- 标签行是本轮新增建议（客户端现状根本不渲染 tagNames）：
+                     点一个词 = pop 回发现页并带上该筛选，只在面板词命中时可点 -->
+                <div class="chips" id="desk-chips"></div>
+              </div>
+            </div>
+            <!-- 简介整段渲染，不做展开/收起：detail_page.dart:255-259 就是一个
+                 Text(display.intro, height:1.8)，没有 maxLines、没有「展开」这一层。 -->
+            <div class="intro" id="desk-intro"><span id="desk-intro-t" data-demo></span></div>
+            <h3 class="blk">选择剧集</h3>
+            <div class="blksub">选择一集，故事即刻开始。</div>
+            <div class="pager" id="desk-pager"></div>
+            <div id="desk-related"></div>
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="wrap">
-      <div class="col-main">
-        <div class="vid" id="desk-vid" style="aspect-ratio:4/3;max-height:520px">
+      <!-- 路由 2 · 播放页：点任意一集 = pushAppPage(AppScreen.player)，不是本页换 class -->
+      <div class="route top" id="desk-player">
+        <div class="pnav">
+          <button class="ic" id="desk-exit" title="退出播放页（pop）">‹</button>
+          <b id="desk-now-t"></b>
+          <span id="desk-now-sub" style="color:rgba(255,255,255,.7)"></span>
+          <span class="sp"></span>
+          <button class="ic" id="desk-ws-toggle" title="选集面板（快捷键 I）">▤ 选集</button>
+          <span class="todo">自动连播下一集 = 本地队列，不是推荐</span>
+        </div>
+        <div class="vid" id="desk-vid">
           <div class="bgfill"></div>
           <div class="frame-in"><div class="portrait">
             <span class="wm">红果短剧</span>
@@ -367,8 +570,8 @@
             <div class="bar" id="desk-bar"><i></i><b></b><span class="tip" data-demo>00:31 / 01:24</span></div>
             <div class="ctl-row">
               <button id="desk-pp">❚❚ 暂停</button>
-              <button data-epnav="prev">⏮ 上一集</button>
-              <button data-epnav="next">下一集 ⏭</button>
+              <button data-epnav="-1">⏮ 上一集</button>
+              <button data-epnav="1">下一集 ⏭</button>
               <span class="sp"></span>
               <button data-demo>1.0× 倍速</button>
               <button data-demo>⌧ 字幕</button>
@@ -376,149 +579,196 @@
               <button data-demo>⛶ 全屏</button>
             </div>
           </div>
-        </div>
-        <div class="nowbar" id="desk-nowbar" hidden>
-          <button class="btn gh" id="desk-backdetail">‹ 回到详情</button>
-          <b id="desk-now-t"></b>
-          <span id="desk-now-sub" style="color:var(--ink3)"></span>
-          <span class="sp"></span>
-          <span class="todo">自动连播下一集 = 本地队列，不是推荐</span>
-        </div>
-        <div class="kpihint">快捷键 <kbd>Space</kbd> 播放/暂停 · <kbd>←</kbd><kbd>→</kbd> 5 秒 ·
-          <kbd>N</kbd>/<kbd>P</kbd> 上下集 · <kbd>M</kbd> 静音 · <kbd>F</kbd> 全屏 ·
-          <kbd>Esc</kbd> 关抽屉。触控族（平板）不显示这一行，外接键盘时才浮出来。</div>
-
-        <div class="sect" style="padding-left:0;padding-right:0">
-          <div class="intro" id="desk-intro"><span id="desk-intro-t" data-demo></span><span class="fade"></span></div>
-          <button class="more" id="desk-intro-more">展开</button>
+          <!-- 选集是播放页上的一层覆盖面板，不是第二栏：EpisodeWorkspace 右侧
+               min(340, 80%) 宽、5 秒自动隐藏、I 键开合、Back 先关它（episode_workspace.dart:218-267） -->
+          <div class="wsbox" id="desk-ws" hidden>
+            <button class="wsscrim" id="desk-ws-scrim" title="点画面外区域收起"></button>
+            <div class="wspanel" id="desk-ws-panel">
+              <header>
+                <b>选集</b>
+                <button class="ic" id="desk-ws-settings" title="播放设置">⚙</button>
+                <button class="ic" id="desk-ws-pin" title="保持选集展开">📌</button>
+                <button class="ic" id="desk-ws-close" title="隐藏选集">✕</button>
+              </header>
+              <div class="wsbody" id="desk-ws-body"></div>
+            </div>
+          </div>
         </div>
       </div>
-
-      <aside class="side">
-        <div class="tabs" id="desk-tabs" role="tablist">
-          <button role="tab" data-v="ep" aria-selected="true">选集</button>
-          <button role="tab" data-v="rec" aria-selected="false">接下来播放</button>
-          <button role="tab" data-v="dl" aria-selected="false">缓存</button>
-        </div>
-        <div class="body" id="desk-side"></div>
-      </aside>
     </div>
 
-    <div id="desk-related"></div>
-
-    <div class="sect" style="padding-bottom:26px">
-      <div class="sect-h"><h3>大家都在看</h3>
-        <button class="why" data-why="hot">这不是推荐 · 来源说明</button></div>
-      <div class="grid-cards" id="desk-hot"></div>
+    <!-- 缓存：≥720 且 ≥400 走居中对话框，否则底部弹层（download_selection.dart:20-45）。
+         里面那段表单是客户端已实现的同一份内容（:65-374）：标题+关闭 / 画质下拉+全选清空+N 集 /
+         前台后台与并发说明 / 第 X 集勾选格 / 「下载 N 集」主按钮。 -->
+    <div class="dlgwrap" id="desk-dl-wrap" hidden>
+      <div class="dlg">
+        <header><b>下载剧集</b>
+          <button class="x" id="desk-dl-x" title="关闭下载选集">✕</button></header>
+        <div class="body" id="desk-dl-form"></div>
+      </div>
     </div>
-    <div class="pop" id="pop"></div>
+    <!-- 确认后的反馈是 SnackBar，不是详情页上的第三枚按钮
+         （download_selection.dart:46-62：已加入下载… +「查看」动作 + 关闭图标） -->
+    <div class="snack" id="desk-snack" hidden></div>
   </section>
 
   <!-- ========= 手机 / 平板设备框（平板复用上面的 desk DOM） ========= -->
   <div class="device" id="device">
     <div class="sbar"><span>9:41</span><span class="r" id="sbar-r">iPhone · 触控</span></div>
     <div class="screen" id="screen">
-      <div class="mnav">
-        <button class="ic" id="m-back">‹</button>
-        <span class="ttl" id="m-title"></span>
-        <button class="ic" id="m-fav">♡</button>
-        <button class="ic" data-demo>⋯</button>
-      </div>
+      <div class="routes" id="m-routes">
+        <!-- 路由 1 · 详情页：AppBar(‹ · 剧名 · ♡) + 封面头部 + 简介 + 选集分页 + 推荐轨 -->
+        <div class="route base" id="m-page">
+          <div class="mnav">
+            <button class="ic" id="m-back" title="返回">‹</button>
+            <span class="ttl" id="m-title"></span>
+            <button class="ic" id="m-fav" title="收藏">♡</button>
+          </div>
+          <div class="mbody">
+            <!-- 手机头部与桌面同一套组件、同一份尺寸：封面 130×180 + 标题 26 + 集数 +
+                 Wrap 里的两枚主操作都在封面右侧那一列里（detail_page.dart:177-253）。
+                 上一版这里另画了一张 100px 封面 + 通栏按钮行的「手机版式」，那是第二种布局。 -->
+            <div class="hdr">
+              <div class="poster" id="mp-poster"></div>
+              <div style="flex:1;min-width:0">
+                <h1 id="mp-title"></h1>
+                <div class="sub" id="mp-sub"></div>
+                <div class="chips" id="mp-chips"></div>
+                <div class="cta">
+                  <button class="btn pri" id="mp-play">▶ <span id="mp-play-t"></span></button>
+                  <button class="btn gh" id="mp-dl">⭳ 下载</button>
+                </div>
+              </div>
+            </div>
+            <div class="msec">
+              <div class="intro" id="mp-intro"><span id="mp-intro-t" data-demo></span></div>
+              <h3 class="blk">选择剧集</h3>
+              <div class="blksub">选择一集，故事即刻开始。</div>
+              <div class="pager" id="mp-pager"></div>
+            </div>
+            <div class="msec" id="mp-related"></div>
+          </div>
+        </div>
 
-      <div class="mbody flat" id="m-imm">
-        <div class="imm">
-          <div class="vid">
-            <div class="bgfill"></div>
-            <div class="frame-in"><div class="portrait">
-              <span class="wm">红果短剧</span>
-              <span class="sub" data-demo>「她推开那扇门的时候，就知道今晚不该来。」</span>
-            </div></div>
-            <div class="railv">
-              <button id="m-fav2"><span>♡</span>收藏</button>
-              <button id="m-ep"><span>▤</span>选集</button>
-              <button id="m-dl"><span>⭳</span>缓存</button>
-              <button data-demo><span>↗</span>分享</button>
+        <!-- 路由 2 · 播放页：铺满、无 AppBar、无底部导航（immersive-playback.md 第 3 行） -->
+        <div class="route top" id="m-imm">
+          <div class="mnav ov">
+            <button class="ic" id="mp-back" title="退出播放页（pop 回详情）">‹</button>
+            <span class="ttl" id="m-imm-navtitle"></span>
+          </div>
+          <div class="mbody flat">
+            <div class="imm">
+              <div class="vid">
+                <div class="bgfill"></div>
+                <div class="frame-in"><div class="portrait">
+                  <span class="wm">红果短剧</span>
+                  <span class="sub" data-demo>「她推开那扇门的时候，就知道今晚不该来。」</span>
+                </div></div>
+                <div class="railv">
+                  <button id="m-ep"><span>▤</span>选集</button>
+                  <button id="m-dl" data-demo><span>⭳</span>缓存</button>
+                  <button data-demo><span>↗</span>分享</button>
+                </div>
+                <div class="mfoot">
+                  <div class="t" id="m-imm-title"></div>
+                  <div class="d" id="m-imm-desc" data-demo></div>
+                  <button class="jump" id="m-imm-jump">▤ <span id="m-imm-jump-t"></span></button>
+                </div>
+                <div class="ctrl" style="padding-bottom:6px"><div class="bar"><i></i><b></b></div></div>
+                <div class="swipe">上滑下一集 · 下滑上一集 · 点画面出/收控制条</div>
+              </div>
             </div>
-            <div class="mfoot">
-              <div class="t" id="m-imm-title"></div>
-              <div class="d" id="m-imm-desc" data-demo></div>
-              <button class="jump" id="m-imm-jump">▤ <span id="m-imm-jump-t"></span></button>
-            </div>
-            <div class="ctrl" style="padding-bottom:6px"><div class="bar"><i></i><b></b></div></div>
-            <div class="swipe">上滑下一集 · 下滑上一集 · 点画面出/收控制条</div>
           </div>
         </div>
       </div>
 
-      <div class="mbody" id="m-page" hidden>
-        <div class="vid" data-demo style="height:206px">
-          <div class="bgfill"></div>
-          <div class="frame-in"><div class="portrait"><span class="wm">红果短剧</span></div></div>
-          <div class="bigplay"><span>▶</span></div>
-          <div class="ctrl" style="padding:8px 10px 10px">
-            <div class="bar" style="--p:22%"><i></i><b></b></div>
-            <div class="ctl-row" style="margin-top:7px;font-size:12px">
-              <button>▶ 播放</button><span class="sp"></span><button>下一集 ⏭</button><button>⛶</button>
-            </div>
-          </div>
-        </div>
-        <div class="mhero">
-          <div class="poster"><div class="cover" id="mp-cover"></div></div>
-          <div style="flex:1;min-width:0">
-            <h2 id="mp-title"></h2>
-            <div class="s" id="mp-sub"></div>
-            <div class="chips" id="mp-chips"></div>
-          </div>
-        </div>
-        <div class="mrow3">
-          <button class="pri" id="mp-play">▶ <span id="mp-play-t"></span></button>
-          <button class="gh" id="mp-fav">♡ 收藏</button>
-          <button class="gh" id="mp-ep">▤ 选集</button>
-        </div>
-        <div class="msec">
-          <div class="intro" id="mp-intro"><span id="mp-intro-t" data-demo></span><span class="fade"></span></div>
-          <button class="more" id="mp-intro-more">展开</button>
-        </div>
-        <div id="mp-related"></div>
-        <div class="mnote">手机上相关推荐只保留「有可证关系」的那一块，且排在选集之后；
-          「大家都在看」不进这条滚动流的顶部，避免观众把它当成这部剧的续集或同系列。</div>
-      </div>
-
-      <div class="mseg" id="mbar">
-        <button data-v="imm" aria-selected="true">播放中</button>
-        <button data-v="page" aria-selected="false">详情</button>
-        <button data-v="rec" aria-selected="false">推荐</button>
-      </div>
-
+      <!-- 弹层挂在页面栈之上，不属于任何一条路由：showModalBottomSheet / showDialog
+           是盖在当前页上的模态路由（download_selection.dart:32-44）。
+           选集抽屉的头部 = 选集 + 播放设置 + 关闭（player_page.dart:1050-1066），高度 65%；
+           缓存弹层的头部 = 下载剧集 + 关闭（download_selection.dart:180-197），高度 78%（<400 时 95%）。 -->
       <div class="mask" id="mask"></div>
-      <div class="sheet" id="sheet">
-        <div class="grab"></div>
-        <header><b id="sheet-t">选集</b>
-          <div class="seg" id="sheet-seg">
-            <button data-v="all" aria-pressed="true">全部</button>
-            <button data-v="unseen" aria-pressed="false">未看</button>
-          </div>
-        </header>
+      <div class="sheet" id="sheet" hidden>
+        <div class="grab" id="sheet-grab" hidden></div>   <!-- 只有选集抽屉有：player_page.dart:1043 showDragHandle:true；下载弹层 download_selection.dart:36 是 false -->
+        <header id="sheet-head"></header>
         <div class="body" id="sheet-body"></div>
       </div>
+      <div class="snack" id="m-snack" hidden></div>
     </div>
     <div class="hind"></div>
   </div>
+  <!-- 这条注记画在设备外壳之外：App 的正文里没有「说明段」这种东西（§2 第 3 条硬规则） -->
+  <div class="mnote">手机屏内不嵌播放器：App 的详情头部是封面 + 标题 + 两枚主操作
+    （detail_page.dart:177-253），要看画面得 push 播放页。选集在正文里就是分页器，
+    底部抽屉那一层属于播放页；缓存走 &lt;720 那一档的底部弹层。</div>
+
+  <!-- ========= TV（遥控族）：上一版原型根本没有这一版面，而 TV 详情页是最先落地的 ========= -->
+  <section class="tv" id="tv">
+    <div class="tvbox">
+      <div class="tvsurface" id="tv-surface">
+       <div class="tvscroll" id="tv-scroll">
+        <div class="tvrow">
+          <button class="tvbtn" data-tv="1" data-z="top" data-i="0" id="tv-back"><span class="in">‹ 返回</span></button>
+          <span class="tvtitle" id="tv-title"></span>
+        </div>
+        <div class="tvintro" id="tv-intro" data-demo></div>
+        <div class="tvrow" id="tv-acts"></div>
+        <!-- TV 正文里没有「选择剧集」这块标题：tv_detail_page.dart:221-230 直接就是 EpisodePager，
+             标题+副标题那句是 detail_page.dart:262-273 的（且被测试钉住），别把它抄到遥控族上。 -->
+        <div class="tvpager">
+          <div class="tveps" id="tv-eps"></div>
+          <div class="tvfoot" id="tv-pfoot"></div>
+        </div>
+        <div class="tvtip" id="tv-tip"></div>
+        <div class="tvh" id="tv-relh"></div>
+        <div class="tvrel" id="tv-rel"></div>
+       </div><!-- /tvscroll -->
+        <!-- 确认键落在 播放/某一集 = 推入播放页；这一层就是那条路由 -->
+        <div class="tvplayer" id="tv-player" hidden>
+          <div class="pnav" style="width:100%"><button class="ic" id="tv-exit" data-tv="1" title="退出播放页（Back）">‹ 退出播放</button>
+            <b id="tv-now-t"></b><span class="sp"></span>
+            <span class="todo">Back 一次只消一层：先关选集 → 再退全屏 → 最后 pop</span></div>
+          <div class="frame-in" style="flex:1"><div class="portrait" id="tv-vid">
+            <span class="wm">红果短剧</span>
+            <span class="sub" data-demo>「她推开那扇门的时候，就知道今晚不该来。」</span></div></div>
+        </div>
+        <!-- 下载剧集在 TV 上命中 ≥720×≥400 → 同一个对话框外壳，格子里换成
+             TvGrid(maxExtent:190, aspectRatio:1.25)（download_selection.dart:269-287）；
+             焦点被关在对话框里，Back 只关这一层。 -->
+        <div class="dlgwrap tvd" id="tv-dl-wrap" hidden>
+          <div class="dlg">
+            <header><b>下载剧集</b>
+              <button class="x" id="tv-dl-x" data-tv="1" title="关闭下载选集">✕</button></header>
+            <div class="body" id="tv-dl-form"></div>
+          </div>
+        </div>
+        <div class="snack" id="tv-snack" hidden></div>
+      </div>
+      <div class="tvkeys" id="tv-keys"></div>
+    </div>
+  </section>
 
  </div><!-- /frame -->
 </div>
 
+<div class="keys" id="keys"></div>
+
 <div class="foot">
-  <b>这一页是二级承接页：</b>发现 / 分类 / 榜单里的卡片点进来就是它（发现页原型 <code>discover-filters-ranking.html</code>
-  的卡片点击已接到本页，带 <code>?g=&amp;i=</code> 过来）；左上「返回」回到列表，滚动位置和筛选状态由列表页保活。<br>
-  <b>设备族分派按宽度 × 输入族，不按设备名：</b>&lt;600 单列（播放器吃满，选集/缓存走底部抽屉）；
-  横屏手机仍单列吃满，不缩成窄栏；600–900 窄版双栏；≥900 宽版双栏（电脑客户端、平板横屏）。
-  平板和电脑是同一套 DOM，只差点击目标尺寸与是否显示 hover 预览 / 快捷键。<br>
+  <b>这一页是被推入的一页，不是一个地址。</b>发现 / 分类 / 榜单里的卡片点进来 =
+  <code>pushAppPage(AppScreen.detail)</code>，转场 <code>slidePageTransitions</code>（新页从右进、旧页左移 0.3）；
+  左上「返回」只有一个语义：pop，列表页保活原位。原型之间用 <code>?g=&amp;i=</code> 传「进来的那部剧」，
+  那是调试入口，<b>不是产品能力</b>——App 没有 URL，也不写 <code>?ep=</code> 去「分享某一集」。<br>
+  <b>版面按 宽度 × 输入族 分派，宽屏不产生第二种布局：</b>整个正文是
+  <code>Center + ConstrainedBox(maxWidth:960)</code> 的一条单列（<code>detail_page.dart:140-143</code>）；
+  &lt;720 选集 <code>rows:3 / cellExtent:100</code>，≥720 只是 4 行 × 120 并把缓存弹层从底部抽屉换成居中对话框。
+  上一版的 330px 右侧标签栏（选集 / 接下来播放 / 缓存）删了：客户端没有它，「宽屏 = 两栏」也是网页栅格思路。<br>
+  <b>点任意一集 = push 播放页。</b>旧版把它画成同一页 <code>classList.toggle('playing')</code> +
+  <code>scrollIntoView</code>，那是 SPA 页内状态；真实代码走 <code>detail_page.dart:125-138</code> 的路由推入，
+  pop 回来才刷新「上次看到第 X 集」与主按钮文案。<br>
   <b>推荐块为什么只有一块、名字还这么短：</b>上游没有 related / recommend / 相似 端点，
-  唯一能自证的关联是把这部剧自己的面板词 <code>cate_</code> id 放进 <code>select_items</code> 再要一页。
-  卡片自带标签和面板词不同源（实机 17 行里只有 2 行能在「全部主题」找到同名，放宽到 设定∪主题 是 12 行，
-  再放宽到带背景词就 17/17 —— 因为「都市 / 现代」几乎每行都有，等于没筛）。
-  所以块名只写命中的那一个词；一个词都对不上时整块不出现（切到「后妈难当」看这个状态）。
+  唯一能自证的关联是把这部剧自己的面板词 <code>cate_</code> id 放进 <code>select_items</code> 再要一页；
+  块名只能是「同题材 · 那个词」，一个词都对不上时退到「平台热门」（<code>sort=hot_score</code>），
+  无命中 / 失败 / 空页则整块不出现。<code>related_dramas.dart:6-12</code> 的类型里刻意不带 最新/热度 标记，
+  所以这里也不画分数角标——切到「后妈难当」看整块缺席的状态。
 </div>
 
 <script>
@@ -564,8 +814,10 @@ const DEMO_DESC={
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const Q=new URLSearchParams(location.search);
 const SEEDS=[['short_play',2],['short_play',10],['short_play',0],['short_play',11]];
-const state={dom:'desk',w:1280,touch:false,seed:0,g:'short_play',i:2,mode:'imm',side:'ep',
-             playing:true,fav:false,os:'mac',ep:null};
+const state={dom:'desk',w:1280,h:800,touch:false,seed:0,g:'short_play',i:2,
+             playing:true,pushed:false,fav:false,os:'mac',ep:null,playhead:31,pq:0,fs:false,
+             mute:false,volume:60,bg:false,overlay:null,ws:false,wsPinned:false,pagerInfo:null};
+const DUR=84;                                 /* 演示时长 01:24，进度条只画这一条演示值 */
 if(Q.get('g')&&FEED[Q.get('g')]&&Number.isInteger(+Q.get('i'))){
   state.g=Q.get('g'); state.i=+Q.get('i');
   const k=SEEDS.findIndex(s=>s[0]===state.g&&s[1]===state.i);
@@ -580,27 +832,36 @@ const cur=()=>{const c=(FEED[state.g]||[])[state.i]||FEED.short_play[2];
 const PANEL=new Set(['都市','现代','乡村','悬疑','家长里短','大女主','大男主','黑道','重生','穿越','系统','异能','先婚后爱','暴富','总裁','家庭','爱情','成长','逆袭','青春']);
 /* 海报色：能在实机 feed 里查到就查，查不到用固定调色板取稳定的一格。海报本身已标 data-demo。 */
 const PALETTE=['#101820','#301810','#282018','#382018','#581810','#202028','#603808','#302018'];
-function colorFor(name){
+/* 海报色 / 集数：能在实机 feed 里查到就查，查不到用固定调色板取稳定的一格、集数留空。
+   海报与集数都带 data-demo，勾「标注演示数据」会描成虚线。 */
+function feedRow(name){
   for (const g of Object.keys(FEED)) {
     const hit = FEED[g].find(c=>c[0]===name);
-    if (hit) return hit[7];
+    if (hit) return {eps:hit[1]??(TAGS[hit[0]]&&TAGS[hit[0]].eps), color:hit[7]};
   }
   let h=0; for (const ch of name) h=(h*31+ch.codePointAt(0))|0;
-  return PALETTE[Math.abs(h)%PALETTE.length];
+  return {eps:null,color:PALETTE[Math.abs(h)%PALETTE.length]};
 }
+function colorFor(name){ return feedRow(name).color; }
 
 function say(h){$('#readout').innerHTML=h;}
-function coverHTML(c,eps,badge){
-  return `<span class="cover" style="--c:${c.color||c}" data-demo>
-    ${badge?`<span class="badge ${/爆/.test(badge)?'hot':''}">${badge}</span>`:''}
-    ${eps?`<span class="eps">全 ${eps} 集</span>`:'<span class="eps">集数 未留存</span>'}</span>`;
+/* 封面两用法：详情页头部 = 裸 DramaCover，drama_cover.dart 全文没有任何角标；
+   列表卡 = DramaCard:38-56 在封面左下叠一枚「N 集」（黑 70% 底 / 圆角 6 / 白字 11 / padding 4×8），
+   集数拿不到（episodeCount<=0）时整枚不出现。发现页那枚「红果首发」来自列表行，
+   详情接口不返回它，所以这一页不画。 */
+function coverHTML(c,eps,asCard){
+  const chip=asCard&&eps?`<span class="eps">${eps} 集</span>`:'';
+  return `<span class="cover" style="--c:${c.color||c}" data-demo>${chip}</span>`;
 }
-function cardHTML(name,note,meta){
-  const m=meta||{}, c=m.color||colorFor(name);
+/* 卡面三行 = 封面 + 标题（15/w600 最多两行）+ 副标（12，一行省略）。
+   副标是 intro，样本里没留存就落 drama_card.dart:73 的默认文案「点开看看这个故事」。
+   悬停 1.5s 预览属于列表页的卡面（library_page.dart:2982），推荐轨装的是裸 DramaCard，没有这一层。 */
+function cardHTML(name){
+  const r=feedRow(name);
   return `<button class="card" data-name="${name}" style="width:100%">
-    ${coverHTML({color:c},m.eps,m.badge)}
-    <span class="tit">${name}</span><span class="tags">${note||''}</span>
-    <span class="peek" data-demo>悬停 1.5 秒出预览 · 点一下接播这一部</span></button>`;
+    ${coverHTML(r,r.eps,true)}
+    <span class="tit">${name}</span>
+    <span class="sub" data-demo>点开看看这个故事</span></button>`;
 }
 function blocks(){
   const d=cur(), ev=d.ev, out=[];
@@ -613,7 +874,11 @@ function blocks(){
         请求带的就是这一个词：<code>select_items{ ${p.dim}: ["${p.id}"] }</code>。
         ${items.length?`实测返回 18 条，本块展示前 6 条（真实标题）。`
           :`<b>本轮未对这个词取样</b> → 正式实现里这块应当不出现，直到取样证明它能稳定返回内容。`}
-        它不是算法推荐，只是「和这部剧共用同一个面板词」，所以块名只写一个词，不写「猜你喜欢」。`});
+        它不是算法推荐，只是「和这部剧共用同一个面板词」，所以块名只写一个词，不写「猜你喜欢」。
+        <b>卡面三行</b>=封面+标题+副标（<code>drama_card.dart:22-83</code>），封面左下那枚「N 集」只在
+        <code>episodeCount&gt;0</code> 时出现（<code>:38-56</code>）；本轮样本只留存了剧名，
+        所以这里没有角标——不是卡片不该有。悬停 1.5s 预览属于列表页（<code>library_page.dart:2982</code>），
+        推荐轨装的是裸 <code>DramaCard</code>，没有那一层。`});
   }
   if(ev&&ev.cross){
     const x=ev.cross, items=RAILS[`${x.dim}|${x.id}`]||[];
@@ -634,191 +899,586 @@ function relatedHTML(host,deskMode){
       ? `<div class="empty"><b>没有可证的关联 → 这一整块不出现。</b>${why}
          与其铺一屏「猜你喜欢」，不如什么都不画：观众不会因为它出现在这部剧下面就认为它们相关。
          <span class="todo">后端配合清单：详情接口带 selector_item_id 列表</span></div>`
-      : `<div class="mnote">没有可证关联 → 推荐块不出现，页面上只剩选集与「大家都在看」。</div>`;
+      : `<div class="mnote">没有可证关联 → 推荐块不出现，详情页正文里只剩选集分页器。</div>`;
     return;
   }
   host.innerHTML = bs.map((b,bi)=>`
     <div class="${deskMode?'sect':'msec'}" data-block="${bi}">
       <div class="${deskMode?'sect-h':'msec-h'}"><h3>${b.title}</h3>
-        <button class="why" data-why="${bi}">来源说明</button>
-        <span class="req">${b.req}</span></div>
-      <div class="${deskMode?'rail':'mrail'}">${b.items.map(n=>
-        `<div style="flex:0 0 ${deskMode?150:110}px">${cardHTML(n,`筛选词：${b.word}`)}</div>`).join('')}</div>
+        <button class="req" data-req="${bi}" title="点它看这一块的来源与边界">${b.req}</button></div>
+      <div class="${deskMode?'rail':'mrail'}">${b.items.map(n=>cardHTML(n)).join('')}</div>
     </div>`).join('');
 }
-/* ===== 电脑 / 平板 ===== */
+/* ===== 选集分页器：列数按 episode_pager.dart:246-254 同一条算式现算 ===== */
+const pagerPage={desk:null,phone:null,tv:null};
+const curEp=()=>state.ep||seenEp();                 /* 1-based；无记录时=上次看到的那一集 */
+function pagerDims(which){
+  return which==='tv'
+    ? {rows:4,cell:170}                              /* tv_detail_page.dart:228-229 */
+    : {rows:state.w<720?3:4,cell:state.w<720?100:120}; /* detail_page.dart:287-290 */
+}
+function pagerMetrics(width,rows,cellExtent){
+  const spacing=10;
+  const cols=Math.max(1,((width+spacing)/(cellExtent+spacing))|0);
+  const perPage=rows*cols, eps=total();
+  return {cols,rows,cellExtent,eps,pageCount:Math.max(1,Math.ceil(eps/perPage)),perPage};
+}
+/* 三条列数公式别混用：
+   详情页分页器 = floor((w+spacing)/(cellExtent+spacing))（episode_pager.dart:246-250，上面那条）；
+   SliverGridDelegateWithMaxCrossAxisExtent = ceil(w/(max+spacing))（flutter sliver_grid.dart:504-505）；
+   TvGrid = ceil((w+14)/(maxExtent+14))，两轴间距恒 14（packages/tv/lib/src/grid.dart:158、:169-170）。 */
+function sliverCols(w,max,spacing){return Math.max(1,Math.ceil(w/(max+spacing)));}
+function tvGridCols(w,maxExtent){return Math.max(1,Math.ceil((w+14)/(maxExtent+14)));}
+function fitGrids(root){
+  root.querySelectorAll('.wsgrid').forEach(g=>{
+    g.style.gridTemplateColumns=`repeat(${sliverCols(g.clientWidth||300,80,10)},1fr)`;   /* player_page.dart:1471-1474 */
+    g.dataset.cols=sliverCols(g.clientWidth||300,80,10);
+  });
+  root.querySelectorAll('.dlgrid').forEach(g=>{
+    const tv=g.classList.contains('istv');
+    const n=tv?tvGridCols(g.clientWidth||680,190):sliverCols(g.clientWidth||680,110,8);   /* download_selection.dart:273、:294 */
+    g.style.gridTemplateColumns=`repeat(${n},1fr)`;
+    g.dataset.cols=n;
+  });
+}
+/* 元素没被布局（另一版面 display:none）时按代码的可用宽算：
+   手机/桌面 = Center+ConstrainedBox(960) 再减左右 24（detail_page.dart:140-143、:280）；
+   TV = SingleChildScrollView(padding: all 36)（tv_detail_page.dart:128-129）。 */
+function pagerAvail(which){
+  return which==='tv'?state.w-72
+    :which==='phone'?Math.min(state.w,960)-48
+    :Math.min(state.w,960)-48;
+}
+function renderPager(which){
+  const block=which==='tv'?$('#tv-eps').parentNode:which==='phone'?$('#mp-pager'):$('#desk-pager');
+  const dims=pagerDims(which);
+  const m=pagerMetrics(block.clientWidth||pagerAvail(which),dims.rows,dims.cell);
+  let page=pagerPage[which];
+  if(page==null||page>m.pageCount-1)               /* 首帧定位到当前集所在页，:113-117 */
+    page=Math.min(m.pageCount-1,Math.floor((curEp()-1)/m.perPage));
+  pagerPage[which]=page;
+  const from=page*m.perPage+1, to=Math.min(from+m.perPage-1,m.eps), now=curEp();
+  state.pagerInfo={which,m,page,from,to};
+  if(which==='tv'){
+    const g=$('#tv-eps');
+    g.innerHTML='';
+    for(let i=from;i<=to;i++){
+      const b=document.createElement('button');
+      b.className='tvep'+(i===now?' now':'');
+      b.dataset.ep=i; b.dataset.tv='1'; b.title=`第 ${i} 集`;
+      b.innerHTML=`<span class="in">${i}</span>`;
+      g.appendChild(b);
+    }
+    g.style.gridTemplateColumns=`repeat(${m.cols},1fr)`;
+    $('#tv-pfoot').innerHTML=
+      `<button class="tvbtn" data-pg="-1" data-tv="1" ${page===0?'disabled':''}><span class="in">‹</span></button>
+       <span class="pg">第 ${page+1}/${m.pageCount} 页</span>
+       <button class="tvbtn" data-pg="1" data-tv="1" ${page===m.pageCount-1?'disabled':''}><span class="in">›</span></button>`;
+    return m;
+  }
+  const host=which==='phone'?$('#mp-pager'):$('#desk-pager');
+  host.innerHTML=`<div class="pgrid"></div>
+    <div class="pfoot">
+      <button data-pg="-1" data-pager="${which}" ${page===0?'disabled':''} title="上一页">‹</button>
+      <span class="pg">第 ${page+1}/${m.pageCount} 页</span>
+      <button data-pg="1" data-pager="${which}" ${page>=m.pageCount-1?'disabled':''} title="下一页">›</button>
+    </div>`;
+  const grid=host.querySelector('.pgrid');
+  grid.style.gridTemplateColumns=`repeat(${m.cols},1fr)`;
+  let out='';
+  for(let i=from;i<=to;i++)
+    out+=`<button data-ep="${i}" data-pager="${which}" class="${i===now?'now':''}">${i}</button>`;
+  grid.innerHTML=out;
+  return m;
+}
+function turnPager(which,delta){
+  const m=(state.pagerInfo&&state.pagerInfo.which===which)?state.pagerInfo.m:renderPager(which);
+  const target=Math.max(0,Math.min(m.pageCount-1,(pagerPage[which]??0)+delta));
+  if(target===pagerPage[which]) return null;
+  pagerPage[which]=target;
+  renderPager(which);
+  return m;
+}
+/* ===== 标签行：本轮新增建议（客户端现状根本不渲染 tagNames）=====
+   只有面板里查得到同名词的标签才是入口：点了 = pop 回发现页并带上该筛选；
+   查不到的只当文本，不给假入口。 */
+function chipsHTML(d,n){
+  const tags=d.ev?d.ev.tags:['（本轮样本未留存该剧标签）'];
+  return tags.slice(0,n).map(t=>{
+    const on=PANEL.has(t);
+    return `<button class="chip" data-tag="${t}" ${on?'':'data-dead="1"'}>${t}
+      <span class="n">${on?'面板有':'面板无'}</span></button>`;
+  }).join('');
+}
+/* ===== 电脑 / 平板（同一套 DOM，只有尺寸与输入族不同） ===== */
 function renderDesk(){
   const d=cur(), eps=d.eps;
-  $('#hero').style.setProperty('--c',d.color);
-  $('#hero-cover').outerHTML=`<span class="cover" id="hero-cover" style="--c:${d.color}" data-demo>
-     ${d.badge?`<span class="badge">${d.badge}</span>`:''}
-     ${eps?`<span class="eps">全 ${eps} 集</span>`:''}</span>`;
-  $('#hero-title').textContent=d.title;
-  $('#hero-sub').innerHTML=`<span ${eps?'':'class="todo"'}>${eps?`共 ${eps} 集`:'集数未在本轮样本留存'}</span>
-     · ${d.score?`<span>${d.score} 分</span>`:''}
-     · <span data-demo>上次看到第 ${seenEp()} 集</span>
-     · 卡片自带标签 ${d.ev?d.ev.tags.length+' 个（实机）':'未在本轮样本留存'}`;
-  const tags=d.ev?d.ev.tags:['（本轮样本未留存该剧标签）'];
-  $('#hero-chips').innerHTML=tags.slice(0,6).map((t,i)=>
-    `<button class="chip" data-tag="${t}" aria-pressed="${i===0&&PANEL.has(t)}">${t}
-      <span class="n">${PANEL.has(t)?'面板有':'面板无'}</span></button>`).join('');
-  $('#desk-intro-t').textContent=(DEMO_DESC[d.title]||'')+'　'.repeat(1)+(DEMO_DESC[d.title]||'');
+  /* 自绘标题条里没有标题文字（见 .winbar 注释），剧名只出现在 AppBar 的 title 上。 */
+  $('#desk-apptitle').textContent=d.title;
+  $('#desk-poster').innerHTML=coverHTML({color:d.color},eps,false);
+  $('#desk-title').textContent=d.title;
+  $('#desk-sub').innerHTML=`<span ${eps?'':'class="todo"'}>${eps?`共 ${eps} 集`:'集数未在本轮样本留存'}</span>`;
+  $('#desk-last').textContent=`上次看到第 ${seenEp()} 集`;
+  $('#desk-play-label').textContent='继续观看';
+  $('#desk-chips').innerHTML=chipsHTML(d,6);
+  $('#desk-intro-t').textContent=(DEMO_DESC[d.title]||'（本轮样本未留存该剧简介 → 正式实现里这块是骨架屏，不编文案）');
   $('#desk-vid').style.setProperty('--c',d.color);
   relatedHTML($('#desk-related'),true);
-  renderSide();
-  $('#desk-hot').innerHTML=(FEED[state.g]||FEED.short_play).filter(c=>c[0]!==d.title)
-    .slice(0,10).map(c=>cardHTML(c[0],c[3]?c[3]+' 分':'',{eps:c[1],badge:c[6],color:c[7]})).join('');
+  renderPager('desk');
 }
-function epButtons(from,to){
-  const active=state.ep||seenEp();
-  let out='';
-  for(let i=from;i<=to;i++) out+=`<button class="${i===active?'now':''} ${i<active?'done':''}" data-ep="${i}" data-demo>${i}</button>`;
-  return out;
+/* ===== 播放页的选集面板：右侧覆盖面板（电脑/平板 ≥720）与底部抽屉（<720）共用同一段 _episodePanel =====
+   照 player_page.dart:1317-1505 的顺序：收藏按钮 → 已提前缓存 x/y 集 → 「第 N 集」 →
+   清晰度下拉 + 连播开关 → 上一集/下一集（两端 disable）→ maxCrossAxisExtent 80 / 比例 1.25 的格子。
+   格子可滚动、打开时定位到正在播的那一集（EpisodeReveal），不是分页器。 */
+function epPanelHTML(){
+  const now=curEp(), eps=total();
+  let cells='';
+  for(let i=1;i<=eps;i++)
+    cells+=`<button data-ep="${i}" class="${i===now?'now':''}">${i}${i<=now+2?'<i>已缓存</i>':''}</button>`;
+  return `<div class="wsfav"><button class="ic" data-fav="1" title="${state.fav?'取消收藏':'收藏'}">${state.fav?'♥':'♡'}</button></div>
+    <div class="pre" data-demo>已提前缓存 3 / 8 集</div>
+    <div class="now">第 ${now} 集</div>
+    <div class="wsrow">
+      <span class="sp"></span>
+      <button class="q" data-pq="1">清晰度 ${PLAY_Q[state.pq]} ▾</button>
+      <span class="sw" data-demo>连播<i></i></span>
+    </div>
+    <div class="wsrow">
+      <button class="prev" data-epnav="-1" ${now<=1?'disabled':''}>上一集</button>
+      <button class="next" data-epnav="1" ${now>=eps?'disabled':''}>下一集</button>
+    </div>
+    <div class="wsgrid" data-demo>${cells}</div>`;
 }
-function renderSide(){
-  const d=cur(), body=$('#desk-side'), eps=d.eps||40, seg=eps>30?30:eps;
-  if(state.side==='ep'){
-    const groups=[]; for(let i=1;i<=eps;i+=seg) groups.push(`${i}-${Math.min(i+seg-1,eps)}`);
-    const st=Math.floor(((state.ep||seenEp())-1)/seg)*seg+1;
-    body.innerHTML=`<div class="epseg">${groups.map((g,i)=>`<button data-g="${i}" aria-pressed="${st>=i*seg+1&&st<=i*seg+seg}">${g}</button>`).join('')}</div>
-      <div class="epgrid">${epButtons(st,Math.min(st+seg-1,eps))}</div>
-      <button class="switchrow" aria-pressed="true">自动连播下一集<i></i></button>
-      <button class="switchrow" aria-pressed="false">仅看未看<i></i></button>
-      <div class="mnote" style="padding:10px 2px 0">电脑端把选集放进右侧栏：画面和集数同屏，不用先呼出抽屉。
-        分组数按真实集数算（${eps} 集 → ${groups.length} 组），组内数字为演示位。</div>`;
-    body.querySelector('.epseg').onclick=e=>{
-      const b=e.target.closest('button'); if(!b) return;
-      body.querySelectorAll('.epseg button').forEach(x=>x.setAttribute('aria-pressed',x===b));
-      const st=(+b.dataset.g)*seg+1;
-      body.querySelector('.epgrid').innerHTML=epButtons(st,Math.min(st+seg-1,eps));
-    };
-  } else if(state.side==='rec'){
-    const b=blocks()[0], names=b?b.items:(FEED[state.g]||[]).slice(0,6).map(c=>c[0]);
-    body.innerHTML=`<div class="queue">${names.map((n,i)=>
-      `<div class="q"><span class="cover" data-demo style="--c:${(FEED[state.g]||[])[i]?FEED[state.g][i][7]:'#3b3f52'}"></span>
-       <div style="min-width:0"><div class="n">${n}</div>
-       <div class="o">队列第 ${i+1} 位${b?' · 来源：'+b.title:' · 无可证关系时不排队'}</div></div></div>`).join('')}</div>
-      <div class="mnote" style="padding:10px 2px 0">电脑端把「接下来播放」做成可编辑队列：
-        看完这部按队列接播，比在下方铺一屏卡片更合键盘用户的连看习惯。队列内容 = 本页唯一那块可证推荐。</div>`;
-  } else {
-    body.innerHTML=`<div class="chips" style="margin-bottom:10px"><button class="chip" aria-pressed="true">第 1-${eps} 集</button>
-        <button class="chip">前 10 集</button><button class="chip">未看集</button></div>
-      <div class="mnote" style="padding:0 2px 8px">缓存只留「选集范围 + 并发 1–3」两档，不放任何额度文案。</div>
-      <div class="epgrid">${epButtons(1,Math.min(18,eps))}</div>`;
+function renderEpPanel(host){host.innerHTML=epPanelHTML();fitGrids(host);}
+function revealCurrentPanel(body){
+  const cell=body&&body.querySelector('.wsgrid .now');
+  if(cell) cell.scrollIntoView({block:'center'});   /* EpisodeReveal 的同一条语义 */
+}
+/* ===== TV（遥控族）：无 AppBar，返回是可达焦点项（tv_detail_page.dart:95-160） ===== */
+function renderTv(){
+  const d=cur(), bs=blocks();
+  $('#tv-title').textContent=d.title;
+  $('#tv-intro').textContent=DEMO_DESC[d.title]||'（本轮样本未留存该剧简介 → 正式实现里这块是骨架屏，不编文案）';
+  $('#tv-vid').style.setProperty('--c',d.color);
+  $('#tv-acts').innerHTML=
+    `<button class="tvbtn" data-tv="1" data-act="play"><span class="in">▶ 开始观看</span></button>
+     <button class="tvbtn" data-tv="1" data-act="dl"><span class="in">下载剧集</span></button>
+     <button class="tvbtn" data-tv="1" data-act="fav" id="tv-fav"><span class="in">${state.fav?'♥ 已收藏':'♡ 收藏'}</span></button>`;
+  renderPager('tv');
+  $('#tv-tip').textContent=`已定位到上次观看的第 ${curEp()} 集`;
+  const has=bs.length>0;
+  $('#tv-relh').hidden=!has; $('#tv-rel').hidden=!has;
+  if(has){
+    $('#tv-relh').textContent=bs[0].title;
+    $('#tv-rel').innerHTML=bs[0].items.map(n=>
+      `<button class="tvc" data-tv="1" data-name="${n}">
+        <span class="cv" style="--c:${colorFor(n)}" data-demo></span><span class="tt">${n}</span></button>`).join('');
   }
+  if(!tvNode||!tvItems().includes(tvNode)) tvNode=null;
+  setTvFocus(tvNode||tvItems()[0]);
 }
-/* ===== 手机 ===== */
+/* 焦点走位照 packages/tv/lib/src/environment.dart:49-104：
+   在同方向的所有可聚焦节点里按几何找——优先落在源节点带状区域内的，再按边缘距离排。 */
+let tvNode=null;
+function tvLayer(){
+  if(!$('#tv-dl-wrap').hidden) return $('#tv-dl-wrap');
+  if(!$('#tv-player').hidden) return $('#tv-player');
+  return $('#tv-surface');
+}
+function tvItems(){
+  return [...tvLayer().querySelectorAll('[data-tv]')].filter(el=>{
+    const r=el.getBoundingClientRect();
+    return r.width>0&&r.height>0&&!el.disabled;
+  });
+}
+function setTvFocus(el){
+  $$('#tv .focus').forEach(x=>x.classList.remove('focus'));
+  tvNode=el||null;
+  if(tvNode){
+    tvNode.classList.add('focus');
+    /* 只滚正文那一层，并且居中——照 focusable.dart:82-101 那条 Scrollable.ensureVisible(
+       context, alignment: 0.5)。用 scrollIntoView 会连 window 一起滚：整块画布被顶进
+       sticky 控制条底下，读出窗第一行每帧都被压住，而 window 本来就不该跟着遥控器走。 */
+    const sc=tvNode.closest('.tvscroll');
+    if(sc) sc.scrollTop=tvNode.offsetTop+tvNode.offsetHeight/2-(sc.clientHeight-72)/2;
+  }
+  paintTvKeys();
+}
+function tvMove(dir){
+  const from=tvNode;
+  if(!from){setTvFocus(tvItems()[0]);return true;}
+  /* 选集格在页首/页尾按左右键翻页并把焦点交给邻格（episode_pager.dart:189-221） */
+  if(from.dataset.ep&&(dir==='left'||dir==='right')){
+    const info=state.pagerInfo;
+    if(info&&info.which==='tv'){
+      const i=+from.dataset.ep;
+      if(dir==='right'&&i===info.to&&info.page<info.m.pageCount-1){
+        turnPager('tv',1); setTvFocus($('#tv-eps').firstChild); return true;
+      }
+      if(dir==='left'&&i===info.from&&info.page>0){
+        turnPager('tv',-1); setTvFocus([...$('#tv-eps').children].pop()); return true;
+      }
+    }
+  }
+  const fr=from.getBoundingClientRect();
+  const vertical=dir==='up'||dir==='down', forward=dir==='down'||dir==='right';
+  const cx=r=>r.left+r.width/2, cy=r=>r.top+r.height/2;
+  const ahead=[];
+  for(const el of tvItems()){
+    if(el===from) continue;
+    const r=el.getBoundingClientRect();
+    const beyond=vertical?(forward?r.top-fr.bottom:fr.top-r.bottom):(forward?r.left-fr.right:fr.left-r.right);
+    if(beyond<0) continue;
+    ahead.push([el,r]);
+  }
+  if(!ahead.length) return false;
+  const inBand=ahead.filter(([,r])=>vertical
+    ? (r.left<fr.right&&r.right>fr.left)
+    : (r.top<fr.bottom&&r.bottom>fr.top));
+  const cands=inBand.length?inBand:ahead;
+  const primary=r=>vertical?cy(r)-cy(fr):cx(r)-cx(fr);
+  const cross=r=>vertical?cx(r)-cx(fr):cy(r)-cy(fr);
+  cands.sort((a,b)=>{
+    const p=Math.abs(primary(a[1]))-Math.abs(primary(b[1]));
+    return inBand.length||p!==0?p:Math.abs(cross(a[1]))-Math.abs(cross(b[1]));
+  });
+  setTvFocus(cands[0][0]);
+  return true;
+}
+function tvActivate(){
+  const el=tvNode; if(!el) return;
+  if(el.dataset.act==='play'){pushPlayer(curEp(),'TV 确认键 · 开始观看');return;}
+  if(el.dataset.act==='fav'){toggleFav('TV 确认键 · 收藏');return;}
+  if(el.dataset.act==='dl'){openDl('TV 确认键 · 下载剧集');return;}
+  if(el.dataset.ep){pushPlayer(+el.dataset.ep,`TV 确认键 · 第 ${el.dataset.ep} 集`);return;}
+  if(el.dataset.pg){
+    const dir=+el.dataset.pg, m=turnPager('tv',dir);
+    if(m){const kids=[...$('#tv-eps').children];
+      setTvFocus(dir>0?kids[0]:kids[kids.length-1]);}
+    return;
+  }
+  if(el.dataset.name){openDetail(el.dataset.name);return;}
+  if(el.dataset.dlq){cycleQuality();return;}
+  if(el.dataset.dlall){selectAllDl();return;}
+  if(el.dataset.dlep!=null){toggleDl(+el.dataset.dlep);return;}
+  if(el.dataset.dlgo){finishDl();return;}
+  if(el.id==='tv-dl-x'){closeOverlay();setTvFocus($('#tv-acts').firstChild);
+    say(`<span class="row"><span class="k">Back / ✕</span> <em>只关模态层，焦点还给动作行</em>
+       <span class="warn">dialog 是一条模态路由，pop 它不动底下的详情路由</span></span>`);return;}
+  if(el.id==='tv-exit'){popPlayer('TV 确认键 · 退出播放');return;}
+  if(el.id==='tv-back'){sayPopDetail();return;}
+}
+function paintTvKeys(){
+  const el=tvNode;
+  const zone=el?(el.closest('.dlgwrap')?'下载对话框':el.closest('.tvplayer')?'播放页':
+      el.closest('.tvrel')?'推荐轨':el.closest('.tvpager')?'选集分页器':
+      el.id==='tv-back'?'顶部':'动作行'):'—';
+  const label=el?(el.title||el.textContent.trim().replace(/\s+/g,' ')):'无';
+  $('#tv-keys').innerHTML=
+    `<span class="z">${zone}</span> 焦点：<kbd>${label}</kbd> · `+
+    `↑↓←→ = TvNavigation 按几何找下一个（environment.dart:49-104） · 确认 = 激活 · `+
+    `Back = 一次只消一层 · 选集格走到页首/页尾的左右键会翻页并把焦点交给相邻格`;
+}
+/* ===== 手机 / 平板触控窄屏：同一套详情正文，只有 rows/cellExtent 与弹层外壳随尺寸变 ===== */
 function renderPhone(){
   const d=cur(), eps=d.eps;
   $('#m-title').textContent=d.title;
-  $('#m-imm-title').textContent=d.title;
-  $('#m-imm-desc').textContent=DEMO_DESC[d.title]||'';
-  $$('#device .vid').forEach(v=>v.style.setProperty('--c',d.color));
-  $('#mp-cover').outerHTML=`<span class="cover" id="mp-cover" style="--c:${d.color}" data-demo>
-     ${d.badge?`<span class="badge">${d.badge}</span>`:''}${eps?`<span class="eps">全 ${eps} 集</span>`:''}</span>`;
+  $('#mp-poster').innerHTML=coverHTML({color:d.color},eps,false);
   $('#mp-title').textContent=d.title;
-  $('#mp-sub').innerHTML=`<span ${eps?'':'class="todo"'}>${eps?`共 ${eps} 集`:'集数未留存'}</span>
-     · <span data-demo>看到第 ${seenEp()} 集</span>`;
-  $('#mp-chips').innerHTML=(d.ev?d.ev.tags:['（标签未留存）']).slice(0,4)
-     .map(t=>`<button class="chip" data-tag="${t}">${t}</button>`).join('');
-  $('#mp-intro-t').textContent=(DEMO_DESC[d.title]||'')+'　'+(DEMO_DESC[d.title]||'');
+  $('#mp-sub').innerHTML=`<span ${eps?'':'class="todo"'}>${eps?`共 ${eps} 集`:'集数未在本轮样本留存'}</span>`;
+  $('#mp-chips').innerHTML=chipsHTML(d,4);
+  $('#mp-play-t').textContent='继续观看';
+  $('#mp-intro-t').textContent=(DEMO_DESC[d.title]||'（本轮样本未留存该剧简介 → 正式实现里这块是骨架屏，不编文案）');
+  $$('#device .vid').forEach(v=>v.style.setProperty('--c',d.color));
   relatedHTML($('#mp-related'),false);
+  renderPager('phone');
 }
-function applyMode(){
-  const page=state.dom==='phone'&&state.mode==='page';
-  $('#screen').classList.toggle('mode-page',page);
-  $('#m-imm').hidden=!(!page); $('#m-page').hidden=!!page;
-  $('#m-imm').classList.toggle('flat',!page);
-  $$('#mbar button').forEach(x=>x.setAttribute('aria-selected',x.dataset.v===(page?'page':'imm')));
+/* ===== 页面栈：详情 ⇄ 播放 是 push/pop（slidePageTransitions），不是页内换 class，也不是改地址 ===== */
+const pagerWhich=()=>state.dom==='tv'?'tv':state.dom==='phone'?'phone':'desk';
+function setRoute(pushed){
+  state.pushed=pushed;
+  $('#desk-routes').classList.toggle('pushed',pushed);
+  $('#m-routes').classList.toggle('pushed',pushed);
+  $$('#seg-route button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===(pushed?'player':'detail')));
+  /* 窗口标题条只在鼠标键盘族的桌面外壳上出现：平板族（desk+touch）没有 macOS/Windows 的
+     红黄绿与 ─▢，那条属于电脑窗口装饰；播放页在 mac/windows 客户端把窗口收成沉浸式
+     （app_navigation.dart:235-237：MacWindowFrame(immersive: 当前路由 == player)），标题条随之让位 */
+  $('#desk-winbar').hidden=state.dom==='desk'&&(state.touch||(pushed&&!state.touch));
+  paintPlayer();
 }
-/* ===== 播放页态：点某一集就进播放器；?ep=N 让它可深链、刷新后仍回到这一集 ===== */
 function paintPlayer(){
-  if(state.ep) state.ep=Math.min(state.ep,total());
-  const ep=state.ep, d=cur();
-  $('#desk').classList.toggle('playing',!!ep);
-  $('#desk-nowbar').hidden=!ep;
-  $('#desk-vid').style.aspectRatio=ep?'16/9':'4/3';
-  $('#desk-bigplay').hidden=!!ep;
-  $('#desk-now-t').textContent=ep?`第 ${ep} 集 · 正在播放`:'';
-  $('#desk-now-sub').textContent=ep?`${d.title} · 全 ${total()} 集`:'';
-  $('#desk-play-label').textContent=ep?`播放中 · 第 ${ep} 集`:'继续观看';
-  $('#mp-play-t').textContent=ep?`播放中 · 第 ${ep} 集`:'继续观看';
-  $('#m-imm-title').textContent=ep?`${d.title} · 第 ${ep} 集`:d.title;
-  $('#m-imm-jump-t').textContent=(d.eps?`共 ${d.eps} 集 · 选集`:'选集')+(ep?` · 第 ${ep} 集`:'');
+  const d=cur(), ep=curEp();
+  $('#desk-now-t').textContent=`第 ${ep} 集`;
+  $('#desk-now-sub').textContent=`${d.title} · 全 ${total()} 集`;
+  $('#m-imm-navtitle').textContent=d.title;
+  $('#m-imm-title').textContent=`${d.title} · 第 ${ep} 集`;
+  $('#m-imm-desc').textContent=DEMO_DESC[d.title]||'';
+  $('#m-imm-jump-t').textContent=`选集 · 第 ${ep} 集`;
+  $('#tv-now-t').textContent=`${d.title} · 第 ${ep} 集`;
+  $('#desk-bigplay').hidden=state.playing;
+  $('#desk-bigplay span').textContent=state.playing?'❚❚':'▶';
+  $('#desk-pp').textContent=state.playing?'❚❚ 暂停':'▶ 播放';
 }
-function syncEpInURL(){
-  const q=new URLSearchParams(location.search);
-  q.set('g',state.g); q.set('i',state.i);
-  if(state.ep) q.set('ep',state.ep); else q.delete('ep');
-  history.replaceState(null,'',`${location.pathname}?${q}`);
-}
-function playEpisode(ep,src){
+function pushPlayer(ep,src){
   state.ep=Math.max(1,Math.min(total(),ep|0));
-  state.playing=true;
-  syncEpInURL(); paintPlayer(); renderSide();
-  closeSheet();
-  if(state.dom==='phone'){ state.mode='imm'; applyMode(); }
-  else $('#desk-vid').scrollIntoView({behavior:'smooth',block:'center'});
+  state.playing=true; state.playhead=0; state.ws=false;
+  closeOverlay();
+  $('#desk-ws').hidden=true;
+  setRoute(true);
+  paintBar();
+  renderPager(pagerWhich());
+  if(state.dom==='tv'){$('#tv-player').hidden=false;setTvFocus($('#tv-exit'));}
   const d=cur();
-  say(`<span class="row"><span class="k">点第 ${state.ep} 集</span> <em>${src} → 进播放页</em>
+  say(`<span class="row"><span class="k">点第 ${state.ep} 集</span> <em>${src} → pushAppPage(AppScreen.player)</em>
      <span class="v">POST /novel/player/multi_video_model/v1/ {vid, episode_id:${state.ep}}</span>
-     <span class="warn">换集不换页：详情 DOM 保活、播放器吃满，不重新请求推荐；URL 记 <code>ep=${state.ep}</code>，分享出去直接落到这一集</span></span>
+     <span class="warn">这是一次路由推入（detail_page.dart:125-138）：新页从右进、旧页左移 0.3。
+     详情页留在栈下不重建，也不重新请求推荐；App 没有 URL，所以没有 <code>?ep=</code> 这种「分享某一集」</span></span>
      <span class="row"><span class="k">剧</span> <span class="v">${d.title} · 全 ${total()} 集</span>
-     <span class="warn">集数来自实机 feed；时间轴与进度条是演示值</span></span>`);
+     <span class="warn">主按钮走 play(null)：resumeLastEpisode=true，由本地记录决定接播第几集（detail_page.dart:132-133）</span></span>`);
 }
-function exitPlayer(){
-  state.ep=null; syncEpInURL(); paintPlayer(); renderSide();
-  say(`<span class="row"><span class="k">回到详情</span> <em>播放器收回 4:3 预览位</em>
-     <span class="warn">同一页的两种态，不是一次新导航：返回键仍然先回列表页原位</span></span>`);
+function popPlayer(src){
+  if(state.dom==='tv'){$('#tv-player').hidden=true;}
+  setRoute(false);
+  renderPager(pagerWhich());
+  if(state.dom==='tv'){const now=$('#tv-eps').querySelector('.now');setTvFocus(now||tvItems()[0]);}
+  say(`<span class="row"><span class="k">pop 回详情页</span> <em>${src}</em>
+     <span class="warn">await pushAppPage(...) 返回后才 flush 观看记录 + setState（detail_page.dart:136-137）：
+     「上次看到第 ${state.ep} 集」和主按钮文案此刻才刷新，分页器把焦点/页码交回这一格</span></span>`);
 }
-function openSheet(kind){
-  const d=cur(), eps=d.eps||40, seg=Math.min(20,eps);
-  const st=Math.floor(((state.ep||seenEp())-1)/seg)*seg+1;
-  $('#sheet-t').textContent=kind==='dl'?'缓存本剧':'选集';
-  $('#sheet-seg').hidden=kind!=='ep';
-  $('#sheet-body').innerHTML=(kind==='dl'
-    ?`<div class="chips" style="margin-bottom:10px"><button class="chip" aria-pressed="true">第 1-${eps} 集</button>
-       <button class="chip">前 10 集</button><button class="chip">未看集</button></div>
-      <div class="mnote" style="padding:0 2px 8px">并发 1–3 档；无额度文案。</div>`
-    :'')+`<div class="epseg">${[...Array(Math.ceil(eps/seg))].map((_,i)=>
-       `<button data-g="${i}" aria-pressed="${st>=i*seg+1&&st<=i*seg+seg}">${i*seg+1}-${Math.min((i+1)*seg,eps)}</button>`).join('')}</div>
-      <div class="epgrid">${epButtons(st,Math.min(st+seg-1,eps))}</div>`;
-  $('#sheet').classList.add('on'); $('#mask').classList.add('on');
+function sayPopDetail(){
+  say(`<span class="row"><span class="k">返回</span> <em>pop 回列表页原位</em>
+     <span class="warn">列表页保活：体裁、筛选、排序、滚动位置都不重发请求（见发现页原型 §保活）。
+     在电脑上还有一条全局 <code>⌥←</code> = router.maybePop()（app_navigation.dart:223-231）</span></span>`);
 }
-function closeSheet(){$('#sheet').classList.remove('on');$('#mask').classList.remove('on');}
+function openDetail(name){
+  say(`<span class="row"><span class="k">打开推荐里的</span> <em>${name}</em>
+     <span class="v">POST /novel/player/multi_video_detail/preload/v1 {vid}</span>
+     <span class="warn">推荐里点进去 = 再推入一条详情路由（detail_page.dart:300-305 的 onOpen 就是 pushAppPage(AppScreen.detail)），
+     返回时上一部仍在栈里原位</span></span>`);
+}
+/* ===== 标签：只有面板词命中才是入口 ===== */
+function tagClick(t){
+  say(PANEL.has(t)
+    ? `<span class="row"><span class="k">点标签「${t}」</span> <em>pop 回发现页并带上筛选</em>
+       <span class="v">select_items{ …: ["cate_…"] }</span>
+       <span class="warn">这是「关联到题材」唯一可证的形式：词表 id 进请求，返回集由上游按这个词筛；
+       不新开一个「相似剧」页面</span></span>`
+    : `<span class="row"><span class="k">点标签「${t}」</span>
+       <span class="warn">当前面板三行里没有同名项 → 不做跳转筛选，只当文本；给了点击就是假入口</span></span>`);
+}
+/* ===== 弹层：选集抽屉（播放页那一层）与缓存弹层（形态按尺寸分派） ===== */
+let snackTimer=null;
+function closeOverlay(){
+  const sheet=$('#sheet');
+  sheet.classList.remove('on');
+  const closing=state.overlay;      /* 180ms 内又开了新弹层时，这次收尾不能把它一起藏掉 */
+  setTimeout(()=>{if(state.overlay===closing&&!sheet.classList.contains('on'))sheet.hidden=true;},180);
+  $('#mask').classList.remove('on');
+  $('#desk-dl-wrap').hidden=true; $('#tv-dl-wrap').hidden=true;
+  state.overlay=null;
+}
+function snack(){
+  const host=state.dom==='tv'?$('#tv-snack'):state.dom==='phone'?$('#m-snack'):$('#desk-snack');
+  $$('.snack').forEach(s=>{if(s!==host)s.hidden=true;});
+  host.hidden=false;
+  host.innerHTML=`<span>已加入下载，可在“我的 → 下载管理”查看</span>
+    <button class="act">查看</button><button class="close">✕</button>`;
+  clearTimeout(snackTimer);
+  snackTimer=setTimeout(()=>host.hidden=true,4200);
+  say(`<span class="row"><span class="k">确认下载</span> <em>SnackBar +「查看」动作</em>
+     <span class="warn">详情页不加第三枚按钮；「查看」= pushAppPage(AppScreen.downloads)
+     （download_selection.dart:46-62）。点「查看」在原型里只读数，不跳页</span></span>
+     <span class="row"><span class="k">TV 这一族</span> <span class="warn">遥控上没有 hover、焦点不会自己跳到 SnackBar，
+     「查看」这枚动作按不动 → TV 应改成落在下载管理入口的提示或自动跳转（见设计文档 §TV 与后端配合清单）</span></span>`);
+}
+/* ===== 选集抽屉：属于播放页那一层（<720 那一档），头部照 player_page.dart:1050-1071 ===== */
+function openEpSheet(){
+  const sheet=$('#sheet');
+  sheet.hidden=false;
+  sheet.style.height='65%';                       /* MediaQuery.height * 0.65 */
+  $('#sheet-grab').hidden=false;                  /* showDragHandle: true（player_page.dart:1043） */
+  $('#sheet-head').innerHTML=`<b>选集</b>
+     <button class="ic" data-sheetsettings="1" title="播放设置">⚙</button>
+     <button class="ic" data-sheetx="1" title="关闭选集">✕</button>`;
+  state.overlay={kind:'ep',where:'sheet'};
+  renderEpPanel($('#sheet-body'));
+  requestAnimationFrame(()=>sheet.classList.add('on'));
+  $('#mask').classList.add('on');
+  revealCurrentPanel($('#sheet-body'));
+  say(`<span class="row"><span class="k">▤ 选集</span> <em>播放页之上的模态抽屉</em>
+     <span class="warn">showModalBottomSheet(isScrollControlled, height*0.65)（player_page.dart:1039-1045）：
+     Back 先关抽屉、不退页。抽屉里是可滚动网格（maxCrossAxisExtent 80、比例 1.25），
+     不是分页器——分页器只属于详情页正文那一块</span></span>`);
+}
+/* ===== 缓存：外壳按尺寸分派，内容是同一段表单（download_selection.dart:20-45、177-370） ===== */
+const QUALITY=['自动画质','720p','1080p'];
+const PLAY_Q=['自动','720p','1080p'];   /* 面板里那枚下拉写的是「自动」（player_page.dart:1400-1412） */
+const dlSel=new Set();
+let dlQuality=0;
+function dlTaken(i){return i%11===0;}             /* 演示位：已下好的那几格禁用 */
+function dlStatusText(){
+  const base=state.dom==='tv'?'TV 仅在前台下载'
+    :state.touch?(state.bg?'已开启后台下载，系统可能延迟调度':'未开启后台下载，退后台暂停，回前台继续')
+    :'离开此页面仍会继续，退出 App 后需重新继续';
+  return `${base} · 同时下载 3 集`;
+}
+function dlFormHTML(where){
+  const eps=total(), tv=where==='tv'?' data-tv="1"':'';
+  let cells='';
+  for(let i=1;i<=eps;i++)
+    cells+=`<button data-dlep="${i}"${tv} ${dlTaken(i)?'disabled':''} aria-pressed="${dlSel.has(i)}">
+      <span>第 ${i} 集</span>${dlTaken(i)?'<i>已下载</i>':''}${dlSel.has(i)?'<b class="chk">✓</b>':''}</button>`;   /* 已下载/已加入 与 ✓ 两行互不排斥（download_selection.dart:322-331） */
+  const tall=where==='sheet'?state.h*(state.h<400?.95:.78)>400:Math.min(680,state.h*.82)>400;
+  return `<div class="dlrow">
+      <button class="dlq" data-dlq="${where}"${tv}>${QUALITY[dlQuality]} ▾</button>
+      <button class="dlall" data-dlall="${where}"${tv}>${dlSel.size?'清空':'全选'}</button>
+      <span class="dlcount">${dlSel.size} 集</span></div>
+    ${tall?`<div class="dlstatus">${dlStatusText()}</div>`:''}
+    <div class="dlgrid${where==='tv'?' istv':''}">${cells}</div>
+    <button class="btn pri dlgo" data-dlgo="${where}"${tv} style="margin-top:10px">⭳ 下载 ${dlSel.size} 集</button>`;
+}
+function dlRoot(where){
+  return where==='sheet'?$('#sheet-body'):where==='tv'?$('#tv-dl-form'):$('#desk-dl-form');
+}
+function renderDl(){
+  if(!state.overlay||state.overlay.kind!=='dl') return;
+  const root=dlRoot(state.overlay.where);
+  root.innerHTML=dlFormHTML(state.overlay.where);
+  fitGrids(root);
+}
+function openDl(src){
+  const useSheet=state.dom==='phone'&&(state.w<720||state.h<400);
+  closeOverlay();
+  if(useSheet){
+    const sheet=$('#sheet');
+    sheet.hidden=false;
+    sheet.style.height=(state.h<400?95:78)+'%';   /* 代码：height<400 ? .95 : .78 */
+    $('#sheet-grab').hidden=true;                 /* showDragHandle: false（download_selection.dart:36） */
+    $('#sheet-head').innerHTML=`<b class="dl">下载剧集</b>
+       <button class="ic" data-sheetx="1" title="关闭下载选集">✕</button>`;
+    state.overlay={kind:'dl',where:'sheet'};
+    renderDl();
+    requestAnimationFrame(()=>sheet.classList.add('on'));
+    $('#mask').classList.add('on');
+  } else {
+    const where=state.dom==='tv'?'tv':'desk';
+    state.overlay={kind:'dl',where};
+    (where==='tv'?$('#tv-dl-wrap'):$('#desk-dl-wrap')).hidden=false;
+    renderDl();
+    if(where==='tv') setTvFocus($('#tv-dl-wrap').querySelector('[data-tv]'));
+  }
+  say(`<span class="row"><span class="k">⭳ ${src}</span> <em>${useSheet?'底部弹层':'居中对话框'}（同一段表单）</em>
+     <span class="warn">分派只看尺寸：宽 ≥720 且高 ≥400 → showDialog(width 720、高 min(680, h*.82))，
+     否则 showModalBottomSheet(高 .78 / 横屏 .95)（download_selection.dart:20-45）。
+     当前 ${state.w}×${state.h} → ${useSheet?(state.h<400?'高 &lt;400（横屏）→ .95':'宽 &lt;720（高 ≥400）→ .78'):'两档都命中 → 居中对话框'}</span></span>
+     <span class="row"><span class="k">内容</span> <span class="v">画质 ▾ · 全选/清空 · N 集 · 前后台与并发说明 · 第 X 集格子 · 下载 N 集</span>
+     <span class="warn">格子是「点一格选一格」（maxCrossAxisExtent 110 / 比例 1.25），TV 换 TvGrid(190 / 1.25)；
+     没有额度文案，但确有并发读数</span></span>`);
+}
+function toggleDl(i){
+  if(dlSel.has(i)) dlSel.delete(i); else if(!dlTaken(i)) dlSel.add(i);
+  renderDl();
+}
+function selectAllDl(){
+  const eps=total();
+  if(dlSel.size) dlSel.clear();
+  else for(let i=1;i<=eps;i++) if(!dlTaken(i)) dlSel.add(i);
+  renderDl();
+}
+function cycleQuality(){
+  dlQuality=(dlQuality+1)%QUALITY.length;
+  const before=dlSel.size;
+  for(const i of [...dlSel]) if(dlTaken(i)) dlSel.delete(i);
+  renderDl();
+  say(`<span class="row"><span class="k">切画质 → ${QUALITY[dlQuality]}</span>
+     <span class="warn">换画质会剔除在新画质下不可用的已选格（download_selection.dart:212-217
+     selected.removeWhere((i) =&gt; !available(i))）${before?'，本轮剔除 '+(before-dlSel.size)+' 格':''}</span></span>`);
+}
+function finishDl(){
+  if(!dlSel.size){
+    say(`<span class="row"><span class="k">下载 N 集</span>
+       <span class="warn">没选任何一集时主按钮是禁用的（download_selection.dart:365 onPressed=null），按不出反馈</span></span>`);
+    return;
+  }
+  closeOverlay();
+  if(state.dom==='tv') setTvFocus($('#tv-acts').firstChild);
+  snack();
+}
 function pressIn(g,b){g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));}
 
-/* ===== 控制条 ===== */
+/* ===== 控制条：只切「设备族 / 页面栈 / 窗口外壳 / 进来的那部剧」，这些都是原型外壳，不是页面内容 ===== */
+/* 遥控族的画布是那块 1920×1080 的屏，不是「浏览器窗口有多宽」：窗口窄就整体 scale 放下，
+   布局盒仍按 1920 算 —— 否则分页器可用宽不足 1848，§8 那张 10 列的格子会掉成 9 列。 */
+function fitTvCanvas(){
+  const b=$('#tv .tvbox'); if(!b) return;
+  const k=state.dom==='tv'?Math.min(1,$('#frame').clientWidth/1920):1;
+  b.style.setProperty('--tvk',k);
+  b.style.setProperty('--tvh',1080*k+'px');
+  b.style.width=1920*k+'px';
+}
+addEventListener('resize',fitTvCanvas);
+function applyView(){
+  const dom=state.dom, land=dom==='phone'&&state.w>600;
+  /* TV 画布按真实 1920×1080 画：把选集分页器压到 1280 里，列数会从 10 变成 6，
+     §8 那条焦点走位就不是同一张格子了。其余族仍受 1280 这条原型 chrome 宽度约束。 */
+  $('#frame').style.maxWidth=dom==='tv'?state.w+'px':Math.min(state.w,1280)+'px';
+  $('#frame').classList.toggle('narrow',dom==='desk'&&state.w<900);
+  $('#desk').classList.toggle('on',dom==='desk');
+  $('#desk').style.height=dom==='desk'?Math.min(state.h,1200)+'px':'';
+  $('#device').classList.toggle('on',dom==='phone');
+  $('#device').classList.toggle('land',land);
+  /* 屏幕内容区按所选尺寸画（外框 padding 10 上下各一份），
+     否则「手机 390×844」里的正文其实活在一个 742px 高的假屏幕上。 */
+  $('#screen').style.height=(state.h-20)+'px';
+  $('#tv').classList.toggle('on',dom==='tv');
+  fitTvCanvas();
+  document.body.classList.toggle('touch',state.touch);
+  $('#seg-os').style.display=dom==='desk'&&!state.touch?'':'none';
+  $('#seg-route').style.display=dom==='tv'?'none':'';
+  $('#sbar-r').textContent=dom==='phone'?(land?'横屏 · 触控':'iPhone · 触控'):'iPad · 触控';
+  $('#keys').hidden=!(dom==='desk'&&!state.touch);
+  closeOverlay();
+  renderAll();
+}
 $('#seg-platform').onclick=e=>{
   const b=e.target.closest('button'); if(!b) return;
   pressIn($('#seg-platform'),b);
-  const dom=b.dataset.dom,w=+b.dataset.w,touch=b.dataset.touch==='1';
-  const land=dom==='phone'&&w>600;
-  state.dom=dom; state.w=w; state.touch=touch;
-  $('#frame').style.maxWidth=w+'px';
-  $('#frame').classList.toggle('narrow',dom==='desk'&&w<900);
-  $('#desk').classList.toggle('on',dom==='desk');
-  $('#device').classList.toggle('on',dom==='phone');
-  $('#device').classList.toggle('land',land);
-  $('#device').style.maxWidth='';
-  document.body.classList.toggle('touch',touch);
-  $('#seg-mobilemode').style.display=dom==='phone'?'':'none';
-  $('#seg-os').style.display=dom==='desk'&&!touch?'':'none';
-  $('#sbar-r').textContent=dom==='phone'?(land?'iPhone 横屏 · 触控':'iPhone · 触控'):'iPad · 触控';
-  applyMode();
-  const fam=dom==='phone'?(land?'手机横屏':'手机竖屏'):(touch?(w<900?'平板竖屏':'平板横屏'):'电脑客户端');
+  state.dom=b.dataset.dom; state.w=+b.dataset.w; state.h=+b.dataset.h; state.touch=b.dataset.touch==='1';
+  state.bg=false;
+  applyView();                                        /* 不切这一句，控制条就只改了 state，画框不会跟着换族 */
+  const fam=state.dom==='tv'?'TV 遥控族':state.dom==='phone'?(state.w>600?'手机横屏':'手机竖屏')
+    :(state.touch?(state.w<900?'平板竖屏':'平板横屏'):'电脑客户端');
+  /* 「正文」这一行不能对三族说同一句话：遥控族走的是另一个文件，既没有 960 上限，也没有块标题。 */
+  const body=state.dom==='tv'
+    ? `<span class="row"><span class="k">正文</span> SingleChildScrollView(padding: all 36) + Column（tv_detail_page.dart:128-130）
+     <span class="warn">这一族<em>没有</em> Center + ConstrainedBox(maxWidth:960) 那条上限，也没有「选择剧集」标题（那是 detail_page.dart:262-273）；
+     选集分页器固定 rows:4 / cellExtent:170 → 1920 上正好 10 列。排完总高 1262 &gt; 1080，所以这一页在电视上必然滚动，
+     而滚动只由焦点驱动：拿到焦点就 ensureVisible(alignment: 0.5) 居中（focusable.dart:82-101）</span></span>`
+    : `<span class="row"><span class="k">正文</span> 仍是单列 Center + ConstrainedBox(maxWidth:960)（detail_page.dart:140-143）
+     <span class="warn">宽屏不产生第二栏。随尺寸只有两处变：选集分页器 rows/cellExtent（&lt;720 = 3 行×100，≥720 = 4 行×120）
+     与缓存弹层外壳（宽 ≥720 且高 ≥400 = 居中对话框，否则底部弹层）</span></span>`;
   say(`<span class="row"><span class="k">设备族</span> <em>${fam}</em>
-     <span class="k">分派</span> <span class="v">宽 ${w}px × ${touch?'触控':'鼠标键盘'}</span></span>
-     <span class="row"><span class="k">布局</span> ${w<600?'单列：播放器吃满，选集/缓存走底部抽屉（拇指可达）'
-       :w<900?'窄版双栏：与电脑端同一套 DOM，点击目标 ≥44px、无 hover 预览'
-       :'宽版双栏：左播放器 + 右侧「选集 / 接下来播放 / 缓存」栏'}</span>
-     <span class="warn">平板和电脑共用同一套详情页 DOM，只差尺寸与输入族；文案、来源口径、块顺序完全一致。</span></span>`);
+     <span class="k">分派</span> <span class="v">${state.w}×${state.h} × ${state.dom==='tv'?'遥控':state.touch?'触控':'鼠标键盘'}</span></span>
+     ${body}
+     <span class="row"><span class="k">输入族</span> ${state.dom==='tv'
+       ?'遥控：没有 hover、没有底部导航；焦点环 3px <em>colorScheme.primary</em>（原型近似 #f08475），「‹ 返回」是可达焦点项而不是 AppBar 箭头'
+       :state.touch?'触控：不画 hover 预览、点击目标 ≥44px、界面上不出现任何键盘文案'
+       :'鼠标键盘：hover 预览 + 快捷键，键盘提示印在画框外面'}</span>`);
+};
+$('#seg-route').onclick=e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  if(b.dataset.v==='player') pushPlayer(curEp(),'控制条「页面栈」切到已 push');
+  else popPlayer('控制条切回停在详情页');
 };
 $('#seg-os').onclick=e=>{
   const b=e.target.closest('button'); if(!b) return;
   pressIn($('#seg-os'),b); $('#desk').dataset.os=b.dataset.v;
   say(`<span class="row"><span class="k">窗口外壳</span> <em>${b.textContent}</em>
-     <span class="warn">macOS：红黄绿 + 可拖标题栏；Windows：自绘 ─▢、搜索靠左。内容区两端完全同一套。</span></span>`);
+     <span class="warn">只有 macOS 这一族 App 会自绘那 32px 标题条（三枚灯 + 一条透明拖拽区，<em>里面没有标题文字</em>：
+     剧名是 window_manager.setTitle 交给系统的，见 window_title_native.dart:8-14）。
+     Windows/Linux 命中 macos_window.dart:63 那句 <code>if (!macHost) return child</code> —— 画框顶部这条整条消失，
+     窗口装饰由系统画，客户端里并不存在一套自绘的窗口按钮。内容区两端完全同一套 DOM。
+     进播放页时 macOS 这条会收起（app_navigation.dart:235-236 MacWindowFrame(immersive: 路由==player)）</span></span>`);
 };
 (function buildSeeds(){
   $('#seg-seed').innerHTML=SEEDS.map((s,k)=>{
@@ -828,127 +1488,371 @@ $('#seg-os').onclick=e=>{
 $('#seg-seed').onclick=e=>{
   const b=e.target.closest('button'); if(!b) return;
   pressIn($('#seg-seed'),b); state.seed=+b.dataset.k;
-  [state.g,state.i]=SEEDS[state.seed]; renderAll(); syncEpInURL();
-  const d=cur(), bs=blocks();
+  [state.g,state.i]=SEEDS[state.seed];
+  state.ep=null; pagerPage.desk=pagerPage.phone=pagerPage.tv=null;
+  dlSel.clear();
+  renderAll();
+  const d=cur(), bs=blocks(), m=state.pagerInfo&&state.pagerInfo.m;
   say(`<span class="row"><span class="k">进入详情</span> <em>${d.title}</em>
      <span class="v">POST /novel/player/multi_video_detail/preload/v1 {vid}</span></span>
      <span class="row"><span class="k">卡片标签</span> <span class="v">${d.ev?d.ev.tags.join(' / '):'本轮样本未留存'}</span></span>
-     <span class="row"><span class="k">可证关系</span> ${bs.length?`<em>${bs.map(b=>b.title).join(' / ')}</em>`
+     <span class="row"><span class="k">选集分页器</span> <span class="v">${m?`${m.cols} 列 × ${m.rows} 行 = ${m.perPage} 集/页，共 ${total()} 集 → ${m.pageCount} 页`:'—'}</span>
+     <span class="warn">列数由可用宽现算（episode_pager.dart:246-250），换设备族就换列数，页脚始终是「第 a/b 页」</span></span>
+     <span class="row"><span class="k">可证关系</span> ${bs.length?`<em>${bs.map(x=>x.title).join(' / ')}</em>`
         :'<span class="warn">无 → 推荐块整块不出现</span>'}
      <span class="warn">上游没有 related/recommend 端点，这块是 select_items 带一个面板词换来的</span></span>`);
 };
-$('#seg-mobilemode').onclick=e=>{
-  const b=e.target.closest('button'); if(!b) return;
-  pressIn($('#seg-mobilemode'),b); state.mode=b.dataset.v; applyMode();
-  say(`<span class="row"><span class="k">手机形态</span> <em>${b.textContent}</em>
-     <span class="warn">沉浸态沿用红果/抖音的「详情即播放」；详情态给从收藏、历史进来的观众。</span></span>`);
-};
-$('#mbar').onclick=e=>{
-  const b=e.target.closest('button'); if(!b) return;
-  if(b.dataset.v==='rec'){ state.mode='page'; applyMode();
-    $('#mp-related').scrollIntoView({behavior:'smooth'}); return; }
-  state.mode=b.dataset.v; applyMode();
-};
 $('#cb-demo').onchange=e=>document.body.classList.toggle('demo-mark',e.target.checked);
-$('#desk-tabs').onclick=e=>{
-  const b=e.target.closest('[role=tab]'); if(!b) return;
-  $$('#desk-tabs button').forEach(x=>x.setAttribute('aria-selected',x===b));
-  state.side=b.dataset.v; renderSide();
-  say(`<span class="row"><span class="k">右侧栏</span> <em>${b.textContent}</em>
-     <span class="warn">选集=同一条 detail 的 episodes；缓存=本地队列；接下来播放=内存队列，不落库</span></span>`);
-};
-const toggleIntro=(host,btn)=>{const el=$(host);el.classList.toggle('open');
-  btn.textContent=el.classList.contains('open')?'收起':'展开';};
-$('#desk-intro-more').onclick=e=>toggleIntro('#desk-intro',e.target);
-$('#mp-intro-more').onclick=e=>toggleIntro('#mp-intro',e.target);
-function fav(on){state.fav=on;
-  $('#desk-fav').innerHTML=(on?'♥':'♡')+' 收藏'; $('#mp-fav').innerHTML=(on?'♥':'♡')+' 收藏';
-  $('#m-fav').textContent=on?'♥':'♡'; $('#m-fav2').innerHTML=`<span>${on?'♥':'♡'}</span>收藏`;}
-['#desk-fav','#m-fav','#m-fav2','#mp-fav'].forEach(s=>$(s).onclick=()=>fav(!state.fav));
-$('#m-ep').onclick=()=>openSheet('ep'); $('#mp-ep').onclick=()=>openSheet('ep');
-$('#m-dl').onclick=()=>openSheet('dl'); $('#m-imm-jump').onclick=()=>openSheet('ep');
-$('#mask').onclick=closeSheet; $('#sheet').onclick=e=>{
-  const epBtn=e.target.closest('[data-ep]');
-  if(epBtn){ playEpisode(+epBtn.dataset.ep,'底部选集抽屉'); return; }
-  const b=e.target.closest('.epseg button'); if(!b) return;
-  b.parentNode.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));
-  const eps=cur().eps||40, seg=Math.min(20,eps), st=(+b.dataset.g)*seg+1;
-  $('#sheet .epgrid').innerHTML=epButtons(st,Math.min(st+seg-1,eps));
-};
-$('#sheet-seg').onclick=e=>{
-  const b=e.target.closest('button'); if(!b) return;
-  pressIn($('#sheet-seg'),b);
-  const eps=cur().eps||40, seen=Math.max(1,Math.round(eps*0.12));
-  const from=b.dataset.v==='unseen'?seen+1:1;
-  $('#sheet .epgrid').innerHTML=epButtons(from,Math.min(from+19,eps));
-};
-$('#desk-side').addEventListener('click',e=>{
-  const sw=e.target.closest('.switchrow');
-  if(sw){sw.setAttribute('aria-pressed',sw.getAttribute('aria-pressed')!=='true');return;}
-  const ep=e.target.closest('[data-ep]');
-  if(ep) playEpisode(+ep.dataset.ep,'右侧选集栏');
-});
-function shiftEpisode(delta,src){ playEpisode(Math.min(total(),Math.max(1,(state.ep||seenEp())+delta)),src); }
-$('#desk-vid').onclick=e=>{
-  const nav=e.target.closest('[data-epnav]');
-  if(nav){ shiftEpisode(nav.dataset.epnav==='next'?1:-1,
-    nav.dataset.epnav==='next'?'控制条「下一集」':'控制条「上一集」'); return; }
-  state.playing=!state.playing;
-  $('#desk-bigplay').hidden=!state.playing; $('#desk-bigplay span').textContent=state.playing?'❚❚':'▶';
-  $('#desk-pp').textContent=state.playing?'❚❚ 暂停':'▶ 播放';};
-['#desk-play','#mp-play'].forEach(s=>$(s).onclick=()=>playEpisode(seenEp(),'「继续观看」按钮'));
-$('#desk-backdetail').onclick=exitPlayer;
-document.addEventListener('click',e=>{
-  const chip=e.target.closest('[data-tag]');
-  if(chip){const t=chip.dataset.tag;
-    $$('[data-tag]').forEach(x=>x.setAttribute('aria-pressed',x===chip));
-    say(PANEL.has(t)
-      ? `<span class="row"><span class="k">点标签「${t}」</span> <em>回发现页并带上筛选</em>
-         <span class="v">select_items{ …: ["cate_…"] }</span>
-         <span class="warn">这就是「关联到题材」唯一可证的形式：词表 id 进请求，返回集由上游按这个词筛</span></span>`
-      : `<span class="row"><span class="k">点标签「${t}」</span>
-         <span class="warn">当前面板三行里没有同名项 → 不做跳转筛选，只当文本；否则是假入口</span></span>`);
-    return;}
-  const why=e.target.closest('[data-why]');
-  if(why){const pop=$('#pop'),bs=blocks(),idx=why.dataset.why;
-    pop.innerHTML=idx==='hot'?`<h4>大家都在看</h4>这一格请求的是 <code>sort=hot_score</code>，
-      跟这部剧没有因果关系，所以不写「猜你喜欢」。上游确实排了这个序，
-      但卡片没有可信 <code>published_at</code>，因此块里不画「最新」角标。`
-      :(bs[idx]?bs[idx].why:'');
-    const r=why.getBoundingClientRect(),hr=$('#desk').getBoundingClientRect();
-    pop.style.left=Math.min(r.left-hr.left,hr.width-380)+'px';
-    pop.style.top=(r.bottom-hr.top+8)+'px'; pop.classList.add('on'); return;}
-  if(!e.target.closest('.pop')) $('#pop').classList.remove('on');
-  const card=e.target.closest('.card[data-name]');
-  if(card) say(`<span class="row"><span class="k">打开推荐里的</span> <em>${card.dataset.name}</em>
-     <span class="v">POST /novel/player/multi_video_detail/preload/v1 {vid}</span>
-     <span class="warn">推荐里点进去 = 新的详情承接页；返回时列表页保活原位</span></span>`);
-});
-$('#desk-back').onclick=$('#m-back').onclick=()=>{
-  say(`<span class="row"><span class="k">返回</span> <em>回列表页原位</em>
-     <span class="warn">列表页保活：体裁、筛选、排序、滚动位置都不重发请求（见发现页原型 §保活）</span></span>`);
-};
-document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){closeSheet();$('#pop').classList.remove('on');}
-  if(state.dom==='desk'&&!state.touch&&!/^(INPUT|TEXTAREA)$/.test(e.target.tagName)){
-    if(/^[np]$/i.test(e.key)){ e.preventDefault(); shiftEpisode(e.key.toLowerCase()==='n'?1:-1,'快捷键 '+e.key.toUpperCase()); return; }
+$('#desk-offline-retry').onclick=()=>say(`<span class="row"><span class="k">重试刷新</span>
+  <em>再发一次 detail 请求</em>
+  <span class="v">POST /novel/player/multi_video_detail/preload/v1 {vid}</span>
+  <span class="warn">离线提示条是详情页正文上方的一行（detail_page.dart 的 errorBuilder），
+  不是弹窗；这条 <code>#desk-offline</code> 平时隐藏，切到它才是「加载失败但本地有存」那一态</span></span>`);
+
+/* ===== 收藏：同一份状态，两套外壳（favorite_button.dart 给触控和 TV 各画一枚） ===== */
+function paintFav(){
+  const on=state.fav;
+  ['#desk-fav','#m-fav'].forEach(s=>{const b=$(s);
+    b.textContent=on?'♥':'♡'; b.title=on?'取消收藏':'收藏';});
+  const t=$('#tv-fav'); if(t) t.querySelector('.in').textContent=on?'♥ 已收藏':'♡ 收藏';
+}
+function toggleFav(src){
+  state.fav=!state.fav; paintFav();
+  if(state.ws) renderEpPanel($('#desk-ws-body'));
+  if(state.overlay&&state.overlay.kind==='ep') renderEpPanel($('#sheet-body'));
+  say(`<span class="row"><span class="k">${src}</span> <em>${state.fav?'收藏':'取消收藏'}</em>
+     <span class="warn">图标先就地翻转（乐观更新），写库在背后进行；这一页不会因此重发 detail 请求，
+     也不会 push 任何页面。同一份状态在两处可见：AppBar 的图标和播放页选集面板右上角那枚
+     （favorite_button.dart 给触控 / TV 各画一套外壳）</span></span>`);
+}
+$('#desk-fav').onclick=$('#m-fav').onclick=()=>toggleFav('详情页 AppBar ♡');
+
+/* ===== 播放页那一层的控制：进度 / 音量 / 静音都是演示读数，只画在这一条路由上 ===== */
+const fmtT=s=>`${String(Math.floor(s/60)).padStart(2,'0')}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+function paintBar(){
+  const bar=$('#desk-bar'); if(!bar) return;
+  bar.querySelector('i').style.width=(state.playhead/DUR*100).toFixed(2)+'%';
+  const tip=bar.querySelector('.tip'); if(tip) tip.textContent=`${fmtT(state.playhead)} / ${fmtT(DUR)}`;
+}
+function togglePlay(src){
+  state.playing=!state.playing; paintPlayer(); wsSchedule();
+  say(`<span class="row"><span class="k">${src}</span> <em>${state.playing?'继续播放':'暂停'}</em>
+     <span class="warn">播放器控件此刻收成 5 秒后自动隐藏（EpisodeWorkspace.hideAfter）；
+     暂停时大播放键常驻，避免画面停着又找不到按钮</span></span>`);
+}
+function seekBy(sec,src){
+  const to=Math.max(0,Math.min(DUR,state.playhead+sec));
+  const hit=to===state.playhead;
+  state.playhead=to; paintBar();
+  say(`<span class="row"><span class="k">${src}</span> <em>${sec>0?'+':''}${sec}s → ${fmtT(to)}</em>
+     ${hit?'<span class="warn">已经到头/到尾，不再外跳（seek 会 clamp 到时长两端）</span>'
+       :'<span class="warn">←/→ 是 ±5 秒，J/L 是 ±10 秒：同一层 CallbackShortcuts，不弹任何菜单（player_page.dart:989-998）</span>'}</span>`);
+}
+function nudgeVolume(d,src){
+  state.volume=Math.max(0,Math.min(100,state.volume+d));
+  say(`<span class="row"><span class="k">${src}</span> <em>音量 ${state.volume}%</em>
+     <span class="warn">↑/↓ 调音量而不是换集——这一点必须和「上下=选集」的网页直觉分开</span></span>`);
+}
+function toggleMute(){
+  state.mute=!state.mute;
+  say(`<span class="row"><span class="k">M</span> <em>${state.mute?'静音':'取消静音'}</em>
+     <span class="warn">界面不常驻音量条，键按完在读数里给一次反馈就够了</span></span>`);
+}
+/* ===== 选集面板（EpisodeWorkspace）：右侧覆盖在画面上的一层，不是第二栏 ===== */
+let wsTimer=null;
+function wsSchedule(){
+  clearTimeout(wsTimer);
+  const macLike=state.dom==='desk'&&!state.touch&&state.os==='mac';
+  if(!(state.ws&&!state.wsPinned&&state.playing&&macLike)) return;
+  wsTimer=setTimeout(()=>{
+    if(!state.ws||state.wsPinned) return;
+    state.ws=false; $('#desk-ws').hidden=true;
+    say(`<span class="row"><span class="k">${macLike?'3':'5'} 秒无操作</span> <em>选集面板自动收起</em>
+       <span class="warn">hideAfter 在 mac 上是 3 秒、其余 5 秒（player_page.dart:1894）；
+       钉住（📌）就不收。<b>mac 这一族连「鼠标停在面板上」也不阻止收起</b>（hideWhileHovering: macHost，
+       :1890 + episode_workspace.dart:56-63），Windows / 桌面端停在面板上才保持</span></span>`);
+  },(macLike?3:5)*1000);
+}
+function toggleWs(force){
+  if(state.dom!=='desk'||state.touch){
+    say(`<span class="row"><span class="k">▤ 选集</span> <em>这一族走底部抽屉</em>
+       <span class="warn">覆盖面板那套属于 ≥720 的鼠标键盘族；触控窄屏用 showModalBottomSheet（player_page.dart:1039-1071）</span></span>`);
+    if(state.touch&&state.dom==='phone') openEpSheet();
+    return;
   }
-  if([' ','ArrowLeft','ArrowRight'].includes(e.key)&&state.dom==='desk'&&!state.touch){
-    e.preventDefault();
-    say(`<span class="row"><span class="k">键盘</span> <em>${e.key===' '?'Space':e.key}</em>
-     <span class="warn">电脑客户端在详情页直接生效（焦点不在输入框时）；触控族不显示任何键盘文案</span></span>`);}
+  if(!state.pushed){
+    say(`<span class="row"><span class="k">I</span> <em>详情页没有这一层</em>
+       <span class="warn">选集面板挂在播放页路由里；详情页正文里选集就是那块分页器</span></span>`);
+    return;
+  }
+  state.ws=force==null?!state.ws:force;
+  $('#desk-ws').hidden=!state.ws;
+  if(state.ws){
+    renderEpPanel($('#desk-ws-body'));
+    requestAnimationFrame(()=>revealCurrentPanel($('#desk-ws-body')));
+  }
+  wsSchedule();
+  say(`<span class="row"><span class="k">▤ / I</span> <em>${state.ws?'展开':'收起'}选集面板</em>
+     <span class="warn">episode_workspace.dart:218：宽度 min(340, 80%)，盖在画面上，点画面外那块 scrim 收起。
+     返回键的次序由播放页外层那条 <code>PopScope(canPop: !fullscreen &amp;&amp; !episodeVisible)</code> 决定
+     （player_page.dart:1936-1939 + _back :1600-1608）：<b>面板可见时先收面板</b>，
+     面板本身反而是 manageBack:false（:1896），不吃返回</span></span>`);
+}
+function pinWs(){
+  state.wsPinned=!state.wsPinned;
+  const b=$('#desk-ws-pin');
+  b.setAttribute('aria-pressed',state.wsPinned);
+  b.title=state.wsPinned?'恢复自动隐藏':'保持选集展开';
+  $('#desk-ws-panel').classList.toggle('pinned',state.wsPinned);
+  wsSchedule();
+  say(`<span class="row"><span class="k">📌</span> <em>${state.wsPinned?'已钉住：不再自动隐藏':'恢复自动隐藏'}</em>
+     <span class="warn">钉住/未钉在代码里只有两处可见差别：不再排自动隐藏的定时器，
+     和面板 elevation 从 12 变 0（episode_workspace.dart:102-105、:170）</span></span>`);
+}
+function wsSettings(){
+  say(`<span class="row"><span class="k">⚙ 播放设置</span> <em>另开一层设置（onSettings: _settings）</em>
+     <span class="warn">player_page.dart:945 起：这一层改的是倍速 / 字幕 / 后台播放这类设置，
+     选集面板本身只负责「选哪一集 + 这一集的清晰度 + 连播」</span></span>`);
+}
+/* 面板里的清晰度下拉 ≠ 下载对话框里的「画质」：这里换的是当前播放源（_changeSourceQuality） */
+function changePlayQuality(){
+  state.pq=(state.pq+1)%PLAY_Q.length;
+  if(state.ws) renderEpPanel($('#desk-ws-body'));
+  if(state.overlay&&state.overlay.kind==='ep') renderEpPanel($('#sheet-body'));
+  say(`<span class="row"><span class="k">切播放清晰度 → ${PLAY_Q[state.pq]}</span>
+     <em>_changeSourceQuality(value)</em>
+     <span class="warn">面板里这枚下拉在 !_qualityInBar 时才出现（player_page.dart:1385-1421）；
+     它和缓存表单里的「自动画质 / 720p / 1080p」是两个控件、两套语义：一个换正在播的流，一个定下载档位。
+     只看本地缓存时它是禁用的（widget.cachedOnly ? null : …）</span></span>`);
+}
+function notice(text){
+  const host=state.dom==='tv'?$('#tv-snack'):state.dom==='phone'?$('#m-snack'):$('#desk-snack');
+  $$('.snack').forEach(s=>{if(s!==host)s.hidden=true;});
+  host.hidden=false;
+  host.innerHTML=`<span>${text}</span><button class="close">✕</button>`;
+  clearTimeout(snackTimer);
+  snackTimer=setTimeout(()=>host.hidden=true,2600);   /* _fleetingNotice 的 2600ms */
+}
+function selectInPlayer(ep,src){
+  const eps=total();
+  if(!(ep>=1&&ep<=eps)){
+    notice(ep>eps?'已经是最后一集':'已经是第一集');
+    say(`<span class="row"><span class="k">${src}</span> <em>第 ${ep} 集不在 ${eps} 集里 → 不跳</em>
+       <span class="warn">键盘越界走的是一条 2.6 秒的边界提示（player_page.dart:1086-1099 _step / _fleetingNotice）；
+       而面板里那两枚按钮在两端直接是 onPressed=null（:1446-1458），按不动。两种「到头」都不硬造一个第 41 集</span></span>`);
+    return;
+  }
+  const inPanel=state.ws, inSheet=state.overlay&&state.overlay.kind==='ep';
+  state.ep=ep; state.playing=true; state.playhead=0;
+  paintPlayer(); paintBar();
+  if(pagerPage[pagerWhich()]!=null) renderPager(pagerWhich());
+  if(state.dom==='tv') $('#tv-now-t').textContent=`${cur().title} · 第 ${ep} 集`;
+  /* _selectEpisode：换集 + 面板 selected()（没钉住就收起）+ 控件 hide + 抽屉 pop */
+  if(inSheet) closeOverlay();
+  else if(inPanel&&!state.wsPinned) toggleWs(false);
+  else if(inPanel){
+    renderEpPanel($('#desk-ws-body'));
+    requestAnimationFrame(()=>revealCurrentPanel($('#desk-ws-body')));
+    wsSchedule();
+  }
+  say(`<span class="row"><span class="k">${src}</span> <em>切到第 ${ep} 集</em>
+     <span class="v">POST /novel/player/multi_video_model/v1/ {vid, episode_id:${ep}}</span>
+     <span class="warn">栈深不变、没有转场：播放页内部换集是 _selectEpisode → _play(index)（player_page.dart:1078-1084），
+     底下的详情路由原样留着${inPanel?(state.wsPinned?'；面板钉住了所以留着':'；选完面板自动收起（selected() 在未钉住时 hide）'):''}${inSheet?'；抽屉是模态路由，选完 pop 它':''}</span></span>`);
+}
+function stepEpisode(delta,src){ selectInPlayer(curEp()+delta,src); }
+$('#desk-ws-toggle').onclick=()=>toggleWs();
+$('#desk-ws-close').onclick=$('#desk-ws-scrim').onclick=()=>toggleWs(false);
+$('#desk-ws-pin').onclick=pinWs;
+$('#desk-ws-settings').onclick=wsSettings;
+$('#desk-pp').onclick=()=>togglePlay('控制条 ❚❚ / ▶');
+['#desk-play','#mp-play'].forEach(s=>$(s).onclick=()=>pushPlayer(seenEp(),'「继续观看」按钮'));
+$('#desk-dl').onclick=()=>openDl('详情页 ⭳ 下载');
+$('#mp-dl').onclick=()=>openDl('详情页 ⭳ 下载');
+$('#m-dl').onclick=()=>openDl('播放页右侧 ⭳ 缓存');
+$('#m-ep').onclick=$('#m-imm-jump').onclick=()=>openEpSheet();
+$('#desk-exit').onclick=$('#mp-back').onclick=()=>popPlayer('‹ 退出播放页');
+$('#desk-dl-x').onclick=()=>{closeOverlay();say(`<span class="row"><span class="k">✕ 关闭下载</span>
+  <em>只弹掉这一层模态路由</em>
+  <span class="warn">底下的详情页原样还在，滚动位置不动</span></span>`);};
+/* ===== 这一块为什么在这里：读数区承担说明，页面上不弹悬浮层（App 里没有 hover popover） ===== */
+function sayBlockWhy(idx){
+  const b=blocks()[idx]; if(!b) return;
+  say(`<span class="row">${b.why.replace(/^<h4>[\s\S]*?<\/h4>/,'')}
+     <span class="warn">块名只能写成「${b.title}」这么短：它是按一个词要回来的一页，
+     不是算法给这部剧配的相似列表。点卡片 = 再 push 一条详情路由，点轨道空白什么都不做</span></span>`);
+}
+/* ===== 一处点击分派：界面里每一下都要落到「一条路由动作」或「一句可证读数」上 ===== */
+document.addEventListener('click',e=>{
+  /* TV 一族没有鼠标：原型里的点击 = 焦点先落到这格，再按确认键 */
+  const tvEl=e.target.closest('#tv [data-tv]');
+  if(tvEl){setTvFocus(tvEl);tvActivate();return;}
+  const chip=e.target.closest('[data-tag]');
+  if(chip){tagClick(chip.dataset.tag);return;}
+  const req=e.target.closest('[data-req]');
+  if(req){sayBlockWhy(+req.dataset.req);return;}
+  const nav=e.target.closest('[data-epnav]');
+  if(nav&&!nav.disabled){
+    stepEpisode(+nav.dataset.epnav,
+      nav.closest('#sheet')?'抽屉里 上一集/下一集':
+      nav.closest('.wsrow')?'选集面板里 上一集/下一集':'控制条 上一集/下一集');
+    return;}
+  const pg=e.target.closest('[data-pg]');
+  if(pg&&!pg.disabled){
+    const which=pg.dataset.pager||pagerWhich(), before=pagerPage[which];
+    const m=turnPager(which,+pg.dataset.pg);
+    say(m?`<span class="row"><span class="k">翻${+pg.dataset.pg>0?'下':'上'}一页</span>
+       <em>第 ${before+1} 页 → 第 ${pagerPage[which]+1}/${m.pageCount} 页</em>
+       <span class="v">PageView 只换页内这一屏，不重新请求详情</span>
+       <span class="warn">episode_pager.dart:100-140：分页器是正文里的一块，不是「更多」按钮；
+       焦点/滚动都不会跳回顶部</span></span>`
+      :`<span class="row"><span class="k">翻${+pg.dataset.pg>0?'下':'上'}一页</span>
+       <em>已在${+pg.dataset.pg>0?'末页':'首页'} → 按钮禁用</em>
+       <span class="warn">到头就不给按，而不是回卷到另一端</span></span>`);
+    return;}
+  const ep=e.target.closest('[data-ep]');
+  if(ep){
+    const n=+ep.dataset.ep;
+    if(ep.closest('#sheet')){closeOverlay();selectInPlayer(n,'播放页底部抽屉');return;}
+    if(ep.closest('#desk-ws')){selectInPlayer(n,'播放页选集面板');return;}
+    pushPlayer(n,'详情页选集分页器');return;}
+  const dlq=e.target.closest('[data-dlq]'); if(dlq){cycleQuality();return;}
+  const dlall=e.target.closest('[data-dlall]'); if(dlall){selectAllDl();return;}
+  const dlep=e.target.closest('[data-dlep]'); if(dlep){toggleDl(+dlep.dataset.dlep);return;}
+  const dlgo=e.target.closest('[data-dlgo]'); if(dlgo){finishDl();return;}
+  const pq=e.target.closest('[data-pq]'); if(pq){changePlayQuality();return;}
+  const fv=e.target.closest('[data-fav]'); if(fv){toggleFav('选集面板里的 ♡');return;}
+  if(e.target.closest('[data-sheetx]')){closeOverlay();return;}
+  if(e.target.closest('[data-sheetsettings]')){wsSettings();return;}
+  const act=e.target.closest('.snack .act');
+  if(act){say(`<span class="row"><span class="k">点 SnackBar 里的「查看」</span>
+     <em>pushAppPage(AppScreen.downloads)</em>
+     <span class="warn">这是唯一一处从详情页跳下载管理的入口；当前页留在栈下（download_selection.dart:46-62）</span></span>`);return;}
+  const sx=e.target.closest('.snack .close');
+  if(sx){sx.closest('.snack').hidden=true;return;}
+  if(e.target.closest('#mask')){closeOverlay();return;}
+  const card=e.target.closest('.card[data-name]');
+  if(card){openDetail(card.dataset.name);return;}
+  if(e.target.closest('#desk-vid')&&!e.target.closest('button')&&state.pushed)
+    togglePlay('点画面');
 });
-function renderAll(){renderDesk();renderPhone();applyMode();paintPlayer();}
-const bootEp=Number(Q.get('ep'));
-if(Number.isInteger(bootEp)&&bootEp>0) state.ep=Math.min(bootEp,total());
-renderAll();
-if(state.ep&&state.ep!==bootEp) syncEpInURL();
-say(state.ep
-  ? `<span class="row"><span class="k">带 <code>?ep=${state.ep}</code> 深链进来</span> <em>直接落在播放页</em>
-     <span class="v">detail {vid} → 播放 {vid, episode_id:${state.ep}}</span>
-     <span class="warn">省掉一次「进详情、再点一集」；从列表点进来则 ep 缺省 = 详情态，由「继续观看」按钮决定接播第几集</span></span>`
-  : `<span class="row"><span class="k">从列表卡片点进来</span> <em>详情承接态（未播）</em>
-     <span class="warn">右侧选集栏 / 手机底部抽屉里点任意一集 = 进播放页播放；「回到详情」收回。两种态同一页，URL 用 <code>ep</code> 记。</span></span>`);
+$('#desk-back').onclick=$('#m-back').onclick=sayPopDetail;
+
+/* ===== 键盘：只有「鼠标键盘族」和「TV 遥控族」接键盘，触控族一个键都不接 ===== */
+function toggleFullscreen(){
+  state.fs=!state.fs;
+  $('#desk-winbar').hidden=state.fs||state.pushed;
+  say(`<span class="row"><span class="k">F</span> <em>${state.fs?'进入全屏':'退出全屏'}</em>
+     <span class="warn">电脑端的全屏 = 窗口收成沉浸式（app_navigation.dart:235-237 MacWindowFrame(immersive:)），
+     标题条随之让位；不是网页那种 document.requestFullscreen 换一层 DOM</span></span>`);
+}
+/* Back / Esc 一次只消一层：模态层 → 选集面板 → pop 播放页 → 都没了才 pop 详情页 */
+function layeredBack(src){
+  if(state.overlay){
+    const k=state.overlay.kind;
+    closeOverlay();
+    say(`<span class="row"><span class="k">${src}</span> <em>只消掉模态层（${k==='dl'?'下载选集':'选集抽屉'}）</em>
+       <span class="warn">弹层自己是一条模态路由，pop 它不动底下的播放页（download_selection.dart:32-44 /
+       player_page.dart:1039-1045）</span></span>`);
+    return true;
+  }
+  if(state.ws){toggleWs(false);return true;}
+  if(state.pushed){popPlayer(src);return true;}
+  return false;
+}
+function tvBack(){
+  if(!$('#tv-dl-wrap').hidden){
+    closeOverlay();setTvFocus($('#tv-acts').firstChild);
+    say(`<span class="row"><span class="k">Back</span> <em>只关下载对话框，焦点回动作行</em>
+       <span class="warn">TV 上焦点被关在对话框里（episode 格子之间的走位），Back 弹掉这层就回到刚才那枚按钮的位置</span></span>`);
+    return;
+  }
+  if(!$('#tv-player').hidden){popPlayer('TV Back 键');return;}
+  sayPopDetail();
+}
+document.addEventListener('keydown',e=>{
+  if(state.dom==='tv'){
+    const dir={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right'}[e.key];
+    if(dir){
+      e.preventDefault();
+      if(!tvMove(dir)) say(`<span class="row"><span class="k">DPAD ${dir}</span>
+         <em>这个方向没有可达焦点项 → 焦点留在原地</em>
+         <span class="warn">TvNavigation.focusInDirection 找不到候选就返回 false（environment.dart:62-104），
+         不会像网页那样把焦点甩到文档末尾或滚出一屏空白</span></span>`);
+      return;
+    }
+    if(e.key==='Enter'||e.key==='NumpadEnter'||e.key===' '){
+      e.preventDefault();
+      if(!tvNode){setTvFocus(tvItems()[0]);return;}
+      tvActivate();return;
+    }
+    if(e.key==='Backspace'||e.key==='Escape'){e.preventDefault();tvBack();return;}
+    return;
+  }
+  if(e.altKey&&e.key==='ArrowLeft'){
+    e.preventDefault();sayPopDetail();return;      /* 全局 ⌥← = router.maybePop()，任何一层都弹当前页 */
+  }
+  if(e.key==='Escape'){
+    e.preventDefault();
+    if(!layeredBack('Esc / 系统返回')) sayPopDetail();
+    return;
+  }
+  if(state.dom!=='desk'||state.touch||/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+  const k=e.key;
+  if(k==='i'||k==='I'){e.preventDefault();toggleWs();return;}
+  if(!state.pushed){
+    if([' ','k','K','j','J','l','L','m','M','f','F','PageUp','PageDown',
+        'ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(k)){
+      e.preventDefault();
+      say(`<span class="row"><span class="k">${k===' '?'Space':k}</span>
+         <em>停在详情页时这条键没有绑定</em>
+         <span class="warn">播放快捷键挂在播放页路由的 CallbackShortcuts 上（player_page.dart:981-1013），
+         不是全局监听：详情页里它们不接管、也不假装响应。全局只有 <code>⌥←</code> = pop</span></span>`);
+    }
+    return;
+  }
+  if(k===' '||k==='k'||k==='K'){e.preventDefault();togglePlay('快捷键 '+(k===' '?'Space':'K'));return;}
+  if(k==='ArrowLeft'){e.preventDefault();seekBy(-5,'快捷键 ←');return;}
+  if(k==='ArrowRight'){e.preventDefault();seekBy(5,'快捷键 →');return;}
+  if(k==='j'||k==='J'){e.preventDefault();seekBy(-10,'快捷键 J');return;}
+  if(k==='l'||k==='L'){e.preventDefault();seekBy(10,'快捷键 L');return;}
+  if(k==='m'||k==='M'){e.preventDefault();toggleMute();return;}
+  if(k==='ArrowUp'){e.preventDefault();nudgeVolume(5,'快捷键 ↑');return;}
+  if(k==='ArrowDown'){e.preventDefault();nudgeVolume(-5,'快捷键 ↓');return;}
+  if(k==='PageDown'){e.preventDefault();stepEpisode(1,'快捷键 PageDown · 下一集');return;}
+  if(k==='PageUp'){e.preventDefault();stepEpisode(-1,'快捷键 PageUp · 上一集');return;}
+  if(k==='f'||k==='F'){e.preventDefault();toggleFullscreen();return;}
+});
+
+/* ===== 渲染与启动 ===== */
+$('#keys').innerHTML=`<b>鼠标键盘族</b>（只在电脑客户端、且焦点不在输入框时生效；快捷键提示印在画框外，不是页面内容）
+  <kbd>Space</kbd>/<kbd>K</kbd> 播放·暂停 · <kbd>←</kbd><kbd>→</kbd> ±5 秒 · <kbd>J</kbd><kbd>L</kbd> ±10 秒 ·
+  <kbd>M</kbd> 静音 · <kbd>↑</kbd><kbd>↓</kbd> 音量 ±5 · <kbd>PageUp</kbd><kbd>PageDown</kbd> 上一集·下一集 ·
+  <kbd>I</kbd> 开合选集面板 · <kbd>F</kbd> 全屏 · <kbd>Esc</kbd> 一次只消一层（弹层 → 面板 → pop 播放页）·
+  <kbd>⌥←</kbd> 全局 pop<br>
+  <span>触控族界面上不出现任何键盘文案，也不接这些键；TV 一族只有方向键 + 确认 + Back（切到 TV 版面按键盘试走位）。</span>`;
+function renderAll(){
+  if(state.dom!=='desk'||state.touch) state.ws=false;
+  $('#desk-ws').hidden=!state.ws;
+  renderDesk();renderPhone();renderTv();
+  setRoute(state.pushed);paintFav();paintBar();
+  if(state.ws){
+    renderEpPanel($('#desk-ws-body'));
+    requestAnimationFrame(()=>revealCurrentPanel($('#desk-ws-body')));
+    wsSchedule();
+  }
+  if(state.overlay&&state.overlay.kind==='dl') renderDl();
+}
+if(!SEEDS.some(s=>s[0]===state.g&&s[1]===state.i))
+  $$('#seg-seed button').forEach(x=>x.setAttribute('aria-pressed','false'));
+applyView();
+say(`<span class="row"><span class="k">从列表卡片点进来</span> <em>详情页 · 承接态（未播）</em>
+   <span class="v">POST /novel/player/multi_video_detail/preload/v1 {vid}</span>
+   <span class="warn">这一页是被 push 进来的一页：转场 slidePageTransitions（新页从右进、旧页左移 0.3），
+   左上 ‹ 只有一个语义 = pop 回列表原位。App 没有 URL，也就没有 <code>?ep=</code> 那种「分享某一集」</span></span>
+   <span class="row"><span class="k">怎么读这个原型</span>
+   <span class="v">控制条切「设备族 / 页面栈 / 窗口外壳 / 进来的那部剧」，点界面里任何一块</span>
+   <span class="warn">读数区给的是这一步的路由动作 + 代码出处；TV 版面请用键盘方向键走焦点</span></span>`);
 </script>
 </body>
 </html>
