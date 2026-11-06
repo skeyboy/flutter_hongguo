@@ -4,7 +4,7 @@
 
 | 概览 | |
 |---|---|
-| 当前版本 | `0.3.27+39`（[最新 Release](https://github.com/skeyboy/flutter_hongguo/releases/tag/v0.3.27)：五平台 12 个安装包 + 校验清单，共 15 个附件） |
+| 当前版本 | `0.3.28+40`（[最新 Release](https://github.com/skeyboy/flutter_hongguo/releases/tag/v0.3.28)：五平台 12 个安装包 + 校验清单，共 15 个附件） |
 | 运行端 | Android（mobile / tv 双 flavor）· iOS · macOS · Windows · Linux · Web（远程服务适配） |
 | 技术底座 | Flutter 3.47.4 / Dart 3.13.3（fvm 锁定）· Riverpod · GetIt · Dio · media_kit |
 | 仓库形态 | Dart workspace 单仓多包（6 个包） |
@@ -86,7 +86,7 @@ hongguo_core  六头签名 · URL 解码 · Spade v1 · 样本 AES-CTR 解密 ·
 | [hongguo_update](packages/update/lib/hongguo_update.dart) | 0.1.0 | Release feed、版本比较、提示决策表、按设备选件、下载 + SHA-256 校验 | 无 Flutter，但需要 `dart:io` |
 | [hongguo_cast](packages/cast/README.md) | 0.2.0 | SSDP、设备描述、SOAP、DIDL-Lite、局域网媒体源、会话状态机 | 无 Flutter，但组播与 `HttpServer` 需要 `dart:io` |
 | [hongguo_tv](packages/tv/README.md) | 0.1.0 | 方向键焦点、网格与跨行导航、返回作用域、播放器状态机与画面 | 仅 Flutter；运行时与媒体由 App 注入 |
-| [hongguo_app](packages/app/README.md) | 0.3.27+39 | 自适应页面、平台 runtime、播放输出、生命周期、投屏/下载/更新装配 | 六端 |
+| [hongguo_app](packages/app/README.md) | 0.3.28+40 | 自适应页面、平台 runtime、播放输出、生命周期、投屏/下载/更新装配 | 六端 |
 
 ## 项目结构
 
