@@ -455,15 +455,53 @@ class _TvGenrePageState extends State<_TvGenrePage> {
   Future<void> _searchDialog() async {
     final requestedGenre = genre;
     search.text = queries[requestedGenre]!.value;
+    // TvNavigation hands a single-line box's 上下 back to the remote, but from
+    // inside a modal its geometric move only ever found the button below — 向上
+    // from this box landed nowhere. So the box walks the dialog's own ring: 下
+    // to 取消, 上 wraps to 搜索, and both activate on 确认. 左右 stay caret keys
+    // and 返回 still closes the dialog. The node comes from this page's registry
+    // rather than living here: showDialog resolves while the dialog is still
+    // animating out, and a node thrown away in that window is one the
+    // TextField rebuilds against.
+    final field = node('tv-search-field');
+    field.onKeyEvent = (focus, event) {
+      final where = focus.context;
+      if (where == null || !focus.hasFocus) return KeyEventResult.ignored;
+      if (event is! KeyDownEvent) return KeyEventResult.ignored;
+      if (event.logicalKey == LogicalKeyboardKey.escape) {
+        Navigator.of(where).pop();
+        return KeyEventResult.handled;
+      }
+      final forward = switch (event.logicalKey) {
+        LogicalKeyboardKey.arrowDown => true,
+        LogicalKeyboardKey.arrowUp => false,
+        _ => null,
+      };
+      if (forward == null) return KeyEventResult.ignored;
+      final ring = FocusScope.of(where);
+      forward ? ring.nextFocus() : ring.previousFocus();
+      return KeyEventResult.handled;
+    };
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('搜索${labels[section]}'),
-        content: TextField(
-          autofocus: true,
-          controller: search,
-          textInputAction: TextInputAction.search,
-          onSubmitted: (value) => Navigator.pop(context, value),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              autofocus: true,
+              focusNode: field,
+              controller: search,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (value) => Navigator.pop(context, value),
+            ),
+            const Padding(
+              padding: EdgeInsets.only(top: 12),
+              child: Text('上下键到按钮 · 返回键退出', style: TextStyle(fontSize: 15)),
+            ),
+          ],
         ),
         actions: [
           TextButton(
