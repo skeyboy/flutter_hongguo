@@ -4,20 +4,41 @@ import 'source_adapter.dart';
 // 带前缀调用，避免与本类的 sourceOf 方法同名导致递归。
 import 'source_id.dart' as source_ids;
 
-/// 注册即接入：新增源 = 新增一个 adapter 文件 + 在 sources.dart 清单加一行工厂。
+/// 注册即接入：新增一个源 = 新增 adapter 文件 + 在 sources.dart 清单加一行工厂。
+///
+/// 两类工厂：
+/// - [factories]：一个工厂产出一个适配器（内置源，固定数量）。
+/// - [expansiveFactories]：一个工厂按配置产出多个适配器（custom 源，
+///   每条启用的自定义源配置生成一个 `custom:{uuid}` 适配器——运行时自动加入）。
 class SourceRegistry {
-  SourceRegistry(this.factories, this.settings);
+  SourceRegistry(
+    this.factories,
+    this.settings, {
+    this.expansiveFactories = const [],
+  });
 
-  /// custom 源按配置动态生成，故这里是工厂列表而非固定实例列表。
   final List<SourceAdapter Function(SourceSettings)> factories;
+
+  /// 按配置动态生成多个适配器（custom 源）。每次读取都重新求值，
+  /// 设置变更重建注册表后自动生效。
+  final List<List<SourceAdapter> Function(SourceSettings)> expansiveFactories;
+
   final SourceSettings settings;
+
+  /// 当前生效的全部适配器（内置 + 动态 custom）。
+  List<SourceAdapter> get _all {
+    final result = <SourceAdapter>[
+      for (final factory in factories) factory(settings),
+      for (final factory in expansiveFactories) ...factory(settings),
+    ];
+    return result;
+  }
 
   /// 路由核心：只返回「已启用且匹配」的第一个适配器。
   /// matches 本身已按 source-id §4 用前缀精确判定，无需再做 sourceOf 快筛。
   /// 未命中返回 null，由门面对历史纯数字 ID 兜底 hongguo。
   SourceAdapter? forId(String id) {
-    for (final factory in factories) {
-      final adapter = factory(settings);
+    for (final adapter in _all) {
       if (adapter.enabled(settings) && adapter.matches(id)) return adapter;
     }
     return null;
@@ -27,8 +48,7 @@ class SourceRegistry {
   /// 与 [forId] 的区别：这里按来源标识查，不要求传入一个真实媒体 ID。
   /// 设置页来源列表与「按源查询」入口共用。
   SourceAdapter? forSource(String sourceId) {
-    for (final factory in factories) {
-      final adapter = factory(settings);
+    for (final adapter in _all) {
       if (adapter.enabled(settings) &&
           (adapter.id == sourceId || adapter.id.startsWith('$sourceId:'))) {
         return adapter;
@@ -37,9 +57,8 @@ class SourceRegistry {
     return null;
   }
 
-  /// UI 来源列表的数据源：按 enabled 过滤，顺序与 factories 一致。
-  List<SourceAdapter> get enabled => factories
-      .map((factory) => factory(settings))
+  /// UI 来源列表的数据源：按 enabled 过滤，顺序稳定。
+  List<SourceAdapter> get enabled => _all
       .where((adapter) => adapter.enabled(settings))
       .toList(growable: false);
 

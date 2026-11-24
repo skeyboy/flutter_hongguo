@@ -208,6 +208,35 @@ class VideoTrack {
   final MediaUrlPolicy? policy;
 
   bool get encrypted => spadeA.isNotEmpty;
+
+  /// 返回替换指定字段后的副本。自定义源多线路候选与测试替身需要基于主轨
+  /// 生成变体，保持不可变语义。
+  VideoTrack copyWith({
+    Uri? url,
+    String? spadeA,
+    String? definition,
+    int? size,
+    String? userAgent,
+    String? referer,
+    bool? fromWeb,
+    String? source,
+    VideoFormat? format,
+    List<VideoTrack>? candidates,
+    MediaUrlPolicy? policy,
+  }) => VideoTrack(
+    url: url ?? this.url,
+    spadeA: spadeA ?? this.spadeA,
+    definition: definition ?? this.definition,
+    size: size ?? this.size,
+    userAgent: userAgent ?? this.userAgent,
+    referer: referer ?? this.referer,
+    fromWeb: fromWeb ?? this.fromWeb,
+    source: source ?? this.source,
+    format: format ?? this.format,
+    candidates: candidates ?? this.candidates,
+    policy: policy ?? this.policy,
+  );
+
   const VideoTrack({
     required this.url,
     required this.spadeA,

@@ -144,6 +144,9 @@ class NativeRuntime
   /// 的官网/App 分层），第三方源走各自适配器的明文取址。
   late SourceRegistry _sourceRegistry;
 
+  /// 自定义源在途请求注册表：设置变更时撤销旧源请求（配置热变更防护）。
+  final CancelTokenRegistry _customTokens = CancelTokenRegistry();
+
   Future<VideoTrack> _resolveTrack(String vid, String quality) async {
     final adapter = _sourceRegistry.forId(vid);
     if (adapter == null || adapter.id == 'hongguo') {
@@ -331,6 +334,10 @@ class NativeRuntime
     );
     // 注册表在每次客户端重建时按当前设置重新装配：P0 清单只有红果，
     // 但设置变更带来的 sources 改动将自然在下一次重建生效。
+    // 自定义源配置变更前先撤销其所有在途请求，避免热变更期间旧配置继续发请求。
+    for (final config in settings.sources.customSources) {
+      _customTokens.cancel(config.uuid);
+    }
     final registry = SourceRegistry(
       defaultSourceFactories(
         catalog: () => _catalog,
@@ -338,6 +345,13 @@ class NativeRuntime
         dio: () => _dio,
       ),
       settings.sources,
+      expansiveFactories: [
+        (sourceSettings) => customSourceAdapters(
+          dio: () => _dio,
+          currentSources: () => this.settings.sources.customSources,
+          tokens: _customTokens,
+        ),
+      ],
     );
     _sourceRegistry = registry;
     _routingCatalog = RoutingCatalogRepository(

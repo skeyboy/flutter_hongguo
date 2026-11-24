@@ -140,4 +140,53 @@ void main() {
       const SourceSettings().toJson(),
     );
   });
+
+  group('自定义源 CRUD（P3）', () {
+    final config = CustomSourceConfig(
+      uuid: _uuid,
+      name: '我的源',
+      url: 'https://api.example.com/api.php/provide/vod/',
+      enabled: true,
+    );
+
+    test('upsert 按 uuid 新增与替换，不影响其它源', () {
+      final added = const SourceSettings().upsertCustom(config);
+      expect(added.customSources, hasLength(1));
+      expect(added.isEnabled('custom:$_uuid'), isTrue);
+
+      final replaced = added.upsertCustom(
+        CustomSourceConfig(
+          uuid: _uuid,
+          name: '改名',
+          url: config.url,
+          enabled: false,
+        ),
+      );
+      expect(replaced.customSources, hasLength(1));
+      expect(replaced.customSources.single.name, '改名');
+      expect(replaced.isEnabled('custom:$_uuid'), isFalse);
+      // 原实例不可变。
+      expect(added.customSources.single.name, '我的源');
+    });
+
+    test('toggle 与 remove 按 uuid 生效', () {
+      final added = const SourceSettings().upsertCustom(config);
+      final off = added.toggleCustom(_uuid, false);
+      expect(off.isEnabled('custom:$_uuid'), isFalse);
+      expect(added.isEnabled('custom:$_uuid'), isTrue);
+
+      final removed = off.removeCustom(_uuid);
+      expect(removed.customSources, isEmpty);
+      expect(removed.isEnabled('custom:$_uuid'), isFalse);
+    });
+
+    test('withBuiltin 不可关闭 hongguo，其它源可切', () {
+      const settings = SourceSettings();
+      expect(
+        settings.withBuiltin('hongguo', false).isEnabled('hongguo'),
+        isTrue,
+      );
+      expect(settings.withBuiltin('xifan', false).isEnabled('xifan'), isFalse);
+    });
+  });
 }

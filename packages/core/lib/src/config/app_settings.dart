@@ -432,6 +432,48 @@ class SourceSettings {
     return builtin[sourceId] ?? false;
   }
 
+  /// 内置源开关（hongguo 不可关，守门在此，UI 无需重复判断）。
+  SourceSettings withBuiltin(String sourceId, bool enabled) {
+    if (sourceId == 'hongguo') return this;
+    return SourceSettings(
+      builtin: {...builtin, sourceId: enabled},
+      customSources: customSources,
+    );
+  }
+
+  /// 新增或替换一条自定义源（按 uuid）。返回新实例，交给 AppSettings.copyWith
+  /// 与 settings_store 事务持久化。
+  SourceSettings upsertCustom(CustomSourceConfig config) {
+    final next = List<CustomSourceConfig>.from(customSources);
+    final index = next.indexWhere((item) => item.uuid == config.uuid);
+    if (index >= 0) {
+      next[index] = config;
+    } else {
+      next.add(config);
+    }
+    return SourceSettings(builtin: builtin, customSources: next);
+  }
+
+  /// 按 uuid 删除一条自定义源。
+  SourceSettings removeCustom(String uuid) => SourceSettings(
+    builtin: builtin,
+    customSources: customSources.where((item) => item.uuid != uuid).toList(),
+  );
+
+  /// 切换一条自定义源的启用态。
+  SourceSettings toggleCustom(String uuid, bool enabled) {
+    final index = customSources.indexWhere((item) => item.uuid == uuid);
+    if (index < 0) return this;
+    final next = List<CustomSourceConfig>.from(customSources);
+    next[index] = CustomSourceConfig(
+      uuid: next[index].uuid,
+      name: next[index].name,
+      url: next[index].url,
+      enabled: enabled,
+    );
+    return SourceSettings(builtin: builtin, customSources: next);
+  }
+
   Map<String, dynamic> toJson() => {
     'builtin': Map<String, bool>.from(builtin),
     'customSources': customSources.map((config) => config.toJson()).toList(),

@@ -133,5 +133,31 @@ void main() {
       expect(registry.forId('$currentId:vod:1')?.id, currentId);
       expect(registry.forId('$firstId:vod:1'), isNull);
     });
+
+    test('expansive 工厂按配置展开多个适配器（P3 自定义源）', () {
+      const a = 'custom:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      const b = 'custom:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+      final enabledConfigs = [a, b];
+      final registry = SourceRegistry(
+        [],
+        settings,
+        expansiveFactories: [
+          (s) => [
+            for (final id in enabledConfigs)
+              FakeAdapter(id, matches: (media) => media.startsWith('$id:')),
+          ],
+        ],
+      );
+
+      expect(registry.enabled.map((e) => e.id), [a, b]);
+      expect(registry.forId('$a:vod:1:2')?.id, a);
+      expect(registry.forId('$b:vod:1:2')?.id, b);
+      expect(registry.sourceOf('$a:vod:1:2'), a);
+
+      // 配置变更（移除一个源）后重新求值即生效。
+      enabledConfigs.remove(b);
+      expect(registry.enabled.map((e) => e.id), [a]);
+      expect(registry.forId('$b:vod:1'), isNull);
+    });
   });
 }
