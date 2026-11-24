@@ -24,6 +24,15 @@
 - [发现页顶部筛选分层与榜单拆成目的地](design/discover-filters-and-ranking.md)：四层筛选的一层一义、逐层人机规格、PC 与移动按输入族分派，词表以四次实机取样为据（[原始读数](evidence/ranking-fields/README.md)、[可交互原型](design/prototypes/discover-filters-ranking.html)）。
 - [私有仓库、五端 CI 与 Release](github-release.md)
 
+## 取源与后台接口
+
+- [hongguo-drama 8.0 API 后端分析](analysis/2026-11-23_hongguo-drama-API后端分析.md)：三来源取源、官网层协议（`_ROUTER_DATA` / ld+json / 兜底接口）、签名与设备注册、与当前实现的逐项差异。
+- [API 后端切换方案](design/api-web-first-switch.md)：官网优先三层取址、搜索 JSON 优先、详情竞速、CDN 白名单按来源分表、下载层逐跳校验跳转，以及真网与 CI 的验证口径。
+
+## 构建环境
+
+- [iOS / macOS pod install 失败修复手册](darwin-pod-install-fix.md)：Windows 生成物残留导致 `podhelper` 加载失败、插件 symlink 断链时的排查与重建步骤。
+
 ## 本地剧目库
 
 - [本地缓存按剧目展示与验证](local-library-grouping.md)

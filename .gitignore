@@ -30,3 +30,6 @@ references/hongguo-drama/
 
 # 工具自检残留：W 盘（SMB）ACL 不允许删除，只能忽略
 .wb_write_test.txt
+
+# 会话工作目录（记忆、临时产物），不属于源码
+.workbuddy/

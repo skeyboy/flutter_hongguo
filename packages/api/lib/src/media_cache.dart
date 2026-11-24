@@ -258,6 +258,58 @@ class MediaCache {
         });
   }
 
+  /// 下载一条片源，跟随 CDN 的 3xx 跳转，并且**每一跳都重过白名单**。
+  ///
+  /// 官网直链常态会 302 到另一台边缘机（v11-hgweb → 其它 qz/byte CDN），
+  /// 参考实现同样是「跟随跳转 + beforeRedirect 里跑 mediaGuard」。这里不
+  /// 直接用 dio 的 followRedirects：它没有跳转前钩子，会把白名单变成一句
+  /// 空话（首跳合规、后续随便跳）。改成逐跳 catch → 校验 → 重试，跳转
+  /// 次数与参考一致（上限 5 跳）。
+  Future<void> _downloadFollowingRedirects(
+    VideoTrack track,
+    String path,
+    CancelToken token, {
+    required List<String> domains,
+    required void Function(int received, int total) onProgress,
+  }) async {
+    // 官网直链层带官方桌面 UA 与官网 Referer；App 取址的 CDN 两项留空，
+    // 沿用既有约定（CDN 对通用 UA 即回完整文件）。
+    final headers = {
+      'User-Agent': track.userAgent.isNotEmpty
+          ? track.userAgent
+          : 'Mozilla/5.0',
+      if (track.referer.isNotEmpty) 'Referer': track.referer,
+    };
+    var url = track.url;
+    for (var hop = 0; ; hop++) {
+      try {
+        await dio.download(
+          url.toString(),
+          path,
+          cancelToken: token,
+          deleteOnError: true,
+          options: Options(
+            followRedirects: false,
+            headers: headers,
+            receiveTimeout: const Duration(seconds: 120),
+          ),
+          onReceiveProgress: onProgress,
+        );
+        return;
+      } on DioException catch (error) {
+        final status = error.response?.statusCode ?? 0;
+        final location = error.response?.headers.value('location');
+        if (status < 300 || status >= 400 || location == null || hop >= 5) {
+          rethrow;
+        }
+        // 相对跳转（Location: /path）按当前地址解析，绝对地址原样用。
+        final next = url.resolve(location);
+        MediaUrlDecoder.checked(next.toString(), domains);
+        url = next;
+      }
+    }
+  }
+
   void _trackPin(String path, int size) {
     (_retainedPath(path) ? _retainedBytes : _autoBytes)[path] = size;
   }
@@ -529,10 +581,8 @@ class MediaCache {
         }
         // 官网层的直链会落到字节系其它 CDN（webMediaDomains），App 层签名
         // 链接只用 appMediaDomains：放行面按来源分开，不因为多一层就全局放宽。
-        MediaUrlDecoder.checked(
-          track.url.toString(),
-          track.fromWeb ? webMediaDomains : appMediaDomains,
-        );
+        final domains = track.fromWeb ? webMediaDomains : appMediaDomains;
+        MediaUrlDecoder.checked(track.url.toString(), domains);
         working =
             '${output.path}.${DateTime.now().microsecondsSinceEpoch}.${_serial++}.part';
         workingIdentity = working;
@@ -599,24 +649,12 @@ class MediaCache {
             report,
           );
         } else {
-          await dio.download(
-            track.url.toString(),
+          await _downloadFollowingRedirects(
+            track,
             working,
-            cancelToken: job.token,
-            deleteOnError: true,
-            options: Options(
-              followRedirects: false,
-              // 官网直链层带官方桌面 UA 与官网 Referer；App 取址的 CDN 两项
-              // 留空，沿用既有约定（CDN 对通用 UA 即回完整文件）。
-              headers: {
-                'User-Agent': track.userAgent.isNotEmpty
-                    ? track.userAgent
-                    : 'Mozilla/5.0',
-                if (track.referer.isNotEmpty) 'Referer': track.referer,
-              },
-              receiveTimeout: const Duration(seconds: 120),
-            ),
-            onReceiveProgress: report,
+            job.token,
+            domains: domains,
+            onProgress: report,
           );
         }
         _check(job);

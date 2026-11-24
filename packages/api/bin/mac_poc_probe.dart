@@ -59,9 +59,17 @@ Future<void> main(List<String> args) async {
     final track = await VideoModelClient(dio: dio).fetchTrack(episode.vid);
     steps.add({
       'stage': 'video_model',
+      // 三层取源里到底哪一层答的，是这次切换最需要现场确认的事：
+      // fromWeb=true 说明官网直链层生效（明文 MP4 + 桌面 UA），
+      // false 说明退到了 App 签名层或旧接口，encrypted 再细分后两者。
+      'fromWeb': track.fromWeb,
       'encrypted': track.encrypted,
+      'host': track.url.host,
+      'scheme': track.url.scheme,
       'definition': track.definition,
       'size': track.size,
+      'hasUserAgent': track.userAgent.isNotEmpty,
+      'hasReferer': track.referer.isNotEmpty,
     });
     if (args.contains('--prepare')) {
       stage = 'prepare';

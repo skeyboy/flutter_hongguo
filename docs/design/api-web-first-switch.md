@@ -92,9 +92,29 @@
 
 翻页失败直接当这一页没有（结束滚动），不在中途换源。
 
+### F. 下载层跟随 CDN 跳转，且逐跳过白名单（`media_cache.dart`）
+
+Windows 真机跑真网时暴露：官网直链 `v11-hgweb.qznovelvod.com` 常态回 **302**，把请求甩到另一台边缘机。下载层原本写死 `followRedirects: false`（当初是为了不让上游把客户端带去任意地址），结果直接抛 `badResponse: 302`——**官网层能取到地址但下载必失败**，这一层等于白做。
+
+参考实现的做法是「跟随跳转 + `beforeRedirect` 里跑 `mediaGuard`」，也就是每一跳都校验。dio 没有跳转前钩子，所以改成逐跳 catch：
+
+- 捕获 `DioException`，读 `response.headers['location']`；
+- `url.resolve(location)` 兼容相对地址；
+- 跳转目标重过白名单（`fromWeb ? webMediaDomains : appMediaDomains`），不合规当场拒绝；
+- 上限 5 跳（与参考 `maxRedirects` 一致），超了 rethrow。
+
+这样白名单不是「只校验首跳」的空话，也没有为了跳转把整个放行面放宽。
+
+### G. Windows 端构建的环境约束（与代码无关，但会挡住验证）
+
+- `packages/app/windows/flutter/ephemeral/.plugin_symlinks/` 在 W 盘（SMB）上生成的是 `.lnk` 快捷方式而不是目录链接——Dart 的 `Link.create` 在 SMB 上直接 `OS Error: 函数不正确`。CMake 因此 `add_subdirectory` 找不到 `url_launcher_windows/windows` 等目录，构建失败。
+- 结论：Windows 桌面构建必须在本地 NTFS 盘进行。验证做法是 `robocopy` 镜像到 `C:\hb`（排除 `.git` / `build` / `.dart_tool` / `references`，781MB / 4 秒），在本地副本 `flutter pub get && flutter build windows`。
+- 另注意：从 SMB 复制过来的 `.flutter-plugins-dependencies` 带 Hidden 属性，`flutter pub get` 会报「cannot access the file」，删掉重跑即可。
+
 ## 验证口径
 
-- 测试：`packages/core` 139、`packages/api` 184、`packages/app` 512、`packages/tv` 38、`packages/cast` 52，全绿（新增 web_source / 三层取址 / 白名单 / 失败分类 / 搜索翻页专项）。
+- 测试：`packages/core` 139、`packages/api` 187（+3 重定向）、`packages/app` 512、`packages/tv` 38、`packages/cast` 52，全绿（新增 web_source / 三层取址 / 白名单 / 失败分类 / 搜索翻页 / 302 跟随专项）。
+- 真网冒烟（Windows，`packages/api/bin/mac_poc_probe.dart`）：catalog 18 部 → detail 50 集 → `fetchTrack` **fromWeb=true**、`v11-hgweb.qznovelvod.com`、360p、带 UA/Referer → `prepare` 落盘 6,670,754 字节，`ftyp isom/iso2/avc1/mp41` + `moov` + `mdat` 结构完整。
 - `packages/update` 有 1 项既有失败（`release_downloader_test` 断言临时目录用 `/`，Windows 实际给 `\`），与本轮改动无关，未处理。
 - `dart analyze` 在本工作区（W 盘 SMB）跑不起来：analyzer server 启动即被 SIGTERM，属环境问题；编译正确性由上述测试的编译阶段覆盖。
 - `tool/verify_all.sh` 未跑：它要求 `.fvm/flutter_sdk`（本机走 PATH 上的 fvm stable），且第一道就是 `dart analyze --fatal-infos`。

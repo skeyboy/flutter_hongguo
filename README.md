@@ -251,6 +251,7 @@ git tag vX.Y.Z && git push origin vX.Y.Z
 - [文档总索引](docs/README.md) · [文档与代码对应表](docs/project-map.md) · [验收证据](docs/evidence/README.md)
 - 设计：[自动更新](docs/design/auto-update.md) · [DLNA 投屏](docs/design/cast-dlna.md) · [筛选与榜单](docs/design/discover-filters-and-ranking.md) · [播放控制条](docs/design/player-controls-redesign.md) · [剧集下载](docs/design/episode-downloads.md) · [我的与个人片库](docs/design/my-library.md) · [后台能力](docs/design/platform-background.md) · [Android TV 实施](docs/design/android-tv-implementation.md)
 - 验收：[Mac 独立 App 与真实单集](docs/macos-independent-app-poc.md) · [下载解密缓存播放链路](docs/native-playback-pipeline.md) · [移动端测试与 ADB 安装](docs/mobile-testing.md) · [Android TV 模拟器](docs/android-tv-emulator-verification.md)
+- 环境排查：[iOS / macOS pod install 修复手册](docs/darwin-pod-install-fix.md)
 - 原始分析快照：[流程与签名](docs/analysis/2026-10-19_流程与签名-hongguo-report.md) · [API 文档](docs/analysis/API-reference.md) · [Dart/Flutter 可行性](docs/analysis/Flutter-Dart-feasibility.md)
 
 ## 贡献与开发约定
