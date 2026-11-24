@@ -1327,6 +1327,15 @@ class _PlayerPageState extends State<PlayerPage>
                   child: Builder(
                     builder: (context) {
                       final failure = PlaybackFailure.classify(error!);
+                      // 限免外的集失败时，三层来源都回空是上游策略而非
+                      // 偶发抖动：别让用户以为重试就能解决。
+                      final hint =
+                          widget.detail.episodes[position].beyondFree &&
+                              (failure.kind == PlaybackFailureKind.noSource ||
+                                  failure.kind ==
+                                      PlaybackFailureKind.sourceRejected)
+                          ? '这一集在官网限免范围之外；上游当前没有返回取址数据，重试未必有效。'
+                          : failure.hint;
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -1350,7 +1359,7 @@ class _PlayerPageState extends State<PlayerPage>
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            failure.hint,
+                            hint,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: Colors.white38,
@@ -1581,37 +1590,48 @@ class _PlayerPageState extends State<PlayerPage>
             crossAxisSpacing: 10,
             childAspectRatio: 1.25,
           ),
-          delegate: SliverChildBuilderDelegate(
-            (context, index) => FilledButton.tonal(
-              style: FilledButton.styleFrom(
-                padding: EdgeInsets.zero,
-                backgroundColor: index == position
-                    ? playbackTheme.colorScheme.primary
-                    : playbackTheme.colorScheme.surfaceContainerHighest,
-                foregroundColor: index == position
-                    ? playbackTheme.colorScheme.onPrimary
-                    : playbackTheme.colorScheme.onSurface,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+          delegate: SliverChildBuilderDelegate((context, index) {
+            final beyondFree = widget.detail.episodes[index].beyondFree;
+            return Tooltip(
+              message: beyondFree ? '官网限免范围之外，当前取源通道可能无法提供片源' : '',
+              child: FilledButton.tonal(
+                style: FilledButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  backgroundColor: index == position
+                      ? playbackTheme.colorScheme.primary
+                      : playbackTheme.colorScheme.surfaceContainerHighest,
+                  foregroundColor: index == position
+                      ? playbackTheme.colorScheme.onPrimary
+                      : playbackTheme.colorScheme.onSurface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: () => _selectEpisode(index),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('${widget.detail.episodes[index].index}'),
+                    if (beyondFree)
+                      Text(
+                        '限免外',
+                        style: TextStyle(
+                          fontSize: 9,
+                          color: playbackTheme.colorScheme.error,
+                        ),
+                      )
+                    else if (widget.cachedOnly ||
+                        prefetch.phaseFor(
+                              widget.detail.episodes[index].vid,
+                              quality,
+                            ) ==
+                            PrefetchPhase.ready)
+                      const Text('已缓存', style: TextStyle(fontSize: 9)),
+                  ],
                 ),
               ),
-              onPressed: () => _selectEpisode(index),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('${widget.detail.episodes[index].index}'),
-                  if (widget.cachedOnly ||
-                      prefetch.phaseFor(
-                            widget.detail.episodes[index].vid,
-                            quality,
-                          ) ==
-                          PrefetchPhase.ready)
-                    const Text('已缓存', style: TextStyle(fontSize: 9)),
-                ],
-              ),
-            ),
-            childCount: widget.detail.episodes.length,
-          ),
+            );
+          }, childCount: widget.detail.episodes.length),
         ),
       ),
     ],

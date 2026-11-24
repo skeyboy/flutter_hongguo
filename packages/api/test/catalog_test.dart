@@ -328,4 +328,57 @@ void main() {
     final page = await client.rankBoard();
     expect(page.updatedAt, isNull);
   });
+
+  group('限免边界落到分集', () {
+    test('Episode 没有边界信息时不标记限免外', () {
+      const episode = Episode(vid: '101', index: 8);
+      expect(episode.accessibleCount, isNull);
+      expect(episode.beyondFree, isFalse);
+    });
+
+    test('官网详情页的 accessible_episode_cnt 落到每一集', () {
+      final html = jsonEncode({
+        'props': {
+          'pageProps': {
+            'initialState': {
+              'detail': {
+                'series_id': '731111222233344',
+                'series_name': '测试短剧',
+                'series_cover': 'https://p3-sign.example.com/cover.jpg',
+                'vid_list': ['101', '102', '103'],
+                'accessible_episode_cnt': 2,
+              },
+            },
+          },
+        },
+      });
+      final detail = CatalogClient.parseWebEpisodes(
+        '731111222233344',
+        '<html>$html</html>',
+      );
+      expect(detail.episodes.map((e) => e.beyondFree), [false, false, true]);
+      expect(detail.episodes.last.accessibleCount, 2);
+    });
+
+    test('边界值超过实际集数时全集都不标记', () {
+      final html = jsonEncode({
+        'props': {
+          'pageProps': {
+            'initialState': {
+              'detail': {
+                'series_id': '731111222233344',
+                'vid_list': ['101', '102'],
+                'accessible_episode_cnt': 99,
+              },
+            },
+          },
+        },
+      });
+      final detail = CatalogClient.parseWebEpisodes(
+        '731111222233344',
+        '<html>$html</html>',
+      );
+      expect(detail.episodes.map((e) => e.beyondFree), [false, false]);
+    });
+  });
 }

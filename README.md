@@ -193,6 +193,8 @@ cd packages/app && ../../.fvm/flutter_sdk/bin/flutter test \
 | `python3 tool/verify_tv_device.py --device <id>` | 注入真实系统方向键 |
 | `python3 tool/verify_mobile.py --platform android\|ios --device <id> --output <dir>` | 真实视口移动端集成测试 |
 | `./tool/verify_mac_live.sh SERIES_ID EPISODE_VID` | Mac 真实上游单集取证 |
+| `dart run tool/diagnose_episode.dart boundary <series_id>` | 逐集探测限免边界，区分限免内/外与每层取源状态 |
+| `dart run tool/diagnose_episode.dart full <vid>` | 单集深挖：官网 flags、App 签名/旧接口/三主机、CDN 302 链 |
 | `./tool/verify_download_concurrency_live.sh <device> <series> <3\|5> <log> [flavor]` | 真机并发下载取证 |
 | `./tool/verify_auto_update_live.sh` | 更新链路线上读数 |
 | `dart run packages/update/tool/live_feed_check.dart <from> <to>` | 已发布 feed 的可用性与选件命中 |

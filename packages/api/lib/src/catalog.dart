@@ -210,7 +210,20 @@ class Drama {
 class Episode {
   final String vid, title;
   final int index;
-  const Episode({required this.vid, required this.index, this.title = ''});
+
+  /// 当前官网来源的限免边界之外的分集。网页只公开前 N 集，其余要靠 App
+  /// 取址通道；该通道回空包时这些集会取不到片源。仅作提示，不阻止点播——
+  /// 上游恢复后同一集仍可播。为 null 表示来源没有提供边界信息。
+  final int? accessibleCount;
+
+  const Episode({
+    required this.vid,
+    required this.index,
+    this.title = '',
+    this.accessibleCount,
+  });
+
+  bool get beyondFree => accessibleCount != null && index > accessibleCount!;
 }
 
 class DramaDetail {
@@ -1005,7 +1018,11 @@ class CatalogClient
         ),
         [
           for (var i = 0; i < web.vids.length; i++)
-            Episode(vid: web.vids[i], index: i + 1),
+            Episode(
+              vid: web.vids[i],
+              index: i + 1,
+              accessibleCount: web.accessibleEpisodes,
+            ),
         ],
       );
     }
@@ -1097,6 +1114,12 @@ class CatalogClient
       return m == null ? '' : _text(jsonDecode(m.group(1)!));
     }
 
+    final accessibleMatch = RegExp(r'"accessible_episode_cnt"\s*:\s*"?(\d+)"?')
+        .firstMatch(html);
+    final accessible = accessibleMatch == null
+        ? null
+        : min(int.parse(accessibleMatch.group(1)!), vids.length);
+
     return DramaDetail(
       Drama(
         id: id,
@@ -1106,7 +1129,7 @@ class CatalogClient
       ),
       [
         for (var i = 0; i < vids.length; i++)
-          Episode(vid: vids[i], index: i + 1),
+          Episode(vid: vids[i], index: i + 1, accessibleCount: accessible),
       ],
     );
   }

@@ -72,11 +72,19 @@
 
 用户另外贴出的 `DioException [bad response]: 302` 是**另一条下游症状**：`media_cache._downloadFollowingRedirects` 关掉了自动跳转，遇到 302 且响应没有 `Location` 或超过 5 跳时会把原始异常抛出去。当前失败集在取源阶段就停了，还没走到下载，所以 302 不是「前几集」边界的原因。
 
-下一步（按优先级）：
+#### 后续跟进（2026-11-24）
 
-1. 移植 8.0 的 App 层端点轮换与 v5 签名族（`video_tab`、`player/v1` b/a、`video_model/v1` a/c），这是让限免之外集恢复播放的唯一已知路径；见 [8.0 后端分析](../analysis/2026-11-23_hongguo-drama-API后端分析.md) §2.2–2.3。参考库 `references/hongguo-web` 1.1.x 仍是旧协议，不能直接照抄。
-2. 把 `accessible_episode_cnt` 落到 `Episode`/UI：前 5 集正常展示，之后标注「当前来源不可播」，避免用户逐集试错；失败文案改成「上游未返回这一集取址数据，重试未必有效」。
-3. 把本轮 `episode_boundary_probe` 收敛成常驻诊断工具，以后上游再变时一条命令区分「限免边界 / 签名 / 空包 / CDN 跳转」。
+**建议 1「移植 v5 签名族」已被真网证伪，不要按旧文档开工。** 把 8.0 参考库（`build/verification/hongguo-drama-ref`，浅克隆自 `jackotom/hongguo-drama`）连同 v5 签名族、`video_tab`、`player/v1` a/b、a/b/c 主机轮换和全新匿名注册完整跑起来，第 1 集与第 6 集**都是 HTTP 200 / 0 字节**；直连与走代理结果一致。参考库 8.1 的 `docs/issue-178-179-2026-11-23.md` 也记录「换新身份、Cookie 都不恢复」。所以**v5 移植救不回后续集**，上一轮的这一条建议基于 8.0 旧文档，前提不成立。
+
+真正能拿到后续集的是参考库 8.1 的 **SDK v5 sidecar**：独立执行文件 + 匿名设备注册 + SDK 素材校验 + 指纹核 + SDI token。评估结论：
+
+- 核心是 4.5 MB 官方 ARM64 `.so`，靠 Unicorn 模拟执行，**无法纯 Dart 重写**；
+- 唯一可落地形态是把 PyInstaller 二进制当 sidecar 打包，但上游归档 SHA256 漂移导致不可复现、GPL 合规未闭环、Windows/Linux 未构建（参考库自己承认只在 macOS arm64 验证）；
+- 因此需要用户决策是否接受「macOS arm64 专用 sidecar + 合规审查」，本轮**不做**。
+
+**建议 2 已落地**：`Episode` 新增 `accessibleCount` / `beyondFree`，官网两处转 `DramaDetail` 的路径（router-data 与正则 fallback）都把 `accessible_episode_cnt` 传下去；选集格对限免外集显示「限免外」小标记与 tooltip，**不阻止点播**（上游恢复后同一集仍可播）；限免外集失败且属 `noSource` / `sourceRejected` 时，错误卡片改提示「上游当前没有返回取址数据，重试未必有效」。
+
+**建议 3 已落地**：`tool/diagnose_episode.dart` 常驻命令，`boundary <series_id>` 逐集标限免边界并打印每层状态，`vid/full <vid>` 深挖官网 flags、App 签名与旧接口空包、三主机轮换、CDN 302 链。已用 `boundary 7710254424689495065` 复现第 6 集分水岭（前 5 集 web fallback 200、后续 403，`fetchTrack` 从 `fromWeb=true` 变成 `IncompleteCatalogResponse`），用法写入 README。
 
 ### 不在本轮
 
@@ -139,7 +147,7 @@
 | 命令 | 结果 |
 |---|---|
 | `packages/core`: `dart test` | 140 通过（含 cacheDir 持久化与注入校验） |
-| `packages/api`: `dart test` | 191 通过（含握手重试与下载重试） |
+| `packages/api`: `dart test` | 194 通过（含握手重试、下载重试与限免边界落点） |
 | `packages/cast`: `dart test` | 52 通过 |
 | `packages/update`: `dart test` | 37 通过 |
 | `packages/app`: `flutter test` | 522 通过（含新分类、便携根、桌面控制 facade） |
@@ -147,6 +155,7 @@
 | `python3 -m unittest discover -s tool/ci/tests` | 10 通过 |
 | `dart format --set-exit-if-changed` | 0 处需改动 |
 | `flutter analyze`（六包 lib） | 3 项既有告警，本轮无新增 |
+| `dart run tool/diagnose_episode.dart boundary 7710254424689495065` | 复现第 6 集分水岭：前 5 集 `fallback 200 / fromWeb=true`，第 6 集起 `fallback 403 / IncompleteCatalogResponse` |
 
 macOS 本机额外验证（2026-11-24）：
 
