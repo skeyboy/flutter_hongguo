@@ -9,6 +9,10 @@ class CatalogAdapter implements HttpClientAdapter {
   final requests = <RequestOptions>[];
   final bodies = <Map<String, dynamic>>[];
   bool failDetail = false;
+
+  /// 官网两页竞速（/player 与 /detail）失败开关：App 分集接口路径的测试用它
+  /// 把 web 层压掉，才能测到签名请求本身。
+  bool failWeb = false;
   String rankVersion = '1793325840';
   @override
   Future<ResponseBody> fetch(
@@ -24,6 +28,23 @@ class CatalogAdapter implements HttpClientAdapter {
         ),
       );
     }
+    if (options.path.contains('/api/search/result')) {
+      return ResponseBody.fromString(
+        jsonEncode({
+          'searchList': [
+            {
+              'video_data': {
+                'series_id': '7661622467441478681',
+                'series_title': '玄幻[测试]',
+                'episode_cnt': 2,
+              },
+            },
+          ],
+          'hasMore': false,
+        }),
+        200,
+      );
+    }
     if (options.path.contains('/search/')) {
       await Future<void>.delayed(const Duration(milliseconds: 10));
       return ResponseBody.fromString(
@@ -31,7 +52,9 @@ class CatalogAdapter implements HttpClientAdapter {
         200,
       );
     }
-    if (options.path.contains('hongguoduanju.com/player/')) {
+    if (options.path.contains('hongguoduanju.com/player/') ||
+        options.path.contains('hongguoduanju.com/detail')) {
+      if (failWeb) return ResponseBody.fromString('', 404);
       return ResponseBody.fromString(
         '{"vid_list":["7661622467441478682","7661622467441478683"],"series_name":"回退剧名"}',
         200,
@@ -154,7 +177,9 @@ void main() {
     final page = await client.search('玄幻');
     expect(page.items.single.id, '7661622467441478681');
     expect(page.items.single.title, '玄幻[测试]');
+    // 官网 JSON 接口一发命中，不再需要 SSR 或 App 搜索。
     expect(adapter.requests, hasLength(1));
+    expect(adapter.requests.single.path, contains('/api/search/result'));
   });
   test(
     'AI classification and seen IDs map to proper landpage fields',
@@ -174,15 +199,24 @@ void main() {
     },
   );
   test('signed details sorted, cached, and ID remains a string', () async {
+    // 压掉官网两页竞速，只测 App 分集接口的签名路径。
+    adapter.failWeb = true;
     final detail = await client.detail('7661622467441478681');
     expect(detail.episodes.map((e) => e.index), [1, 2]);
     expect(detail.episodes.first.vid, '7661622467441478682');
-    expect(adapter.requests.single.headers['x-medusa'], isNotEmpty);
+    final appRequests = adapter.requests
+        .where((r) => r.path.contains('multi_video_detail'))
+        .toList();
+    expect(appRequests, hasLength(1));
+    expect(appRequests.single.headers['x-medusa'], isNotEmpty);
     expect(
       identical(await client.detail('7661622467441478681'), detail),
       isTrue,
     );
-    expect(adapter.requests, hasLength(1));
+    expect(
+      adapter.requests.where((r) => r.path.contains('multi_video_detail')),
+      hasLength(1),
+    );
   });
   test('App errors fall back to awaited website episodes', () async {
     adapter.failDetail = true;

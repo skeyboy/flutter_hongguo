@@ -8,6 +8,7 @@ import 'package:hongguo_core/hongguo_core.dart';
 import 'network_retry.dart';
 import 'playback_device.dart';
 import 'request_control.dart';
+import 'web_source.dart';
 
 /// The URL, its exact body bytes and the exact headers, frozen together: the
 /// upstream answers by the pair, so a query rebuilt after signing (or after the
@@ -174,6 +175,14 @@ class VideoQuality {
 class VideoTrack {
   final Uri url;
   final String spadeA, definition;
+
+  /// 官网直链層需要官方桌面 UA 与官网 Referer 才会回完整文件；App 取址的
+  /// CDN 两项留空，下载层按现有约定补默认值。
+  final String userAgent, referer;
+
+  /// 这条地址来自官网层（明文 MP4）。下载层的 CDN 白名单要据此放宽到
+  /// [webMediaDomains]，否则官网 CDN 会在下载前被判成非法上游。
+  final bool fromWeb;
   final int size;
   bool get encrypted => spadeA.isNotEmpty;
   const VideoTrack({
@@ -181,6 +190,9 @@ class VideoTrack {
     required this.spadeA,
     required this.definition,
     required this.size,
+    this.userAgent = '',
+    this.referer = '',
+    this.fromWeb = false,
   });
 }
 
@@ -207,6 +219,11 @@ class VideoModelClient {
   final DateTime Function() now;
   final Map<String, PlaybackInfoEntry> _info;
 
+  /// 官网直链层与旧接口兜底层的开关。生产装配默认全开（对齐参考 8.0 的
+  /// 三层取源）；离线测试默认关闭，让协议测试继续只覆盖 App 层的既有
+  /// 请求形态，三层自身行为由专门测试覆盖。
+  final bool useWebSource, useLegacySource;
+
   /// A batch resolves every episode it touches, so an unbounded table would
   /// keep the whole drama's answers for the length of the session.
   static const _infoCeiling = 256;
@@ -220,6 +237,8 @@ class VideoModelClient {
     DateTime Function()? now,
     void Function(MetadataTiming)? onTiming,
     Map<String, PlaybackInfoEntry>? info,
+    this.useWebSource = true,
+    this.useLegacySource = true,
   }) : builder = builder ?? VideoRequestBuilder(),
        retry = retry ?? playbackRetry(),
        devices = devices ?? PlaybackDeviceRegistry(dio: dio),
@@ -391,8 +410,252 @@ class VideoModelClient {
     return data;
   }
 
-  Future<VideoTrack> fetchTrack(String vid, {String quality = 'best'}) async =>
-      selectTrack(await fetchVideoInfo(vid), quality: quality);
+  /// 三层取址，对齐参考实现 fetchPlayUrlFresh 的优先级：官网公开直链 →
+  /// App 取址（注册身份 + 签名链路）→ 旧接口免签 preload。任一层失败都
+  /// 记入来源清单，最终以 SOURCE_UNAVAILABLE 语义抛出，而不是只报最后一层。
+  ///
+  /// 具体清晰度的请求不把官网层放在最前：官网只有单一的 360p 公开档，
+  /// 指定画质时 App 层优先，失败后才回官网档（与参考 allowLowerQuality
+  /// 行为一致）。
+  ///
+  /// [preferApp] 给「边下边看」用：渐进通道只认带 CENC 的分片，官网直链是
+  /// 明文 MP4、必须整段下完才能播。开了渐进播放时让 App 层先答，官网层退到
+  /// 回退位，否则这层会把原本 1 秒可看的一集换成整段等待。
+  Future<VideoTrack> fetchTrack(
+    String vid, {
+    String quality = 'best',
+    bool preferApp = false,
+  }) => _requests.run(
+    'track:$vid${preferApp ? ':app-first' : ''}',
+    () => _fetchTrack(vid, quality: quality, preferApp: preferApp),
+    label: 'video.track',
+  );
+
+  Future<VideoTrack> _fetchTrack(
+    String vid, {
+    String quality = 'best',
+    bool preferApp = false,
+  }) async {
+    if (!RegExp(r'^\d{1,30}$').hasMatch(vid)) {
+      throw ArgumentError.value(vid, 'vid');
+    }
+    // 只记官网与旧接口的结论：App 层自己的错误稍后作为正文拼在最前，
+    // 记进这里会变成「App：<同一句>」的重复。
+    final sources = <String>[];
+    Object? appError;
+    final webFirst =
+        !preferApp &&
+        (quality.isEmpty || quality == 'best' || quality == 'auto');
+    if (webFirst && useWebSource) {
+      final web = await _webTrack(vid, sources);
+      if (web != null) return web;
+    }
+    try {
+      return selectTrack(await fetchVideoInfo(vid), quality: quality);
+    } on Object catch (error) {
+      appError = error;
+    }
+    if (!webFirst && useWebSource) {
+      final web = await _webTrack(vid, sources);
+      if (web != null) return web;
+    }
+    if (useLegacySource) {
+      final legacy = await _legacyTrack(vid, sources);
+      if (legacy != null) return legacy;
+    }
+    // App 层的错误保留原类型：调用方按类型分派恢复策略，包装会把
+    // IncompleteCatalogResponse（可重试）与 PlaybackUnavailable（终止）压平。
+    // 但文案要带上另外两层的结论——用户点开「详情」看到的应该是三层都试过
+    // 什么，而不是只有 App 那一句。
+    if (appError is PlaybackUnavailable) {
+      throw PlaybackUnavailable(
+        sources.isEmpty
+            ? appError.message
+            : '${appError.message}；${sources.join('；')}',
+      );
+    }
+    throw appError ?? PlaybackUnavailable('本集取源失败：${sources.join('；')}');
+  }
+
+  /// 第 1 层：官网公开兜底接口（`/api/video/protected/fallback-play-info`）。
+  /// 免签 POST `{item_id: vid}`，返回的 main_url 是明文 MP4，无 CENC。
+  /// 任何失败都只记入 [sources] 并返回 null——官网层是加速与救场通道，
+  /// 不许把它的失败伪装成本集不可播。
+  Future<VideoTrack?> _webTrack(String vid, List<String> sources) async {
+    final budget = RequestBudget.current;
+    // 第 1 路：公开兜底接口（player 页同款，免签 POST）。命中率最高、最便宜。
+    try {
+      final response = await budget.transport(
+        () => dio.fetch<String>(
+          Options(
+                method: 'POST',
+                headers: {
+                  'User-Agent': webUserAgent,
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json',
+                  'Referer': webReferer,
+                },
+                responseType: ResponseType.plain,
+                followRedirects: false,
+                sendTimeout: _timeout(5),
+                receiveTimeout: _timeout(6),
+              )
+              .compose(
+                dio.options,
+                '$siteOrigin$publicFallbackPlayPath',
+                data: Stream<Uint8List>.value(
+                  Uint8List.fromList(utf8.encode(jsonEncode({'item_id': vid}))),
+                ),
+                cancelToken: budget.token,
+              )
+              .copyWith(connectTimeout: _timeout(5)),
+        ),
+      );
+      if (response.statusCode != 200) {
+        sources.add('官网：HTTP ${response.statusCode}');
+      } else {
+        final play = parsePublicFallbackPlayUrl(
+          _envelope(response.data),
+          nowMillis: DateTime.now().millisecondsSinceEpoch,
+        );
+        if (play == null) {
+          sources.add('官网：未提供可用片源');
+        } else {
+          return VideoTrack(
+            url: Uri.parse(play.url),
+            spadeA: '',
+            definition: play.quality,
+            size: 0,
+            userAgent: webUserAgent,
+            referer: webReferer,
+            fromWeb: true,
+          );
+        }
+      }
+    } on Object catch (error) {
+      sources.add('官网：${_sourceBrief(error)}');
+    }
+    // 第 2 路：公开播放页的 ld+json。走 `_` 路由，不要求调用方带 sid；页面
+    // 自己给出 canonical 身份，对不上就不采信——只信接口不认的那部分。
+    try {
+      final page = await budget.transport(
+        () => dio.get<String>(
+          '$siteOrigin/player/_/$vid',
+          cancelToken: budget.token,
+          options: Options(
+            headers: {'User-Agent': webUserAgent, 'Referer': webReferer},
+            responseType: ResponseType.plain,
+            followRedirects: false,
+            receiveTimeout: _timeout(4),
+          ),
+        ),
+      );
+      final html = page.data ?? '';
+      final status = page.statusCode ?? 0;
+      final series = status == 200 ? playablePageSeries(html, vid) : null;
+      final url = series == null
+          ? null
+          : extractLdJsonPlayUrl(html, series, vid);
+      if (url == null) {
+        sources.add(status == 200 ? '官网播放页：没有可播直链' : '官网播放页：HTTP $status');
+      } else {
+        return VideoTrack(
+          url: Uri.parse(url),
+          spadeA: '',
+          definition: 'web',
+          size: 0,
+          userAgent: webUserAgent,
+          referer: webReferer,
+          fromWeb: true,
+        );
+      }
+    } on Object catch (error) {
+      sources.add('官网播放页：${_sourceBrief(error)}');
+    }
+    return null;
+  }
+
+  /// 第 3 层：旧接口 `multi_video_model/preload/v1`，免签。上游偶尔只对
+  /// 这一跳留有答案（参考 8.0 保留它的原因），因此作为最后兜底而非回退。
+  Future<VideoTrack?> _legacyTrack(String vid, List<String> sources) async {
+    final budget = RequestBudget.current;
+    try {
+      final body = Uint8List.fromList(
+        utf8.encode(
+          jsonEncode({
+            'biz_param': {
+              'detail_page_version': 0,
+              'device_level': 3,
+              'disable_digg_stat': false,
+              'need_all_video_definition': true,
+              'need_mp4_align': false,
+              'use_os_player': false,
+              'use_server_dns': false,
+              'video_platform': 1024,
+            },
+            'dr_scene': 'preload',
+            'mixed_video_id_map': {
+              '1004': [vid],
+            },
+          }),
+        ),
+      );
+      final response = await budget.transport(
+        () => dio.fetch<String>(
+          Options(
+                method: 'POST',
+                headers: {
+                  'User-Agent': builder.playbackUA,
+                  'Accept':
+                      'application/json; charset=utf-8,application/x-protobuf',
+                  'Content-Type': 'application/json; charset=UTF-8',
+                },
+                responseType: ResponseType.plain,
+                followRedirects: false,
+                sendTimeout: _timeout(5),
+                receiveTimeout: _timeout(8),
+              )
+              .compose(
+                dio.options,
+                'https://${builder.protocol.videoHost}'
+                '/novel/player/multi_video_model/preload/v1/'
+                '?_rticket=${builder.clockMillis()}',
+                data: Stream<Uint8List>.value(body),
+                cancelToken: budget.token,
+              )
+              .copyWith(connectTimeout: _timeout(5)),
+        ),
+      );
+      if (response.statusCode != 200) {
+        sources.add('旧接口：HTTP ${response.statusCode}');
+        return null;
+      }
+      final outer = _envelope(response.data);
+      // 业务码非 0 是一个答案而不是传输故障：不再重试，直接记为该层失败。
+      final rawCode = outer['code'];
+      final numeric = rawCode is num ? rawCode : num.tryParse('$rawCode');
+      if (numeric != null && numeric != 0) {
+        sources.add('旧接口：业务码 $numeric');
+        return null;
+      }
+      final data = _envelope(outer['data']);
+      final entry = _envelope(data[vid]);
+      final model = _envelope(entry['video_model']);
+      if (model.isEmpty) {
+        sources.add('旧接口：未返回片源模型');
+        return null;
+      }
+      return selectTrack(model, quality: 'best');
+    } on Object catch (error) {
+      sources.add('旧接口：${_sourceBrief(error)}');
+      return null;
+    }
+  }
+
+  static String _sourceBrief(Object error) {
+    final text = '$error';
+    return text.length <= 120 ? text : '${text.substring(0, 120)}…';
+  }
 
   Future<List<VideoQuality>> fetchQualities(String vid) async =>
       availableQualities(await fetchVideoInfo(vid));
@@ -554,11 +817,7 @@ class VideoModelClient {
                     .replaceAll('&amp;', '&')
               : MediaUrlDecoder.decrypt(candidate, seed);
           return VideoTrack(
-            url: MediaUrlDecoder.checked(decoded, [
-              'qznovelvod.com',
-              'fqnovelvod.com',
-              'douyinvod.com',
-            ]),
+            url: MediaUrlDecoder.checked(decoded, appMediaDomains),
             spadeA: spade,
             definition: row.quality.isEmpty ? '?' : row.quality,
             size: row.size,

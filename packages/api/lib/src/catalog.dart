@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -5,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 
 import 'video_model_client.dart';
+import 'web_source.dart';
 import 'network_retry.dart';
 import 'ranking.dart';
 import 'request_control.dart';
@@ -778,6 +780,26 @@ class CatalogClient
     query = query.trim();
     if (query.isEmpty) return const CatalogPage([]);
     if (cursor == null) {
+      // 第 1 层：官网搜索 JSON 接口（搜索页前端自己的数据源，免签）。
+      // 参考实现选它而不是 SSR DOM 嗅探：更快，也不会因一次页面加载失败
+      // 就等到超时。字段改名时 searchListFromJson 会抛出，由 SSR 接住。
+      try {
+        final raw = await RequestBudget.current.phase(
+          const Duration(seconds: 6),
+          () => _html(
+            '$siteOrigin$searchResultPath'
+            '?aid=8662&query=${encodeQueryPart(query)}&page=1',
+          ),
+        );
+        final payload = raw.startsWith('{') ? jsonDecode(raw) : raw;
+        final items = _unique(
+          searchListFromJson(payload).map(Drama.fromJson).toList(),
+        );
+        if (items.isNotEmpty) return CatalogPage(items);
+      } on Object {
+        /* SSR 与 App source fallback are surfaced if they also fail. */
+      }
+      // 第 2 层：官网搜索页 SSR（旧正则解析），JSON 接口结构变化时的兜底。
       try {
         final html = await RequestBudget.current.phase(
           const Duration(seconds: 6),
@@ -850,61 +872,62 @@ class CatalogClient
     }
     DramaDetail? result;
     Object? firstError;
-    try {
-      final j = await RequestBudget.current.phase(
-        const Duration(seconds: 7),
-        () => _api(
-          '/novel/player/multi_video_detail/preload/v1',
-          body: {
-            'series_id': id,
-            'dr_scene': 'preload',
-            'biz_param': {
-              'detail_page_version': 0,
-              'disable_digg_stat': false,
-              'image_shrink_datas_str': 'W3siaW1hZ2VfdHlwZSI6MywiaW1hZ2Vfd2lkdGgiOjkwMCwic2hyaW5rX3R5cGUiOjN9LHsiaW1hZ2VfdHlwZSI6NCwiaW1hZ2Vfd2lkdGgiOjU0LCJzaHJpbmtfdHlwZSI6NH1d',
-              'need_all_video_definition': false,
-              'need_mp4_align': false,
-              'screen_width_px': '900',
-              'source': 7,
-              'use_os_player': false,
-              'use_server_dns': false,
+    // 第 1 层：官网两页竞速（免签）。部分 /player 页挂在坏 CDN 边缘（挂起
+    // 后中断），同剧的 /detail 页正常——参考实现让两路并行、任一有效即用，
+    // 串行等待会把坏边缘的代价放大到整整一次超时。
+    RequestBudget.current.check();
+    result = await _webDetailRace(id);
+    if (result == null) {
+      // 第 2 层：App 分集接口（富元数据）。
+      RequestBudget.current.check();
+      try {
+        final j = await RequestBudget.current.phase(
+          const Duration(seconds: 7),
+          () => _api(
+            '/novel/player/multi_video_detail/preload/v1',
+            body: {
+              'series_id': id,
+              'dr_scene': 'preload',
+              'biz_param': {
+                'detail_page_version': 0,
+                'disable_digg_stat': false,
+                'image_shrink_datas_str': 'W3siaW1hZ2VfdHlwZSI6MywiaW1hZ2Vfd2lkdGgiOjkwMCwic2hyaW5rX3R5cGUiOjN9LHsiaW1hZ2VfdHlwZSI6NCwiaW1hZ2Vfd2lkdGgiOjU0LCJzaHJpbmtfdHlwZSI6NH1d',
+                'need_all_video_definition': false,
+                'need_mp4_align': false,
+                'screen_width_px': '900',
+                'source': 7,
+                'use_os_player': false,
+                'use_server_dns': false,
+              },
             },
-          },
-        ),
-      );
-      final data = _map(_map(_map(j['data'])[id])['video_data']);
-      final episodes =
-          _list(data['video_list'])
-              .map((v) {
-                final e = _map(v);
-                return Episode(
-                  vid: _text(e['vid']),
-                  index: _int(e['vid_index']),
-                  title: _clean(_text(e['title'])),
-                );
-              })
-              .where((e) => e.vid.isNotEmpty && e.index > 0)
-              .toList()
-            ..sort((a, b) => a.index.compareTo(b.index));
-      if (episodes.isEmpty) throw const CatalogError('没有可用分集');
-      result = DramaDetail(
-        Drama.fromJson({...data, 'series_id': id}),
-        episodes,
-      );
-    } on Object catch (e) {
-      firstError = e;
+          ),
+        );
+        final data = _map(_map(_map(j['data'])[id])['video_data']);
+        final episodes =
+            _list(data['video_list'])
+                .map((v) {
+                  final e = _map(v);
+                  return Episode(
+                    vid: _text(e['vid']),
+                    index: _int(e['vid_index']),
+                    title: _clean(_text(e['title'])),
+                  );
+                })
+                .where((e) => e.vid.isNotEmpty && e.index > 0)
+                .toList()
+              ..sort((a, b) => a.index.compareTo(b.index));
+        if (episodes.isEmpty) throw const CatalogError('没有可用分集');
+        result = DramaDetail(
+          Drama.fromJson({...data, 'series_id': id}),
+          episodes,
+        );
+      } on Object catch (e) {
+        firstError = e;
+      }
     }
     if (result == null) {
       RequestBudget.current.check();
-      try {
-        result = parseWebEpisodes(
-          id,
-          await _html('https://hongguoduanju.com/player/$id'),
-        );
-      } on Object {
-        RequestBudget.current.check();
-        throw firstError ?? const CatalogError('无法获取分集');
-      }
+      throw firstError ?? const CatalogError('无法获取分集');
     }
     if (_details.length >= 100) _details.remove(_details.keys.first);
     _details[id] = (
@@ -912,6 +935,61 @@ class CatalogClient
       value: result,
     );
     return result;
+  }
+
+  /// 官网两页并行竞速：`/player/{id}` 与 `/detail?series_id={id}`，任一页
+  /// 解析出与请求一致的分集即用。两路都失败返回 null（不区分错误来源，
+  /// 上层再走 App 接口并把它的错误报给调用方）。竞速不做中途取消：落败的
+  /// 一路由自己的超时收尾，多出的请求成本小于坏边缘挂起的等待成本。
+  Future<DramaDetail?> _webDetailRace(String id) {
+    final completer = Completer<DramaDetail?>();
+    var pending = 2;
+    void settle(DramaDetail? value) {
+      if (completer.isCompleted) return;
+      if (value != null) {
+        completer.complete(value);
+        return;
+      }
+      if (--pending == 0) completer.complete(null);
+    }
+
+    for (final url in [
+      '$siteOrigin/player/$id',
+      '$siteOrigin/detail?series_id=$id',
+    ]) {
+      RequestBudget.current
+          .phase(const Duration(seconds: 6), () => _html(url))
+          .then((html) => _parseWebDetail(html, id))
+          .then(settle)
+          .catchError((Object _) => settle(null));
+    }
+    return completer.future;
+  }
+
+  /// 官网页面 → 分集结构。先走 `_ROUTER_DATA`（带剧集身份与 vid 去重校验，
+  /// 且绝不从推荐位区块取数），旧页面形态没有 router 数据时回退到原有的
+  /// `vid_list` 正则解析。
+  static DramaDetail? _parseWebDetail(String html, String id) {
+    final web = parseEpisodeListHtml(html, id);
+    if (web != null) {
+      return DramaDetail(
+        Drama(
+          id: id,
+          title: web.seriesTitle,
+          cover: web.cover,
+          episodeCount: web.vids.length,
+        ),
+        [
+          for (var i = 0; i < web.vids.length; i++)
+            Episode(vid: web.vids[i], index: i + 1),
+        ],
+      );
+    }
+    try {
+      return parseWebEpisodes(id, html);
+    } on Object {
+      return null;
+    }
   }
 
   Future<String> _html(String url) async {

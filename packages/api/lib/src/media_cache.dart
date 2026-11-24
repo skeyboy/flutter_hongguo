@@ -527,11 +527,12 @@ class MediaCache {
             throw StateError('缓存空间不足，已暂停该集预缓存');
           }
         }
-        MediaUrlDecoder.checked(track.url.toString(), [
-          'qznovelvod.com',
-          'fqnovelvod.com',
-          'douyinvod.com',
-        ]);
+        // 官网层的直链会落到字节系其它 CDN（webMediaDomains），App 层签名
+        // 链接只用 appMediaDomains：放行面按来源分开，不因为多一层就全局放宽。
+        MediaUrlDecoder.checked(
+          track.url.toString(),
+          track.fromWeb ? webMediaDomains : appMediaDomains,
+        );
         working =
             '${output.path}.${DateTime.now().microsecondsSinceEpoch}.${_serial++}.part';
         workingIdentity = working;
@@ -605,7 +606,14 @@ class MediaCache {
             deleteOnError: true,
             options: Options(
               followRedirects: false,
-              headers: {'User-Agent': 'Mozilla/5.0'},
+              // 官网直链层带官方桌面 UA 与官网 Referer；App 取址的 CDN 两项
+              // 留空，沿用既有约定（CDN 对通用 UA 即回完整文件）。
+              headers: {
+                'User-Agent': track.userAgent.isNotEmpty
+                    ? track.userAgent
+                    : 'Mozilla/5.0',
+                if (track.referer.isNotEmpty) 'Referer': track.referer,
+              },
               receiveTimeout: const Duration(seconds: 120),
             ),
             onReceiveProgress: report,

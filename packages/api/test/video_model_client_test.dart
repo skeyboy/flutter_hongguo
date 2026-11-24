@@ -237,6 +237,10 @@ void main() {
     devices: FixedDevices(),
     retry: retry,
     requestDeadline: requestDeadline ?? const Duration(seconds: 12),
+    // 本文件的测试只覆盖 App 取址层的既有请求形态；官网与旧接口层的
+    // 行为由 video_source_layers_test.dart 单独覆盖。
+    useWebSource: false,
+    useLegacySource: false,
   );
   test('simultaneous qualities and track share both metadata hops', () async {
     final adapter = FakeAdapter('https://test.fqnovel.com/info');
@@ -257,6 +261,8 @@ void main() {
       addTearDown(dio.close);
       final client = VideoModelClient(
         dio: dio,
+        useWebSource: false,
+        useLegacySource: false,
         builder: builder(),
         devices: FixedDevices(),
         requestDeadline: const Duration(milliseconds: 120),
@@ -328,6 +334,8 @@ void main() {
       final devices = RotatingDevices();
       final track = await VideoModelClient(
         dio: dio,
+        useWebSource: false,
+        useLegacySource: false,
         builder: builder(),
         devices: devices,
         retry: NetworkRetry(wait: (_) async {}),
@@ -353,6 +361,8 @@ void main() {
     final devices = RotatingDevices();
     await VideoModelClient(
       dio: dio,
+      useWebSource: false,
+      useLegacySource: false,
       builder: builder(),
       devices: devices,
     ).fetchTrack('123');
@@ -365,6 +375,8 @@ void main() {
     final devices = RotatingDevices();
     final client = VideoModelClient(
       dio: dio,
+      useWebSource: false,
+      useLegacySource: false,
       builder: builder(),
       devices: devices,
     );
@@ -394,6 +406,8 @@ void main() {
       final kept = <String, PlaybackInfoEntry>{};
       final client = VideoModelClient(
         dio: dio,
+        useWebSource: false,
+        useLegacySource: false,
         builder: builder(),
         devices: devices,
         info: kept,
@@ -414,6 +428,8 @@ void main() {
     var clock = DateTime(2026, 11, 6, 12);
     final client = VideoModelClient(
       dio: dio,
+      useWebSource: false,
+      useLegacySource: false,
       builder: builder(),
       devices: devices,
       now: () => clock,
@@ -447,6 +463,8 @@ void main() {
     };
     final client = VideoModelClient(
       dio: dio,
+      useWebSource: false,
+      useLegacySource: false,
       builder: builder(),
       devices: devices,
       now: () => clock,
@@ -772,6 +790,8 @@ void main() {
     );
     await VideoModelClient(
       dio: dio,
+      useWebSource: false,
+      useLegacySource: false,
       devices: FixedDevices(),
       builder: VideoRequestBuilder(protocol: protocol),
     ).fetchTrack('123');
