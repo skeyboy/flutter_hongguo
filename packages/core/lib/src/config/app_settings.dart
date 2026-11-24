@@ -44,6 +44,11 @@ class AppSettings {
   /// Where 导出 hands the merged file. Empty means 每次显式选择 —— the export panel
   /// always asks, and this only remembers the last answer as its starting place.
   final String mergeExportDir;
+
+  /// Optional absolute path for the video cache. Empty means the app data
+  /// directory's `media-cache` child. Changing it takes effect on next launch:
+  /// the native runtime resolves its cache directory once, at construction.
+  final String cacheDir;
   static const defaultVideoUserAgent =
       'com.phoenix.read/71332 (Linux; U; Android 16; zh_CN; 25053RT47C; '
       'Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 '
@@ -79,6 +84,7 @@ class AppSettings {
     this.videoVersionCode = '71332',
     this.videoUserAgent = defaultVideoUserAgent,
     this.mergeExportDir = '',
+    this.cacheDir = '',
     this.updateChecksEnabled = true,
     this.ignoredUpdateVersion = '',
     this.lastUpdateCheckAt = 0,
@@ -119,6 +125,7 @@ class AppSettings {
     'concurrentPreparations': concurrentPreparations,
     'downloadConcurrent': downloadConcurrent,
     'mergeExportDir': mergeExportDir,
+    'cacheDir': cacheDir,
     'updateChecksEnabled': updateChecksEnabled,
     'ignoredUpdateVersion': ignoredUpdateVersion,
     'lastUpdateCheckAt': lastUpdateCheckAt,
@@ -165,6 +172,7 @@ class AppSettings {
       ),
       downloadConcurrent: read('downloadConcurrent', 1),
       mergeExportDir: read('mergeExportDir', ''),
+      cacheDir: read('cacheDir', ''),
       timeoutSeconds: read('timeoutSeconds', defaults.timeoutSeconds),
       signLists: read('signLists', defaults.signLists),
       apiHost: read('apiHost', defaults.apiHost),
@@ -214,6 +222,7 @@ class AppSettings {
     String? videoVersionCode,
     String? videoUserAgent,
     String? mergeExportDir,
+    String? cacheDir,
     bool? updateChecksEnabled,
     String? ignoredUpdateVersion,
     int? lastUpdateCheckAt,
@@ -245,6 +254,7 @@ class AppSettings {
         concurrentPreparations ?? this.concurrentPreparations,
     'downloadConcurrent': downloadConcurrent ?? this.downloadConcurrent,
     'mergeExportDir': mergeExportDir ?? this.mergeExportDir,
+    'cacheDir': cacheDir ?? this.cacheDir,
     'timeoutSeconds': timeoutSeconds ?? this.timeoutSeconds,
     'signLists': signLists ?? this.signLists,
     'apiHost': apiHost ?? this.apiHost,
@@ -284,6 +294,9 @@ class AppSettings {
     if (mergeExportDir.length > 1024 ||
         RegExp(r'[\r\n\u0000]').hasMatch(mergeExportDir)) {
       throw const FormatException('导出目录无效');
+    }
+    if (cacheDir.length > 1024 || RegExp(r'[\r\n\u0000]').hasMatch(cacheDir)) {
+      throw const FormatException('缓存目录无效');
     }
     if (timeoutSeconds < 10 || timeoutSeconds > 120) {
       throw const FormatException('请求超时应为 10～120 秒');

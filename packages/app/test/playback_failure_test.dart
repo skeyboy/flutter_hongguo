@@ -55,6 +55,22 @@ void main() {
     expect(failure.detail, contains('本地缓存已不存在'));
   });
 
+  test('取源阶段 URL/密钥校验全败时归为片源地址被拒，仍可重试', () {
+    final failure = PlaybackFailure.classify(
+      StateError('No compatible media URL/key'),
+    );
+    expect(failure.kind, PlaybackFailureKind.sourceRejected);
+    expect(failure.retryable, isTrue);
+    expect(failure.headline, contains('片源地址'));
+    expect(failure.hint, isNot(contains('离线')));
+  });
+
+  test('本地缓存缺失仍归为本地问题，与取源校验失败分开', () {
+    final failure = PlaybackFailure.classify(StateError('该集本地缓存已不存在'));
+    expect(failure.kind, PlaybackFailureKind.localMissing);
+    expect(failure.retryable, isFalse);
+  });
+
   test('网络层失败与未知异常分开表述', () {
     final network = PlaybackFailure.classify(
       DioException(

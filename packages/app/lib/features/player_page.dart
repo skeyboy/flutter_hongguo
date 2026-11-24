@@ -16,6 +16,7 @@ import '../platform/runtime.dart';
 import '../platform/background/playback_platform.dart';
 import '../platform/background/host_policy.dart';
 import '../platform/macos_window.dart';
+import '../platform/desktop_window.dart';
 import '../playback/prefetch_window.dart';
 import '../playback/tv_video_view.dart';
 import '../playback/local_playlist.dart';
@@ -1787,15 +1788,27 @@ class _PlayerPageState extends State<PlayerPage>
                 ),
                 selectedIcon: const Icon(Icons.push_pin, color: Colors.amber),
               ),
+            ],
+            if (desktopHost) ...[
               IconButton(
+                key: const ValueKey('minimize-player-window'),
                 tooltip: '最小化窗口',
-                onPressed: () => MacWindow.invoke('minimize'),
+                onPressed: DesktopWindow.minimize,
                 icon: const Icon(Icons.minimize, color: Colors.white70),
+              ),
+              IconButton(
+                key: const ValueKey('toggle-player-window-maximize'),
+                tooltip: '最大化 / 还原窗口',
+                onPressed: DesktopWindow.toggleMaximize,
+                icon: const Icon(
+                  Icons.crop_landscape_outlined,
+                  color: Colors.white70,
+                ),
               ),
               IconButton(
                 key: const ValueKey('hide-player-window'),
                 tooltip: '隐藏窗口（继续播放）',
-                onPressed: () => MacWindow.invoke('hide'),
+                onPressed: DesktopWindow.hide,
                 icon: const Icon(Icons.close, color: Colors.white70),
               ),
             ],
@@ -1817,7 +1830,11 @@ class _PlayerPageState extends State<PlayerPage>
                 '${widget.detail.drama.title} · 第 ${widget.detail.episodes[position].index} 集',
             playing: playing,
             busy: preparing,
-            error: error?.toString(),
+            // TV 卡片沿用主播放页的分类文案：原始异常（含三层来源清单）
+            // 不该直接摆给遥控器用户，那只是一串主机名和业务码。
+            error: error == null
+                ? null
+                : PlaybackFailure.classify(error!).headline,
             position: tvPosition,
             duration: tvDuration,
             toggle: () {

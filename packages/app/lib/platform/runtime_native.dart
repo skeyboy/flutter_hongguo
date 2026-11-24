@@ -15,17 +15,18 @@ import 'package:dio/dio.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_api/hongguo_native_api.dart';
 import 'package:hongguo_core/hongguo_core.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../settings/settings_store.dart';
 import 'background/native_downloads.dart';
+import 'data_root.dart';
 import '../catalog/library_cache.dart';
 import '../catalog/artwork_cache_native.dart';
 import '../settings/settings_store_native.dart';
 import 'runtime_contract.dart';
 
 Future<AppRuntime> createRuntime() async {
-  final root = await getApplicationSupportDirectory();
+  final dataRoot = await currentDataRoot();
+  final root = dataRoot.root;
   await root.create(recursive: true);
   final identity = File('${root.path}/device-id.txt');
   var id = await identity.exists()
@@ -41,7 +42,27 @@ Future<AppRuntime> createRuntime() async {
     deviceId: id,
   );
   await store.load();
-  final runtime = NativeRuntime(root, store);
+  // 缓存目录单独配置：解析一次，运行期不变；无效路径回退到数据根下的
+  // media-cache，避免设置写错后整个 App 起不来。
+  Directory? configuredCache;
+  final wanted = store.settings.cacheDir;
+  if (wanted.isNotEmpty) {
+    try {
+      final candidate = Directory(wanted);
+      if (candidate.isAbsolute) {
+        await candidate.create(recursive: true);
+        configuredCache = candidate;
+      }
+    } catch (_) {
+      store.warning = '缓存目录无法使用，已回退到应用数据目录；请在设置中重新选择。';
+    }
+  }
+  final runtime = NativeRuntime(
+    root,
+    store,
+    cacheDirectory: configuredCache,
+    portableMode: dataRoot.portable,
+  );
   try {
     await runtime.downloads.load();
     if (store.settings.backgroundDownloads) await runtime.restoreDownloads();
@@ -123,7 +144,22 @@ class NativeRuntime
   late final NativeDownloads _downloads;
   final _retained = <String>{};
   late final ArtworkCache _artwork;
-  NativeRuntime(Directory root, this.store) {
+
+  /// Resolved once at startup. A cache-directory setting change is picked up
+  /// on the next launch, so running leases and the download journal never
+  /// disagree about where a published file lives.
+  final Directory cacheDirectory;
+
+  /// True when data is kept next to the executable (portable ZIP).
+  final bool portableMode;
+
+  NativeRuntime(
+    Directory root,
+    this.store, {
+    Directory? cacheDirectory,
+    this.portableMode = false,
+  }) : cacheDirectory =
+           cacheDirectory ?? Directory('${root.path}/media-cache') {
     personalLibrary = PersonalLibrary(
       backend: FilePreferencesBackend(
         File('${root.path}/personal-library.json'),
@@ -141,9 +177,11 @@ class NativeRuntime
     _downloads = NativeDownloads(
       () => tvBuild ? settings.copyWith(backgroundDownloads: false) : settings,
       _dio,
+      journalDirectory: Directory('${root.path}/download-journal'),
+      cacheDirectory: this.cacheDirectory,
     );
     _cache = MediaCache(
-      directory: Directory('${root.path}/media-cache'),
+      directory: this.cacheDirectory,
       dio: _dio,
       onTiming: (value) => _retain(_mediaTimings, value),
       download: _downloads.download,

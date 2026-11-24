@@ -44,6 +44,23 @@ void main() {
       throwsFormatException,
     );
   });
+  test('cache directory persists and rejects injection', () {
+    const configured = AppSettings(cacheDir: r'D:\HongguoCache');
+    configured.validate();
+    expect(
+      AppSettings.fromJson(configured.toJson()).cacheDir,
+      r'D:\HongguoCache',
+    );
+    expect(const AppSettings().cacheDir, isEmpty);
+    expect(
+      () => const AppSettings(cacheDir: 'C:\\ok\nInjected').validate(),
+      throwsFormatException,
+    );
+    expect(
+      () => AppSettings(cacheDir: 'x' * 1025).validate(),
+      throwsFormatException,
+    );
+  });
   test('untrusted hosts, header injection and invalid limits are rejected', () {
     for (final host in [
       'https://fqnovel.com',

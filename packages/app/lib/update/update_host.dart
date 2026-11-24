@@ -4,8 +4,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hongguo_tv/hongguo_tv.dart' show tvBuild;
-import 'package:path_provider/path_provider.dart';
 
+import '../platform/data_root.dart';
 import '../platform/macos_window.dart';
 import '../platform/runtime.dart';
 import 'update_controller.dart';
@@ -47,9 +47,10 @@ UpdateController sharedUpdateController(AppRuntime runtime, {Dio? transport}) =>
 /// addresses files relative to that base, and a stage folder it cannot name would
 /// leave the download and the note about it in two different places.
 Future<String> stageDirectoryFor() async {
-  final support = await getApplicationSupportDirectory();
+  // 便携版把更新暂存也放在程序目录旁，避免「设置搬走了、更新包还在 AppData」。
+  final data = await currentDataRoot();
   final updates = Directory(
-    '${support.path}${Platform.pathSeparator}$updatePackagePath',
+    '${data.root.path}${Platform.pathSeparator}$updatePackagePath',
   );
   await updates.create(recursive: true);
   return updates.path;

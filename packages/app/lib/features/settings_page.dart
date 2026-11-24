@@ -1,11 +1,13 @@
 import '../navigation/app_navigation.dart';
 
 import 'package:hongguo_tv/hongguo_tv.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 
 import '../platform/runtime.dart';
 import '../platform/background/host_policy.dart';
+import '../platform/data_root.dart';
 import '../playback/capability_preferences.dart';
 import '../update/app_release.dart';
 import '../update/install_strategy.dart';
@@ -48,6 +50,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _advancedOpen = false;
   int? bytes;
   String? error, status;
+  bool? portableMode;
   final anchors = <String, GlobalKey>{
     for (final name in [
       '后台与悬浮播放',
@@ -89,6 +92,24 @@ class _SettingsPageState extends State<SettingsPage> {
       text: configurable?.credentials.ttToken ?? '',
     );
     _usage();
+    isPortableMode()
+        .then((value) {
+          if (mounted) setState(() => portableMode = value);
+        })
+        .catchError((Object _) {});
+  }
+
+  Future<void> _pickCacheDir() async {
+    final dir = await FilePicker.getDirectoryPath(
+      dialogTitle: '选择视频缓存目录',
+      initialDirectory: draft.cacheDir.isEmpty ? null : draft.cacheDir,
+    );
+    if (dir == null || !mounted) return;
+    setState(() {
+      draft = draft.copyWith(cacheDir: dir);
+      changed = true;
+      error = null;
+    });
   }
 
   Future<void> _usage() async {
@@ -1052,6 +1073,36 @@ class _SettingsPageState extends State<SettingsPage> {
                               );
                               await _usage();
                             },
+                          ),
+                        if (!tv && desktopHost)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.folder_open_outlined),
+                            title: const Text('视频缓存目录'),
+                            subtitle: Text(
+                              draft.cacheDir.isEmpty
+                                  ? '默认：应用数据目录 / media-cache'
+                                  : draft.cacheDir,
+                            ),
+                            trailing: TextButton(
+                              onPressed: busy ? null : _pickCacheDir,
+                              child: const Text('选择'),
+                            ),
+                          ),
+                        if (portableMode == true)
+                          const Text(
+                            '便携模式：设置与缓存保存在程序目录旁的 HongguoData 中，可随程序一起移动；会话凭据仍由系统凭据库保管。',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        if (!tv && desktopHost)
+                          Text(
+                            '缓存目录更改后需重启应用才会生效；已有缓存不会自动迁移，可在下方清理。',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
                           ),
                         Text(
                           bytes == null

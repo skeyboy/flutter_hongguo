@@ -57,6 +57,10 @@
 - [播放控制条重构设计](design/player-controls-redesign.md)：PC 与移动四态按钮簇、自绘进度条、中心层、点按/双击/长按语义、快捷键补齐，以及落地后与规格的出入（§8）。
 - [预缓存、设置与响应式 UI 实现及验证](pc-mobile-settings-prefetch.md)
 
+## Issues 追踪
+
+- [Issues 索引](issues/README.md) · [issue #1 分类、根因与处理](issues/issue-001.md)：片源失败误分类（bug 修复）、缓存目录与便携版数据根目录（优化）、任务栏与窗口控制（建议）。
+
 ## 建议阅读顺序
 
 1. [文档与代码对应表](project-map.md)：定位每项流程对应的源码、测试和工具。

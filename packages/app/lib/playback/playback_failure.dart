@@ -20,6 +20,10 @@ enum PlaybackFailureKind {
   /// 服务端回了业务码 / 结构不完整：重试通常能恢复。
   incomplete,
 
+  /// 片源 URL 或内容密钥所有候选都没通过白名单/解密校验。这是取源阶段的
+  /// 失败，不是本地文件坏了；重试、换清晰度或升级版本才有意义。
+  sourceRejected,
+
   /// 本地缓存缺失或读不出来：只能换源，重试无用。
   localMissing,
 
@@ -95,6 +99,17 @@ class PlaybackFailure {
       );
     }
     if (error is StateError) {
+      // selectTrack 在三层来源都过不了 URL/密钥校验时抛的不是网络异常，
+      // 而是 StateError('No compatible media URL/key')。它发生在取源阶段，
+      // 不能按「本地缓存读不出来」处理：那样还会把重试按钮藏掉。
+      if (_sourceRejected(error)) {
+        return PlaybackFailure(
+          kind: PlaybackFailureKind.sourceRejected,
+          headline: '片源地址不被支持',
+          hint: '这几层来源的下载地址都没能通过校验。试试换清晰度或换一集；一直如此请更新到最新版并反馈。',
+          detail: detail,
+        );
+      }
       return PlaybackFailure(
         kind: PlaybackFailureKind.localMissing,
         headline: '本地这份缓存读不出来了',
@@ -126,6 +141,10 @@ class PlaybackFailure {
       detail: detail,
     );
   }
+
+  static bool _sourceRejected(StateError error) =>
+      error.message.contains('No compatible media URL/key') ||
+      error.message.contains('media URL/key');
 
   static bool _timedOut(DioException error) =>
       error.type == DioExceptionType.connectionTimeout ||

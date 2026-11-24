@@ -48,6 +48,11 @@ def windows():
         shutil.copy2(library, bundle / library.name)
     archive = DIST / f'Hongguo-{RELEASE}-windows-x64.zip'
     with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as output:
+        # Only the ZIP is portable: its marker tells the Dart runtime to keep
+        # settings/cache next to the EXE. The Inno Setup build uses the same
+        # bundle directory but gets no marker, so installed copies keep using
+        # the system support directory and existing user data stays found.
+        output.writestr('Hongguo/PORTABLE', 'Hongguo portable build\n')
         for path in sorted(bundle.rglob('*')):
             if path.is_file():
                 output.write(path, Path('Hongguo') / path.relative_to(bundle))

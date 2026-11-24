@@ -20,6 +20,10 @@ class NativeDownloads {
   Future<void>? _started;
   final _tasks = <String>{};
   final SessionVault vault;
+
+  /// Where published media files live. Supplied by the runtime so a custom
+  /// cache directory keeps restored background jobs pointing at real files.
+  final Directory? cacheDirectory;
   Directory? _journal;
   Future<void> _journalWrites = Future.value();
   NativeDownloads(
@@ -27,6 +31,7 @@ class NativeDownloads {
     this.dio, {
     SessionVault? vault,
     Directory? journalDirectory,
+    this.cacheDirectory,
   }) : vault = vault ?? SystemSessionVault(),
        _journal = journalDirectory;
   Future<T> _journalAction<T>(Future<T> Function() action) {
@@ -65,7 +70,11 @@ class NativeDownloads {
     final journal = await _journalDirectory();
     if (!await journal.exists()) return;
     await initialize();
-    final root = await getApplicationSupportDirectory();
+    final cache =
+        cacheDirectory ??
+        Directory(
+          '${(await getApplicationSupportDirectory()).path}/media-cache',
+        );
     await for (final entry in journal.list()) {
       if (entry is! File || !entry.path.endsWith('.json')) continue;
       Map? record;
@@ -82,7 +91,7 @@ class NativeDownloads {
             !filename.endsWith('.part')) {
           throw const FormatException('Invalid download journal');
         }
-        final file = File('${root.path}/media-cache/$filename');
+        final file = File('${cache.path}/$filename');
         if (await file.exists()) {
           final ref = record['keyRef'];
           if (ref is String && !ref.startsWith('hongguo.download.')) {
