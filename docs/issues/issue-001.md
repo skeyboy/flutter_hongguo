@@ -50,6 +50,34 @@
 - `media_cache.dart` 的逐跳下载循环同样加一次握手重试（握手发生在首字节之前，代价极小），避免偶发代理/CDN 抖动直接变成播放失败。
 - 这是**连接层**修复，不能替代真网验证：若代理/安全软件持续切断握手，重试也救不回来，文案已引导用户换网络。
 
+### 补充 2：只有前几集能播（2026-11-24 macOS 真网定位）
+
+人工反馈「每个影视资源只能播放前几集」。用两部剧（`7710254424689495065` 45 集、`7701332919490448409` 30 集）在 macOS 上逐集探测，**分水岭都是第 6 集**，不是随机失败。
+
+| 层 | 第 1/4/5 集 | 第 6 集及以后 |
+|---|---|---|
+| 官网 `/player/{series_id}` | `accessible_episode_cnt=5`，`vid_list` 是**全集**（45/30 个 vid），`contentUrl` 指向 `/video/public/{vid}/360p.mp4` | 同上，页面不缺 vid |
+| 官网 `/api/video/protected/fallback-play-info` | 第 1 集 200 + `main_url`；第 4/5 集该接口 403，但另一路 ld+json 仍给出直链 | **403 `public_fallback_unavailable`** |
+| `/video/public/{vid}/360p.mp4` | 206，可播 | **404** |
+| App `multi_video_model/v1`（b/a/c 三主机、production/escaped-star/unsigned 三种形态、每次新注册） | **HTTP 200 / 0 字节** | **HTTP 200 / 0 字节** |
+| 旧接口 `multi_video_model/preload/v1` | **HTTP 200 / 0 字节** | **HTTP 200 / 0 字节** |
+| 最终 `fetchTrack` | `fromWeb=true`，正常下载出帧 | `IncompleteCatalogResponse: 播放信息未返回数据` |
+
+结论（按证据排除）：
+
+- **不是解析问题**：`vid_list` 含全集，index/vid 传递无错位；`accessible_episode_cnt` 被解析但从未被消费，所以 UI 也不知道「只有前 5 集可播」。
+- **不是签名问题**：把六头签名去掉、把 `1280*2772` 的字面 `*` 改成 `%2A`、换 a/b/c 三台主机、每次换全新注册身份，App 层仍然稳定返回 200/0 字节——第 1 集也是 0 字节。签名偏差会表现为全量失败，不会整齐地卡在第 6 集。
+- **不是鉴权/cookie 问题**：参考库播放链路同样是匿名的，设备池模式还会主动删掉 `cookie`/`x-tt-token`；当前 App 层空包与登录态无关。
+- **真正根因**：上游官网只放前 `accessible_episode_cnt=5` 集；App 取址链路（当前签名的 `multi_video_model/v1` 与免签 `preload/v1`）此刻对所有 vid 都回空包，导致「限免前缀之外没有任何一层能接住」。这是上游协议/准入变化，客户端三层 fallback 的调度顺序本身正确。
+
+用户另外贴出的 `DioException [bad response]: 302` 是**另一条下游症状**：`media_cache._downloadFollowingRedirects` 关掉了自动跳转，遇到 302 且响应没有 `Location` 或超过 5 跳时会把原始异常抛出去。当前失败集在取源阶段就停了，还没走到下载，所以 302 不是「前几集」边界的原因。
+
+下一步（按优先级）：
+
+1. 移植 8.0 的 App 层端点轮换与 v5 签名族（`video_tab`、`player/v1` b/a、`video_model/v1` a/c），这是让限免之外集恢复播放的唯一已知路径；见 [8.0 后端分析](../analysis/2026-11-23_hongguo-drama-API后端分析.md) §2.2–2.3。参考库 `references/hongguo-web` 1.1.x 仍是旧协议，不能直接照抄。
+2. 把 `accessible_episode_cnt` 落到 `Episode`/UI：前 5 集正常展示，之后标注「当前来源不可播」，避免用户逐集试错；失败文案改成「上游未返回这一集取址数据，重试未必有效」。
+3. 把本轮 `episode_boundary_probe` 收敛成常驻诊断工具，以后上游再变时一条命令区分「限免边界 / 签名 / 空包 / CDN 跳转」。
+
 ### 不在本轮
 
 上游协议是否再次变更、官网直链是否仍有效、v5 签名族与端点轮换是否需要启用，都需要显式真网探测（`./tool/verify_mac_live.sh SERIES_ID VID`、`packages/api/bin/mac_poc_probe.dart`），离线单测不能证明。参见 [上游 API 维护说明](../analysis/2026-10-21-upstream-api-maintenance.md) 与 [8.0 后端分析](../analysis/2026-11-23_hongguo-drama-API后端分析.md)。
@@ -119,6 +147,16 @@
 | `python3 -m unittest discover -s tool/ci/tests` | 10 通过 |
 | `dart format --set-exit-if-changed` | 0 处需改动 |
 | `flutter analyze`（六包 lib） | 3 项既有告警，本轮无新增 |
+
+macOS 本机额外验证（2026-11-24）：
+
+| 检查 | 结果 |
+|---|---|
+| `flutter build macos --config-only` 与 integration 的 Debug 构建 | 均成功；仅 SPM 兼容性提示 |
+| 本地真实 TCP 断开 TLS 握手 | `DioExceptionType.unknown`、内层 `HandshakeException`、`isHandshakeFailure=true`、`transient=true`、第二次调用成功（`build/verification/local-handshake-result.txt`） |
+| `mac_poc_probe.dart --prepare`（真网） | catalog 14 → 45 集 → `fromWeb=true`、`v26-hgweb.qznovelvod.com`、360p → 本地 9,705,474 字节（同上目录 `mac-handshake-probe.log`） |
+| 构建出的 `Hongguo.app` 启动 | 桌面出现「红果剧场」窗口，pid 26602 |
+| `verify_mac_live.sh`（真窗口集成测试） | 未能通过：`Error waiting for a debug connection`，App 构建成功但测试框架无法附加；非播放失败，本轮未拿到出帧断言 |
 
 仍需真机/真网（本轮环境做不到，不要当成已验证）：
 
