@@ -474,7 +474,9 @@ class VideoModelClient {
             : '${appError.message}；${sources.join('；')}',
       );
     }
-    throw appError ?? PlaybackUnavailable('本集取源失败：${sources.join('；')}');
+    // 走到这里必然经过上面的 catch（try 成功会提前 return），appError 一定
+    // 已赋值；空回退分支是死代码，直接抛原始错误保持类型分派。
+    throw appError;
   }
 
   /// 第 1 层：官网公开兜底接口（`/api/video/protected/fallback-play-info`）。

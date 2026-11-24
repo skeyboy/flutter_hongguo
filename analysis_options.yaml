@@ -1,6 +1,8 @@
 include: package:lints/recommended.yaml
 analyzer:
   exclude:
+    # `**/build/**` 在本 analyzer 版本下不匹配仓库根的 build/，需显式列出。
     - '**/build/**'
+    - 'build/**'
     - 'references/**'
     - 'imports/**'

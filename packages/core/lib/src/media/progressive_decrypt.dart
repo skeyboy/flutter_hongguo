@@ -6,7 +6,7 @@ import 'mp4.dart';
 
 /// A monotonic slice of progressive output: copy input verbatim, decrypt one
 /// sample, emit the patched moov, or skip the original moov region.
-class _Piece {
+class ProgressivePiece {
   final int inStart, inEnd;
 
   /// -4 in-place patch marker, -3 copy-through-complete, -2 relocated patched
@@ -16,8 +16,12 @@ class _Piece {
   /// How many encrypted bytes must be on disk before this piece can be
   /// emitted (0 when the piece reads only from the prefetched plan).
   final int coverage;
-  const _Piece(this.inStart, this.inEnd, this.encryption, {int? coverage})
-    : coverage = coverage ?? inEnd;
+  const ProgressivePiece(
+    this.inStart,
+    this.inEnd,
+    this.encryption, {
+    int? coverage,
+  }) : coverage = coverage ?? inEnd;
 }
 
 class _Span {
@@ -28,7 +32,7 @@ class _Span {
 
 class ProgressivePlan {
   final int total, delta;
-  final List<_Piece> pieces;
+  final List<ProgressivePiece> pieces;
   final Uint8List moovPatch;
   final List<SampleEncryption> encryptions;
   final Uint8List key;
@@ -110,9 +114,9 @@ class ProgressivePlan {
       }
     }
     final encryptions = <SampleEncryption>[];
-    final pieces = <_Piece>[];
+    final pieces = <ProgressivePiece>[];
     var expectedOut = 0, inCursor = 0, emitCursor = payload;
-    void advance(_Piece piece) {
+    void advance(ProgressivePiece piece) {
       // -2/-4 (recipe-buffer patches) and -3 (completion) are gated by their
       // coverage field at pump time; they consume no stream bytes.
       final buffered = piece.encryption <= -2;
@@ -126,7 +130,7 @@ class ProgressivePlan {
 
     void emitGap(int end) {
       if (end > emitCursor) {
-        advance(_Piece(emitCursor, end, -1));
+        advance(ProgressivePiece(emitCursor, end, -1));
         emitCursor = end;
       }
     }
@@ -137,17 +141,19 @@ class ProgressivePlan {
       // from the mdat header onward lands `moov.size` later in the output,
       // which is the same delta the chunk tables were rewritten with; the
       // physical moov region is never read from the growing file.
-      advance(_Piece(0, mdat.start, -1));
-      advance(_Piece(moov.start, moov.end, -2, coverage: 0));
-      advance(_Piece(mdat.start, mdat.payload, -1));
+      advance(ProgressivePiece(0, mdat.start, -1));
+      advance(ProgressivePiece(moov.start, moov.end, -2, coverage: 0));
+      advance(ProgressivePiece(mdat.start, mdat.payload, -1));
       emitCursor = mdat.payload;
       for (final span in spans) {
         emitGap(span.start);
         if (span.encryption == null) {
-          advance(_Piece(span.start, span.end, -1));
+          advance(ProgressivePiece(span.start, span.end, -1));
         } else {
           encryptions.add(span.encryption!);
-          advance(_Piece(span.start, span.end, encryptions.length - 1));
+          advance(
+            ProgressivePiece(span.start, span.end, encryptions.length - 1),
+          );
         }
         emitCursor = span.end;
       }
@@ -155,27 +161,29 @@ class ProgressivePlan {
       if (mdat.end > moov.start) {
         throw const FormatException('mdat overlaps relocated moov');
       }
-      advance(_Piece(mdat.end, moov.start, -1));
-      advance(_Piece(total, total, -3, coverage: total + 1));
+      advance(ProgressivePiece(mdat.end, moov.start, -1));
+      advance(ProgressivePiece(total, total, -3, coverage: total + 1));
     } else {
       // head-moov identity: the file streams in physical order; once the
       // physical moov has been copied verbatim, a zero-length marker seeks
       // back and overwrites the clear bytes in place, then copies continue.
-      advance(_Piece(0, moov.end, -1));
-      advance(_Piece(moov.start, moov.start, -4, coverage: moov.end));
+      advance(ProgressivePiece(0, moov.end, -1));
+      advance(ProgressivePiece(moov.start, moov.start, -4, coverage: moov.end));
       emitCursor = moov.end;
       for (final span in spans) {
         emitGap(span.start);
         if (span.encryption == null) {
-          advance(_Piece(span.start, span.end, -1));
+          advance(ProgressivePiece(span.start, span.end, -1));
         } else {
           encryptions.add(span.encryption!);
-          advance(_Piece(span.start, span.end, encryptions.length - 1));
+          advance(
+            ProgressivePiece(span.start, span.end, encryptions.length - 1),
+          );
         }
         emitCursor = span.end;
       }
       emitGap(mdat.end);
-      advance(_Piece(mdat.end, total, -1));
+      advance(ProgressivePiece(mdat.end, total, -1));
     }
     if (expectedOut != total) {
       throw const FormatException('Progressive layout changes file size');

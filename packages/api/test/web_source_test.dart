@@ -14,14 +14,14 @@ Map<String, dynamic> _router({
 }) => {
   'loaderData': {
     key: {
-      if (success != null) 'isSuccess': success,
+      'isSuccess': ?success,
       'series_id': seriesId,
       'seriesDetail': {
         'series_id': seriesId,
         'series_name': title,
         'series_cover': cover,
         'vid_list': vids,
-        if (accessible != null) 'accessible_episode_cnt': accessible,
+        'accessible_episode_cnt': ?accessible,
       },
     },
   },
@@ -103,8 +103,8 @@ void main() {
       final video = {
         '@type': 'VideoObject',
         'contentUrl': contentUrl,
-        if (url != null) 'url': url,
-        if (atId != null) '@id': atId,
+        'url': ?url,
+        '@id': ?atId,
       };
       return '<html><script type="application/ld+json">${jsonEncode(video)}</script></html>';
     }

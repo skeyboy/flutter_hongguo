@@ -29,8 +29,8 @@ ProgressiveRangeReader wholeSource(Uint8List source) =>
 
 /// A cache job seen from the lane's side: a growing `.part` file plus the
 /// reports a transfer makes while it runs.
-class _Harness {
-  _Harness({
+class Harness {
+  Harness({
     required this.temp,
     required this.server,
     required this.source,
@@ -83,7 +83,7 @@ class _Harness {
 final _openLanes = <Future<void> Function()>[];
 final _liveLanes = <ProgressiveLane>[];
 
-Future<_Harness> lane(
+Future<Harness> lane(
   Uint8List source, {
   String? key,
   ProgressiveRangeReader? fetchRange,
@@ -92,7 +92,7 @@ Future<_Harness> lane(
 }) async {
   final temp = Directory.systemTemp.createTempSync('hongguo-lane-');
   final server = await ProgressiveStreamServer.bind();
-  final value = _Harness(
+  final value = Harness(
     temp: temp,
     server: server,
     source: source,

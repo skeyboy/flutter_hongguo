@@ -1,3 +1,5 @@
+// 归档的取证脚本：原样保留当时的一次性实现，不参与产品分析门禁。
+// ignore_for_file: depend_on_referenced_packages
 import 'dart:convert';
 import 'dart:io';
 
@@ -19,7 +21,10 @@ Future<void> main(List<String> args) async {
           't': DateTime.now().toUtc().toIso8601String().substring(11, 23),
           'status': r.statusCode,
           'bytes': utf8.encode('${r.data ?? ''}').length,
-          'hop': Uri.parse(r.requestOptions.uri.toString()).path.split('/').where((p) => p.isNotEmpty).join('/'),
+          'hop': Uri.parse(r.requestOptions.uri.toString()).path
+              .split('/')
+              .where((p) => p.isNotEmpty)
+              .join('/'),
         });
         h.next(r);
       },
@@ -40,8 +45,7 @@ Future<void> main(List<String> args) async {
       return {
         'case': label,
         'ok': true,
-        'seconds':
-            DateTime.now().difference(started).inMilliseconds / 1000.0,
+        'seconds': DateTime.now().difference(started).inMilliseconds / 1000.0,
         'definition': track.definition,
         'exchanges': log.sublist(mark),
       };
@@ -49,8 +53,7 @@ Future<void> main(List<String> args) async {
       return {
         'case': label,
         'ok': false,
-        'seconds':
-            DateTime.now().difference(started).inMilliseconds / 1000.0,
+        'seconds': DateTime.now().difference(started).inMilliseconds / 1000.0,
         'errorType': error.runtimeType.toString(),
         'message': error.toString(),
         'exchanges': log.sublist(mark),
