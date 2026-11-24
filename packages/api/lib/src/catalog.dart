@@ -779,26 +779,17 @@ class CatalogClient
   Future<CatalogPage> _search(String query, {String? cursor}) async {
     query = query.trim();
     if (query.isEmpty) return const CatalogPage([]);
+    final state = cursor == null ? null : _decodeCursor(cursor);
+    // 官网 JSON 翻到第几页就继续在官网翻：第 2 页换成 App 搜索，排序与去重
+    // 口径都不同，同一部剧会在滚动里连着出现两次。
+    final webPage = _int(state?['web'] ?? 0);
+    if (webPage >= 1) return _webSearch(query, webPage);
     if (cursor == null) {
       // 第 1 层：官网搜索 JSON 接口（搜索页前端自己的数据源，免签）。
       // 参考实现选它而不是 SSR DOM 嗅探：更快，也不会因一次页面加载失败
       // 就等到超时。字段改名时 searchListFromJson 会抛出，由 SSR 接住。
-      try {
-        final raw = await RequestBudget.current.phase(
-          const Duration(seconds: 6),
-          () => _html(
-            '$siteOrigin$searchResultPath'
-            '?aid=8662&query=${encodeQueryPart(query)}&page=1',
-          ),
-        );
-        final payload = raw.startsWith('{') ? jsonDecode(raw) : raw;
-        final items = _unique(
-          searchListFromJson(payload).map(Drama.fromJson).toList(),
-        );
-        if (items.isNotEmpty) return CatalogPage(items);
-      } on Object {
-        /* SSR 与 App source fallback are surfaced if they also fail. */
-      }
+      final first = await _webSearch(query, 1);
+      if (first.items.isNotEmpty) return first;
       // 第 2 层：官网搜索页 SSR（旧正则解析），JSON 接口结构变化时的兜底。
       try {
         final html = await RequestBudget.current.phase(
@@ -813,24 +804,19 @@ class CatalogClient
         /* App source fallback is surfaced if it also fails. */
       }
     }
-    final state = cursor == null
-        ? <String, dynamic>{}
-        : _map(
-            jsonDecode(
-              utf8.decode(base64Url.decode(base64Url.normalize(cursor))),
-            ),
-          );
+    final offset = state ?? <String, dynamic>{};
     final j = await _api(
       '/reading/bookapi/search/tab/v',
       query: {
         'query': query,
         'tab_name': 'feed',
         'search_source': '1',
-        'offset': _text(state['offset'] ?? 0),
+        'offset': _text(offset['offset'] ?? 0),
         'count': '10',
         'use_correct': 'true',
-        if (state['passback'] != null) 'passback': _text(state['passback']),
-        if (state['search_id'] != null) 'search_id': _text(state['search_id']),
+        if (offset['passback'] != null) 'passback': _text(offset['passback']),
+        if (offset['search_id'] != null)
+          'search_id': _text(offset['search_id']),
       },
     );
     final tabs = _list(j['search_tabs']);
@@ -844,21 +830,59 @@ class CatalogClient
     final more =
         (tab['has_more'] == true || tab['has_more'] == 1) &&
         raw.isNotEmpty &&
-        next > _int(state['offset']);
+        next > _int(offset['offset']);
     return CatalogPage(
       _unique(items),
       nextCursor: more
-          ? base64Url.encode(
-              utf8.encode(
-                jsonEncode({
-                  'offset': next,
-                  'passback': tab['passback'],
-                  'search_id': tab['search_id'],
-                }),
-              ),
-            )
+          ? _encodeCursor({
+              'offset': next,
+              'passback': tab['passback'],
+              'search_id': tab['search_id'],
+            })
           : null,
     );
+  }
+
+  /// 官网搜索 JSON 的第 [page] 页（1 起）。空列表即到头：越界页上游仍回
+  /// 200，只是 `searchList` 为空，所以不能靠页码判断。
+  Future<CatalogPage> _webSearch(String query, int page) async {
+    try {
+      final raw = await RequestBudget.current.phase(
+        const Duration(seconds: 6),
+        () => _html(
+          '$siteOrigin$searchResultPath'
+          '?aid=8662&query=${encodeQueryPart(query)}&page=$page',
+        ),
+      );
+      final payload = raw.startsWith('{') ? jsonDecode(raw) : raw;
+      final items = _unique(
+        searchListFromJson(payload).map(Drama.fromJson).toList(),
+      );
+      if (items.isEmpty) return const CatalogPage([]);
+      return CatalogPage(
+        items,
+        nextCursor: searchHasMore(payload)
+            ? _encodeCursor({'web': page + 1})
+            : null,
+      );
+    } on Object {
+      // 翻页失败就当这一页没有：官网顺序与 App 不同，半路换源会让同一部剧
+      // 在滚动里重复出现，比提前结束更糟。
+      return const CatalogPage([]);
+    }
+  }
+
+  static String _encodeCursor(Map<String, dynamic> value) =>
+      base64Url.encode(utf8.encode(jsonEncode(value)));
+
+  static Map<String, dynamic>? _decodeCursor(String cursor) {
+    try {
+      return _map(
+        jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(cursor)))),
+      );
+    } on Object {
+      return null;
+    }
   }
 
   Future<DramaDetail> _detail(String id) async {

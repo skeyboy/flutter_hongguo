@@ -358,6 +358,20 @@ List<Map<String, dynamic>> searchListFromJson(Object? payload) {
   return results;
 }
 
+/// 搜索 JSON 是否还有下一页。
+///
+/// 参考实现以 `hasMore` 为准，`totalPages` 只作旧字段兜底：有 `hasMore`
+/// 就不再拿总数推算（上游对越界页仍会回 200，只是列表为空）。
+bool searchHasMore(Object? payload) {
+  final data = _map(payload);
+  final flag = data['hasMore'] ?? data['has_more'];
+  if (flag == true || flag == 1 || flag == 'true') return true;
+  if (flag == false || flag == 0 || flag == 'false') return false;
+  final page = num.tryParse(_text(data['pageNum']));
+  final pages = num.tryParse(_text(data['totalPages']));
+  return page != null && pages != null && pages > page;
+}
+
 /// `tags`/`category_list`（字符串或 `{name}` 混合）→ 最多 4 个去重标签。
 List<String> _tagTexts(Map<String, dynamic> video) {
   final tags = <String>[];

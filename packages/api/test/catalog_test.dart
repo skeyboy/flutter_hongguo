@@ -14,6 +14,11 @@ class CatalogAdapter implements HttpClientAdapter {
   /// 把 web 层压掉，才能测到签名请求本身。
   bool failWeb = false;
   String rankVersion = '1793325840';
+
+  /// 搜索分页夹具：每项是 `searchList` 的一页。设了它才按 `?page=` 应答，
+  /// 否则一直是同一页（老行为）。
+  List<Map<String, dynamic>>? searchPages;
+  bool searchHasMorePages = false;
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
@@ -29,18 +34,32 @@ class CatalogAdapter implements HttpClientAdapter {
       );
     }
     if (options.path.contains('/api/search/result')) {
+      final pages = searchPages;
+      if (pages == null) {
+        return ResponseBody.fromString(
+          jsonEncode({
+            'searchList': [
+              {
+                'video_data': {
+                  'series_id': '7661622467441478681',
+                  'series_title': '玄幻[测试]',
+                  'episode_cnt': 2,
+                },
+              },
+            ],
+            'hasMore': false,
+          }),
+          200,
+        );
+      }
+      final page =
+          int.tryParse(options.uri.queryParameters['page'] ?? '1') ?? 1;
+      final index = page - 1;
       return ResponseBody.fromString(
         jsonEncode({
-          'searchList': [
-            {
-              'video_data': {
-                'series_id': '7661622467441478681',
-                'series_title': '玄幻[测试]',
-                'episode_cnt': 2,
-              },
-            },
-          ],
-          'hasMore': false,
+          'searchList': index < pages.length ? [pages[index]] : <Object>[],
+          'pageNum': page,
+          'hasMore': searchHasMorePages && index + 1 < pages.length,
         }),
         200,
       );
@@ -180,6 +199,29 @@ void main() {
     // 官网 JSON 接口一发命中，不再需要 SSR 或 App 搜索。
     expect(adapter.requests, hasLength(1));
     expect(adapter.requests.single.path, contains('/api/search/result'));
+  });
+  test('搜索翻页继续走官网 JSON，不中途换成 App 搜索', () async {
+    Map<String, dynamic> entry(String id, String title) => {
+      'video_data': {'series_id': id, 'series_title': title, 'episode_cnt': 3},
+    };
+    adapter
+      ..searchPages = [
+        entry('7661622467441478681', '第一页'),
+        entry('7661622467441478690', '第二页'),
+      ]
+      ..searchHasMorePages = true;
+    final first = await client.search('玄幻');
+    expect(first.items.single.title, '第一页');
+    expect(first.nextCursor, isNotNull);
+    final second = await client.search('玄幻', cursor: first.nextCursor);
+    expect(second.items.single.title, '第二页');
+    // 两页都由官网 JSON 应答：同一个关键词换源会让同一部剧重复出现。
+    expect(
+      adapter.requests.every((r) => r.path.contains('/api/search/result')),
+      isTrue,
+    );
+    expect(adapter.requests.last.uri.queryParameters['page'], '2');
+    expect(second.nextCursor, isNull);
   });
   test(
     'AI classification and seen IDs map to proper landpage fields',

@@ -83,8 +83,18 @@
 - 取消与本地缺文件不给「重新准备」（重试解决不了），有下一集时给「换下一集」；
 - PiP 占位窗口的「下一集准备失败」也带上同一句原因。
 
+### E. 搜索翻页留在官网 JSON（`catalog.dart` `_webSearch`）
+
+第一页由官网 JSON 答、第二页却掉到 App 搜索，两边的排序与去重口径不同，同一部剧会在滚动里连出两次。现在游标分两种形状：
+
+- `{web: n}`：继续打 `/api/search/result?page=n`，按 `hasMore`（缺省时用 `pageNum`/`totalPages`）决定是否给下一页；越界页上游仍回 200 只是列表为空，因此「空列表」就是到头；
+- `{offset, passback, search_id}`：原有的 App 签名搜索游标，行为不变。
+
+翻页失败直接当这一页没有（结束滚动），不在中途换源。
+
 ## 验证口径
 
-- `dart analyze --fatal-infos` 通过；
-- `packages/api` 现有测试全绿 + 新增 web_source/三层取址 mock 测试；
-- 现有离线回归 `tool/verify_all.sh` 不回退。
+- 测试：`packages/core` 139、`packages/api` 184、`packages/app` 512、`packages/tv` 38、`packages/cast` 52，全绿（新增 web_source / 三层取址 / 白名单 / 失败分类 / 搜索翻页专项）。
+- `packages/update` 有 1 项既有失败（`release_downloader_test` 断言临时目录用 `/`，Windows 实际给 `\`），与本轮改动无关，未处理。
+- `dart analyze` 在本工作区（W 盘 SMB）跑不起来：analyzer server 启动即被 SIGTERM，属环境问题；编译正确性由上述测试的编译阶段覆盖。
+- `tool/verify_all.sh` 未跑：它要求 `.fvm/flutter_sdk`（本机走 PATH 上的 fvm stable），且第一道就是 `dart analyze --fatal-infos`。
