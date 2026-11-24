@@ -210,7 +210,17 @@ class Drama {
 class Episode {
   final String vid, title;
   final int index;
-  const Episode({required this.vid, required this.index, this.title = ''});
+
+  /// 当前来源对该集标注了「不可播」（付费/鉴权/CDN 限制）。默认值保持
+  /// 红果行为不变；第三方适配器归一时填入。仅作提示，不绕过鉴权。
+  final bool locked;
+
+  const Episode({
+    required this.vid,
+    required this.index,
+    this.title = '',
+    this.locked = false,
+  });
 }
 
 class DramaDetail {

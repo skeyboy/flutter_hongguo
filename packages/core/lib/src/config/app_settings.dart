@@ -1,3 +1,5 @@
+import '../crypto/media_url.dart';
+
 /// Preferences shared by native runtimes. Secret session data is stored separately.
 class AppSettings {
   final bool prefetchEnabled, autoNext, autoLoadMore, signLists;
@@ -49,6 +51,9 @@ class AppSettings {
   /// directory's `media-cache` child. Changing it takes effect on next launch:
   /// the native runtime resolves its cache directory once, at construction.
   final String cacheDir;
+
+  /// 多源开关与自定义源配置。默认全红果行为，老 JSON 缺字段时走默认值。
+  final SourceSettings sources;
   static const defaultVideoUserAgent =
       'com.phoenix.read/71332 (Linux; U; Android 16; zh_CN; 25053RT47C; '
       'Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 '
@@ -89,6 +94,7 @@ class AppSettings {
     this.ignoredUpdateVersion = '',
     this.lastUpdateCheckAt = 0,
     this.updateFeedEtag = '',
+    this.sources = const SourceSettings(),
   });
 
   Map<String, dynamic> protocolJson() => {
@@ -130,6 +136,7 @@ class AppSettings {
     'ignoredUpdateVersion': ignoredUpdateVersion,
     'lastUpdateCheckAt': lastUpdateCheckAt,
     'updateFeedEtag': updateFeedEtag,
+    'sources': sources.toJson(),
   };
   factory AppSettings.fromJson(Map<String, dynamic> json) {
     const defaults = AppSettings();
@@ -189,6 +196,12 @@ class AppSettings {
       ignoredUpdateVersion: read('ignoredUpdateVersion', ''),
       lastUpdateCheckAt: read('lastUpdateCheckAt', 0),
       updateFeedEtag: read('updateFeedEtag', ''),
+      // 老 JSON 没有 sources，或字段类型被写坏，都回退默认值。
+      sources: json['sources'] is Map
+          ? SourceSettings.fromJson(
+              Map<String, dynamic>.from(json['sources'] as Map),
+            )
+          : const SourceSettings(),
     );
   }
   AppSettings copyWith({
@@ -227,6 +240,7 @@ class AppSettings {
     String? ignoredUpdateVersion,
     int? lastUpdateCheckAt,
     String? updateFeedEtag,
+    SourceSettings? sources,
   }) => AppSettings.fromJson({
     ...toJson(),
     'catalogSort': catalogSort ?? this.catalogSort,
@@ -268,6 +282,7 @@ class AppSettings {
     'ignoredUpdateVersion': ignoredUpdateVersion ?? this.ignoredUpdateVersion,
     'lastUpdateCheckAt': lastUpdateCheckAt ?? this.lastUpdateCheckAt,
     'updateFeedEtag': updateFeedEtag ?? this.updateFeedEtag,
+    'sources': (sources ?? this.sources).toJson(),
   });
   void validate() {
     if (!['online_time', 'hot_score', 'hot_collect'].contains(catalogSort)) {
@@ -349,6 +364,134 @@ class AppSettings {
     if (videoUserAgent.trim().isEmpty ||
         RegExp(r'[\r\n]').hasMatch(videoUserAgent)) {
       throw const FormatException('User-Agent 无效');
+    }
+    sources.validate();
+  }
+}
+
+/// 用户手动添加的片源。url 在配置期就过公网校验，运行期逐跳再校验一次。
+class CustomSourceConfig {
+  final String uuid; // UUID v4
+  final String name; // 1–40 字
+  final String url; // https、无凭据、公网
+  final bool enabled;
+
+  const CustomSourceConfig({
+    this.uuid = '',
+    this.name = '',
+    this.url = '',
+    this.enabled = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'uuid': uuid,
+    'name': name,
+    'url': url,
+    'enabled': enabled,
+  };
+
+  factory CustomSourceConfig.fromJson(Map<String, dynamic> json) {
+    String read(String key) => json[key] is String ? json[key] as String : '';
+    return CustomSourceConfig(
+      uuid: read('uuid'),
+      name: read('name'),
+      url: read('url'),
+      enabled: json['enabled'] is bool ? json['enabled'] as bool : false,
+    );
+  }
+}
+
+/// 内置源开关 + 自定义源列表。hongguo 不可关闭，其余按表或逐条 enabled。
+class SourceSettings {
+  static const _defaultBuiltin = <String, bool>{
+    'hongguo': true,
+    'xifan': true,
+    'hema': true,
+    'reelshort': false,
+    'dramabox': false,
+  };
+
+  final Map<String, bool> builtin;
+  final List<CustomSourceConfig> customSources;
+
+  const SourceSettings({
+    this.builtin = _defaultBuiltin,
+    this.customSources = const [],
+  });
+
+  /// 路由与 UI 共用的唯一判定入口：历史纯数字 ID 未知时按未启用处理。
+  bool isEnabled(String sourceId) {
+    if (sourceId == 'hongguo') return true;
+    if (sourceId.startsWith('custom:')) {
+      final uuid = sourceId.substring('custom:'.length);
+      for (final config in customSources) {
+        if (config.uuid == uuid) return config.enabled;
+      }
+      return false;
+    }
+    return builtin[sourceId] ?? false;
+  }
+
+  Map<String, dynamic> toJson() => {
+    'builtin': Map<String, bool>.from(builtin),
+    'customSources': customSources.map((config) => config.toJson()).toList(),
+  };
+
+  factory SourceSettings.fromJson(Map<String, dynamic> json) {
+    final builtin = Map<String, bool>.of(_defaultBuiltin);
+    if (json['builtin'] is Map) {
+      for (final entry in (json['builtin'] as Map).entries) {
+        if (entry.key is String && entry.value is bool) {
+          builtin[entry.key as String] = entry.value as bool;
+        }
+      }
+    }
+    final customSources = <CustomSourceConfig>[];
+    if (json['customSources'] is List) {
+      for (final item in json['customSources'] as List) {
+        if (item is Map<String, dynamic>) {
+          customSources.add(CustomSourceConfig.fromJson(item));
+        } else if (item is Map) {
+          customSources.add(
+            CustomSourceConfig.fromJson(Map<String, dynamic>.from(item)),
+          );
+        }
+      }
+    }
+    return SourceSettings(builtin: builtin, customSources: customSources);
+  }
+
+  void validate() {
+    // hongguo 恒开：const 构造的 map 不可写，由 isEnabled 兜底。
+    if (builtin['hongguo'] != true) {
+      try {
+        builtin['hongguo'] = true;
+      } on UnsupportedError {
+        // 不可变 map（如 const SourceSettings），isEnabled 已保证恒开。
+      }
+    }
+    for (final config in customSources) {
+      if (!RegExp(
+        r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+      ).hasMatch(config.uuid)) {
+        throw const FormatException('自定义源 UUID 需为 v4 格式');
+      }
+      if (config.name.isEmpty ||
+          config.name.length > 40 ||
+          RegExp(r'[\r\n]').hasMatch(config.name)) {
+        throw const FormatException('自定义源名称应为 1～40 字且不含换行');
+      }
+      if (config.url.length > 2000) {
+        throw const FormatException('自定义源地址过长');
+      }
+      final uri = Uri.tryParse(config.url);
+      if (uri == null || uri.scheme != 'https' || uri.userInfo.isNotEmpty) {
+        throw const FormatException('自定义源地址需为 HTTPS 且不含凭据');
+      }
+      final reason = isPublicMediaUrl(uri);
+      if (reason != null) {
+        throw FormatException('自定义源地址无效：$reason');
+      }
     }
   }
 }

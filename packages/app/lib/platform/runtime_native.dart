@@ -136,6 +136,10 @@ class NativeRuntime
   late CatalogClient _catalog;
   late VideoModelClient _model;
 
+  /// 多源路由门面：上层只认 CatalogRepository，来源分派在门面内完成。
+  /// P0 只有红果适配器，方法委托 primary，行为与旧 CatalogClient 一致。
+  late RoutingCatalogRepository _routingCatalog;
+
   /// Answers kept per vid across client rebuilds, so a settings change in the
   /// middle of a batch cannot make the rest of the queue re-register and
   /// re-ask for episodes the upstream already answered for.
@@ -279,7 +283,7 @@ class NativeRuntime
   }
 
   @override
-  CatalogRepository get catalog => _catalog;
+  CatalogRepository get catalog => _routingCatalog;
   @override
   AppSettings get settings => store.settings;
   @override
@@ -312,6 +316,17 @@ class NativeRuntime
       devices: _playbackDevices,
       builder: VideoRequestBuilder(protocol: settings),
       info: _videoInfo,
+    );
+    // 注册表在每次客户端重建时按当前设置重新装配：P0 清单只有红果，
+    // 但设置变更带来的 sources 改动将自然在下一次重建生效。
+    final registry = SourceRegistry(
+      defaultSourceFactories(catalog: () => _catalog, model: () => _model),
+      settings.sources,
+    );
+    _routingCatalog = RoutingCatalogRepository(
+      registry: registry,
+      primary: _catalog,
+      rank: _catalog,
     );
     _clientsReady = true;
   }

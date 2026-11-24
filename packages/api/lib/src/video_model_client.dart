@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 
+import 'media_url_policy.dart';
 import 'network_retry.dart';
 import 'playback_device.dart';
 import 'request_control.dart';
@@ -172,6 +173,11 @@ class VideoQuality {
   const VideoQuality(this.value, this.label, {this.width = 0, this.height = 0});
 }
 
+/// 媒体封装格式。默认是红果的 [mp4]（含 CENC 加密分片）；[hls] 由第三方/
+/// 自定义源使用。P0 只声明类型，HLS 播放通道在 P2 单独评估，未落地前不得
+/// 把 hls 轨当成已支持。
+enum VideoFormat { mp4, hls }
+
 class VideoTrack {
   final Uri url;
   final String spadeA, definition;
@@ -182,8 +188,25 @@ class VideoTrack {
 
   /// 这条地址来自官网层（明文 MP4）。下载层的 CDN 白名单要据此放宽到
   /// [webMediaDomains]，否则官网 CDN 会在下载前被判成非法上游。
+  ///
+  /// 多源接入后优先用 [policy] 判定白名单；此布尔仅为向后兼容保留，
+  /// 红果官网轨仍置 true。
   final bool fromWeb;
   final int size;
+
+  /// 归属源（hongguo/xifan/...），用于缓存键命名空间与诊断。默认红果。
+  final String source;
+
+  /// 封装格式。默认 mp4 = 现有行为。
+  final VideoFormat format;
+
+  /// 自定义源多线路候选；null 表示单线路。
+  final List<VideoTrack>? candidates;
+
+  /// 逐轨媒体安全策略；null 时下载层回退到 [fromWeb] 的旧布尔判定，
+  /// 保住红果字节级行为。
+  final MediaUrlPolicy? policy;
+
   bool get encrypted => spadeA.isNotEmpty;
   const VideoTrack({
     required this.url,
@@ -193,6 +216,10 @@ class VideoTrack {
     this.userAgent = '',
     this.referer = '',
     this.fromWeb = false,
+    this.source = 'hongguo',
+    this.format = VideoFormat.mp4,
+    this.candidates,
+    this.policy,
   });
 }
 
