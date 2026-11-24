@@ -204,6 +204,9 @@ String? _rejectReasonForIpv4(List<int> b) {
   if (a == 172 && c >= 16 && c <= 31) return '私网地址';
   if (a == 192 && c == 168) return '私网地址';
   if (a == 198 && (c == 18 || c == 19)) return 'Fake-IP 地址';
+  // 文档保留网段不可路由到真实媒体：与参考 web-media-guard 的阻断表对齐。
+  if (a == 198 && c == 51 && b[2] == 100) return '文档保留地址';
+  if (a == 203 && c == 0 && b[2] == 113) return '文档保留地址';
   if (a == 100 && c >= 64 && c <= 127) return '运营商级 NAT 地址';
   if (a >= 224) return '多播/保留地址';
   return null;

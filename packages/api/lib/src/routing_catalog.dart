@@ -1,5 +1,6 @@
 import 'catalog.dart';
 import 'ranking.dart';
+import 'source_adapter.dart';
 import 'source_registry.dart';
 
 /// 路由门面：上层 App 只认 CatalogRepository，来源分派全在门面内完成。
@@ -30,6 +31,36 @@ class RoutingCatalogRepository
   final RankCatalogRepository rank;
 
   void close() => primary.close();
+
+  /// 来源列表供 UI 派生（设置页「片源」分区用），不写死枚举。
+  List<SourceAdapter> get sources => registry.enabled;
+
+  /// 按源单查：翻页游标内嵌来源，避免混源重复。P1 的西饭/河马经此入口
+  /// 提供浏览/搜索，默认 browse/search 仍走红果保住 discover 页行为。
+  Future<CatalogPage> browseFrom(
+    String sourceId, {
+    String genre = '',
+    String? cursor,
+    String? sort,
+  }) {
+    final adapter = registry.forSource(sourceId);
+    if (adapter == null) {
+      throw ArgumentError.value(sourceId, 'sourceId', '片源未启用或不存在');
+    }
+    return adapter.browse(genre: genre, cursor: cursor, sort: sort);
+  }
+
+  Future<CatalogPage> searchFrom(
+    String sourceId,
+    String query, {
+    String? cursor,
+  }) {
+    final adapter = registry.forSource(sourceId);
+    if (adapter == null) {
+      throw ArgumentError.value(sourceId, 'sourceId', '片源未启用或不存在');
+    }
+    return adapter.search(query, cursor: cursor);
+  }
 
   /// 详情：ID 自带来源前缀，路由到对应适配器；未命中兜底红果客户端。
   /// 纯数字历史 ID 命中红果适配器，委托结果与旧 CatalogClient 完全一致。

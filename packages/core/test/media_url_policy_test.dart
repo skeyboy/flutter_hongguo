@@ -43,6 +43,8 @@ void main() {
     for (final url in [
       'https://198.18.0.1/v.mp4',
       'https://198.19.255.255/v.mp4',
+      'https://198.51.100.9/v.mp4', // TEST-NET-2
+      'https://203.0.113.9/v.mp4', // TEST-NET-3
       'https://2130706433/v.mp4', // 十进制 127.0.0.1
       'https://0x7f000001/v.mp4', // 十六进制 127.0.0.1
       'https://0177.0.0.1/v.mp4', // 八进制 127.0.0.1

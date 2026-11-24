@@ -23,6 +23,20 @@ class SourceRegistry {
     return null;
   }
 
+  /// 按来源 ID 取已启用的适配器（custom 源用完整 `custom:{uuid}`）。
+  /// 与 [forId] 的区别：这里按来源标识查，不要求传入一个真实媒体 ID。
+  /// 设置页来源列表与「按源查询」入口共用。
+  SourceAdapter? forSource(String sourceId) {
+    for (final factory in factories) {
+      final adapter = factory(settings);
+      if (adapter.enabled(settings) &&
+          (adapter.id == sourceId || adapter.id.startsWith('$sourceId:'))) {
+        return adapter;
+      }
+    }
+    return null;
+  }
+
   /// UI 来源列表的数据源：按 enabled 过滤，顺序与 factories 一致。
   List<SourceAdapter> get enabled => factories
       .map((factory) => factory(settings))

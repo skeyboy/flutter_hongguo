@@ -140,6 +140,22 @@ class NativeRuntime
   /// P0 只有红果适配器，方法委托 primary，行为与旧 CatalogClient 一致。
   late RoutingCatalogRepository _routingCatalog;
 
+  /// 取址路由：vid 自带来源前缀，红果走旧 VideoModelClient（保留 preferApp
+  /// 的官网/App 分层），第三方源走各自适配器的明文取址。
+  late SourceRegistry _sourceRegistry;
+
+  Future<VideoTrack> _resolveTrack(String vid, String quality) async {
+    final adapter = _sourceRegistry.forId(vid);
+    if (adapter == null || adapter.id == 'hongguo') {
+      return _model.fetchTrack(
+        vid,
+        quality: quality,
+        preferApp: settings.progressivePlayback && !tvBuild,
+      );
+    }
+    return adapter.fetchTrack(vid, quality: quality);
+  }
+
   /// Answers kept per vid across client rebuilds, so a settings change in the
   /// middle of a batch cannot make the rest of the queue re-register and
   /// re-ask for episodes the upstream already answered for.
@@ -203,11 +219,7 @@ class NativeRuntime
       progressivePlayback: () => settings.progressivePlayback && !tvBuild,
       // 渐进通道只吃带 CENC 的分片：官网直链是明文 MP4，得整段下完才能播，
       // 开着「边下边看」时它反而是慢的那条路，让 App 层先答。
-      resolve: (vid, quality) => _model.fetchTrack(
-        vid,
-        quality: quality,
-        preferApp: settings.progressivePlayback && !tvBuild,
-      ),
+      resolve: _resolveTrack,
     );
     downloads = DownloadManager(
       backend: FilePreferencesBackend(
@@ -320,9 +332,14 @@ class NativeRuntime
     // 注册表在每次客户端重建时按当前设置重新装配：P0 清单只有红果，
     // 但设置变更带来的 sources 改动将自然在下一次重建生效。
     final registry = SourceRegistry(
-      defaultSourceFactories(catalog: () => _catalog, model: () => _model),
+      defaultSourceFactories(
+        catalog: () => _catalog,
+        model: () => _model,
+        dio: () => _dio,
+      ),
       settings.sources,
     );
+    _sourceRegistry = registry;
     _routingCatalog = RoutingCatalogRepository(
       registry: registry,
       primary: _catalog,
