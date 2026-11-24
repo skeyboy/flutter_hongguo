@@ -4,12 +4,16 @@ import 'package:hongguo_core/hongguo_core.dart';
 import '../catalog.dart';
 import '../source_adapter.dart';
 import '../video_model_client.dart';
+import 'dramabox_adapter.dart';
 import 'hema_adapter.dart';
 import 'hongguo_adapter.dart';
+import 'reelshort_adapter.dart';
 import 'xifan_adapter.dart';
 
+export 'dramabox_adapter.dart';
 export 'hema_adapter.dart';
 export 'hongguo_adapter.dart';
+export 'reelshort_adapter.dart';
 export 'xifan_adapter.dart';
 
 /// 默认注册表清单。新增一个源 = 在这里加一行工厂，取址路由/来源枚举/
@@ -26,6 +30,9 @@ List<SourceAdapter Function(SourceSettings)> defaultSourceFactories({
     (settings) => HongguoAdapter(catalog(), model()),
     (settings) => XifanAdapter(dio()),
     (settings) => HemaAdapter(dio()),
+    // 海外源默认关（SourceSettings.builtin），enabled() 内门控，注册但不主动查询。
+    (settings) => DramaboxAdapter(dio()),
+    (settings) => ReelshortAdapter(dio()),
     // 将来加源：在这里加一行工厂即可，取址路由/来源枚举自动生效。
   ];
 }

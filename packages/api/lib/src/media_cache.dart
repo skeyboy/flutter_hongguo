@@ -606,6 +606,13 @@ class MediaCache {
         final domains = track.fromWeb ? webMediaDomains : appMediaDomains;
         final policy = track.policy ?? DomainAllowlistPolicy(domains);
         checkMediaUrl(track.url.toString(), policy);
+        // HLS 通道未落地（见 docs/design/hls-channel-evaluation.md）：m3u8 是
+        // 播放列表不是视频字节，落到 dio.download 会写出假 mp4 并静默播不了。
+        // 适配器已在取址层早拒，这里是最后一道兜底，任何来源都不得绕过。
+        if (track.format == VideoFormat.hls ||
+            track.url.path.toLowerCase().endsWith('.m3u8')) {
+          throw StateError('该片源为 HLS 流，当前版本暂不支持');
+        }
         working =
             '${output.path}.${DateTime.now().microsecondsSinceEpoch}.${_serial++}.part';
         workingIdentity = working;

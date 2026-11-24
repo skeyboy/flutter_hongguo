@@ -26,3 +26,23 @@ The oracle fixture contains synthetic inputs, existing offline test vectors,
 and outputs from the local source. Its sourceSha256 field identifies the exact
 PureSign input file. No account tokens, API keys or .env data were copied from
 the reference Flutter project.
+
+## Multi-source adapters (P1–P3)
+
+The multi-source adapter protocol behavior is informed by the locally supplied
+hongguo-drama reference (GPL-3.0). Only public HTTP request/response shapes and
+normalization semantics were adapted; no GPL signing keys, constants, account
+tokens or .env data were copied. The interface and ID namespace are our own
+contract (see docs/contracts/), and the dispatch is a registry rather than the
+reference's hardcoded if/else chain.
+
+Protocol ancestry of the individual upstream sites:
+- Xifan / Hema: public portalPage / aggregationPage / `__NEXT_DATA__` page shapes.
+- DramaBox: public English SSR pages, adapted in the reference from
+  zuomeizuoyang/shortdrama-player (MIT, commit 081e7ee7).
+- ReelShort: public page routes/schema, adapted in the reference from
+  wanglinsaputra/Rest-Api-ReelShort (MIT).
+- Custom sources: the public 苹果 CMS (Apple CMS) VOD API convention.
+
+The HLS channel is intentionally not implemented; see
+docs/design/hls-channel-evaluation.md for the decision and evidence.
