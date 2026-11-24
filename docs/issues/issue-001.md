@@ -15,7 +15,7 @@
 
 | 条目 | 分类 | 根因 | 处理 | 状态 |
 |---|---|---|---|---|
-| 1 片源失败 | **bug 修复** | 取源层的 `StateError('No compatible media URL/key')` 被 `PlaybackFailure.classify` 判成 `localMissing`，用户看到「本地缓存读不出来」；TV 错误卡片直接用 `error.toString()`，无分类文案 | 新增 `sourceRejected` 分类；TV 卡片接入 classify；补分类测试 | 已完成，测试通过 |
+| 1 片源失败 | **bug 修复** | 取源层的 `StateError('No compatible media URL/key')` 被 `PlaybackFailure.classify` 判成 `localMissing`，用户看到「本地缓存读不出来」；TV 错误卡片直接用 `error.toString()`。另：Dart 3.47 起 `HandshakeException` 不再是 `SocketException`，Dio 把它包成 `type=unknown`，重试逻辑跳过、用户只看到原始异常 | 新增 `sourceRejected` 与 `tlsHandshake` 分类；TV 卡片接入 classify；握手失败纳入元数据与下载的一次有界重试 | 已完成，测试通过 |
 | 2 缓存目录 | **优化** | `MediaCache.directory` 在 `NativeRuntime` 构造时写死 `${root}/media-cache`，`AppSettings` 无路径字段，`MediaCache.configure` 不支持换目录 | 新增 `cacheDir` 设置项 + 选目录入口；启动时按配置解析目录，改目录提示重启生效 | 已完成，测试通过 |
 | 3 便携版数据 | **优化** | `createRuntime` 只用 `getApplicationSupportDirectory()`，Windows 由 EXE `VERSIONINFO` 的 `CompanyName=com.example` + `ProductName=hongguo_app` 拼出 AppData 路径；便携 ZIP 无标记文件也无切换分支 | 新增便携标记检测 + 数据根解析，覆盖 settings/缓存/下载 journal/更新暂存；Windows 便携打包写标记 | 已完成（Windows 实体机待验） |
 | 4 任务栏/最小化 | **建议**（大部分已具备） | Windows 已有任务栏与托盘图标（原生 `IDI_APP_ICON`、`Shell_NotifyIconW`），macOS 有状态栏；缺统一窗口控制入口，播放页桌面按钮仅 macOS 有 | 抽出 `DesktopWindow` 统一封装 minimize/maximize/hide/show，Windows/Linux 播放页补齐按钮；窗口偏好开关列为后续 | 已完成，测试通过 |
@@ -24,7 +24,7 @@
 
 ### 现状
 
-取源已是官网直链 → App 签名 → 旧接口三层（`video_model_client.dart:424-478`），今天刚补齐 CDN 302 逐跳白名单（`fff0415`）。失败卡片按七类异常给文案（`playback_failure.dart`）。
+取源已是官网直链 → App 签名 → 旧接口三层（`video_model_client.dart:424-478`），今天刚补齐 CDN 302 逐跳白名单（`fff0415`）。失败卡片按九类异常给文案（`playback_failure.dart`）。
 
 ### 确定的错误分支
 
@@ -38,6 +38,17 @@
 2. 其它 `StateError`（本地缓存文件缺失）保持 `localMissing`。
 3. TV 错误卡片改传 `PlaybackFailure.classify(error!).headline`，保留「详情」由原文本承担。
 4. 业务码 `110001` / HTTP 403 这类授权失败的识别留在 `noSource.detail`，文案里明确「可能是上游授权变化」，避免误判为本地问题。
+
+### 补充：TLS 握手被中断（`DioException [unknown]`）
+
+用户随后报出 `DioException [unknown]: null / Error: HandshakeException: Connection terminated during handshake`。根因不在取源协议，而在异常层次：Dart 3.47 的 `HandshakeException extends TlsException implements IOException`，**不是** `SocketException`；Dio 的 IO adapter 只 catch `SocketException`，于是握手失败落到通用分支变成 `DioExceptionType.unknown`，真实原因藏在 `error.error`。结果：`NetworkRetry.transient` 不认它（不重试），`PlaybackFailure.classify` 只给通用「网络这边断了」，详情里是一串原生异常文本。
+
+处理：
+
+- `network_retry.dart` 新增 `isHandshakeFailure(Object)`，穿透最多四层 `DioException.error` 识别 `HandshakeException`；`NetworkRetry.transient` 把它列为瞬时故障（一次有界重试）。证书校验失败（`CertificateException`）刻意不重试——同一条不受信的链重问多少次都不会变好。
+- `playback_failure.dart` 新增 `tlsHandshake` 分类：「加密连接没建立起来 / HTTPS 握手被中断，并不是片源失效。检查代理/VPN、系统时间和网络安全软件，换个网络再重试。」保留重试按钮。
+- `media_cache.dart` 的逐跳下载循环同样加一次握手重试（握手发生在首字节之前，代价极小），避免偶发代理/CDN 抖动直接变成播放失败。
+- 这是**连接层**修复，不能替代真网验证：若代理/安全软件持续切断握手，重试也救不回来，文案已引导用户换网络。
 
 ### 不在本轮
 
@@ -100,10 +111,10 @@
 | 命令 | 结果 |
 |---|---|
 | `packages/core`: `dart test` | 140 通过（含 cacheDir 持久化与注入校验） |
-| `packages/api`: `dart test` | 187 通过 |
+| `packages/api`: `dart test` | 191 通过（含握手重试与下载重试） |
 | `packages/cast`: `dart test` | 52 通过 |
 | `packages/update`: `dart test` | 37 通过 |
-| `packages/app`: `flutter test` | 521 通过（含新分类、便携根、桌面控制 facade） |
+| `packages/app`: `flutter test` | 522 通过（含新分类、便携根、桌面控制 facade） |
 | `packages/tv`: `flutter test` | 38 通过；app TV flavor 设置面 1 通过 |
 | `python3 -m unittest discover -s tool/ci/tests` | 10 通过 |
 | `dart format --set-exit-if-changed` | 0 处需改动 |

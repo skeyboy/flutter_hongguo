@@ -1,3 +1,5 @@
+import 'dart:io' show HandshakeException;
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hongguo_api/hongguo_api.dart';
@@ -69,6 +71,26 @@ void main() {
     final failure = PlaybackFailure.classify(StateError('该集本地缓存已不存在'));
     expect(failure.kind, PlaybackFailureKind.localMissing);
     expect(failure.retryable, isFalse);
+  });
+
+  test('TLS 握手被中断时不说成片源问题，仍给重试', () {
+    for (final error in <Object>[
+      const HandshakeException('Connection terminated during handshake'),
+      DioException(
+        requestOptions: RequestOptions(path: '/'),
+        type: DioExceptionType.unknown,
+        error: const HandshakeException(
+          'Connection terminated during handshake',
+        ),
+      ),
+    ]) {
+      final failure = PlaybackFailure.classify(error);
+      expect(failure.kind, PlaybackFailureKind.tlsHandshake, reason: '$error');
+      expect(failure.retryable, isTrue);
+      expect(failure.headline, isNot(contains('片源')));
+      expect(failure.hint, contains('握手'));
+      expect(failure.detail, isNotEmpty);
+    }
   });
 
   test('网络层失败与未知异常分开表述', () {

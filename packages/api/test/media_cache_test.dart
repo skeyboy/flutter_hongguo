@@ -34,6 +34,30 @@ class BytesAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+class HandshakeOnceAdapter extends BytesAdapter {
+  int calls = 0;
+  HandshakeOnceAdapter(super.bytes);
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? data,
+    Future<void>? cancelFuture,
+  ) async {
+    calls++;
+    if (calls == 1) {
+      throw DioException(
+        requestOptions: options,
+        type: DioExceptionType.unknown,
+        error: const HandshakeException(
+          'Connection terminated during handshake',
+        ),
+      );
+    }
+    return super.fetch(options, data, cancelFuture);
+  }
+}
+
 void main() {
   late Directory temp;
   late Dio dio;
@@ -116,6 +140,16 @@ void main() {
       cache.release(second);
     },
   );
+
+  test('一次 TLS 握手被切断时会重试同一片源', () async {
+    final flaky = HandshakeOnceAdapter(adapter.bytes);
+    dio.httpClientAdapter = flaky;
+    final job = cache.prepare('123');
+    final path = await job.result;
+    expect(File(path).existsSync(), isTrue);
+    expect(flaky.calls, 2);
+    cache.release(job);
+  });
 
   test('a held published file is reused, not re-downloaded, when its manifest '
       'is lost', () async {

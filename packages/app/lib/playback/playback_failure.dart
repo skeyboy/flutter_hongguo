@@ -30,6 +30,11 @@ enum PlaybackFailureKind {
   /// 网络层直接失败（断网、代理、DNS）。
   network,
 
+  /// HTTPS 握手被对端或代理中断：连接还没建立，跟片源好坏无关。
+  /// Dart 3.47 起 HandshakeException 不是 SocketException，Dio 会把它包成
+  /// type=unknown 的 DioException，必须按内层异常识别。
+  tlsHandshake,
+
   unknown,
 }
 
@@ -114,6 +119,14 @@ class PlaybackFailure {
         kind: PlaybackFailureKind.localMissing,
         headline: '本地这份缓存读不出来了',
         hint: '离线播放只认本地文件，请联网重新准备或改看其他集。',
+        detail: detail,
+      );
+    }
+    if (isHandshakeFailure(error)) {
+      return PlaybackFailure(
+        kind: PlaybackFailureKind.tlsHandshake,
+        headline: '加密连接没建立起来',
+        hint: 'HTTPS 握手被中断，并不是片源失效。检查代理/VPN、系统时间和网络安全软件，换个网络再重试。',
         detail: detail,
       );
     }

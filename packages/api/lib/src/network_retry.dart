@@ -1,3 +1,4 @@
+import 'dart:io' show HandshakeException;
 import 'dart:math';
 
 import 'package:dio/dio.dart';
@@ -9,6 +10,21 @@ class IncompleteCatalogResponse implements Exception {
   const IncompleteCatalogResponse(this.message);
   @override
   String toString() => message;
+}
+
+/// TLS handshake failures are `IOException`s, not `SocketException`s (Dart 3.47
+/// routes them through `TlsException`). Dio's IO adapter only catches
+/// `SocketException`, so a dropped handshake surfaces as a `DioException` of
+/// type `unknown` with the real cause in `error.error`. Look through both
+/// wrappers so retry policy and user-facing classification agree on what
+/// happened: the HTTPS connection never came up, which is usually transient.
+bool isHandshakeFailure(Object error) {
+  Object? current = error;
+  for (var hop = 0; hop < 4 && current != null; hop++) {
+    if (current is HandshakeException) return true;
+    current = current is DioException ? current.error : null;
+  }
+  return false;
 }
 
 /// Short, bounded recovery for interactive metadata, not media transfers.
@@ -37,6 +53,11 @@ class NetworkRetry {
 
   static bool transient(Object error) {
     if (error is IncompleteCatalogResponse) return true;
+    // A handshake that was cut off is worth one more ask: proxies and mobile
+    // networks drop them intermittently. A certificate that failed validation
+    // is deliberately NOT retried -- repeating the same untrusted chain just
+    // burns the interactive deadline.
+    if (isHandshakeFailure(error)) return true;
     if (error is! DioException) return false;
     if ({
       DioExceptionType.connectionTimeout,

@@ -7,6 +7,7 @@ import 'package:hongguo_core/hongguo_core.dart';
 import 'package:hongguo_core/hongguo_native.dart';
 
 import 'video_model_client.dart';
+import 'network_retry.dart' show isHandshakeFailure;
 import 'request_control.dart';
 import 'progressive_lane.dart';
 import 'progressive_stream_server.dart';
@@ -281,6 +282,7 @@ class MediaCache {
       if (track.referer.isNotEmpty) 'Referer': track.referer,
     };
     var url = track.url;
+    var handshakeRetries = 0;
     for (var hop = 0; ; hop++) {
       try {
         await dio.download(
@@ -297,6 +299,13 @@ class MediaCache {
         );
         return;
       } on DioException catch (error) {
+        // 握手在传第一个字节之前就被切断，重来一次几乎不花代价；不重试
+        // 会让偶发的代理/CDN 抖动直接变成「视频播放异常」。
+        if (isHandshakeFailure(error) && handshakeRetries < 1) {
+          handshakeRetries++;
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+          continue;
+        }
         final status = error.response?.statusCode ?? 0;
         final location = error.response?.headers.value('location');
         if (status < 300 || status >= 400 || location == null || hop >= 5) {
