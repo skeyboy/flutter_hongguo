@@ -1,6 +1,6 @@
 # Windows 桌面端运行与验证记录
 
-日期：2026-11-24。对象：API 后端切换到 hongguo-drama 8.0 取源方式之后的 Windows 端（最终验证于 `deded2b`，包含 `fff0415` 的三层取源与逐跳校验、`110ddb7` 的窗口与缓存目录改动、`2b71b34` 的 TLS 握手失败识别与有界重试；`6bc7bf6` 与 `deded2b` 为纯文档提交，不涉及代码）。
+日期：2026-11-24。对象：API 后端切换到 hongguo-drama 8.0 取源方式之后的 Windows 端（最终验证于 `b64b0c8`，包含 `fff0415` 的三层取源与逐跳校验、`110ddb7` 的窗口与缓存目录改动、`2b71b34` 的 TLS 握手失败识别与有界重试、`b64b0c8` 的限免边界落到 UI 与常驻诊断命令；`6bc7bf6`、`deded2b`、`59bf638` 为纯文档提交，不涉及代码）。
 
 ## 结论
 
@@ -12,13 +12,14 @@
 | 单元与组件测试（core / api / update / cast / tv / app） | 通过 | CI `verify` job 逐步 success |
 | 真网取源（三层） | 通过 | 本机 Windows 真网探针：官网层应答，落盘可解码 MP4 |
 
-CI 运行记录（`deded2b`，即当前 main）：
+CI 运行记录（`b64b0c8`，即当前 main）：
 
-- [Verify Windows desktop #45325649944](https://github.com/skeyboy/flutter_hongguo/actions/runs/45325649944)（push 触发，windows-2022）
-- [Build selected installer attachments #45325692767](https://github.com/skeyboy/flutter_hongguo/actions/runs/45325692767)（workflow_dispatch，`platforms=["windows"]`，含 analyze + 全包测试 + release 构建 + 安装包）
+- [Verify Windows desktop #45331284986](https://github.com/skeyboy/flutter_hongguo/actions/runs/45331284986)（push 触发，windows-2022）
+- [Build selected installer attachments #45331365525](https://github.com/skeyboy/flutter_hongguo/actions/runs/45331365525)（workflow_dispatch，`platforms=["windows"]`，含 analyze + 全包测试 + release 构建 + 安装包）
 
-同一套门禁在此前三个 HEAD 上也跑过，均 success：
+同一套门禁在此前 HEAD 上也跑过，均 success：
 
+- `deded2b`：[#45325649944](https://github.com/skeyboy/flutter_hongguo/actions/runs/45325649944)、[#45325692767](https://github.com/skeyboy/flutter_hongguo/actions/runs/45325692767)
 - `2b71b34`：[#45323360357](https://github.com/skeyboy/flutter_hongguo/actions/runs/45323360357)、[#45323476596](https://github.com/skeyboy/flutter_hongguo/actions/runs/45323476596)
 - `8efb39b`：[#45319297127](https://github.com/skeyboy/flutter_hongguo/actions/runs/45319297127)、[#45319365325](https://github.com/skeyboy/flutter_hongguo/actions/runs/45319365325)
 - `fff0415`：[#45314159334](https://github.com/skeyboy/flutter_hongguo/actions/runs/45314159334)、[#45314289919](https://github.com/skeyboy/flutter_hongguo/actions/runs/45314289919)
@@ -56,6 +57,18 @@ cd packages/api && dart run bin/mac_poc_probe.dart /tmp/hongguo-live --prepare
 ```
 
 落盘文件结构核对：`ftyp isom/iso2/avc1/mp41`、`moov` 偏移 36、`mdat` 偏移 79187，与 6,670,754 字节的元数据一致——不是 SEO 预览片，也不是空 302 产物。
+
+## Windows 本机限免边界诊断（`b64b0c8`）
+
+常驻诊断工具在 Windows 本机真网跑通，复现了 macOS 的限免边界结论：
+
+```bash
+cd W:/own/flutter_hongguo && dart run tool/diagnose_episode.dart boundary 7710254424689495065
+```
+
+读数：`大婚当天，来了个乞丐爹 episodes=45 accessible_episode_cnt=5`；第 1/5 集 `web fallback HTTP 200` 且 `fetchTrack fromWeb=true`（`v3-hgweb.qznovelvod.com`，360p 明文），第 6/10/45 集 `web fallback HTTP 403` 且 `fetchTrack` 两次（preferApp 真假）都抛 `IncompleteCatalogResponse`。说明「只有前几集能播」是上游限免前缀，不是本机/代理/签名差异；UI 的「限免外」标记与诊断命令已在 `b64b0c8` 落地。
+
+本机跑诊断前需先 `dart pub get` 重建 `.dart_tool/package_config.json`——并行 macOS 会话遗留的缓存指向 `/Users/lee/.pub-cache`，在 Windows 上会报「系统找不到指定的路径」。这是缓存路径问题，不是代码缺陷。
 
 ## 已知缺口（如实记录）
 
