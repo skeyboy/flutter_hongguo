@@ -24,6 +24,7 @@ import '../playback/episode_swipe.dart';
 import '../playback/episode_reveal.dart';
 import '../playback/compact_controls.dart';
 import '../playback/playback_transport.dart';
+import '../playback/playback_failure.dart';
 import '../playback/player_center_overlay.dart';
 import '../playback/transport_player.dart';
 import '../playback/capability_preferences.dart';
@@ -181,6 +182,9 @@ class _PlayerPageState extends State<PlayerPage>
   PreparationProgress? progress;
   final preparationStages = <String>[];
   Object? error;
+
+  /// 「详情」是否展开。错误卡片第一眼只给一句原因，三层来源清单藏在里面。
+  bool errorDetailOpen = false;
   String? audioNotice, playbackNotice;
   late final String cachedPreference;
   bool preparing = true, autoNext = true, playing = false;
@@ -774,6 +778,7 @@ class _PlayerPageState extends State<PlayerPage>
       position = selected;
       preparing = true;
       error = null;
+      errorDetailOpen = false;
       audioNotice = null;
       playbackNotice = null;
       progress = const PreparationProgress('正在准备');
@@ -1316,33 +1321,85 @@ class _PlayerPageState extends State<PlayerPage>
             child: ColoredBox(
               color: Colors.black.withValues(alpha: 0.9),
               child: Center(
-                child: Padding(
+                child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.error_outline,
-                        color: Colors.white70,
-                        size: 36,
-                      ),
-                      const SizedBox(height: 14),
-                      const Text(
-                        '暂时无法播放',
-                        style: TextStyle(color: Colors.white, fontSize: 20),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        '$error',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white60),
-                      ),
-                      const SizedBox(height: 20),
-                      FilledButton(
-                        onPressed: () => _play(position),
-                        child: const Text('重新准备'),
-                      ),
-                    ],
+                  child: Builder(
+                    builder: (context) {
+                      final failure = PlaybackFailure.classify(error!);
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: Colors.white70,
+                            size: 36,
+                          ),
+                          const SizedBox(height: 14),
+                          const Text(
+                            '暂时无法播放',
+                            style: TextStyle(color: Colors.white, fontSize: 20),
+                          ),
+                          const SizedBox(height: 10),
+                          // 一句原因在前：三层来源的原始清单只在「详情」里，
+                          // 第一眼摆出来只是一串主机名和业务码。
+                          Text(
+                            failure.headline,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            failure.hint,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 12,
+                            ),
+                          ),
+                          if (failure.detail.trim().isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            TextButton(
+                              onPressed: () => _redraw(
+                                () => errorDetailOpen = !errorDetailOpen,
+                              ),
+                              child: Text(errorDetailOpen ? '收起详情' : '详情'),
+                            ),
+                            if (errorDetailOpen)
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 520,
+                                ),
+                                child: SelectableText(
+                                  failure.detail,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white38,
+                                    fontSize: 12,
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ),
+                          ],
+                          const SizedBox(height: 20),
+                          Wrap(
+                            spacing: 12,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              if (failure.retryable)
+                                FilledButton(
+                                  onPressed: () => _play(position),
+                                  child: const Text('重新准备'),
+                                ),
+                              if (position + 1 < widget.detail.episodes.length)
+                                TextButton(
+                                  onPressed: () => _step(1),
+                                  child: const Text('换下一集'),
+                                ),
+                            ],
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),
@@ -1825,6 +1882,17 @@ class _PlayerPageState extends State<PlayerPage>
                         const Text(
                           '下一集准备失败',
                           style: TextStyle(color: Colors.amber),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            PlaybackFailure.classify(error!).headline,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12,
+                            ),
+                          ),
                         ),
                         TextButton(
                           onPressed: () => _play(position),

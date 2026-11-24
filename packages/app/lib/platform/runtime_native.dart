@@ -159,7 +159,13 @@ class NativeRuntime
       retainFile: (vid, quality) => downloads.retains(vid, quality),
       onEvict: (vid, quality) => _videoInfo.remove(vid),
       progressivePlayback: () => settings.progressivePlayback && !tvBuild,
-      resolve: (vid, quality) => _model.fetchTrack(vid, quality: quality),
+      // 渐进通道只吃带 CENC 的分片：官网直链是明文 MP4，得整段下完才能播，
+      // 开着「边下边看」时它反而是慢的那条路，让 App 层先答。
+      resolve: (vid, quality) => _model.fetchTrack(
+        vid,
+        quality: quality,
+        preferApp: settings.progressivePlayback && !tvBuild,
+      ),
     );
     downloads = DownloadManager(
       backend: FilePreferencesBackend(
