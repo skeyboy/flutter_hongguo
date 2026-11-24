@@ -1,6 +1,6 @@
 # Windows 桌面端运行与验证记录
 
-日期：2026-11-24。对象：API 后端切换到 hongguo-drama 8.0 取源方式之后的 Windows 端（最终验证于 `2b71b34`，包含 `fff0415` 的三层取源与逐跳校验、`110ddb7` 的窗口与缓存目录改动、`2b71b34` 的 TLS 握手失败识别与有界重试）。
+日期：2026-11-24。对象：API 后端切换到 hongguo-drama 8.0 取源方式之后的 Windows 端（最终验证于 `deded2b`，包含 `fff0415` 的三层取源与逐跳校验、`110ddb7` 的窗口与缓存目录改动、`2b71b34` 的 TLS 握手失败识别与有界重试；`6bc7bf6` 与 `deded2b` 为纯文档提交，不涉及代码）。
 
 ## 结论
 
@@ -12,13 +12,14 @@
 | 单元与组件测试（core / api / update / cast / tv / app） | 通过 | CI `verify` job 逐步 success |
 | 真网取源（三层） | 通过 | 本机 Windows 真网探针：官网层应答，落盘可解码 MP4 |
 
-CI 运行记录（`2b71b34`，即当前 main）：
+CI 运行记录（`deded2b`，即当前 main）：
 
-- [Verify Windows desktop #45323360357](https://github.com/skeyboy/flutter_hongguo/actions/runs/45323360357)（push 触发，windows-2022）
-- [Build selected installer attachments #45323476596](https://github.com/skeyboy/flutter_hongguo/actions/runs/45323476596)（workflow_dispatch，`platforms=["windows"]`，含 analyze + 全包测试 + release 构建 + 安装包）
+- [Verify Windows desktop #45325649944](https://github.com/skeyboy/flutter_hongguo/actions/runs/45325649944)（push 触发，windows-2022）
+- [Build selected installer attachments #45325692767](https://github.com/skeyboy/flutter_hongguo/actions/runs/45325692767)（workflow_dispatch，`platforms=["windows"]`，含 analyze + 全包测试 + release 构建 + 安装包）
 
-同一套门禁在此前两个 HEAD 上也跑过，均 success：
+同一套门禁在此前三个 HEAD 上也跑过，均 success：
 
+- `2b71b34`：[#45323360357](https://github.com/skeyboy/flutter_hongguo/actions/runs/45323360357)、[#45323476596](https://github.com/skeyboy/flutter_hongguo/actions/runs/45323476596)
 - `8efb39b`：[#45319297127](https://github.com/skeyboy/flutter_hongguo/actions/runs/45319297127)、[#45319365325](https://github.com/skeyboy/flutter_hongguo/actions/runs/45319365325)
 - `fff0415`：[#45314159334](https://github.com/skeyboy/flutter_hongguo/actions/runs/45314159334)、[#45314289919](https://github.com/skeyboy/flutter_hongguo/actions/runs/45314289919)
 
