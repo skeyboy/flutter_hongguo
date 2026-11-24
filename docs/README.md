@@ -32,6 +32,7 @@
 ## 构建环境
 
 - [iOS / macOS pod install 失败修复手册](darwin-pod-install-fix.md)：Windows 生成物残留导致 `podhelper` 加载失败、插件 symlink 断链时的排查与重建步骤。
+- [Windows 桌面端运行与验证记录](windows-desktop-verification.md)：SMB 盘无法建符号链接、`media_kit` 无 arm64 预编译库这两处环境约束，以及以 CI（windows-2022）为主证据的验收记录。
 
 ## 本地剧目库
 
