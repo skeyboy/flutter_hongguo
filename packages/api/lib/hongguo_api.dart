@@ -11,6 +11,7 @@ export 'src/source_adapter.dart';
 export 'src/source_registry.dart';
 export 'src/media_url_policy.dart';
 export 'src/routing_catalog.dart';
+export 'src/source_resolver.dart';
 export 'src/sources/sources.dart';
 
 export 'src/network_retry.dart';

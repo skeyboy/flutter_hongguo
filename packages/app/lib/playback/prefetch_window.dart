@@ -17,7 +17,10 @@ class PrefetchEntry {
 /// lease, so a completed next episode cannot be evicted between episodes.
 class PrefetchWindow {
   final AppRuntime runtime;
-  final List<Episode> episodes;
+
+  /// 预取目标集列表。跨源换轨后由 [retarget] 换成新源的集列表，
+  /// 避免继续预热原来源的剧集。
+  List<Episode> episodes;
   final void Function()? onChanged;
   final _entries = <String, PrefetchEntry>{};
   bool _disposed = false;
@@ -33,6 +36,13 @@ class PrefetchWindow {
       _entries.values.where((e) => e.phase == PrefetchPhase.preparing).length;
   PrefetchPhase? phaseFor(String vid, String quality) =>
       _entries['${vid}_$quality']?.phase;
+  /// 换轨到其它片源：先撤销在途的旧源预取任务，再改指向新集列表。
+  /// 下一次 sync 会按新的 position/quality 重新预热。
+  void retarget(List<Episode> next) {
+    clear();
+    if (!_disposed) episodes = next;
+  }
+
   void sync({
     required int position,
     required String quality,

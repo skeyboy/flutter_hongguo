@@ -94,6 +94,24 @@ void main() {
       );
     },
   );
+  test('retarget 跨源换轨撤销旧源预热并按新集列表重启', () async {
+    window.sync(position: 0, quality: 'best', count: 2, enabled: true);
+    expect(runtime.calls, ['2_best', '3_best']);
+    final oldJob = runtime.jobs['2_best']!;
+    expect(oldJob.cancelled, isFalse);
+
+    window.retarget([
+      Episode(vid: 'hema:101', index: 1),
+      Episode(vid: 'hema:102', index: 2),
+      Episode(vid: 'hema:103', index: 3),
+    ]);
+    expect(oldJob.cancelled, isTrue); // 旧源在途任务被撤销。
+    expect(window.total, 0);
+
+    window.sync(position: 0, quality: 'best', count: 2, enabled: true);
+    expect(runtime.calls, ['2_best', '3_best', 'hema:102_best', 'hema:103_best']);
+  });
+
   test('jumping and quality changes retire only the obsolete window', () {
     window.sync(position: 0, quality: 'best', count: 5, enabled: true);
     window.sync(position: 3, quality: 'best', count: 3, enabled: true);

@@ -41,6 +41,7 @@ class EpisodePager extends StatefulWidget {
     this.spacing = 10,
     this.numberFontSize = 16,
     this.pageFontSize = 14,
+    this.hasAlternativeSources = true,
   });
 
   final List<Episode> episodes;
@@ -50,6 +51,11 @@ class EpisodePager extends StatefulWidget {
 
   /// Global (not page-local) index of the tapped episode.
   final ValueChanged<int> onSelected;
+
+  /// 除红果外是否还有启用的备选来源（SourceSettings.hasAlternativeSources）。
+  /// 标记收敛：有备选时不展示限免/锁定样式——点击失败由播放层跨源解析兜底；
+  /// 单源时如实标注，让用户知道这一集在当前来源可能取不到。
+  final bool hasAlternativeSources;
 
   /// Fixed visible rows; the block height never grows beyond this.
   final int rows;
@@ -322,15 +328,25 @@ class _EpisodePagerState extends State<EpisodePager> {
     final selected = widget.currentIndex() == global;
     final scheme = Theme.of(context).colorScheme;
     final node = _cellNode(global);
-    final content = Center(
-      child: Text(
-        '${episode.index}',
-        style: TextStyle(
-          fontSize: widget.numberFontSize,
-          fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
-          color: selected ? scheme.primary : null,
+    // 标记收敛：仅当没有任何备选可播来源时才展示限免/锁定标注；有备选时
+    // 保持正常可点，点击后播放失败会走跨源解析（见 source_resolver）。
+    final restricted =
+        !widget.hasAlternativeSources && (episode.beyondFree || episode.locked);
+    final badge = restricted ? (episode.locked ? '不可播' : '限免外') : null;
+    final content = Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          '${episode.index}',
+          style: TextStyle(
+            fontSize: widget.numberFontSize,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+            color: selected ? scheme.primary : null,
+          ),
         ),
-      ),
+        if (badge != null)
+          Text(badge, style: TextStyle(fontSize: 9, color: scheme.error)),
+      ],
     );
     return Focus(
       canRequestFocus: false,
@@ -339,7 +355,8 @@ class _EpisodePagerState extends State<EpisodePager> {
           ? TvFocusable(
               key: ValueKey('episode-pager-tv-cell-$global'),
               focusNode: node,
-              label: label,
+              // 状态写进 label：遥控下按钮说什么，确认键就做什么。
+              label: badge == null ? label : '$label（$badge）',
               selected: selected,
               onActivate: () => widget.onSelected(global),
               child: content,

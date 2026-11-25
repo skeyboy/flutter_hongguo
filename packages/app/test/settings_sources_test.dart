@@ -28,7 +28,8 @@ void main() {
     await pumpPage(tester, pumpRuntime());
     // 分区标题 + 页面锚点各出现一次。
     expect(find.text('片源'), findsNWidgets(2));
-    expect(find.text('红果为内置来源，始终启用；其它来源按需开启。'), findsOneWidget);
+    expect(find.text('已启用 3 个来源；红果为内置来源，始终启用。'), findsOneWidget);
+    expect(find.text('国内源 · 搜索结果中混入该源内容。'), findsNWidgets(2));
     // 默认开的国内源显示开关；海外源同样出现（默认关）。
     expect(find.text('西饭'), findsOneWidget);
     expect(find.text('河马'), findsOneWidget);

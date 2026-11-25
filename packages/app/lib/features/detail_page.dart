@@ -16,6 +16,7 @@ import '../recommendations/related_dramas_section.dart';
 import '../widgets/drama_cover.dart';
 import '../personal/favorite_button.dart';
 import 'player_page.dart';
+import 'source_switch_sheet.dart';
 
 class DetailPage extends StatefulWidget {
   final AppRuntime runtime;
@@ -139,7 +140,17 @@ class _DetailPageState extends State<DetailPage> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: Text(widget.initial.title),
-      actions: [FavoriteButton(runtime: widget.runtime, drama: widget.initial)],
+      actions: [
+        // 片源切换：跨源同名解析（source_resolver），TV 走 tv_detail_page。
+        IconButton(
+          key: const Key('detail-source-switch'),
+          tooltip: '切换片源',
+          icon: const Icon(Icons.travel_explore),
+          onPressed: () =>
+              showSourceSwitch(context, widget.runtime, widget.initial),
+        ),
+        FavoriteButton(runtime: widget.runtime, drama: widget.initial),
+      ],
     ),
     body: FutureBuilder<DramaDetail>(
       future: detail,

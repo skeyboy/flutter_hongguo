@@ -332,9 +332,15 @@ class NativeRuntime
       builder: VideoRequestBuilder(protocol: settings),
       info: _videoInfo,
     );
-    // 注册表在每次客户端重建时按当前设置重新装配：P0 清单只有红果，
-    // 但设置变更带来的 sources 改动将自然在下一次重建生效。
-    // 自定义源配置变更前先撤销其所有在途请求，避免热变更期间旧配置继续发请求。
+    // 注册表在每次客户端重建时按当前设置重新装配。
+    _rebuildRegistry();
+    _clientsReady = true;
+  }
+
+  /// 片源开关/自定义源变更专用：catalog/model 客户端不重建（不清目录快照、
+  /// 不打断在途请求），只按新设置重装注册表与路由目录。自定义源配置变更前
+  /// 先撤销其所有在途请求，避免热变更期间旧配置继续发请求。
+  void _rebuildRegistry() {
     for (final config in settings.sources.customSources) {
       _customTokens.cancel(config.uuid);
     }
@@ -359,7 +365,6 @@ class NativeRuntime
       primary: _catalog,
       rank: _catalog,
     );
-    _clientsReady = true;
   }
 
   @override
@@ -371,7 +376,8 @@ class NativeRuntime
     final changeDownloadPolicy =
         value.backgroundDownloads != settings.backgroundDownloads;
     final oldProtocol = jsonEncode(settings.protocolJson()),
-        oldSession = jsonEncode(this.credentials.toJson());
+        oldSession = jsonEncode(this.credentials.toJson()),
+        oldSources = jsonEncode(settings.sources.toJson());
     if (value.backgroundDownloads && !settings.backgroundDownloads) {
       await _downloads.initialize(requestNotification: true);
     }
@@ -381,6 +387,7 @@ class NativeRuntime
       if (changeDownloadPolicy && !value.backgroundDownloads) {
         await _downloads.cancel();
       }
+      var rebuiltClients = false;
       if (oldTvPageSize != settings.tvPageSize ||
           oldProtocol != jsonEncode(settings.protocolJson()) ||
           oldSession != jsonEncode(this.credentials.toJson())) {
@@ -389,6 +396,12 @@ class NativeRuntime
           store.warning = '目录快照清理未写入磁盘，其他设置已保存。';
         });
         _rebuildClients();
+        rebuiltClients = true;
+      }
+      // 片源开关与自定义源变更即时生效：注册表重装即可，不必清目录快照。
+      if (!rebuiltClients &&
+          oldSources != jsonEncode(settings.sources.toJson())) {
+        _rebuildRegistry();
       }
       _settingsEvents.add(settings);
       if (!settings.prefetchEnabled) {
