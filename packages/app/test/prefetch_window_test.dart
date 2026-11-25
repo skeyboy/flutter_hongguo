@@ -109,7 +109,12 @@ void main() {
     expect(window.total, 0);
 
     window.sync(position: 0, quality: 'best', count: 2, enabled: true);
-    expect(runtime.calls, ['2_best', '3_best', 'hema:102_best', 'hema:103_best']);
+    expect(runtime.calls, [
+      '2_best',
+      '3_best',
+      'hema:102_best',
+      'hema:103_best',
+    ]);
   });
 
   test('jumping and quality changes retire only the obsolete window', () {

@@ -21,9 +21,7 @@ Future<void> showSourceSwitch(
       ? runtime.catalog as SourceSearchFacade
       : null;
   if (facade == null) {
-    messenger.showSnackBar(
-      const SnackBar(content: Text('当前环境不支持片源切换')),
-    );
+    messenger.showSnackBar(const SnackBar(content: Text('当前环境不支持片源切换')));
     return;
   }
   final resolver = SourceResolver(facade);
@@ -101,10 +99,8 @@ Future<void> showSourceSwitch(
     context: context,
     barrierDismissible: false,
     builder: (context) => FutureBuilder<SourceMatch?>(
-      future: SourceResolver(facade).resolve(
-        title: drama.title,
-        excludeId: current,
-      ),
+      future: SourceResolver(facade)
+          .resolve(title: drama.title, excludeId: current),
       builder: (context, snapshot) {
         final match = snapshot.data;
         if (snapshot.connectionState != ConnectionState.done) {
@@ -133,14 +129,12 @@ Future<void> showSourceSwitch(
   );
   if (!context.mounted) return;
   if (resolved == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('其它片源没有找到「${drama.title}」')),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('其它片源没有找到「${drama.title}」')));
     return;
   }
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('已切换到 ${resolved.sourceLabel}')),
-  );
+  ScaffoldMessenger.of(context)
+      .showSnackBar(SnackBar(content: Text('已切换到 ${resolved.sourceLabel}')));
   await Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => isTv

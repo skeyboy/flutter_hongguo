@@ -36,6 +36,7 @@ class PrefetchWindow {
       _entries.values.where((e) => e.phase == PrefetchPhase.preparing).length;
   PrefetchPhase? phaseFor(String vid, String quality) =>
       _entries['${vid}_$quality']?.phase;
+
   /// 换轨到其它片源：先撤销在途的旧源预取任务，再改指向新集列表。
   /// 下一次 sync 会按新的 position/quality 重新预热。
   void retarget(List<Episode> next) {
