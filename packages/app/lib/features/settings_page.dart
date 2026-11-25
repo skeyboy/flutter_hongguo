@@ -1013,27 +1013,34 @@ class _SettingsPageState extends State<SettingsPage> {
           children: [
             // The longest anchor is 高级接口与签名参数; the phone rail clips it
             // at 13px, but a 20px remote target needs room for the whole word.
+            // The rail is independently scrollable: on a TV the system font's
+            // CJK line height makes nine 20px anchors taller than a short
+            // viewport, and an unbounded Column overflowed 88px at the bottom.
+            // A scroll view keeps every anchor reachable (the ring scrolls the
+            // focused target into view) regardless of font metrics.
             SizedBox(
               width: tv ? 300 : 170,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 20),
-                  for (final entry in anchors.entries)
-                    if (tv)
-                      _tvButton(
-                        entry.key,
-                        onActivate: () => _scrollToAnchor(entry.key),
-                      )
-                    else
-                      ListTile(
-                        title: Text(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 20),
+                    for (final entry in anchors.entries)
+                      if (tv)
+                        _tvButton(
                           entry.key,
-                          style: const TextStyle(fontSize: 13),
+                          onActivate: () => _scrollToAnchor(entry.key),
+                        )
+                      else
+                        ListTile(
+                          title: Text(
+                            entry.key,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          onTap: () => _scrollToAnchor(entry.key),
                         ),
-                        onTap: () => _scrollToAnchor(entry.key),
-                      ),
-                ],
+                  ],
+                ),
               ),
             ),
             const VerticalDivider(width: 1),
