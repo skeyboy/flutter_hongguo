@@ -84,7 +84,8 @@ ahead 67 commits。三个并行探索 agent 交叉核对源码后产出方案。
 - 本地门禁：core 164 / api 325 / cast 52（一次时序 flaky，单跑 2× 绿）/ tv 38 /
   app 526 全绿；五包 `dart analyze` No issues found。
 - 推送：直推成功（`git -c http.sslBackend=openssl`），PR #3 触发 CI
-  run `45568358129`，等待结果。
+  run `45568358129`（head `b596bc8`）✅ success。
+- 变更说明文档本身作为追加提交 `4a8216c` 已推送，PR #3 head 更新为 `4a8216c`。
 
 ---
 
