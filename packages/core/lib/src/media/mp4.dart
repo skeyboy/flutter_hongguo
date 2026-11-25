@@ -480,8 +480,17 @@ class Mp4Cenc {
     return out;
   }
 
+  /// 样本是否像一个合法 NAL 流。
+  ///
+  /// 对齐上游 `mp4.js:770-787 avccSelfOk`：除 AVCC 长度前缀外，也接受
+  /// Annex-B 起始码（`00 00 01` / `00 00 00 01`）——某些片源减壳后保留
+  /// Annex-B 布局，只走 AVCC 会把正确密钥误判为不匹配。
   static bool validNalSample(Uint8List plain, int lengthSize, String codec) {
     if (plain.isEmpty || lengthSize < 1 || lengthSize > 4) return false;
+    // Annex-B：整段按起始码切分，逐 NAL 做同样的 forbidden_zero/type 检查。
+    if (_startCodeAt(plain, 0) != -1) {
+      return _validAnnexB(plain, codec);
+    }
     var at = 0, count = 0;
     while (at < plain.length) {
       if (at + lengthSize > plain.length) return false;
@@ -491,19 +500,102 @@ class Mp4Cenc {
       }
       at += lengthSize;
       if (length < 1 || at + length > plain.length) return false;
-      final hevc = ['hvc1', 'hev1'].contains(codec);
-      if (hevc) {
-        if (length < 2 || (plain[at] & 0x80) != 0 || (plain[at + 1] & 7) == 0) {
-          return false;
-        }
-      } else {
-        final type = plain[at] & 31;
-        if ((plain[at] & 0x80) != 0 || type == 0 || type > 23) return false;
-      }
+      if (!_validNalHeader(plain, at, length, codec)) return false;
       at += length;
       count++;
     }
     return at == plain.length && count > 0;
+  }
+
+  static int _startCodeAt(Uint8List b, int at) {
+    if (at + 3 <= b.length &&
+        b[at] == 0 &&
+        b[at + 1] == 0 &&
+        b[at + 2] == 1) {
+      return 3;
+    }
+    if (at + 4 <= b.length &&
+        b[at] == 0 &&
+        b[at + 1] == 0 &&
+        b[at + 2] == 0 &&
+        b[at + 3] == 1) {
+      return 4;
+    }
+    return -1;
+  }
+
+  static bool _validAnnexB(Uint8List plain, String codec) {
+    var at = 0, count = 0;
+    while (at < plain.length) {
+      final sc = _startCodeAt(plain, at);
+      if (sc < 0) return false; // 不允许起始码之外还有裸字节
+      at += sc;
+      if (at >= plain.length) return false;
+      // 下一个起始码（或末尾）即为本 NAL 的边界。
+      var end = at + 1;
+      while (end < plain.length && _startCodeAt(plain, end) < 0) {
+        end++;
+      }
+      if (!_validNalHeader(plain, at, end - at, codec)) return false;
+      at = end;
+      count++;
+    }
+    return count > 0;
+  }
+
+  static bool _validNalHeader(
+    Uint8List plain,
+    int at,
+    int length,
+    String codec,
+  ) {
+    final hevc = ['hvc1', 'hev1'].contains(codec);
+    if (hevc) {
+      if (length < 2 || (plain[at] & 0x80) != 0 || (plain[at + 1] & 7) == 0) {
+        return false;
+      }
+    } else {
+      final type = plain[at] & 31;
+      if ((plain[at] & 0x80) != 0 || type == 0 || type > 23) return false;
+    }
+    return true;
+  }
+
+  /// 只读探测：文件头是否表明这是 ByteVC2（VVC）片源。
+  ///
+  /// 对齐上游 `stream.js:287-325 isBvc2File`：BVC2 浏览器/播放器解不了，
+  /// 直接交给播放器只会黑屏且拿不到「不支持」提示，所以命中就要拦截。
+  /// 判定信号（头 1MB 内即可）：
+  ///  - 私有解码配置盒 `bv2C`（未减壳的原始文件）；
+  ///  - 样本条目名 `bvc2` / `bv2C` / `vvc1` / `vvi1`（减壳 / 标签改写后）。
+  /// 读不出来或太短按「不是 BVC2」处理，交给后续流程。
+  static bool isBvc2(Uint8List head) {
+    if (head.length < 32) return false;
+    if (_asciiContains(head, 'bv2C')) return true;
+    final i = _asciiIndexOf(head, 'stsd');
+    // stsd 盒起点在其 type 前 4 字节；+8 version/flags、+12 entry_count、
+    // +16 第一个条目 size、+20 才是条目 type（相对 type 字段位置 i 为 i+16）。
+    if (i < 0 || i + 20 > head.length) return false;
+    final tag = convert.latin1.decode(head.sublist(i + 16, i + 20));
+    return const {'bvc2', 'bv2C', 'vvc1', 'vvi1'}.contains(tag);
+  }
+
+  static bool _asciiContains(Uint8List b, String needle) =>
+      _asciiIndexOf(b, needle) >= 0;
+
+  static int _asciiIndexOf(Uint8List b, String needle) {
+    if (needle.isEmpty || needle.length > b.length) return -1;
+    for (var i = 0; i + needle.length <= b.length; i++) {
+      var ok = true;
+      for (var j = 0; j < needle.length; j++) {
+        if (b[i + j] != needle.codeUnitAt(j)) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) return i;
+    }
+    return -1;
   }
 
   /// Validate before modifying any ciphertext, then process every encrypted track.
@@ -515,6 +607,9 @@ class Mp4Cenc {
       throw UnsupportedError('Cannot verify key without encrypted video');
     }
     if (video != null) {
+      // 用首个视频样本验证 key。上游 `mp4.js:789-845` 虽取 6 个探测样本，
+      // 但那是专门挑选的 IDR 样本；此处按样本序号盲取会把 P 帧误判为
+      // 密钥不匹配（real.cenc.mp4 真值即可复现），故保留单 IDR 样本策略。
       final first = decryptSample(
         store.read(video.offsets.first, video.sizes.first),
         video.encryption.first,

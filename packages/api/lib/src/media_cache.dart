@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:hongguo_core/hongguo_core.dart';
@@ -616,6 +617,12 @@ class MediaCache {
       final output = File('${directory.path}/${job.key}.mp4');
       final manifest = File('${output.path}.json');
       cacheHit = await _cacheHit(output, manifest);
+      if (cacheHit) {
+        // BVC2 缓存拦截（对齐上游 stream.js:287-325 isBvc2File）：
+        // 旧缓存可能是 BVC2 减壳文件，播放器解不了只会黑屏；命中即早拒，
+        // 提示用户换片源或下载后本地观看，绝不把 BVC2 交给播放器。
+        await _rejectIfBvc2(output);
+      }
       if (!cacheHit) {
         _check(job);
         job.progress(const MediaProgress(MediaStage.resolving));
@@ -746,6 +753,9 @@ class MediaCache {
         job.progress(const MediaProgress(MediaStage.validating));
         await FileDecryptor.validateClear(clear);
         _check(job);
+        // 新下载同样拦截 BVC2：解密后的 clear 文件若仅 VVC 编码，不发布
+        // 到缓存也不交给播放器（对齐上游 stream.js 的 ERR_BVC2_ONLY）。
+        await _rejectIfBvc2(File(clear));
         final length = await File(clear).length();
         final temporaryManifest = File('$working.json');
         await temporaryManifest.writeAsString(
@@ -1028,6 +1038,28 @@ class MediaCache {
     }, '${output.path}.published.json');
     _deleteQuietly(temporary.path);
     await prune();
+  }
+
+  /// BVC2 片源拦截（对齐上游 `stream.js:287-325 isBvc2File`）。
+  ///
+  /// BVC2/VVC 是播放器（media_kit / video_player）解不了的私有编码，
+  /// 直接交给播放器只会黑屏且前端拿不到「不支持」提示。读文件头 1MB
+  /// 探测 `bv2C` 私有配置盒或 stsd 样本条目名，命中即抛 StateError，
+  /// 由 PlaybackFailure 归类为 sourceRejected，文案引导换源/下载后观看。
+  /// 读不出来按普通文件放行，交给后续流程处理（与上游一致）。
+  Future<void> _rejectIfBvc2(File file) async {
+    Uint8List head;
+    try {
+      final chunk = await file.openRead(0, 1024 * 1024).first;
+      head = chunk is Uint8List ? chunk : Uint8List.fromList(chunk);
+    } on FileSystemException {
+      return; // 读不出来按普通文件处理，交给后续流程
+    } on StateError {
+      return; // 空文件：没有 BVC2 信号
+    }
+    if (Mp4Cenc.isBvc2(head)) {
+      throw StateError('该片源为 BVC2 编码，当前播放器不支持，请换其它片源或下载后本地观看');
+    }
   }
 
   Future<bool> _cacheHit(File file, File manifest) async {
