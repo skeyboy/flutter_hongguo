@@ -254,16 +254,12 @@ void main() {
       await runtime.saveSettings(next);
       expect(events.last.themeMode, 'dark');
       expect(events.last.catalogSort, 'hot_collect');
-      expect(
-        (runtime.catalog as CatalogClient).browsePageSize,
-        tvBuild ? 50 : 18,
-      );
-      expect((runtime.catalog as CatalogClient).protocol.timeoutSeconds, 25);
-      expect((runtime.catalog as CatalogClient).signLists, isTrue);
-      expect(
-        (runtime.catalog as CatalogClient).protocol.catalogVersion,
-        '7.2.2.33',
-      );
+      // 多源接入后 runtime.catalog 是路由门面，红果协议落在门面的 primary 上。
+      final primary = (runtime.catalog as RoutingCatalogRepository).primary;
+      expect(primary.browsePageSize, tvBuild ? 50 : 18);
+      expect(primary.protocol.timeoutSeconds, 25);
+      expect(primary.signLists, isTrue);
+      expect(primary.protocol.catalogVersion, '7.2.2.33');
       await subscription.cancel();
       await runtime.dispose();
       final restarted = SettingsStore(

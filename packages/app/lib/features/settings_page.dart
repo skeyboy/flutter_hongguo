@@ -1,5 +1,7 @@
 import '../navigation/app_navigation.dart';
 
+import 'package:dio/dio.dart';
+import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_tv/hongguo_tv.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -55,6 +57,8 @@ class _SettingsPageState extends State<SettingsPage> {
     for (final name in [
       '后台与悬浮播放',
       '播放与提前缓存',
+      '内容列表',
+      '片源',
       '缓存管理',
       if (updateSupported) '更新',
       '签名与设备',
@@ -290,6 +294,235 @@ class _SettingsPageState extends State<SettingsPage> {
       videoCode.text = value.videoVersionCode;
       userAgent.text = value.videoUserAgent;
     });
+  }
+
+  /// 片源分区：来源列表与开关全部由注册表/设置派生，不写死枚举。
+  /// 内置源开关走 withBuiltin（红果不可关）；自定义源走 CRUD 并在保存前
+  /// 可「测试连接」。改动先落在 draft，随统一保存事务持久化。
+  Widget _sourcesSection() {
+    // 注册表可用时以注册表为准；web/tv 与测试环境退回静态清单，两者顺序一致。
+    const fallbackLabels = {
+      'xifan': '西饭',
+      'hema': '河马',
+      'dramabox': 'DramaBox（海外）',
+      'reelshort': 'ReelShort（海外）',
+    };
+    final catalog = widget.runtime.catalog;
+    final adapters = catalog is RoutingCatalogRepository
+        ? catalog.sources.where((a) => a.kind == SourceKind.builtin)
+        : <SourceAdapter>[];
+    final builtinRows = <Widget>[
+      if (adapters.isEmpty)
+        for (final entry in fallbackLabels.entries)
+          _switch(
+            entry.value,
+            '来自 ${entry.key} 的内容将出现在发现与搜索结果中。',
+            draft.sources.isEnabled(entry.key),
+            (v) => setState(
+              () => draft = draft.copyWith(
+                sources: draft.sources.withBuiltin(entry.key, v),
+              ),
+            ),
+          )
+      else
+        for (final adapter in adapters)
+          if (adapter.id != 'hongguo')
+            _switch(
+              adapter.label,
+              '来自 ${adapter.id} 的内容将出现在发现与搜索结果中。',
+              draft.sources.isEnabled(adapter.id),
+              (v) => setState(
+                () => draft = draft.copyWith(
+                  sources: draft.sources.withBuiltin(adapter.id, v),
+                ),
+              ),
+            ),
+    ];
+    final customRows = <Widget>[
+      for (final config in draft.sources.customSources)
+        if (tv) ...[
+          // 遥控没有文本输入，电视端只做启用/停用/删除；新增留给手机与桌面。
+          _tvRow(
+            config.name.isEmpty ? '未命名片源' : config.name,
+            subtitle: Uri.tryParse(config.url)?.host ?? config.url,
+            state: config.enabled ? '已开启' : '已关闭',
+            selected: config.enabled,
+            onActivate: busy
+                ? null
+                : () => setState(
+                    () => draft = draft.copyWith(
+                      sources: draft.sources.toggleCustom(
+                        config.uuid,
+                        !config.enabled,
+                      ),
+                    ),
+                  ),
+          ),
+          _tvButton(
+            '删除 ${config.name.isEmpty ? '未命名片源' : config.name}',
+            icon: Icons.delete_outline,
+            onActivate: busy
+                ? null
+                : () => setState(
+                    () => draft = draft.copyWith(
+                      sources: draft.sources.removeCustom(config.uuid),
+                    ),
+                  ),
+          ),
+        ] else
+          ListTile(
+            key: Key('custom-source-${config.uuid}'),
+            contentPadding: EdgeInsets.zero,
+            title: Text(config.name.isEmpty ? '未命名片源' : config.name),
+            subtitle: Text(
+              Uri.tryParse(config.url)?.host ?? config.url,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Switch(
+                  value: config.enabled,
+                  onChanged: busy
+                      ? null
+                      : (v) => setState(
+                          () => draft = draft.copyWith(
+                            sources: draft.sources.toggleCustom(config.uuid, v),
+                          ),
+                        ),
+                ),
+                IconButton(
+                  tooltip: '删除该片源',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: busy
+                      ? null
+                      : () => setState(
+                          () => draft = draft.copyWith(
+                            sources: draft.sources.removeCustom(config.uuid),
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+    ];
+    return _section('片源', [
+      const Text('红果为内置来源，始终启用；其它来源按需开启。'),
+      const SizedBox(height: 4),
+      ...builtinRows,
+      if (customRows.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        const Divider(),
+        ...customRows,
+      ],
+      if (tv)
+        const Text('自定义片源需在手机或桌面端添加；电视端可启用、停用或删除已有片源。')
+      else
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            key: const Key('add-custom-source'),
+            onPressed: busy ? null : _addCustomSource,
+            icon: const Icon(Icons.add),
+            label: const Text('添加自定义片源'),
+          ),
+        ),
+      const Text('自定义片源使用苹果 CMS 接口；仅支持未加密 MP4 分集，HLS 暂不支持。'),
+    ]);
+  }
+
+  /// 添加/测试自定义片源。先在弹层里用适配器的 validate + test 做连通性
+  /// 检查，通过后写入 draft；真正的持久化随统一保存事务提交。
+  Future<void> _addCustomSource() async {
+    final name = TextEditingController();
+    final url = TextEditingController();
+    String? message;
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('添加自定义片源'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: name,
+                decoration: const InputDecoration(labelText: '名称（1–40 字）'),
+              ),
+              TextField(
+                controller: url,
+                decoration: const InputDecoration(
+                  labelText: '苹果 CMS 接口地址（HTTPS）',
+                ),
+              ),
+              if (message != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    message!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              key: const Key('test-custom-source'),
+              onPressed: () async {
+                final draft = CustomSourceConfig(
+                  uuid: newSourceUuid(),
+                  name: name.text.trim(),
+                  url: url.text.trim(),
+                  enabled: true,
+                );
+                try {
+                  final checked = CustomSourceAdapter.validate(draft);
+                  final adapter = CustomSourceAdapter(
+                    uuid: checked.uuid,
+                    dio: Dio(),
+                    initial: checked,
+                    configOf: () => checked,
+                  );
+                  final result = await adapter.test();
+                  setDialogState(() => message = result.message);
+                } on SourceException catch (error) {
+                  setDialogState(() => message = error.message);
+                }
+              },
+              child: const Text('测试连接'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('保存'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (saved != true || !mounted) return;
+    try {
+      final checked = CustomSourceAdapter.validate(
+        CustomSourceConfig(
+          uuid: newSourceUuid(),
+          name: name.text.trim(),
+          url: url.text.trim(),
+          enabled: true,
+        ),
+      );
+      setState(() {
+        draft = draft.copyWith(sources: draft.sources.upsertCustom(checked));
+        changed = true;
+      });
+    } on SourceException catch (error) {
+      setState(() => status = error.message);
+    }
   }
 
   /// The update rows talk to the app-wide controller, not to the form draft:
@@ -1039,6 +1272,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             'TV 接近列表末尾自动加载下一页。每次请求 30 或 50 条，实际返回数量由上游决定。',
                           ),
                       ]),
+                      _sourcesSection(),
                       _section('缓存管理', [
                         if (tv)
                           _tvRow(

@@ -6,6 +6,8 @@ import 'package:dio/dio.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 import 'package:hongguo_core/hongguo_native.dart';
 
+import 'media_url_policy.dart';
+import 'source_id.dart';
 import 'video_model_client.dart';
 import 'network_retry.dart' show isHandshakeFailure;
 import 'request_control.dart';
@@ -271,6 +273,7 @@ class MediaCache {
     String path,
     CancelToken token, {
     required List<String> domains,
+    MediaUrlPolicy? policy,
     required void Function(int received, int total) onProgress,
   }) async {
     // 官网直链层带官方桌面 UA 与官网 Referer；App 取址的 CDN 两项留空，
@@ -312,8 +315,13 @@ class MediaCache {
           rethrow;
         }
         // 相对跳转（Location: /path）按当前地址解析，绝对地址原样用。
+        // 逐跳复用统一策略校验（等价于参考的 beforeRedirect），不可用
+        // 「先探测后连接」的 TOCTOU 写法。红果未带 policy 时行为不变。
         final next = url.resolve(location);
-        MediaUrlDecoder.checked(next.toString(), domains);
+        checkMediaUrl(
+          next.toString(),
+          policy ?? DomainAllowlistPolicy(domains),
+        );
         url = next;
       }
     }
@@ -329,11 +337,14 @@ class MediaCache {
   }
 
   String _key(String vid, String quality) {
-    if (!RegExp(r'^\d{1,30}$').hasMatch(vid) ||
+    // 多源 ID 自带前缀（xifan:/hema:/custom:...），不再限定纯数字；
+    // 但要经过安全转义才能当文件名，且必须单射避免跨源碰撞。
+    final escaped = mediaKeyEscape(vid);
+    if (escaped.isEmpty ||
         !RegExp(r'^(best|auto|\d{3,4}p)$').hasMatch(quality)) {
       throw ArgumentError('Invalid video ID or quality');
     }
-    return '${vid}_$quality';
+    return '${escaped}_$quality';
   }
 
   MediaPreparation prepare(
@@ -590,8 +601,18 @@ class MediaCache {
         }
         // 官网层的直链会落到字节系其它 CDN（webMediaDomains），App 层签名
         // 链接只用 appMediaDomains：放行面按来源分开，不因为多一层就全局放宽。
+        // 多源轨带 policy 时逐轨校验；红果未带 policy 时回退到原有布尔判定，
+        // 走 DomainAllowlistPolicy 的 MediaUrlDecoder.checked，行为字节级不变。
         final domains = track.fromWeb ? webMediaDomains : appMediaDomains;
-        MediaUrlDecoder.checked(track.url.toString(), domains);
+        final policy = track.policy ?? DomainAllowlistPolicy(domains);
+        checkMediaUrl(track.url.toString(), policy);
+        // HLS 通道未落地（见 docs/design/hls-channel-evaluation.md）：m3u8 是
+        // 播放列表不是视频字节，落到 dio.download 会写出假 mp4 并静默播不了。
+        // 适配器已在取址层早拒，这里是最后一道兜底，任何来源都不得绕过。
+        if (track.format == VideoFormat.hls ||
+            track.url.path.toLowerCase().endsWith('.m3u8')) {
+          throw StateError('该片源为 HLS 流，当前版本暂不支持');
+        }
         working =
             '${output.path}.${DateTime.now().microsecondsSinceEpoch}.${_serial++}.part';
         workingIdentity = working;
@@ -663,6 +684,7 @@ class MediaCache {
             working,
             job.token,
             domains: domains,
+            policy: policy,
             onProgress: report,
           );
         }

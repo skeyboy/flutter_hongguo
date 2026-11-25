@@ -136,6 +136,29 @@ class NativeRuntime
   late CatalogClient _catalog;
   late VideoModelClient _model;
 
+  /// 多源路由门面：上层只认 CatalogRepository，来源分派在门面内完成。
+  /// P0 只有红果适配器，方法委托 primary，行为与旧 CatalogClient 一致。
+  late RoutingCatalogRepository _routingCatalog;
+
+  /// 取址路由：vid 自带来源前缀，红果走旧 VideoModelClient（保留 preferApp
+  /// 的官网/App 分层），第三方源走各自适配器的明文取址。
+  late SourceRegistry _sourceRegistry;
+
+  /// 自定义源在途请求注册表：设置变更时撤销旧源请求（配置热变更防护）。
+  final CancelTokenRegistry _customTokens = CancelTokenRegistry();
+
+  Future<VideoTrack> _resolveTrack(String vid, String quality) async {
+    final adapter = _sourceRegistry.forId(vid);
+    if (adapter == null || adapter.id == 'hongguo') {
+      return _model.fetchTrack(
+        vid,
+        quality: quality,
+        preferApp: settings.progressivePlayback && !tvBuild,
+      );
+    }
+    return adapter.fetchTrack(vid, quality: quality);
+  }
+
   /// Answers kept per vid across client rebuilds, so a settings change in the
   /// middle of a batch cannot make the rest of the queue re-register and
   /// re-ask for episodes the upstream already answered for.
@@ -199,11 +222,7 @@ class NativeRuntime
       progressivePlayback: () => settings.progressivePlayback && !tvBuild,
       // 渐进通道只吃带 CENC 的分片：官网直链是明文 MP4，得整段下完才能播，
       // 开着「边下边看」时它反而是慢的那条路，让 App 层先答。
-      resolve: (vid, quality) => _model.fetchTrack(
-        vid,
-        quality: quality,
-        preferApp: settings.progressivePlayback && !tvBuild,
-      ),
+      resolve: _resolveTrack,
     );
     downloads = DownloadManager(
       backend: FilePreferencesBackend(
@@ -279,7 +298,7 @@ class NativeRuntime
   }
 
   @override
-  CatalogRepository get catalog => _catalog;
+  CatalogRepository get catalog => _routingCatalog;
   @override
   AppSettings get settings => store.settings;
   @override
@@ -312,6 +331,33 @@ class NativeRuntime
       devices: _playbackDevices,
       builder: VideoRequestBuilder(protocol: settings),
       info: _videoInfo,
+    );
+    // 注册表在每次客户端重建时按当前设置重新装配：P0 清单只有红果，
+    // 但设置变更带来的 sources 改动将自然在下一次重建生效。
+    // 自定义源配置变更前先撤销其所有在途请求，避免热变更期间旧配置继续发请求。
+    for (final config in settings.sources.customSources) {
+      _customTokens.cancel(config.uuid);
+    }
+    final registry = SourceRegistry(
+      defaultSourceFactories(
+        catalog: () => _catalog,
+        model: () => _model,
+        dio: () => _dio,
+      ),
+      settings.sources,
+      expansiveFactories: [
+        (sourceSettings) => customSourceAdapters(
+          dio: () => _dio,
+          currentSources: () => settings.sources.customSources,
+          tokens: _customTokens,
+        ),
+      ],
+    );
+    _sourceRegistry = registry;
+    _routingCatalog = RoutingCatalogRepository(
+      registry: registry,
+      primary: _catalog,
+      rank: _catalog,
     );
     _clientsReady = true;
   }

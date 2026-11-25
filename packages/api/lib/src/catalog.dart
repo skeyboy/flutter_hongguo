@@ -216,11 +216,16 @@ class Episode {
   /// 上游恢复后同一集仍可播。为 null 表示来源没有提供边界信息。
   final int? accessibleCount;
 
+  /// 当前来源对该集标注了「不可播」（付费/鉴权/CDN 限制）。默认值保持
+  /// 红果行为不变；第三方适配器归一时填入。仅作提示，不绕过鉴权。
+  final bool locked;
+
   const Episode({
     required this.vid,
     required this.index,
     this.title = '',
     this.accessibleCount,
+    this.locked = false,
   });
 
   bool get beyondFree => accessibleCount != null && index > accessibleCount!;
