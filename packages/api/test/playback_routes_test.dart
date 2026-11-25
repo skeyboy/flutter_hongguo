@@ -3,7 +3,7 @@ import 'package:hongguo_core/hongguo_core.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('默认路由顺序与现状一致', () {
+  test('current 路由集保留旧三层顺序', () {
     final routes = playbackRoutes(
       webFirst: true,
       set: PlaybackRouteSet.current,
@@ -78,18 +78,31 @@ void main() {
     );
   });
 
-  test('老配置缺协议开关时全部回退到当前行为', () {
+  test('新配置与老配置默认使用扩展路由，显式 current 仍可保留', () {
     final settings = AppSettings.fromJson({'apiHost': 'api5-test.fqnovel.com'});
     expect(settings.detailSourceOrder, DetailSourceOrder.webFirst);
     expect(settings.identityPolicy, PlaybackIdentityPolicy.freshPerAsk);
-    expect(settings.playbackRouteSet, PlaybackRouteSet.current);
+    expect(settings.playbackRouteSet, PlaybackRouteSet.extended);
+    expect(const AppSettings().playbackRouteSet, PlaybackRouteSet.extended);
+    expect(
+      AppSettings.fromJson({'playbackRouteSet': 'invalid'}).playbackRouteSet,
+      PlaybackRouteSet.extended,
+    );
+    final current = AppSettings.fromJson({
+      ...settings.toJson(),
+      'playbackRouteSet': 'current',
+    });
+    expect(current.playbackRouteSet, PlaybackRouteSet.current);
+    expect(
+      AppSettings.fromJson(current.toJson()).playbackRouteSet,
+      PlaybackRouteSet.current,
+    );
     final roundTrip = AppSettings.fromJson(settings.toJson());
     expect(roundTrip.detailSourceOrder, DetailSourceOrder.webFirst);
     expect(
       AppSettings.fromJson({
         ...settings.toJson(),
         'detailSourceOrder': 'appFirst',
-        'playbackRouteSet': 'extended',
         'identityPolicy': 'reuseOnSuccess',
       }).playbackRouteSet,
       PlaybackRouteSet.extended,

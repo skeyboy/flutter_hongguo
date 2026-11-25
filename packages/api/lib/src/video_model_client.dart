@@ -344,6 +344,19 @@ class VideoModelClient {
        );
   void close() => _requests.cancelAll();
 
+  void _reportRouteFailure(PlaybackRouteId route, String failureType) =>
+      onRouteFailure?.call(route.label, failureType);
+
+  String _failureKind(Object error) {
+    final classified = classifyUpstreamFailure(error);
+    if (classified != null) return classified.diagnosticId;
+    if (error is DioException) {
+      final status = error.response?.statusCode;
+      if (status != null) return 'http-$status';
+    }
+    return error.runtimeType.toString();
+  }
+
   /// The recovery this hop gets, which is not a catalog hop's: the player
   /// answers by a window of seconds rather than by the request, so the tries
   /// are spread past the ~1s the catalog recovery takes, and the deadline has
@@ -521,9 +534,9 @@ class VideoModelClient {
     return data;
   }
 
-  /// 有序播放路由。默认三层与历史行为一致；`extended` 才启用 Android 的
-  /// v5 / 老单集 / 换主机 / 官网匿名路径。任一路由失败只写诊断清单，最终
-  /// 以第一条 App 错误的原类型抛出，避免把「可重试」压平成「不可播」。
+  /// 有序播放路由。默认启用 Android 的完整路由梯；`current` 仅保留旧三层。
+  /// 任一路由失败只写诊断清单，最终以第一条 App 错误的原类型抛出，避免把
+  /// 「可重试」压平成「不可播」。
   ///
   /// [preferApp] 给「边下边看」用：渐进通道只认带 CENC 的分片，官网直链是
   /// 明文 MP4，必须整段下完才能播，所以把官网层退到回退位。
@@ -622,11 +635,7 @@ class VideoModelClient {
             if (anonymous != null) return anonymous;
         }
       } on Object catch (error) {
-        onRouteFailure?.call(
-          route.id.label,
-          classifyUpstreamFailure(error)?.diagnosticId ??
-              error.runtimeType.toString(),
-        );
+        _reportRouteFailure(route.id, _failureKind(error));
       }
     }
     if (appError is PlaybackUnavailable) {
@@ -680,11 +689,16 @@ class VideoModelClient {
       );
       if (response.statusCode != 200) {
         sources.add('v5 播放接口：HTTP ${response.statusCode}');
+        _reportRouteFailure(
+          PlaybackRouteId.appPlayerV5,
+          'http-${response.statusCode}',
+        );
         devices.discard(identity);
         return null;
       }
       if ((response.data ?? '').isEmpty) {
         sources.add('v5 播放接口：空响应');
+        _reportRouteFailure(PlaybackRouteId.appPlayerV5, 'empty-envelope');
         devices.discard(identity);
         return null;
       }
@@ -696,12 +710,14 @@ class VideoModelClient {
       final entry = _envelope(effective[vid]);
       if (entry.isEmpty) {
         sources.add('v5 播放接口：本集未提供片源');
+        _reportRouteFailure(PlaybackRouteId.appPlayerV5, 'missing-track');
         return null;
       }
       devices.markSuccess(identity);
       return selectTrack(_envelope(entry['video_model']), quality: quality);
     } on Object catch (error) {
       sources.add('v5 播放接口：${_sourceBrief(error)}');
+      _reportRouteFailure(PlaybackRouteId.appPlayerV5, _failureKind(error));
       return null;
     }
   }
@@ -739,8 +755,18 @@ class VideoModelClient {
               .copyWith(connectTimeout: _timeout(5)),
         ),
       );
-      if (response.statusCode != 200 || (response.data ?? '').isEmpty) {
-        sources.add('v5 视频列表：HTTP ${response.statusCode} 或空响应');
+      if (response.statusCode != 200) {
+        sources.add('v5 视频列表：HTTP ${response.statusCode}');
+        _reportRouteFailure(
+          PlaybackRouteId.appVideoTabV5,
+          'http-${response.statusCode}',
+        );
+        devices.discard(identity);
+        return null;
+      }
+      if ((response.data ?? '').isEmpty) {
+        sources.add('v5 视频列表：空响应');
+        _reportRouteFailure(PlaybackRouteId.appVideoTabV5, 'empty-envelope');
         devices.discard(identity);
         return null;
       }
@@ -752,12 +778,14 @@ class VideoModelClient {
       final model = _envelope(row['video_model']);
       if (model.isEmpty) {
         sources.add('v5 视频列表：本集未提供片源');
+        _reportRouteFailure(PlaybackRouteId.appVideoTabV5, 'missing-track');
         return null;
       }
       devices.markSuccess(identity);
       return selectTrack(model, quality: quality);
     } on Object catch (error) {
       sources.add('v5 视频列表：${_sourceBrief(error)}');
+      _reportRouteFailure(PlaybackRouteId.appVideoTabV5, _failureKind(error));
       return null;
     }
   }
@@ -801,8 +829,18 @@ class VideoModelClient {
               .copyWith(connectTimeout: _timeout(5)),
         ),
       );
-      if (response.statusCode != 200 || (response.data ?? '').isEmpty) {
-        sources.add('单集接口：HTTP ${response.statusCode} 或空响应');
+      if (response.statusCode != 200) {
+        sources.add('单集接口：HTTP ${response.statusCode}');
+        _reportRouteFailure(
+          PlaybackRouteId.appSingleV1,
+          'http-${response.statusCode}',
+        );
+        devices.discard(identity);
+        return null;
+      }
+      if ((response.data ?? '').isEmpty) {
+        sources.add('单集接口：空响应');
+        _reportRouteFailure(PlaybackRouteId.appSingleV1, 'empty-envelope');
         devices.discard(identity);
         return null;
       }
@@ -819,16 +857,19 @@ class VideoModelClient {
         model = _envelope(jsonDecode(utf8.decode(base64Decode(raw.trim()))));
       } else {
         sources.add('单集接口：未返回播放模型');
+        _reportRouteFailure(PlaybackRouteId.appSingleV1, 'missing-track');
         return null;
       }
       if (model.isEmpty) {
         sources.add('单集接口：播放模型为空');
+        _reportRouteFailure(PlaybackRouteId.appSingleV1, 'empty-envelope');
         return null;
       }
       devices.markSuccess(identity);
       return selectTrack(model, quality: quality);
     } on Object catch (error) {
       sources.add('单集接口：${_sourceBrief(error)}');
+      _reportRouteFailure(PlaybackRouteId.appSingleV1, _failureKind(error));
       return null;
     }
   }
@@ -869,6 +910,10 @@ class VideoModelClient {
       );
       if (response.statusCode != 200) {
         sources.add('官网：HTTP ${response.statusCode}');
+        _reportRouteFailure(
+          PlaybackRouteId.webPublic,
+          'http-${response.statusCode}',
+        );
       } else {
         final play = parsePublicFallbackPlayUrl(
           _envelope(response.data),
@@ -876,6 +921,7 @@ class VideoModelClient {
         );
         if (play == null) {
           sources.add('官网：未提供可用片源');
+          _reportRouteFailure(PlaybackRouteId.webPublic, 'empty-envelope');
         } else {
           return VideoTrack(
             url: Uri.parse(play.url),
@@ -890,6 +936,7 @@ class VideoModelClient {
       }
     } on Object catch (error) {
       sources.add('官网：${_sourceBrief(error)}');
+      _reportRouteFailure(PlaybackRouteId.webPublic, _failureKind(error));
     }
     // 第 2 路：公开播放页的 ld+json。走 `_` 路由，不要求调用方带 sid；页面
     // 自己给出 canonical 身份，对不上就不采信——只信接口不认的那部分。
@@ -914,6 +961,10 @@ class VideoModelClient {
           : extractLdJsonPlayUrl(html, series, vid);
       if (url == null) {
         sources.add(status == 200 ? '官网播放页：没有可播直链' : '官网播放页：HTTP $status');
+        _reportRouteFailure(
+          PlaybackRouteId.webPublic,
+          status == 200 ? 'empty-envelope' : 'http-$status',
+        );
       } else {
         return VideoTrack(
           url: Uri.parse(url),
@@ -927,6 +978,7 @@ class VideoModelClient {
       }
     } on Object catch (error) {
       sources.add('官网播放页：${_sourceBrief(error)}');
+      _reportRouteFailure(PlaybackRouteId.webPublic, _failureKind(error));
     }
     return null;
   }
@@ -1101,6 +1153,10 @@ class VideoModelClient {
       );
       if (response.statusCode != 200) {
         sources.add('旧接口：HTTP ${response.statusCode}');
+        _reportRouteFailure(
+          PlaybackRouteId.legacyPreload,
+          'http-${response.statusCode}',
+        );
         return null;
       }
       final outer = _envelope(response.data);
@@ -1109,6 +1165,7 @@ class VideoModelClient {
       final numeric = rawCode is num ? rawCode : num.tryParse('$rawCode');
       if (numeric != null && numeric != 0) {
         sources.add('旧接口：业务码 $numeric');
+        _reportRouteFailure(PlaybackRouteId.legacyPreload, 'business:$numeric');
         return null;
       }
       final data = _envelope(outer['data']);
@@ -1116,11 +1173,13 @@ class VideoModelClient {
       final model = _envelope(entry['video_model']);
       if (model.isEmpty) {
         sources.add('旧接口：未返回片源模型');
+        _reportRouteFailure(PlaybackRouteId.legacyPreload, 'empty-envelope');
         return null;
       }
       return selectTrack(model, quality: 'best');
     } on Object catch (error) {
       sources.add('旧接口：${_sourceBrief(error)}');
+      _reportRouteFailure(PlaybackRouteId.legacyPreload, _failureKind(error));
       return null;
     }
   }

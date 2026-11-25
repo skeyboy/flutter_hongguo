@@ -49,6 +49,14 @@ class SettingsStore {
             data['networkPolicyVersion'] == null && prefs.timeoutSeconds == 30
             ? prefs.copyWith(timeoutSeconds: 60)
             : prefs;
+        final playbackPolicyVersion = data['playbackPolicyVersion'];
+        // 旧版本没有路由选择器，current 是自动写入的默认值而非用户选择。
+        if ((playbackPolicyVersion is! int || playbackPolicyVersion < 2) &&
+            settings.playbackRouteSet == PlaybackRouteSet.current) {
+          settings = settings.copyWith(
+            playbackRouteSet: PlaybackRouteSet.extended,
+          );
+        }
         if (data['playbackPolicyVersion'] == null) {
           settings = settings.copyWith(autoNext: true);
         }
@@ -105,7 +113,7 @@ class SettingsStore {
           'version': 1,
           'preferences': next.toJson(),
           'networkPolicyVersion': 1,
-          'playbackPolicyVersion': 1,
+          'playbackPolicyVersion': 2,
           'deviceId': nextId,
           'sessionRef': newRef,
         });

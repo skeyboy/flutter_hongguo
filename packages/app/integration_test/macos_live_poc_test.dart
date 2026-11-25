@@ -19,12 +19,16 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
   testWidgets(
-    'current Mac: native Dart algorithms → real first episode → local player',
+    'current Mac: native Dart algorithms → real selected episode → local player',
     (tester) async {
       const seriesId = String.fromEnvironment('HONGGUO_POC_SERIES_ID');
       const expectedVid = String.fromEnvironment('HONGGUO_POC_VID');
       const prefetchCount = int.fromEnvironment(
         'HONGGUO_POC_PREFETCH',
+        defaultValue: 0,
+      );
+      const episodeIndex = int.fromEnvironment(
+        'HONGGUO_POC_EPISODE_INDEX',
         defaultValue: 0,
       );
       if (prefetchCount != 0 && (prefetchCount < 3 || prefetchCount > 5)) {
@@ -38,11 +42,14 @@ void main() {
       expect(runCoreDiagnostics().values.every((v) => v), isTrue);
       final runtime = await createRuntime();
       final detail = await runtime.catalog.detail(seriesId);
-      expect(detail.episodes.first.vid, expectedVid);
-      // Restrict to exactly one real episode: no automatic prefetch of other clips.
+      if (episodeIndex < 0 || episodeIndex >= detail.episodes.length) {
+        throw StateError('POC episode index is outside the drama episode list');
+      }
+      expect(detail.episodes[episodeIndex].vid, expectedVid);
+      // Restrict to the selected episode and optional prefetch window.
       final single = DramaDetail(
         detail.drama,
-        detail.episodes.take(prefetchCount + 1).toList(),
+        detail.episodes.skip(episodeIndex).take(prefetchCount + 1).toList(),
       );
       await tester.pumpWidget(
         MaterialApp(
@@ -151,6 +158,7 @@ void main() {
         'localServerUsed': false,
         'seriesId': seriesId,
         'initialVid': expectedVid,
+        'initialEpisodeIndex': episodeIndex,
         'vid': selectedEpisode.vid,
         'episodeIndex': selectedEpisode.index,
         'prefetchedEpisodes': prefetchCount,

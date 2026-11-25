@@ -220,6 +220,7 @@ Map<String, dynamic> row(int px) => {
 
 void main() {
   VideoRequestBuilder builder() => VideoRequestBuilder(
+    protocol: const AppSettings(playbackRouteSet: PlaybackRouteSet.current),
     clockMillis: () => 1700000000123,
     deviceFactory: () => {
       'ac': 'wifi',
@@ -782,12 +783,13 @@ void main() {
       'session', () async {
     final adapter = FakeAdapter('https://a.fqnovel.com/fallback');
     final dio = Dio()..httpClientAdapter = adapter;
-    final protocol = const AppSettings().copyWith(
-      videoHost: 'api3.fqnovel.com',
-      videoVersion: '7.2.2.32',
-      videoVersionCode: '72232',
-      videoUserAgent: 'updated-agent',
-    );
+    final protocol =
+        const AppSettings(playbackRouteSet: PlaybackRouteSet.current).copyWith(
+          videoHost: 'api3.fqnovel.com',
+          videoVersion: '7.2.2.32',
+          videoVersionCode: '72232',
+          videoUserAgent: 'updated-agent',
+        );
     await VideoModelClient(
       dio: dio,
       useWebSource: false,
