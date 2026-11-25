@@ -274,3 +274,13 @@ git tag vX.Y.Z && git push origin vX.Y.Z
 - `jackotom/hongguo-drama`、`woshishiq1/drpys`、`N3urda/hongguoTV`：签名与 Spade 算法谱系。
 - `hack-news-flutter`：workspace 分包与依赖管理范式。
 - media_kit、Dio、Riverpod、GetIt、auto_route 等上游库。
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=skeyboy%2Fflutter_hongguo&type=date&legend=top-left">
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=skeyboy/flutter_hongguo&type=date&theme=dark&legend=top-left" />
+<source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=skeyboy/flutter_hongguo&type=date&legend=top-left" />
+<img alt="Star History Chart" src="https://api.star-history.com/chart?repos=skeyboy/flutter_hongguo&type=date&legend=top-left" />
+</picture>
+</a>
