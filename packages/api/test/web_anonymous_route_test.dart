@@ -85,10 +85,17 @@ class FixedDevices extends PlaybackDeviceRegistry {
       );
 }
 
-VideoModelClient client(Dio dio, {required bool extended}) => VideoModelClient(
+VideoModelClient client(
+  Dio dio, {
+  required bool extended,
+  List<String>? failures,
+}) => VideoModelClient(
   dio: dio,
   devices: FixedDevices(),
   retry: NetworkRetry(delays: const [], maxRecoveries: 0),
+  onRouteFailure: failures == null
+      ? null
+      : (id, kind) => failures.add('$id:$kind'),
   requestDeadline: const Duration(seconds: 8),
   builder: VideoRequestBuilder(
     protocol: AppSettings(
@@ -142,17 +149,25 @@ void main() {
     );
   });
 
-  test('访客页拒绝时只发第一跳，不发 fallback POST', () async {
+  test('访客页拒绝时只发第一跳、不发 fallback POST，并报 guest-page-refused', () async {
     final adapter = GuestAdapter(
       pageHtml: guestPage(allow: false),
       pageAllowed: false,
     );
     final dio = Dio()..httpClientAdapter = adapter;
     addTearDown(dio.close);
+    final failures = <String>[];
     await expectLater(
-      client(dio, extended: true).fetchTrack(vid, seriesId: series),
+      client(
+        dio,
+        extended: true,
+        failures: failures,
+      ).fetchTrack(vid, seriesId: series),
       throwsA(anything),
     );
+    expect(failures, contains('web-anonymous:guest-page-refused'));
+    expect(failures, isNot(contains('web-anonymous:guest-fallback-http')));
+    expect(failures, isNot(contains('web-anonymous:guest-fallback-empty')));
     final paths = adapter.requests.map((r) => r.uri.path).toList();
     final guestAt = paths.indexOf('/player/$series/$vid');
     expect(guestAt, greaterThanOrEqualTo(0));

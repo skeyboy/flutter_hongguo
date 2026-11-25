@@ -11,6 +11,7 @@ import 'upstream_failure.dart' show classifyUpstreamFailure;
 import 'playback_device.dart';
 import 'playback_routes.dart';
 import 'request_control.dart';
+import 'single_playback.dart';
 import 'v5_playback.dart';
 import 'web_source.dart';
 
@@ -604,6 +605,13 @@ class VideoModelClient {
             } on Object catch (error) {
               appError ??= error;
             }
+          case PlaybackRouteId.appSingleV1:
+            try {
+              final track = await _singleTrack(vid, sources, quality: quality);
+              if (track != null) return track;
+            } on Object catch (error) {
+              appError ??= error;
+            }
           case PlaybackRouteId.legacyPreload:
             if (!useLegacySource) continue;
             final legacy = await _legacyTrack(vid, sources);
@@ -612,10 +620,6 @@ class VideoModelClient {
             // needsSeriesId guard above already skipped when sid is absent.
             final anonymous = await _webAnonymousTrack(vid, seriesId!, sources);
             if (anonymous != null) return anonymous;
-          default:
-            // 老单集 PlayerSign 尚未接入。只记路由 ID，不把未实现的请求
-            // 伪装成成功，也不输出 URL 或签名头。
-            onRouteFailure?.call(route.id.label, 'unimplemented');
         }
       } on Object catch (error) {
         onRouteFailure?.call(
@@ -758,6 +762,77 @@ class VideoModelClient {
     }
   }
 
+  /// 老单集接口 `/novel/player/video_model/v1/`：TreeMap 排序 query +
+  /// gorgon/argus/ladon 三头签名（签名器已与 PlayerSignTest 固定向量逐字节
+  /// 对拍）。响应 `data.video_model` 可能是对象、JSON 字符串或 Base64 字符串，
+  /// 与 Android parseSingleResponse 同样兼容；失败只记 [sources] 返回 null。
+  Future<VideoTrack?> _singleTrack(
+    String vid,
+    List<String> sources, {
+    required String quality,
+  }) async {
+    final budget = RequestBudget.current;
+    try {
+      final identity = await budget.measure(
+        'register',
+        () => devices.get(cancelToken: budget.token),
+      );
+      final request = singlePlaybackRequest(
+        vid,
+        identity: identity,
+        nowMillis: DateTime.now().millisecondsSinceEpoch,
+      );
+      final response = await budget.transport(
+        () => dio.fetch<String>(
+          Options(
+                method: 'POST',
+                headers: request.headers,
+                responseType: ResponseType.plain,
+                followRedirects: false,
+                sendTimeout: _timeout(5),
+                receiveTimeout: _timeout(8),
+              )
+              .compose(
+                dio.options,
+                request.url,
+                data: Stream<Uint8List>.value(request.body),
+                cancelToken: budget.token,
+              )
+              .copyWith(connectTimeout: _timeout(5)),
+        ),
+      );
+      if (response.statusCode != 200 || (response.data ?? '').isEmpty) {
+        sources.add('单集接口：HTTP ${response.statusCode} 或空响应');
+        devices.discard(identity);
+        return null;
+      }
+      final root = _envelope(response.data);
+      _checkCodes(root);
+      final data = _envelope(root['data']);
+      final raw = data['video_model'];
+      Map<String, dynamic> model;
+      if (raw is Map) {
+        model = _envelope(raw);
+      } else if (raw is String && raw.trim().startsWith('{')) {
+        model = _envelope(jsonDecode(raw.trim()));
+      } else if (raw is String && raw.trim().isNotEmpty) {
+        model = _envelope(jsonDecode(utf8.decode(base64Decode(raw.trim()))));
+      } else {
+        sources.add('单集接口：未返回播放模型');
+        return null;
+      }
+      if (model.isEmpty) {
+        sources.add('单集接口：播放模型为空');
+        return null;
+      }
+      devices.markSuccess(identity);
+      return selectTrack(model, quality: quality);
+    } on Object catch (error) {
+      sources.add('单集接口：${_sourceBrief(error)}');
+      return null;
+    }
+  }
+
   /// 第 1 层：官网公开兜底接口（`/api/video/protected/fallback-play-info`）。
   /// 免签 POST `{item_id: vid}`，返回的 main_url 是明文 MP4，无 CENC。
   /// 任何失败都只记入 [sources] 并返回 null——官网层是加速与救场通道，
@@ -858,13 +933,25 @@ class VideoModelClient {
 
   /// 官网访客（匿名）取址：先 GET `/player/{sid}/{vid}` 做页面鉴权，再 POST
   /// `/api/video/protected/fallback-play-info` 取明文直链。两跳都免签、无 Cookie
-  /// 与 Authorization（对齐 Android `PublicEpisodeSource.fetch`）。页面拒绝
-  /// 时绝不发第二跳；任一失败只记 [sources] 返回 null。
+  /// 与 Authorization（对齐 Android `PublicEpisodeSource.fetch`）。
+  ///
+  /// 页面拒绝的完整语义（对齐 Android `pageTrack` 的门禁）：
+  /// 1. 第一跳 HTTP 非 200，或页面门禁任一不满足（`isSuccess`、两处
+  ///    series_id/vid 核对、`pcLoginRequired`/`pcAuthenticatedPlayback` 双
+  ///    false、`vid_list` 前 accessible_episode_cnt 项含 vid、SEO 核对）——
+  ///    **立即返回 null，绝不发第二跳 fallback POST**；官网的 SEO 预览片
+  ///    不能被当成正片播出去。
+  /// 2. 拒绝不是异常：只记 [sources] 与 `onRouteFailure` 诊断
+  ///    （`guest-page-refused` 等），然后落到扩展梯的下一路由，绝不伪装
+  ///    成本集不可播。
+  /// 3. 第二跳失败（HTTP 非 200、缺直链、过期）同样只记诊断返回 null。
   Future<VideoTrack?> _webAnonymousTrack(
     String vid,
     String seriesId,
     List<String> sources,
   ) async {
+    void diagnose(String failureType) =>
+        onRouteFailure?.call(PlaybackRouteId.webAnonymous.label, failureType);
     final budget = RequestBudget.current;
     final pageHeaders = {
       'User-Agent': webUserAgent,
@@ -888,16 +975,19 @@ class VideoModelClient {
       );
       if (page.statusCode != 200) {
         sources.add('官网访客页：HTTP ${page.statusCode}');
+        diagnose('guest-page-http');
         return null;
       }
       final parsed = parseGuestPlayerPage(page.data ?? '', seriesId, vid);
       if (parsed == null) {
         sources.add('官网访客页：本集不向访客开放');
+        diagnose('guest-page-refused');
         return null;
       }
       info = parsed;
     } on Object catch (error) {
       sources.add('官网访客页：${_sourceBrief(error)}');
+      diagnose('guest-page-transport');
       return null;
     }
 
@@ -930,6 +1020,7 @@ class VideoModelClient {
       );
       if (response.statusCode != 200) {
         sources.add('官网访客取址：HTTP ${response.statusCode}');
+        diagnose('guest-fallback-http');
         return null;
       }
       final play = parsePublicFallbackPlayUrl(
@@ -938,6 +1029,7 @@ class VideoModelClient {
       );
       if (play == null) {
         sources.add('官网访客取址：未提供可用片源');
+        diagnose('guest-fallback-empty');
         return null;
       }
       return VideoTrack(
@@ -951,6 +1043,7 @@ class VideoModelClient {
       );
     } on Object catch (error) {
       sources.add('官网访客取址：${_sourceBrief(error)}');
+      diagnose('guest-fallback-transport');
       return null;
     }
   }

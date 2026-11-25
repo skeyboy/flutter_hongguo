@@ -7,6 +7,7 @@ export 'src/crypto/account_sign.dart'
     show AccountRequest, AccountSigner, encodeAccountPart, encodeAccountQuery;
 export 'src/crypto/playback_sign.dart'
     show PlaybackAesV3, PlaybackRequest, PlaybackSigner;
+export 'src/crypto/player_sign.dart' show LegacyPlayerSign;
 export 'src/crypto/spade.dart';
 export 'src/crypto/media_url.dart';
 export 'src/diagnostics.dart';

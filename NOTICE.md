@@ -60,6 +60,17 @@ docs/design/hls-channel-evaluation.md for the decision and evidence.
 - This signing family is distinct from `pure_sign.dart`; it is not used for the
   legacy content/playback requests and must not be mixed into them.
 
+- `lib/src/crypto/player_sign.dart` (`LegacyPlayerSign`) ports the legacy
+  single-episode signer from the same reference repository:
+  `app/src/main/java/com/hongguo/api/core/PlayerSign.java` (SPDX
+  GPL-3.0-only; upstream synced from LiuWQ0809/hongguo-android 3eaf813,
+  which credits Xanerix/guoapp ad8dc125). It emits x-gorgon / x-argus /
+  x-ladon for `/novel/player/video_model/v1/` and is byte-for-byte checked
+  against that file's pinned test vectors (`packages/core/test/
+  player_sign_test.dart`).
+- This family is independent of both `pure_sign.dart` and the v5 playback
+  signer; do not mix signatures across request families.
+
 ## Android v5 playback signing and guest playback (feature/api-alignment)
 
 - packages/core/lib/src/crypto/playback_sign.dart and
