@@ -7,7 +7,9 @@ import 'package:hongguo_core/hongguo_core.dart';
 
 import 'media_url_policy.dart';
 import 'network_retry.dart';
+import 'upstream_failure.dart' show classifyUpstreamFailure;
 import 'playback_device.dart';
+import 'playback_routes.dart';
 import 'request_control.dart';
 import 'web_source.dart';
 
@@ -100,9 +102,18 @@ class VideoRequestBuilder {
     'player_so_load': '1',
     'is_android_pad_screen': '0',
   };
-  VideoRequest build(String vid, {required PlaybackDevice device}) {
+  VideoRequest build(
+    String vid, {
+    required PlaybackDevice device,
+    String? host,
+  }) {
     if (!RegExp(r'^\d{1,30}$').hasMatch(vid)) {
       throw ArgumentError.value(vid, 'vid');
+    }
+    if (host != null &&
+        !RegExp(r'^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.fqnovel\.com$')
+            .hasMatch(host)) {
+      throw ArgumentError.value(host, 'host');
     }
     final body = Uint8List.fromList(
       utf8.encode(
@@ -146,7 +157,7 @@ class VideoRequestBuilder {
       final ticket = ticketBase + attempt;
       final params = {...query, 'ts': '$khronos', '_rticket': '$ticket'};
       final url =
-          'https://${protocol.videoHost}/novel/player/multi_video_model/v1/'
+          'https://${host ?? protocol.videoHost}/novel/player/multi_video_model/v1/'
           '?${params.entries.map((e) => '${encodeQueryPart(e.key, keepLiteralStar: true)}'
               '=${encodeQueryPart(e.value, keepLiteralStar: true)}').join('&')}';
       if (signer.branchOf(url, body, khronos) != 0) continue;
@@ -280,9 +291,30 @@ class VideoModelClient {
   /// 请求形态，三层自身行为由专门测试覆盖。
   final bool useWebSource, useLegacySource;
 
+  /// Diagnostic-only sink: receives route IDs and failure kinds, never URLs,
+  /// signatures or cookies. Kept out of [sources], which is user-facing text.
+  final void Function(String routeId, String failureType)? onRouteFailure;
+
   /// A batch resolves every episode it touches, so an unbounded table would
   /// keep the whole drama's answers for the length of the session.
   static const _infoCeiling = 256;
+  static const _infoByteCeiling = 4 * 1024 * 1024;
+  final _infoBytes = <String, int>{};
+  int _infoByteTotal = 0;
+
+  static int _estimateInfo(Map<String, dynamic> value) {
+    try {
+      return jsonEncode(value).length;
+    } on Object {
+      return 1024;
+    }
+  }
+
+  void _forgetInfo(String vid) {
+    _info.remove(vid);
+    _infoByteTotal -= _infoBytes.remove(vid) ?? 0;
+  }
+
   VideoModelClient({
     required this.dio,
     VideoRequestBuilder? builder,
@@ -295,6 +327,7 @@ class VideoModelClient {
     Map<String, PlaybackInfoEntry>? info,
     this.useWebSource = true,
     this.useLegacySource = true,
+    this.onRouteFailure,
   }) : builder = builder ?? VideoRequestBuilder(),
        retry = retry ?? playbackRetry(),
        devices = devices ?? PlaybackDeviceRegistry(dio: dio),
@@ -321,34 +354,41 @@ class VideoModelClient {
 
   /// Answers kept per vid are dropped after [trackTtl], or when the episode is
   /// declined upstream or its file is deleted.
-  Future<Map<String, dynamic>> fetchVideoInfo(String vid) async {
+  Future<Map<String, dynamic>> fetchVideoInfo(
+    String vid, {
+    String? host,
+  }) async {
     final kept = _info[vid];
     if (kept != null && kept.expires.isAfter(now())) return kept.value;
     try {
       final value = await _requests.run(
-        'video:$vid',
-        () => _fetchVideoInfo(vid),
+        'video:$vid${host == null ? '' : ':alt-host'}',
+        () => _fetchVideoInfo(vid, host: host),
         label: 'video.metadata',
       );
-      if (_info.length >= _infoCeiling) {
-        final clock = now();
-        _info.removeWhere((_, entry) => !entry.expires.isAfter(clock));
-        if (_info.length >= _infoCeiling) {
-          // A long batch can fill the table before anything ages out. The
-          // answer closest to its own end goes first: the queue reaches the
-          // next episode long before it revisits that one.
-          final oldest = _info.entries.reduce(
-            (a, b) => a.value.expires.isBefore(b.value.expires) ? a : b,
-          );
-          _info.remove(oldest.key);
-        }
+      final clock = now();
+      for (final entry in _info.entries.toList()) {
+        if (!entry.value.expires.isAfter(clock)) _forgetInfo(entry.key);
       }
-      _info[vid] = (expires: now().add(trackTtl), value: value);
+      final size = _estimateInfo(value);
+      while (_info.isNotEmpty &&
+          (_info.length >= _infoCeiling ||
+              _infoByteTotal + size > _infoByteCeiling)) {
+        // The answer closest to its own end goes first: the queue reaches the
+        // next episode long before it revisits that one.
+        final oldest = _info.entries.reduce(
+          (a, b) => a.value.expires.isBefore(b.value.expires) ? a : b,
+        );
+        _forgetInfo(oldest.key);
+      }
+      _info[vid] = (expires: clock.add(trackTtl), value: value);
+      _infoBytes[vid] = size;
+      _infoByteTotal += size;
       return value;
     } on PlaybackUnavailable {
       // A refusal is an answer about this episode, so a kept record for it can
       // only be an old one; drop it and let the next ask read upstream again.
-      _info.remove(vid);
+      _forgetInfo(vid);
       rethrow;
     }
   }
@@ -361,7 +401,10 @@ class VideoModelClient {
     ),
   );
 
-  Future<Map<String, dynamic>> _fetchVideoInfo(String vid) async {
+  Future<Map<String, dynamic>> _fetchVideoInfo(
+    String vid, {
+    String? host,
+  }) async {
     final budget = RequestBudget.current;
     // Both hops answer HTTP 200 with nothing often enough that a bare decode
     // used to reach the viewer as `FormatException: Unexpected end of input`.
@@ -379,44 +422,51 @@ class VideoModelClient {
         'register',
         () => devices.get(cancelToken: budget.token),
       );
-      final request = builder.build(vid, device: device);
-      return await budget.transport(() async {
-        final first = await dio.fetch<String>(
-          Options(
-                method: 'POST',
-                headers: request.headers,
-                responseType: ResponseType.plain,
-                followRedirects: false,
-                sendTimeout: _timeout(5),
-                receiveTimeout: _timeout(8),
-              )
-              .compose(
-                dio.options,
-                request.url,
-                data: Stream<Uint8List>.value(request.body),
-                cancelToken: budget.token,
-              )
-              .copyWith(connectTimeout: _timeout(5)),
-        );
-        if (first.statusCode != 200) {
-          throw const PlaybackUnavailable('暂时取不到这一集的播放信息，请稍后重试');
-        }
-        final outer = _envelope(first.data);
-        _checkCodes(outer);
-        // The answer is nested three levels deep, and any of those levels can
-        // come back empty -- an envelope with no `data` is how upstream refuses
-        // an identity it does not recognise, the same missing answer as an empty
-        // body, so it is named and recovered the same way.
-        final data = _envelope(outer['data']);
-        if (data.isEmpty) {
-          throw const IncompleteCatalogResponse('播放信息未返回数据，请稍后重试');
-        }
-        final entry = _envelope(data[vid]);
-        if (entry.isEmpty) {
-          throw const PlaybackUnavailable('这一集暂时没有可播的片源，请稍后重试或换一集');
-        }
-        return _envelope(entry['video_model']);
-      });
+      final request = builder.build(vid, device: device, host: host);
+      try {
+        final model = await budget.transport(() async {
+          final first = await dio.fetch<String>(
+            Options(
+                  method: 'POST',
+                  headers: request.headers,
+                  responseType: ResponseType.plain,
+                  followRedirects: false,
+                  sendTimeout: _timeout(5),
+                  receiveTimeout: _timeout(8),
+                )
+                .compose(
+                  dio.options,
+                  request.url,
+                  data: Stream<Uint8List>.value(request.body),
+                  cancelToken: budget.token,
+                )
+                .copyWith(connectTimeout: _timeout(5)),
+          );
+          if (first.statusCode != 200) {
+            throw const PlaybackUnavailable('暂时取不到这一集的播放信息，请稍后重试');
+          }
+          final outer = _envelope(first.data);
+          _checkCodes(outer);
+          // The answer is nested three levels deep, and any of those levels can
+          // come back empty -- an envelope with no `data` is how upstream refuses
+          // an identity it does not recognise, the same missing answer as an empty
+          // body, so it is named and recovered the same way.
+          final data = _envelope(outer['data']);
+          if (data.isEmpty) {
+            throw const IncompleteCatalogResponse('播放信息未返回数据，请稍后重试');
+          }
+          final entry = _envelope(data[vid]);
+          if (entry.isEmpty) {
+            throw const PlaybackUnavailable('这一集暂时没有可播的片源，请稍后重试或换一集');
+          }
+          return _envelope(entry['video_model']);
+        });
+        devices.markSuccess(device);
+        return model;
+      } on Object {
+        devices.discard(device);
+        rethrow;
+      }
     }, budget: budget);
     // The newer answer carries the tracks inside video_model itself; only the
     // shape that hands back a fallback_api still needs a second hop. Asking for
@@ -466,24 +516,25 @@ class VideoModelClient {
     return data;
   }
 
-  /// 三层取址，对齐参考实现 fetchPlayUrlFresh 的优先级：官网公开直链 →
-  /// App 取址（注册身份 + 签名链路）→ 旧接口免签 preload。任一层失败都
-  /// 记入来源清单，最终以 SOURCE_UNAVAILABLE 语义抛出，而不是只报最后一层。
-  ///
-  /// 具体清晰度的请求不把官网层放在最前：官网只有单一的 360p 公开档，
-  /// 指定画质时 App 层优先，失败后才回官网档（与参考 allowLowerQuality
-  /// 行为一致）。
+  /// 有序播放路由。默认三层与历史行为一致；`extended` 才启用 Android 的
+  /// v5 / 老单集 / 换主机 / 官网匿名路径。任一路由失败只写诊断清单，最终
+  /// 以第一条 App 错误的原类型抛出，避免把「可重试」压平成「不可播」。
   ///
   /// [preferApp] 给「边下边看」用：渐进通道只认带 CENC 的分片，官网直链是
-  /// 明文 MP4、必须整段下完才能播。开了渐进播放时让 App 层先答，官网层退到
-  /// 回退位，否则这层会把原本 1 秒可看的一集换成整段等待。
+  /// 明文 MP4，必须整段下完才能播，所以把官网层退到回退位。
   Future<VideoTrack> fetchTrack(
     String vid, {
     String quality = 'best',
     bool preferApp = false,
+    String? seriesId,
   }) => _requests.run(
     'track:$vid${preferApp ? ':app-first' : ''}',
-    () => _fetchTrack(vid, quality: quality, preferApp: preferApp),
+    () => _fetchTrack(
+      vid,
+      quality: quality,
+      preferApp: preferApp,
+      seriesId: seriesId,
+    ),
     label: 'video.track',
   );
 
@@ -491,38 +542,59 @@ class VideoModelClient {
     String vid, {
     String quality = 'best',
     bool preferApp = false,
+    String? seriesId,
   }) async {
     if (!RegExp(r'^\d{1,30}$').hasMatch(vid)) {
       throw ArgumentError.value(vid, 'vid');
     }
-    // 只记官网与旧接口的结论：App 层自己的错误稍后作为正文拼在最前，
-    // 记进这里会变成「App：<同一句>」的重复。
     final sources = <String>[];
     Object? appError;
     final webFirst =
         !preferApp &&
         (quality.isEmpty || quality == 'best' || quality == 'auto');
-    if (webFirst && useWebSource) {
-      final web = await _webTrack(vid, sources);
-      if (web != null) return web;
+    final routes = playbackRoutes(
+      webFirst: webFirst,
+      set: builder.protocol.playbackRouteSet,
+    );
+    for (final route in routes) {
+      if (route.needsSeriesId && (seriesId == null || seriesId.isEmpty)) {
+        continue;
+      }
+      RequestBudget.current.check();
+      try {
+        switch (route.id) {
+          case PlaybackRouteId.webPublic:
+            if (!useWebSource) continue;
+            final web = await _webTrack(vid, sources);
+            if (web != null) return web;
+          case PlaybackRouteId.appMultiV1:
+          case PlaybackRouteId.appMultiV1Hl:
+            try {
+              return selectTrack(
+                await fetchVideoInfo(vid, host: route.host),
+                quality: quality,
+              );
+            } on Object catch (error) {
+              appError = error;
+              rethrow;
+            }
+          case PlaybackRouteId.legacyPreload:
+            if (!useLegacySource) continue;
+            final legacy = await _legacyTrack(vid, sources);
+            if (legacy != null) return legacy;
+          default:
+            // v5 / 老单集 / 官网匿名路由的签名器尚未接入。只记路由 ID，
+            // 不把未实现的请求伪装成成功，也不输出 URL 或签名头。
+            onRouteFailure?.call(route.id.label, 'unimplemented');
+        }
+      } on Object catch (error) {
+        onRouteFailure?.call(
+          route.id.label,
+          classifyUpstreamFailure(error)?.diagnosticId ??
+              error.runtimeType.toString(),
+        );
+      }
     }
-    try {
-      return selectTrack(await fetchVideoInfo(vid), quality: quality);
-    } on Object catch (error) {
-      appError = error;
-    }
-    if (!webFirst && useWebSource) {
-      final web = await _webTrack(vid, sources);
-      if (web != null) return web;
-    }
-    if (useLegacySource) {
-      final legacy = await _legacyTrack(vid, sources);
-      if (legacy != null) return legacy;
-    }
-    // App 层的错误保留原类型：调用方按类型分派恢复策略，包装会把
-    // IncompleteCatalogResponse（可重试）与 PlaybackUnavailable（终止）压平。
-    // 但文案要带上另外两层的结论——用户点开「详情」看到的应该是三层都试过
-    // 什么，而不是只有 App 那一句。
     if (appError is PlaybackUnavailable) {
       throw PlaybackUnavailable(
         sources.isEmpty
@@ -530,9 +602,7 @@ class VideoModelClient {
             : '${appError.message}；${sources.join('；')}',
       );
     }
-    // 走到这里必然经过上面的 catch（try 成功会提前 return），appError 一定
-    // 已赋值；空回退分支是死代码，直接抛原始错误保持类型分派。
-    throw appError;
+    throw appError ?? const PlaybackUnavailable('暂时取不到这一集的播放信息，请稍后重试');
   }
 
   /// 第 1 层：官网公开兜底接口（`/api/video/protected/fallback-play-info`）。

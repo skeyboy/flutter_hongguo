@@ -58,6 +58,12 @@ class PlaybackDeviceRegistry {
   /// viewer's next online play then asks while that is being refused.
   final Duration registerInterval, registerFailureCooldown;
 
+  /// `freshPerAsk` is the historical behaviour and the default. `reuseOnSuccess`
+  /// mirrors Android's `AppSource` path: a pair is only reused after it has
+  /// actually answered a video model; a refusal drops it immediately.
+  final PlaybackIdentityPolicy policy;
+  PlaybackDevice? _reusable;
+
   /// Monotonic, so a settings clock or an NTP jump cannot move the gate.
   final _clock = Stopwatch()..start();
 
@@ -76,6 +82,7 @@ class PlaybackDeviceRegistry {
     String Function()? uuid,
     this.registerInterval = const Duration(milliseconds: 800),
     this.registerFailureCooldown = const Duration(seconds: 5),
+    this.policy = PlaybackIdentityPolicy.freshPerAsk,
   }) : clockMillis =
            clockMillis ?? (() => DateTime.now().millisecondsSinceEpoch),
        entropy = entropy ?? secureBytes,
@@ -102,7 +109,28 @@ class PlaybackDeviceRegistry {
           _cooldownError ?? const IncompleteCatalogResponse('播放设备注册失败，请稍后重试');
       return Future<PlaybackDevice>.error(held);
     }
+    if (policy == PlaybackIdentityPolicy.reuseOnSuccess && _reusable != null) {
+      return Future<PlaybackDevice>.value(_reusable);
+    }
     return _pending ??= _post(cancelToken: cancelToken);
+  }
+
+  /// Called only after a real video model came back. A successful registration
+  /// by itself is not enough: an unanswered pair may already be spent.
+  void markSuccess(PlaybackDevice device) {
+    if (policy == PlaybackIdentityPolicy.reuseOnSuccess) _reusable = device;
+  }
+
+  /// Empty answers, 401/403 and business refusals all make a pair unusable.
+  /// Concurrent callers never share a settled identity, only the in-flight
+  /// registration, so discarding cannot invalidate somebody else's answer.
+  void discard(PlaybackDevice device) {
+    final kept = _reusable;
+    if (kept != null &&
+        kept.deviceId == device.deviceId &&
+        kept.iid == device.iid) {
+      _reusable = null;
+    }
   }
 
   /// One `device_register` POST, started only after the previous one has been

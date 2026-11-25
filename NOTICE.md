@@ -46,3 +46,16 @@ Protocol ancestry of the individual upstream sites:
 
 The HLS channel is intentionally not implemented; see
 docs/design/hls-channel-evaluation.md for the decision and evidence.
+
+## Android account signing family (feature/api-alignment)
+
+- packages/core/lib/src/crypto/account_sign.dart and
+  packages/core/lib/src/crypto/account_sign_constants.dart are a pure Dart port
+  of `references/hongguo-android` `account/protocol/Signer.kt`, `Bytes.kt`,
+  `VendorConstants.kt` and `AesV3.kt` (GPL-3.0-only). That Kotlin code is itself
+  adapted from tsukiyo-zero/hongguoTV commit 34c7930 and drpys commit 22261ad.
+  The port is byte-compatible with the 12 pinned vectors in
+  `app/src/test/java/com/hongguo/account/protocol/SigningOracleTest.kt`, copied
+  as `packages/core/test/fixtures/account_signing_vectors.json`.
+- This signing family is distinct from `pure_sign.dart`; it is not used for the
+  legacy content/playback requests and must not be mixed into them.

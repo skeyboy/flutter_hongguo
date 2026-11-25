@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:dio/dio.dart';
 
 import 'request_control.dart';
+import 'upstream_failure.dart' show EmptyEnvelope, classifyUpstreamFailure;
 
 class IncompleteCatalogResponse implements Exception {
   final String message;
@@ -52,6 +53,10 @@ class NetworkRetry {
        now = now ?? DateTime.now;
 
   static bool transient(Object error) {
+    // Taxonomy first: risk control, expired sessions and business refusals are
+    // never replayed even when a caller supplies a looser shouldRetry.
+    final classified = classifyUpstreamFailure(error);
+    if (classified != null) return classified.replayable;
     if (error is IncompleteCatalogResponse) return true;
     // A handshake that was cut off is worth one more ask: proxies and mobile
     // networks drop them intermittently. A certificate that failed validation
@@ -126,8 +131,14 @@ class NetworkRetry {
       } catch (error) {
         budget?.check();
         // Empty/incomplete responses get the configured recoveries; transport
-        // and server failures get one. Deterministic business errors never qualify.
-        final maximum = error is IncompleteCatalogResponse ? maxRecoveries : 1;
+        // and server failures get one. Risk control, expired sessions and
+        // business errors are refused outright, even with a custom predicate.
+        final classified = classifyUpstreamFailure(error);
+        if (classified != null && !classified.replayable) rethrow;
+        final maximum =
+            classified is EmptyEnvelope || error is IncompleteCatalogResponse
+            ? maxRecoveries
+            : 1;
         if (attempt >= delays.length ||
             attempt >= maximum ||
             !(shouldRetry ?? transient)(error)) {

@@ -335,4 +335,39 @@ void main() {
     expect(renewed.deviceId, isNot(racing.first.deviceId));
     expect(adapter.requests, hasLength(2));
   });
+  test('reuseOnSuccess 只复用已确认成功的身份，拒绝后立即丢弃', () async {
+    final adapter = RotatingRegisterAdapter();
+    final dio = Dio()..httpClientAdapter = adapter;
+    addTearDown(dio.close);
+    final registry = PlaybackDeviceRegistry(
+      dio: dio,
+      registerInterval: Duration.zero,
+      policy: PlaybackIdentityPolicy.reuseOnSuccess,
+    );
+    final first = await registry.get();
+    // 注册成功不等于取址成功：没有 markSuccess 前仍要换新身份。
+    final second = await registry.get();
+    expect(second.deviceId, isNot(first.deviceId));
+    registry.markSuccess(second);
+    final reused = await registry.get();
+    expect(reused.deviceId, second.deviceId);
+    expect(adapter.requests, hasLength(2));
+    registry.discard(second);
+    final afterDiscard = await registry.get();
+    expect(afterDiscard.deviceId, isNot(second.deviceId));
+    expect(adapter.requests, hasLength(3));
+  });
+  test('默认策略即使标记成功也不复用', () async {
+    final adapter = RotatingRegisterAdapter();
+    final dio = Dio()..httpClientAdapter = adapter;
+    addTearDown(dio.close);
+    final registry = PlaybackDeviceRegistry(
+      dio: dio,
+      registerInterval: Duration.zero,
+    );
+    final first = await registry.get();
+    registry.markSuccess(first);
+    final next = await registry.get();
+    expect(next.deviceId, isNot(first.deviceId));
+  });
 }

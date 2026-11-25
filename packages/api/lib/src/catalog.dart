@@ -8,6 +8,7 @@ import 'package:hongguo_core/hongguo_core.dart';
 import 'video_model_client.dart';
 import 'web_source.dart';
 import 'network_retry.dart';
+import 'upstream_failure.dart' show classifyUpstreamFailure;
 import 'ranking.dart';
 import 'request_control.dart';
 
@@ -344,12 +345,24 @@ class CatalogClient
   final PureSign signer;
   final Map<String, String> sessionHeaders;
   final bool signLists;
+
+  /// Diagnostics hook for the detail fallback. Receives only route IDs and a
+  /// failure kind — never a URL, cookie, signature or body.
+  final void Function(
+    String failedRoute,
+    String recoveredBy,
+    String failureType,
+  )?
+  onDetailFallback;
   bool _listSignatureRequired = false;
   final AppSettings protocol;
   final _requestClock = Stopwatch()..start();
   Duration _lastRequest = const Duration(milliseconds: -260);
   Future<void> _queue = Future.value();
   final _details = <String, ({DateTime expires, DramaDetail value})>{};
+  final _detailBytes = <String, int>{};
+  int _detailByteTotal = 0;
+  static const _detailByteCeiling = 2 * 1024 * 1024;
   CatalogClient({
     this.browsePageSize = 18,
     this.sessionId = '',
@@ -363,6 +376,7 @@ class CatalogClient
     this.sessionHeaders = const {},
     this.signLists = true,
     this.protocol = const AppSettings(),
+    this.onDetailFallback,
   }) : now = now ?? DateTime.now,
        retry = retry ?? NetworkRetry(),
        signer = signer ?? PureSign() {
@@ -903,80 +917,144 @@ class CatalogClient
     }
   }
 
+  /// 缓存键带策略后缀：切换 `detailSourceOrder` 后不会读到旧顺序的结果。
+  String _detailCacheKey(String id) =>
+      protocol.detailSourceOrder == DetailSourceOrder.appFirst
+      ? '$id@appFirst'
+      : '$id@webFirst';
+
+  static int _estimateDetail(DramaDetail detail) =>
+      detail.drama.title.length +
+      detail.drama.cover.length +
+      detail.episodes.length * 96 +
+      128;
+
+  void _forgetDetail(String key) {
+    _details.remove(key);
+    _detailByteTotal -= _detailBytes.remove(key) ?? 0;
+  }
+
+  /// Access-time sweep plus an approximate byte ceiling: a long session must
+  /// not grow without bound even when every entry is still inside its TTL.
+  void _rememberDetail(String key, DramaDetail value) {
+    final clock = now();
+    for (final entry in _details.entries.toList()) {
+      if (!entry.value.expires.isAfter(clock)) _forgetDetail(entry.key);
+    }
+    final size = _estimateDetail(value);
+    while (_details.isNotEmpty &&
+        (_details.length >= 100 ||
+            _detailByteTotal + size > _detailByteCeiling)) {
+      final oldest = _details.entries.reduce(
+        (a, b) => a.value.expires.isBefore(b.value.expires) ? a : b,
+      );
+      _forgetDetail(oldest.key);
+    }
+    _details[key] = (
+      expires: clock.add(const Duration(hours: 6)),
+      value: value,
+    );
+    _detailBytes[key] = size;
+    _detailByteTotal += size;
+  }
+
+  String _failureType(Object error) =>
+      classifyUpstreamFailure(error)?.diagnosticId ??
+      error.runtimeType.toString();
+
   Future<DramaDetail> _detail(String id) async {
     if (!RegExp(r'^\d{1,30}$').hasMatch(id)) {
       throw ArgumentError('Invalid series ID');
     }
-    final cached = _details[id];
+    final key = _detailCacheKey(id);
+    final cached = _details[key];
     if (cached != null && cached.expires.isAfter(now())) {
       RequestBudget.current.cacheHit = true;
       return cached.value;
     }
     DramaDetail? result;
     Object? firstError;
-    // 第 1 层：官网两页竞速（免签）。部分 /player 页挂在坏 CDN 边缘（挂起
-    // 后中断），同剧的 /detail 页正常——参考实现让两路并行、任一有效即用，
-    // 串行等待会把坏边缘的代价放大到整整一次超时。
-    RequestBudget.current.check();
-    result = await _webDetailRace(id);
-    if (result == null) {
-      // 第 2 层：App 分集接口（富元数据）。
+    if (protocol.detailSourceOrder == DetailSourceOrder.appFirst) {
+      // Android 顺序：App 富元数据接口优先；失败不伪装成官网成功，诊断仍上报。
       RequestBudget.current.check();
       try {
-        final j = await RequestBudget.current.phase(
-          const Duration(seconds: 7),
-          () => _api(
-            '/novel/player/multi_video_detail/preload/v1',
-            body: {
-              'series_id': id,
-              'dr_scene': 'preload',
-              'biz_param': {
-                'detail_page_version': 0,
-                'disable_digg_stat': false,
-                'image_shrink_datas_str': 'W3siaW1hZ2VfdHlwZSI6MywiaW1hZ2Vfd2lkdGgiOjkwMCwic2hyaW5rX3R5cGUiOjN9LHsiaW1hZ2VfdHlwZSI6NCwiaW1hZ2Vfd2lkdGgiOjU0LCJzaHJpbmtfdHlwZSI6NH1d',
-                'need_all_video_definition': false,
-                'need_mp4_align': false,
-                'screen_width_px': '900',
-                'source': 7,
-                'use_os_player': false,
-                'use_server_dns': false,
-              },
-            },
-          ),
-        );
-        final data = _map(_map(_map(j['data'])[id])['video_data']);
-        final episodes =
-            _list(data['video_list'])
-                .map((v) {
-                  final e = _map(v);
-                  return Episode(
-                    vid: _text(e['vid']),
-                    index: _int(e['vid_index']),
-                    title: _clean(_text(e['title'])),
-                  );
-                })
-                .where((e) => e.vid.isNotEmpty && e.index > 0)
-                .toList()
-              ..sort((a, b) => a.index.compareTo(b.index));
-        if (episodes.isEmpty) throw const CatalogError('没有可用分集');
-        result = DramaDetail(
-          Drama.fromJson({...data, 'series_id': id}),
-          episodes,
-        );
+        result = await _appDetail(id);
       } on Object catch (e) {
         firstError = e;
+      }
+      if (result == null) {
+        RequestBudget.current.check();
+        result = await _webDetailRace(id);
+        if (result != null && firstError != null) {
+          onDetailFallback?.call(
+            'appDetail',
+            'webDetailRace',
+            _failureType(firstError),
+          );
+        }
+      }
+    } else {
+      // 第 1 层：官网两页竞速（免签）。部分 /player 页挂在坏 CDN 边缘（挂起
+      // 后中断），同剧的 /detail 页正常——两路并行、任一有效即用。
+      RequestBudget.current.check();
+      result = await _webDetailRace(id);
+      if (result == null) {
+        // 第 2 层：App 分集接口（富元数据）。
+        RequestBudget.current.check();
+        try {
+          result = await _appDetail(id);
+        } on Object catch (e) {
+          firstError = e;
+        }
       }
     }
     if (result == null) {
       RequestBudget.current.check();
       throw firstError ?? const CatalogError('无法获取分集');
     }
-    if (_details.length >= 100) _details.remove(_details.keys.first);
-    _details[id] = (
-      expires: now().add(const Duration(hours: 6)),
-      value: result,
-    );
+    _rememberDetail(key, result);
     return result;
+  }
+
+  /// App 分集接口：请求字节保持原样，只把编排顺序抽成可配置项。
+  Future<DramaDetail> _appDetail(String id) async {
+    final j = await RequestBudget.current.phase(
+      const Duration(seconds: 7),
+      () => _api(
+        '/novel/player/multi_video_detail/preload/v1',
+        body: {
+          'series_id': id,
+          'dr_scene': 'preload',
+          'biz_param': {
+            'detail_page_version': 0,
+            'disable_digg_stat': false,
+            'image_shrink_datas_str': 'W3siaW1hZ2VfdHlwZSI6MywiaW1hZ2Vfd2lkdGgiOjkwMCwic2hyaW5rX3R5cGUiOjN9LHsiaW1hZ2VfdHlwZSI6NCwiaW1hZ2Vfd2lkdGgiOjU0LCJzaHJpbmtfdHlwZSI6NH1d',
+            'need_all_video_definition': false,
+            'need_mp4_align': false,
+            'screen_width_px': '900',
+            'source': 7,
+            'use_os_player': false,
+            'use_server_dns': false,
+          },
+        },
+      ),
+    );
+    final data = _map(_map(_map(j['data'])[id])['video_data']);
+    final episodes =
+        _list(data['video_list'])
+            .map((v) {
+              final e = _map(v);
+              return Episode(
+                vid: _text(e['vid']),
+                index: _int(e['vid_index']),
+                title: _clean(_text(e['title'])),
+              );
+            })
+            .where((e) => e.vid.isNotEmpty && e.index > 0)
+            .toList()
+          ..sort((a, b) => a.index.compareTo(b.index));
+    if (episodes.isEmpty) throw const CatalogError('没有可用分集');
+    return DramaDetail(Drama.fromJson({...data, 'series_id': id}), episodes);
   }
 
   /// 官网两页并行竞速：`/player/{id}` 与 `/detail?series_id={id}`，任一页

@@ -1,6 +1,30 @@
 import '../crypto/bytes.dart';
 import '../crypto/media_url.dart';
 
+/// 详情取源顺序。默认官网优先，保住现有缓存快照与红果测试行为；`appFirst`
+/// 对齐 Android 的 App 接口优先，但只作为显式开关，不默认启用。
+enum DetailSourceOrder { webFirst, appFirst }
+
+/// 播放设备身份策略。`freshPerAsk` 是 Flutter 现状，也与 Android
+/// `PlaybackDevice.java` 一致；`reuseOnSuccess` 对应 `AppSource` 的成功复用路径，
+/// 需真网 A/B 后才开放。
+enum PlaybackIdentityPolicy { freshPerAsk, reuseOnSuccess }
+
+/// 播放路由集合。`current` 保持现有三层；`extended` 才启用 v5/老单集/换主机。
+enum PlaybackRouteSet { current, extended }
+
+DetailSourceOrder _readDetailSourceOrder(Object? value) => value == 'appFirst'
+    ? DetailSourceOrder.appFirst
+    : DetailSourceOrder.webFirst;
+
+PlaybackIdentityPolicy _readIdentityPolicy(Object? value) =>
+    value == 'reuseOnSuccess'
+    ? PlaybackIdentityPolicy.reuseOnSuccess
+    : PlaybackIdentityPolicy.freshPerAsk;
+
+PlaybackRouteSet _readPlaybackRouteSet(Object? value) =>
+    value == 'extended' ? PlaybackRouteSet.extended : PlaybackRouteSet.current;
+
 /// Preferences shared by native runtimes. Secret session data is stored separately.
 class AppSettings {
   final bool prefetchEnabled, autoNext, autoLoadMore, signLists;
@@ -55,6 +79,11 @@ class AppSettings {
 
   /// 多源开关与自定义源配置。默认全红果行为，老 JSON 缺字段时走默认值。
   final SourceSettings sources;
+
+  /// 对齐 Android 的三项协议开关。默认全部保持当前 Flutter 行为。
+  final DetailSourceOrder detailSourceOrder;
+  final PlaybackIdentityPolicy identityPolicy;
+  final PlaybackRouteSet playbackRouteSet;
   static const defaultVideoUserAgent =
       'com.phoenix.read/71332 (Linux; U; Android 16; zh_CN; 25053RT47C; '
       'Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 '
@@ -96,6 +125,9 @@ class AppSettings {
     this.lastUpdateCheckAt = 0,
     this.updateFeedEtag = '',
     this.sources = const SourceSettings(),
+    this.detailSourceOrder = DetailSourceOrder.webFirst,
+    this.identityPolicy = PlaybackIdentityPolicy.freshPerAsk,
+    this.playbackRouteSet = PlaybackRouteSet.current,
   });
 
   Map<String, dynamic> protocolJson() => {
@@ -108,6 +140,9 @@ class AppSettings {
     'videoUserAgent': videoUserAgent,
     'signLists': signLists,
     'timeoutSeconds': timeoutSeconds,
+    'detailSourceOrder': detailSourceOrder.name,
+    'identityPolicy': identityPolicy.name,
+    'playbackRouteSet': playbackRouteSet.name,
   };
   Map<String, dynamic> toJson() => {
     ...protocolJson(),
@@ -197,6 +232,9 @@ class AppSettings {
       ignoredUpdateVersion: read('ignoredUpdateVersion', ''),
       lastUpdateCheckAt: read('lastUpdateCheckAt', 0),
       updateFeedEtag: read('updateFeedEtag', ''),
+      detailSourceOrder: _readDetailSourceOrder(json['detailSourceOrder']),
+      identityPolicy: _readIdentityPolicy(json['identityPolicy']),
+      playbackRouteSet: _readPlaybackRouteSet(json['playbackRouteSet']),
       // 老 JSON 没有 sources，或字段类型被写坏，都回退默认值。
       sources: json['sources'] is Map
           ? SourceSettings.fromJson(
@@ -242,6 +280,9 @@ class AppSettings {
     int? lastUpdateCheckAt,
     String? updateFeedEtag,
     SourceSettings? sources,
+    DetailSourceOrder? detailSourceOrder,
+    PlaybackIdentityPolicy? identityPolicy,
+    PlaybackRouteSet? playbackRouteSet,
   }) => AppSettings.fromJson({
     ...toJson(),
     'catalogSort': catalogSort ?? this.catalogSort,
@@ -284,6 +325,9 @@ class AppSettings {
     'lastUpdateCheckAt': lastUpdateCheckAt ?? this.lastUpdateCheckAt,
     'updateFeedEtag': updateFeedEtag ?? this.updateFeedEtag,
     'sources': (sources ?? this.sources).toJson(),
+    'detailSourceOrder': (detailSourceOrder ?? this.detailSourceOrder).name,
+    'identityPolicy': (identityPolicy ?? this.identityPolicy).name,
+    'playbackRouteSet': (playbackRouteSet ?? this.playbackRouteSet).name,
   });
   void validate() {
     if (!['online_time', 'hot_score', 'hot_collect'].contains(catalogSort)) {
@@ -447,9 +491,7 @@ class SourceSettings {
   /// 时不展示「限免外」样式（点击失败会走跨源解析兜底），单源时如实标注。
   bool get hasAlternativeSources =>
       customSources.any((config) => config.enabled) ||
-      builtin.entries.any(
-        (entry) => entry.key != 'hongguo' && entry.value,
-      );
+      builtin.entries.any((entry) => entry.key != 'hongguo' && entry.value);
 
   /// 内置源开关（hongguo 不可关，守门在此，UI 无需重复判断）。
   SourceSettings withBuiltin(String sourceId, bool enabled) {
