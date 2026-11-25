@@ -250,10 +250,15 @@ void main() {
       await t.pumpWidget(_shell(tv: true, home: _settings(runtime)));
       await t.pumpAndSettle();
 
-      // The page's own scroll view, ahead of the text fields' inner scrollables
-      // in document order.
+      // The wide layout puts the independently scrollable sidebar first in the
+      // tree; follow the section heading to the content viewport instead.
       final scrollable = t.state<ScrollableState>(
-        find.byType(Scrollable).first,
+        find
+            .ancestor(
+              of: find.text('会话凭据').last,
+              matching: find.byType(Scrollable),
+            )
+            .first,
       );
       expect(scrollable.position.pixels, 0);
       // The headings are the page's own jump targets, so a viewer can get to the
