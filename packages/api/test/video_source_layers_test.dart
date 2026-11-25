@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:hongguo_api/hongguo_api.dart';
+import 'package:hongguo_core/hongguo_core.dart';
 import 'package:test/test.dart';
 
 /// 三层取源（官网直链 → App 取址 → 旧接口 preload）的层级测试。
@@ -113,10 +114,17 @@ ResponseBody webSuccess(String url) => json({
       1000),
 });
 
-VideoModelClient client(Dio dio) => VideoModelClient(
+VideoModelClient client(Dio dio, {List<String>? failures}) => VideoModelClient(
   dio: dio,
   devices: FixedDevices(),
+  retry: NetworkRetry(delays: const [], maxRecoveries: 0),
   requestDeadline: const Duration(seconds: 12),
+  builder: VideoRequestBuilder(
+    protocol: const AppSettings(playbackRouteSet: PlaybackRouteSet.current),
+  ),
+  onRouteFailure: failures == null
+      ? null
+      : (id, kind) => failures.add('$id:$kind'),
 );
 
 /// 公开播放页：`_ROUTER_DATA` 给身份，ld+json 给直链。
@@ -199,6 +207,28 @@ void main() {
     final paths = adapter.requests.map((r) => r.path).toList();
     expect(paths.any((p) => p.contains('preload/v1/')), isTrue);
     expect(paths.where((p) => p.contains('fallback-play-info')), hasLength(1));
+  });
+
+  test('每一层失败都上报路由诊断，且不包含 URL 或响应正文', () async {
+    final adapter = LayerAdapter(
+      web: (r) => ResponseBody.fromString('secret-web-body', 503),
+      page: (r) => ResponseBody.fromString('secret-page-body', 404),
+      app: (r) => json({'code': 0, 'data': <String, dynamic>{}}),
+      legacy: (r) => ResponseBody.fromString('', 200),
+    );
+    final dio = Dio()..httpClientAdapter = adapter;
+    addTearDown(dio.close);
+    final failures = <String>[];
+    await expectLater(
+      client(dio, failures: failures).fetchTrack('123'),
+      throwsA(isA<IncompleteCatalogResponse>()),
+    );
+    expect(failures, contains('web-public:transport'));
+    expect(failures, contains('web-public:http-404'));
+    expect(failures, contains('app-multi-v1:empty-envelope'));
+    expect(failures, contains('legacy-preload:empty-envelope'));
+    expect(failures.join('\n'), isNot(contains('secret-')));
+    expect(failures.join('\n'), isNot(contains('https://')));
   });
 
   test('三层全败时抛 PlaybackUnavailable，文案带齐三层结论', () async {

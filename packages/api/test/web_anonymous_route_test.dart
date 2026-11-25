@@ -109,7 +109,7 @@ VideoModelClient client(
 );
 
 void main() {
-  test('默认路由集：带 seriesId 也不发起官网访客页请求', () async {
+  test('current 路由集：带 seriesId 也不发起官网访客页请求', () async {
     final adapter = GuestAdapter(pageHtml: guestPage());
     final dio = Dio()..httpClientAdapter = adapter;
     addTearDown(dio.close);

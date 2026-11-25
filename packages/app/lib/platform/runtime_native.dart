@@ -12,6 +12,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_api/hongguo_native_api.dart';
 import 'package:hongguo_core/hongguo_core.dart';
@@ -334,6 +335,8 @@ class NativeRuntime
     _model = VideoModelClient(
       dio: _dio,
       onTiming: (value) => _retain(_metadataTimings, value),
+      onRouteFailure: (routeId, failureType) =>
+          debugPrint('playback.route.failure route=$routeId type=$failureType'),
       devices: _playbackDevices,
       builder: VideoRequestBuilder(protocol: settings),
       info: _videoInfo,

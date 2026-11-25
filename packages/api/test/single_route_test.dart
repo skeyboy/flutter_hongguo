@@ -1,6 +1,6 @@
 // End-to-end route tests for the legacy single-episode hop
 // (`/novel/player/video_model/v1/`, signed by LegacyPlayerSign). The route
-// stays in the extended set; default behaviour must not change.
+// stays in the extended set; the explicit current set must not include it.
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -131,7 +131,7 @@ void main() {
     });
   }
 
-  test('默认路由集：不发起老单集请求', () async {
+  test('current 路由集：不发起老单集请求', () async {
     final adapter = SingleAdapter();
     final dio = Dio()..httpClientAdapter = adapter;
     addTearDown(dio.close);

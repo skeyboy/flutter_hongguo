@@ -66,6 +66,20 @@ void main() {
       expect(store.settings.autoNext, isFalse);
     },
   );
+  test('legacy current route default migrates once; later explicit current survives', () async {
+    prefs.data = {
+      'playbackPolicyVersion': 1,
+      'preferences': {'playbackRouteSet': 'current'},
+    };
+    await store.load();
+    expect(store.settings.playbackRouteSet, PlaybackRouteSet.extended);
+    await store.save(
+      store.settings.copyWith(playbackRouteSet: PlaybackRouteSet.current),
+    );
+    expect(prefs.data!['playbackPolicyVersion'], 2);
+    await store.load();
+    expect(store.settings.playbackRouteSet, PlaybackRouteSet.current);
+  });
   test('old 30-second default migrates once; other and newly saved custom timeouts stay', () async {
     expect(store.settings.timeoutSeconds, 60);
     prefs.data = {

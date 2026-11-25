@@ -10,7 +10,7 @@ enum DetailSourceOrder { webFirst, appFirst }
 /// 需真网 A/B 后才开放。
 enum PlaybackIdentityPolicy { freshPerAsk, reuseOnSuccess }
 
-/// 播放路由集合。`current` 保持现有三层；`extended` 才启用 v5/老单集/换主机。
+/// 播放路由集合。默认 `extended`；`current` 仅保留旧三层用于显式兼容。
 enum PlaybackRouteSet { current, extended }
 
 DetailSourceOrder _readDetailSourceOrder(Object? value) => value == 'appFirst'
@@ -23,7 +23,7 @@ PlaybackIdentityPolicy _readIdentityPolicy(Object? value) =>
     : PlaybackIdentityPolicy.freshPerAsk;
 
 PlaybackRouteSet _readPlaybackRouteSet(Object? value) =>
-    value == 'extended' ? PlaybackRouteSet.extended : PlaybackRouteSet.current;
+    value == 'current' ? PlaybackRouteSet.current : PlaybackRouteSet.extended;
 
 /// Preferences shared by native runtimes. Secret session data is stored separately.
 class AppSettings {
@@ -80,7 +80,7 @@ class AppSettings {
   /// 多源开关与自定义源配置。默认全红果行为，老 JSON 缺字段时走默认值。
   final SourceSettings sources;
 
-  /// 对齐 Android 的三项协议开关。默认全部保持当前 Flutter 行为。
+  /// 对齐 Android 的三项协议开关。默认官网优先、每次新身份、完整路由梯。
   final DetailSourceOrder detailSourceOrder;
   final PlaybackIdentityPolicy identityPolicy;
   final PlaybackRouteSet playbackRouteSet;
@@ -127,7 +127,7 @@ class AppSettings {
     this.sources = const SourceSettings(),
     this.detailSourceOrder = DetailSourceOrder.webFirst,
     this.identityPolicy = PlaybackIdentityPolicy.freshPerAsk,
-    this.playbackRouteSet = PlaybackRouteSet.current,
+    this.playbackRouteSet = PlaybackRouteSet.extended,
   });
 
   Map<String, dynamic> protocolJson() => {
