@@ -149,19 +149,44 @@ class NativeDownloads {
   ) async {
     final url = track.url;
     if (!useSystemTransferLane(enabled: settings().backgroundDownloads)) {
-      await dio.download(
-        url.toString(),
-        path,
-        cancelToken: cancel,
-        deleteOnError: true,
-        options: Options(
-          followRedirects: false,
-          headers: {'User-Agent': 'Mozilla/5.0'},
-          receiveTimeout: const Duration(seconds: 120),
-        ),
-        onReceiveProgress: progress,
-      );
-      return;
+      final policy =
+          track.policy ??
+          DomainAllowlistPolicy(
+            track.fromWeb ? webMediaDomains : appMediaDomains,
+          );
+      final headers = {
+        'User-Agent': track.userAgent.isNotEmpty
+            ? track.userAgent
+            : 'Mozilla/5.0',
+        if (track.referer.isNotEmpty) 'Referer': track.referer,
+      };
+      var current = url;
+      for (var hop = 0; ; hop++) {
+        try {
+          await dio.download(
+            current.toString(),
+            path,
+            cancelToken: cancel,
+            deleteOnError: true,
+            options: Options(
+              followRedirects: false,
+              headers: headers,
+              receiveTimeout: const Duration(seconds: 120),
+            ),
+            onReceiveProgress: progress,
+          );
+          return;
+        } on DioException catch (error) {
+          if (cancel.isCancelled) rethrow;
+          final status = error.response?.statusCode ?? 0;
+          final location = error.response?.headers.value('location');
+          if (status < 300 || status >= 400 || location == null || hop >= 5) {
+            rethrow;
+          }
+          // Validate every CDN hop before the next request can leave the app.
+          current = checkMediaUrl(current.resolve(location).toString(), policy);
+        }
+      }
     }
     await initialize();
     if (cancel.isCancelled) throw cancel.cancelError!;
