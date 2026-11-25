@@ -443,6 +443,14 @@ class SourceSettings {
     return builtin[sourceId] ?? false;
   }
 
+  /// 除红果外是否还有其它启用来源。限免/锁定标记的收敛判据：有备选来源
+  /// 时不展示「限免外」样式（点击失败会走跨源解析兜底），单源时如实标注。
+  bool get hasAlternativeSources =>
+      customSources.any((config) => config.enabled) ||
+      builtin.entries.any(
+        (entry) => entry.key != 'hongguo' && entry.value,
+      );
+
   /// 内置源开关（hongguo 不可关，守门在此，UI 无需重复判断）。
   SourceSettings withBuiltin(String sourceId, bool enabled) {
     if (sourceId == 'hongguo') return this;

@@ -188,5 +188,40 @@ void main() {
       );
       expect(settings.withBuiltin('xifan', false).isEnabled('xifan'), isFalse);
     });
+
+    test('hasAlternativeSources：默认有多备选，只剩红果时为 false', () {
+      const settings = SourceSettings();
+      // 默认 xifan/hema 开 → 有备选。
+      expect(settings.hasAlternativeSources, isTrue);
+      // 全部内置备选关闭、无自定义源 → 只剩红果。
+      final solo = settings
+          .withBuiltin('xifan', false)
+          .withBuiltin('hema', false)
+          .withBuiltin('reelshort', false)
+          .withBuiltin('dramabox', false);
+      expect(solo.hasAlternativeSources, isFalse);
+      // 只开一个海外源也算有备选。
+      expect(solo.withBuiltin('reelshort', true).hasAlternativeSources, isTrue);
+      // 备选源全关但有一条启用的自定义源 → 有备选。
+      final customSolo = solo.upsertCustom(
+        CustomSourceConfig(
+          uuid: _uuid,
+          name: '自建',
+          url: 'https://api.example.com/api.php/provide/vod/',
+          enabled: true,
+        ),
+      );
+      expect(customSolo.hasAlternativeSources, isTrue);
+      // 自定义源存在但停用 → 不算备选。
+      final customOff = solo.upsertCustom(
+        CustomSourceConfig(
+          uuid: _uuid,
+          name: '自建',
+          url: 'https://api.example.com/api.php/provide/vod/',
+          enabled: false,
+        ),
+      );
+      expect(customOff.hasAlternativeSources, isFalse);
+    });
   });
 }

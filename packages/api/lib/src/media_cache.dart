@@ -267,7 +267,9 @@ class MediaCache {
   /// 参考实现同样是「跟随跳转 + beforeRedirect 里跑 mediaGuard」。这里不
   /// 直接用 dio 的 followRedirects：它没有跳转前钩子，会把白名单变成一句
   /// 空话（首跳合规、后续随便跳）。改成逐跳 catch → 校验 → 重试，跳转
-  /// 次数与参考一致（上限 5 跳）。
+  /// 同源多线路回退：主 URL 失败（用户取消除外）时依序尝试
+  /// [VideoTrack.candidates]，每条候选先过策略校验并排除 HLS（HLS 硬门槛
+  /// 与主轨一致），全部失败抛最后一个错误。红果轨 candidates 为空，行为不变。
   Future<void> _downloadFollowingRedirects(
     VideoTrack track,
     String path,
@@ -276,6 +278,41 @@ class MediaCache {
     MediaUrlPolicy? policy,
     required void Function(int received, int total) onProgress,
   }) async {
+    final attempts = <VideoTrack>[
+      track,
+      for (final candidate in track.candidates ?? const <VideoTrack>[])
+        if (candidate.format != VideoFormat.hls &&
+            !candidate.url.path.toLowerCase().endsWith('.m3u8'))
+          candidate,
+    ];
+    Object? last;
+    for (final attempt in attempts) {
+      try {
+        await _downloadSingle(attempt, path, token,
+            domains: domains, policy: policy, onProgress: onProgress);
+        return;
+      } on DioException catch (error) {
+        // 用户取消不是线路问题：立即上抛，绝不能被回退吞掉。
+        if (token.isCancelled) rethrow;
+        last = error;
+      }
+    }
+    if (last != null) {
+      throw last;
+    }
+  }
+
+  /// 单条 URL 的逐跳下载。跳转次数与参考一致（上限 5 跳）。
+  Future<void> _downloadSingle(
+    VideoTrack track,
+    String path,
+    CancelToken token, {
+    required List<String> domains,
+    MediaUrlPolicy? policy,
+    required void Function(int received, int total) onProgress,
+  }) async {
+    // 候选 URL 与跳转一样逐条过策略：主轨已由调用方校验，这里幂等复查。
+    checkMediaUrl(track.url.toString(), policy ?? DomainAllowlistPolicy(domains));
     // 官网直链层带官方桌面 UA 与官网 Referer；App 取址的 CDN 两项留空，
     // 沿用既有约定（CDN 对通用 UA 即回完整文件）。
     final headers = {

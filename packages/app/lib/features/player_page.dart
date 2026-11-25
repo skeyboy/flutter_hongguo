@@ -138,9 +138,9 @@ class _PlayerPageState extends State<PlayerPage>
       return;
     }
     _historySaved = at;
-    final episode = widget.detail.episodes[position];
+    final episode = detail.episodes[position];
     final record = WatchRecord(
-      drama: widget.detail.drama,
+      drama: detail.drama,
       vid: episode.vid,
       episode: episode.index,
       positionMs:
@@ -215,6 +215,17 @@ class _PlayerPageState extends State<PlayerPage>
   bool episodeHintDismissed = false;
   late int position;
   int generation = 0;
+
+  /// 当前正在播放的剧详情。跨源自动回退命中后整体换成备选源的详情
+  /// （剧名、集列表随之切换），失败兜底路径保持构造入参不变。
+  late DramaDetail _detail;
+  DramaDetail get detail => _detail;
+
+  /// 自动跨源已试过的来源 id（含最初失败源），resolver 据此排除，防来回横跳。
+  final Set<String> _crossTriedSources = <String>{};
+
+  /// 一次播放会话里最多自动跨源两次，避免逐源搜索链无限拉长播放等待。
+  int _crossAttempts = 0;
   List<TvQualityOption> tvQualities = const [TvQualityOption('best', '自动')];
   final tvQualityCache = <String, List<TvQualityOption>>{};
   bool tvQualitiesLoading = false;
@@ -222,7 +233,7 @@ class _PlayerPageState extends State<PlayerPage>
   int tvQualityTicket = 0;
 
   Future<void> _loadTvQualities() async {
-    final vid = widget.detail.episodes[position].vid;
+    final vid = detail.episodes[position].vid;
     final ticket = ++tvQualityTicket;
     _redraw(() {
       tvQualitiesLoading = true;
@@ -266,7 +277,7 @@ class _PlayerPageState extends State<PlayerPage>
       }
       if (!mounted ||
           ticket != tvQualityTicket ||
-          widget.detail.episodes[position].vid != vid) {
+          detail.episodes[position].vid != vid) {
         return;
       }
       _redraw(() {
@@ -332,12 +343,14 @@ class _PlayerPageState extends State<PlayerPage>
   @override
   void initState() {
     super.initState();
+    // 跨源自动回退成功后 _detail 换成备选源的详情；其余路径恒等于构造入参。
+    _detail = widget.detail;
     final runtime = widget.runtime;
     if (runtime is DownloadRuntime) runtime.downloads.playbackEntered();
     if (runtime is MergeRuntime) runtime.merges.playbackEntered();
     if (!widget.cachedOnly && runtime is LibraryCacheRuntime) {
       unawaited(
-        rememberDramaMetadata(runtime, widget.detail).catchError((Object _) {}),
+        rememberDramaMetadata(runtime, detail).catchError((Object _) {}),
       );
     }
     position = widget.initialPosition;
@@ -355,7 +368,7 @@ class _PlayerPageState extends State<PlayerPage>
     episodeHintDismissed = preferences.episodeSwipeHintShown;
     prefetch = PrefetchWindow(
       runtime: widget.runtime,
-      episodes: widget.detail.episodes,
+      episodes: detail.episodes,
       onChanged: () {
         if (mounted) _redraw(() {});
       },
@@ -453,9 +466,9 @@ class _PlayerPageState extends State<PlayerPage>
       _episodePlayed = true;
       _saveHistory(force: true);
     }
-    if (!autoNext || position + 1 >= widget.detail.episodes.length) return;
-    final current = widget.detail.episodes[position],
-        next = widget.detail.episodes[position + 1];
+    if (!autoNext || position + 1 >= detail.episodes.length) return;
+    final current = detail.episodes[position],
+        next = detail.episodes[position + 1];
     if (widget.cachedOnly && !localEpisodesAreConsecutive(current, next)) {
       _redraw(
         () =>
@@ -587,7 +600,7 @@ class _PlayerPageState extends State<PlayerPage>
                   floatingPlayback: false,
                 )
               : settingsFor(widget.runtime),
-          '${widget.detail.drama.title} · 第 ${widget.detail.episodes[position].index} 集',
+          '${detail.drama.title} · 第 ${detail.episodes[position].index} 集',
           step: (offset) async => _step(offset),
           foregroundMedia: tvBuild,
         );
@@ -661,7 +674,7 @@ class _PlayerPageState extends State<PlayerPage>
       final renderer = await showCastDevicePicker(context, service);
       if (renderer == null || !mounted) return;
       await service.open(
-        detail: widget.detail,
+        detail: detail,
         index: position,
         renderer: renderer,
         quality: sourceQuality ?? quality,
@@ -743,12 +756,62 @@ class _PlayerPageState extends State<PlayerPage>
     // transitions; it must not interrupt audio or a PiP hand-off.
   }
 
+  /// 播放失败自动跨源：只对「三层都没片源 / 地址不被支持」两类取源失败
+  /// 触发，且仅在有线上的跨源门面、还有未试过的启用源、预算未用完时。
+  /// 命中后整体换轨到备选源的详情并按同集号对齐，从该集开头续播；
+  /// 返回 true 表示错误已由本次换轨接管，调用方不要再落失败卡片。
+  Future<bool> _tryCrossSource(Object failure, int ticket) async {
+    final kind = PlaybackFailure.classify(failure).kind;
+    if (kind != PlaybackFailureKind.noSource &&
+        kind != PlaybackFailureKind.sourceRejected) {
+      return false;
+    }
+    if (widget.cachedOnly || widget.mergeId != null) return false;
+    if (_crossAttempts >= 2) return false;
+    final SourceSearchFacade? facade = widget.runtime.catalog is SourceSearchFacade
+        ? widget.runtime.catalog as SourceSearchFacade
+        : null;
+    if (facade == null) return false;
+
+    final resolver = SourceResolver(facade);
+    final current = resolver.currentSourceId(detail.episodes[position].vid);
+    final episodeIndex = detail.episodes[position].index;
+    final match = await resolver.resolve(
+      title: detail.drama.title,
+      excludeId: current,
+      excludeIds: _crossTriedSources,
+      episodeIndex: episodeIndex,
+    );
+    // 搜索期间用户可能已换集或退出：旧 ticket 失效就放弃这次回退。
+    if (!mounted || ticket != generation || match == null) return false;
+
+    var aligned = 0;
+    for (var i = 0; i < match.detail.episodes.length; i++) {
+      if (match.detail.episodes[i].index == episodeIndex) {
+        aligned = i;
+        break;
+      }
+    }
+    _crossAttempts++;
+    _crossTriedSources.add(current);
+    _crossTriedSources.add(match.sourceId);
+    // 预取窗口换到新源集列表：撤销在途的旧源预热，避免后台继续下旧剧。
+    prefetch.retarget(match.detail.episodes);
+    _resumeOffset = Duration.zero; // 方案边界：切源后从该集开头播，不同步进度。
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('当前片源无法播放，已自动切换到 ${match.sourceLabel}')),
+    );
+    _redraw(() => _detail = match.detail);
+    await _play(aligned);
+    return true;
+  }
+
   Future<void> _play(
     int selected, {
     bool? resumePlaying,
     bool resumeSeries = false,
   }) async {
-    if (selected < 0 || selected >= widget.detail.episodes.length) return;
+    if (selected < 0 || selected >= detail.episodes.length) return;
     if (selected != position) {
       _resumeOffset = Duration.zero;
       tvQualityTicket++;
@@ -806,7 +869,7 @@ class _PlayerPageState extends State<PlayerPage>
         await library.load();
         if (!mounted || ticket != generation) return;
         final start = library.playbackStart(
-          widget.detail,
+          detail,
           selected: resumeSeries ? null : selected,
         );
         selected = start.index;
@@ -821,7 +884,7 @@ class _PlayerPageState extends State<PlayerPage>
             .localEpisodes();
         if (!mounted || ticket != generation) return;
         final available = localQualityFor(
-          widget.detail.episodes[selected].vid,
+          detail.episodes[selected].vid,
           files,
           quality,
         );
@@ -832,11 +895,11 @@ class _PlayerPageState extends State<PlayerPage>
           ? (widget.runtime as MergeRuntime).prepareMerged(widget.mergeId!)
           : widget.cachedOnly
           ? (widget.runtime as LocalMediaRuntime).prepareLocal(
-              widget.detail.episodes[selected].vid,
+              detail.episodes[selected].vid,
               quality: quality,
             )
           : widget.runtime.prepare(
-              widget.detail.episodes[selected].vid,
+              detail.episodes[selected].vid,
               quality: quality,
               onProgress: (p) {
                 if (mounted && ticket == generation) {
@@ -852,7 +915,7 @@ class _PlayerPageState extends State<PlayerPage>
             );
       job = active;
       _syncPrefetch();
-      sourceVid = widget.detail.episodes[selected].vid;
+      sourceVid = detail.episodes[selected].vid;
       sourceQuality = quality;
       // A progressive lane serves the decrypted prefix over a local origin
       // while its transfer still runs. Opening that is the whole point of the
@@ -944,6 +1007,11 @@ class _PlayerPageState extends State<PlayerPage>
       startupError = e;
       previous?.release();
       if (mounted && ticket == generation) {
+        // 自动跨源：仅取源层明确「没片源 / 地址不被支持」且存在其它启用源时
+        // 才换轨；网络/超时/取消这类与来源无关的错误不跨源，避免无意义搜索。
+        // 换轨成功会在 _tryCrossSource 里重新 _play 并接管错误状态。
+        final switched = await _tryCrossSource(e, ticket);
+        if (switched) return;
         prefetch.clear();
         _redraw(() {
           error = e;
@@ -1140,7 +1208,7 @@ class _PlayerPageState extends State<PlayerPage>
 
   void _step(int offset) {
     final target = position + offset;
-    if (target >= 0 && target < widget.detail.episodes.length) {
+    if (target >= 0 && target < detail.episodes.length) {
       _play(target);
       return;
     }
@@ -1229,7 +1297,7 @@ class _PlayerPageState extends State<PlayerPage>
     if (episodeHintDismissed ||
         preparing ||
         error != null ||
-        widget.detail.episodes.length < 2 ||
+        detail.episodes.length < 2 ||
         castActive ||
         platformPlayback.floating.value ||
         platformPlayback.platformPip.value) {
@@ -1329,11 +1397,12 @@ class _PlayerPageState extends State<PlayerPage>
                       final failure = PlaybackFailure.classify(error!);
                       // 限免外的集失败时，三层来源都回空是上游策略而非
                       // 偶发抖动：别让用户以为重试就能解决。
-                      final hint =
-                          widget.detail.episodes[position].beyondFree &&
-                              (failure.kind == PlaybackFailureKind.noSource ||
-                                  failure.kind ==
-                                      PlaybackFailureKind.sourceRejected)
+                      final sourceFailure =
+                          failure.kind == PlaybackFailureKind.noSource ||
+                          failure.kind == PlaybackFailureKind.sourceRejected;
+                      final hint = _crossTriedSources.length > 1 && sourceFailure
+                          ? '已在 ${_crossTriedSources.length} 个片源尝试，均未提供这一集；可在 设置 → 片源 中开启更多来源。'
+                          : detail.episodes[position].beyondFree && sourceFailure
                           ? '这一集在官网限免范围之外；上游当前没有返回取址数据，重试未必有效。'
                           : failure.hint;
                       return Column(
@@ -1400,7 +1469,7 @@ class _PlayerPageState extends State<PlayerPage>
                                   onPressed: () => _play(position),
                                   child: const Text('重新准备'),
                                 ),
-                              if (position + 1 < widget.detail.episodes.length)
+                              if (position + 1 < detail.episodes.length)
                                 TextButton(
                                   onPressed: () => _step(1),
                                   child: const Text('换下一集'),
@@ -1433,7 +1502,7 @@ class _PlayerPageState extends State<PlayerPage>
   /// 第 1 集.
   Widget _episodePanel() => EpisodeReveal(
     index: position,
-    count: widget.detail.episodes.length,
+    count: detail.episodes.length,
     scroll: episodesScroll,
     grid: episodeGrid,
     child: _episodes(),
@@ -1451,7 +1520,7 @@ class _PlayerPageState extends State<PlayerPage>
               alignment: Alignment.centerRight,
               child: FavoriteButton(
                 runtime: widget.runtime,
-                drama: widget.detail.drama,
+                drama: detail.drama,
               ),
             ),
             if (prefetch.total > 0)
@@ -1484,7 +1553,7 @@ class _PlayerPageState extends State<PlayerPage>
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
               child: Text(
-                '第 ${widget.detail.episodes[position].index} 集',
+                '第 ${detail.episodes[position].index} 集',
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w600,
@@ -1568,7 +1637,7 @@ class _PlayerPageState extends State<PlayerPage>
                   const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton(
-                      onPressed: position + 1 < widget.detail.episodes.length
+                      onPressed: position + 1 < detail.episodes.length
                           ? () => _play(position + 1)
                           : null,
                       child: const Text('下一集'),
@@ -1591,9 +1660,18 @@ class _PlayerPageState extends State<PlayerPage>
             childAspectRatio: 1.25,
           ),
           delegate: SliverChildBuilderDelegate((context, index) {
-            final beyondFree = widget.detail.episodes[index].beyondFree;
+            // 标记收敛：有备选来源时不展示限免/锁定标注（点击失败由跨源
+            // 解析兜底），只剩红果时如实标注。
+            final hasAlternative =
+                settingsFor(widget.runtime).sources.hasAlternativeSources;
+            final episode = detail.episodes[index];
+            final restricted =
+                !hasAlternative && (episode.beyondFree || episode.locked);
+            final badge = restricted ? (episode.locked ? '不可播' : '限免外') : null;
             return Tooltip(
-              message: beyondFree ? '官网限免范围之外，当前取源通道可能无法提供片源' : '',
+              message: badge == null
+                  ? ''
+                  : '这一集在当前唯一来源不可播；启用更多片源后可自动切换。',
               child: FilledButton.tonal(
                 style: FilledButton.styleFrom(
                   padding: EdgeInsets.zero,
@@ -1611,10 +1689,10 @@ class _PlayerPageState extends State<PlayerPage>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('${widget.detail.episodes[index].index}'),
-                    if (beyondFree)
+                    Text('${detail.episodes[index].index}'),
+                    if (badge != null)
                       Text(
-                        '限免外',
+                        badge,
                         style: TextStyle(
                           fontSize: 9,
                           color: playbackTheme.colorScheme.error,
@@ -1622,7 +1700,7 @@ class _PlayerPageState extends State<PlayerPage>
                       )
                     else if (widget.cachedOnly ||
                         prefetch.phaseFor(
-                              widget.detail.episodes[index].vid,
+                              detail.episodes[index].vid,
                               quality,
                             ) ==
                             PrefetchPhase.ready)
@@ -1631,7 +1709,7 @@ class _PlayerPageState extends State<PlayerPage>
                 ),
               ),
             );
-          }, childCount: widget.detail.episodes.length),
+          }, childCount: detail.episodes.length),
         ),
       ),
     ],
@@ -1782,7 +1860,7 @@ class _PlayerPageState extends State<PlayerPage>
                 child: Semantics(
                   header: true,
                   child: Text(
-                    macHost ? '返回' : widget.detail.drama.title,
+                    macHost ? '返回' : detail.drama.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -1847,7 +1925,7 @@ class _PlayerPageState extends State<PlayerPage>
           body: TvPlayerSurface(
             video: TvVideoView(controller: tvPlayback),
             title:
-                '${widget.detail.drama.title} · 第 ${widget.detail.episodes[position].index} 集',
+                '${detail.drama.title} · 第 ${detail.episodes[position].index} 集',
             playing: playing,
             busy: preparing,
             // TV 卡片沿用主播放页的分类文案：原始异常（含三层来源清单）
@@ -1866,7 +1944,7 @@ class _PlayerPageState extends State<PlayerPage>
             exit: () => _exitPage(),
             retry: () => _play(position),
             episodeLabels: [
-              for (final e in widget.detail.episodes) '第 ${e.index} 集',
+              for (final e in detail.episodes) '第 ${e.index} 集',
             ],
             episode: position,
             selectEpisode: (i) => _play(i),
@@ -1906,7 +1984,7 @@ class _PlayerPageState extends State<PlayerPage>
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        widget.detail.drama.title,
+                        detail.drama.title,
                         style: const TextStyle(color: Colors.white),
                       ),
                       const SizedBox(height: 12),
@@ -2000,15 +2078,15 @@ class _PlayerPageState extends State<PlayerPage>
         onSpeedBoost: platformPlayback.mobile ? _speedBoost : null,
         controls: PlaybackTransport(
           player: transport,
-          title: macHost ? widget.detail.drama.title : null,
+          title: macHost ? detail.drama.title : null,
           playing: playing,
           fullscreen: fullscreen,
           busy: preparing || error != null,
           surface: surface,
           buffering: streamBuffering,
-          episode: widget.detail.episodes[position].index,
+          episode: detail.episodes[position].index,
           canPrevious: position > 0,
-          canNext: position + 1 < widget.detail.episodes.length,
+          canNext: position + 1 < detail.episodes.length,
           episodes: episodes,
           previous: () => _step(-1),
           next: () => _step(1),

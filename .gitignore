@@ -24,9 +24,7 @@ dist/
 __pycache__/
 *.pyc
 
-# 第三方参考仓的本地检出（不入库）：hongguo-web 走 submodule，
-# hongguo-drama 直接检出到 references/ 下做源码对照。
-references/hongguo-drama/
+# 第三方参考仓走 submodule（hongguo-web / hongguo-drama），不再本地忽略。
 
 # 工具自检残留：W 盘（SMB）ACL 不允许删除，只能忽略
 .wb_write_test.txt

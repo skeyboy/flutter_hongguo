@@ -1,3 +1,6 @@
 [submodule "references/hongguo-web"]
 	path = references/hongguo-web
 	url = https://github.com/sunnysky123/hongguo-web.git
+[submodule "references/hongguo-drama"]
+	path = references/hongguo-drama
+	url = https://github.com/jackotom/hongguo-drama

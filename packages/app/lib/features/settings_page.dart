@@ -298,14 +298,15 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// 片源分区：来源列表与开关全部由注册表/设置派生，不写死枚举。
   /// 内置源开关走 withBuiltin（红果不可关）；自定义源走 CRUD 并在保存前
-  /// 可「测试连接」。改动先落在 draft，随统一保存事务持久化。
+  /// 可「测试连接」。改动先落在 draft，随统一保存事务持久化，保存后
+  /// 注册表即时重装（无需重启）。
   Widget _sourcesSection() {
     // 注册表可用时以注册表为准；web/tv 与测试环境退回静态清单，两者顺序一致。
-    const fallbackLabels = {
-      'xifan': '西饭',
-      'hema': '河马',
-      'dramabox': 'DramaBox（海外）',
-      'reelshort': 'ReelShort（海外）',
+    const fallbackSources = {
+      'xifan': ('西饭', '国内源 · 搜索结果中混入该源内容。'),
+      'hema': ('河马', '国内源 · 搜索结果中混入该源内容。'),
+      'dramabox': ('DramaBox（海外）', '海外源 · 需要海外网络；仅未加密 MP4。'),
+      'reelshort': ('ReelShort（海外）', '海外源 · 需要海外网络；仅未加密 MP4。'),
     };
     final catalog = widget.runtime.catalog;
     final adapters = catalog is RoutingCatalogRepository
@@ -313,10 +314,10 @@ class _SettingsPageState extends State<SettingsPage> {
         : <SourceAdapter>[];
     final builtinRows = <Widget>[
       if (adapters.isEmpty)
-        for (final entry in fallbackLabels.entries)
+        for (final entry in fallbackSources.entries)
           _switch(
-            entry.value,
-            '来自 ${entry.key} 的内容将出现在发现与搜索结果中。',
+            entry.value.$1,
+            entry.value.$2,
             draft.sources.isEnabled(entry.key),
             (v) => setState(
               () => draft = draft.copyWith(
@@ -329,7 +330,7 @@ class _SettingsPageState extends State<SettingsPage> {
           if (adapter.id != 'hongguo')
             _switch(
               adapter.label,
-              '来自 ${adapter.id} 的内容将出现在发现与搜索结果中。',
+              _sourceBlurb(adapter.id),
               draft.sources.isEnabled(adapter.id),
               (v) => setState(
                 () => draft = draft.copyWith(
@@ -344,7 +345,8 @@ class _SettingsPageState extends State<SettingsPage> {
           // 遥控没有文本输入，电视端只做启用/停用/删除；新增留给手机与桌面。
           _tvRow(
             config.name.isEmpty ? '未命名片源' : config.name,
-            subtitle: Uri.tryParse(config.url)?.host ?? config.url,
+            subtitle:
+                '自定义源 · ${Uri.tryParse(config.url)?.host ?? config.url}',
             state: config.enabled ? '已开启' : '已关闭',
             selected: config.enabled,
             onActivate: busy
@@ -375,7 +377,7 @@ class _SettingsPageState extends State<SettingsPage> {
             contentPadding: EdgeInsets.zero,
             title: Text(config.name.isEmpty ? '未命名片源' : config.name),
             subtitle: Text(
-              Uri.tryParse(config.url)?.host ?? config.url,
+              '自定义源 · ${Uri.tryParse(config.url)?.host ?? config.url}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -407,8 +409,11 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
     ];
+    final enabledCount =
+        draft.sources.builtin.values.where((v) => v).length +
+        draft.sources.customSources.where((c) => c.enabled).length;
     return _section('片源', [
-      const Text('红果为内置来源，始终启用；其它来源按需开启。'),
+      Text('已启用 $enabledCount 个来源；红果为内置来源，始终启用。'),
       const SizedBox(height: 4),
       ...builtinRows,
       if (customRows.isNotEmpty) ...[
@@ -431,6 +436,18 @@ class _SettingsPageState extends State<SettingsPage> {
       const Text('自定义片源使用苹果 CMS 接口；仅支持未加密 MP4 分集，HLS 暂不支持。'),
     ]);
   }
+
+  /// 内置源副标题：类型与生效范围一句话说清。搜索聚合见
+  /// RoutingCatalogRepository.search；发现页只出红果（见设计文档边界）。
+  static const _sourceBlurbs = {
+    'xifan': '国内源 · 搜索结果中混入该源内容。',
+    'hema': '国内源 · 搜索结果中混入该源内容。',
+    'dramabox': '海外源 · 需要海外网络；仅未加密 MP4。',
+    'reelshort': '海外源 · 需要海外网络；仅未加密 MP4。',
+  };
+
+  String _sourceBlurb(String id) =>
+      _sourceBlurbs[id] ?? '搜索结果中混入该源内容。';
 
   /// 添加/测试自定义片源。先在弹层里用适配器的 validate + test 做连通性
   /// 检查，通过后写入 draft；真正的持久化随统一保存事务提交。

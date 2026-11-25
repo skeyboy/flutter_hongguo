@@ -12,6 +12,7 @@ import '../../recommendations/related_dramas_section.dart';
 import '../downloads_page.dart';
 import '../player_page.dart';
 import '../../personal/favorite_button.dart';
+import '../source_switch_sheet.dart';
 
 class TvDetailPage extends StatefulWidget {
   final AppRuntime runtime;
@@ -311,6 +312,16 @@ class _TvDetailPageState extends State<TvDetailPage> {
                         ),
                       ),
                     ],
+                    const SizedBox(width: 16),
+                    TvFocusable(
+                      label: '切换片源',
+                      onActivate: () =>
+                          showSourceSwitch(context, widget.runtime, d.drama),
+                      child: const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: Text('切换片源', style: TextStyle(fontSize: 20)),
+                      ),
+                    ),
                     const SizedBox(width: 16),
                     FavoriteButton(
                       runtime: widget.runtime,
