@@ -27,6 +27,8 @@
 ## 取源与后台接口
 
 - [hongguo-drama 8.0 API 后端分析](analysis/2026-11-23_hongguo-drama-API后端分析.md)：三来源取源、官网层协议（`_ROUTER_DATA` / ld+json / 兜底接口）、签名与设备注册、与当前实现的逐项差异。
+- [hongguo-android API 与鉴权加密分析](analysis/2026-11-25_hongguo-android-API与鉴权加密分析.md)：Android 参考实现的接口清单、六头签名、设备注册、账号协议、媒体密钥与本地缓存。
+- [当前 API 请求逻辑调整方案](analysis/2026-11-25_API请求逻辑调整方案.md)：详情取源顺序策略、播放路由扩展、设备身份 A/B、错误分类与账号能力分期。
 - [API 后端切换方案](design/api-web-first-switch.md)：官网优先三层取址、搜索 JSON 优先、详情竞速、CDN 白名单按来源分表、下载层逐跳校验跳转，以及真网与 CI 的验证口径。
 
 ## 构建环境

@@ -4,3 +4,6 @@
 [submodule "references/hongguo-drama"]
 	path = references/hongguo-drama
 	url = https://github.com/jackotom/hongguo-drama
+[submodule "references/hongguo-android"]
+	path = references/hongguo-android
+	url = https://github.com/OOIUa/hongguo-android.git
