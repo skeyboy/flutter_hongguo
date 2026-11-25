@@ -154,6 +154,7 @@ class NativeRuntime
         vid,
         quality: quality,
         preferApp: settings.progressivePlayback && !tvBuild,
+        seriesId: _vidSeriesId[vid],
       );
     }
     return adapter.fetchTrack(vid, quality: quality);
@@ -163,6 +164,11 @@ class NativeRuntime
   /// middle of a batch cannot make the rest of the queue re-register and
   /// re-ask for episodes the upstream already answered for.
   final _videoInfo = <String, PlaybackInfoEntry>{};
+
+  /// In-memory vid -> drama id, filled when a detail is remembered. The
+  /// web-anonymous playback route needs the series id to authenticate the guest
+  /// player page; this map avoids threading it through the download job type.
+  final _vidSeriesId = <String, String>{};
   late final MediaCache _cache;
   late final NativeDownloads _downloads;
   final _retained = <String>{};
@@ -535,6 +541,9 @@ class NativeRuntime
 
   @override
   Future<void> rememberDrama(DramaDetail detail) async {
+    for (final episode in detail.episodes) {
+      _vidSeriesId[episode.vid] = detail.drama.id;
+    }
     await libraryCache.rememberDetail(detail);
     final cached = await _cache.entries();
     if (cached.any(

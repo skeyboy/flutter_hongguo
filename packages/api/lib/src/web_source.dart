@@ -188,6 +188,101 @@ class WebPlayUrl {
   });
 }
 
+/// 官网访客（匿名）可播分集的页面鉴权结果，对应 Android
+/// `PublicEpisodeSource.pageTrack`。`definition` 与 `publicDurationSeconds`
+/// 是官网自己声明的展示信息，不参与直链解析，但必须与页面绑定。
+class GuestPlaybackInfo {
+  final String seriesId;
+  final String vid;
+  final double publicDurationSeconds;
+  final String definition;
+
+  const GuestPlaybackInfo({
+    required this.seriesId,
+    required this.vid,
+    required this.publicDurationSeconds,
+    required this.definition,
+  });
+}
+
+/// 解析 `/player/{seriesId}/{vid}` 的 `_ROUTER_DATA`，判定访客能否匿名取这一集。
+///
+/// 严格对齐 Android `PublicEpisodeSource.pageTrack` 的全部门禁：
+/// isSuccess、页面与 seriesDetail 的 series_id/vid、`req.pcLoginRequired` 与
+/// `req.pcAuthenticatedPlayback` 都必须为 false、`vid_list` 前
+/// `accessible_episode_cnt` 项包含 vid；`publicVideoSeo.available` 时才读
+/// duration/width/height（并核对 seriesId/itemId）。任一不满足返回 null。
+///
+/// 与 [playablePageSeries] 不同：那一路服务于官网 ld+json 直链，查的是
+/// `protectedPlayback`；本函数是访客取址的独立门禁，两者不可互相替代。
+GuestPlaybackInfo? parseGuestPlayerPage(
+  String html,
+  String seriesId,
+  String vid,
+) {
+  if (!RegExp(r'^\d{1,30}$').hasMatch(seriesId) ||
+      !RegExp(r'^\d{1,30}$').hasMatch(vid)) {
+    return null;
+  }
+  // Android's ROUTER pattern binds `_ROUTER_DATA` to a preceding <script> tag.
+  // readRouterData is deliberately looser for the other callers, so check the
+  // binding here to match pageTrack exactly (a stray JSON blob is not a page).
+  if (!RegExp(r'<(?i:script)\b[^>]*>\s*(?:window\.)?_ROUTER_DATA\s*=\s*\{')
+      .hasMatch(html)) {
+    return null;
+  }
+  final router = readRouterData(html);
+  if (router == null) return null;
+  final loader = _map(router['loaderData']);
+  final page = _map(loader['player_(series_id)/(vid)/page']);
+  if (page.isEmpty || page['isSuccess'] != true) return null;
+  if (_text(page['series_id']) != seriesId || _text(page['vid']) != vid) {
+    return null;
+  }
+  final series = _map(page['seriesDetail']);
+  if (_text(series['series_id']) != seriesId) return null;
+
+  final access = _map(page['req']);
+  if (access['pcLoginRequired'] != false ||
+      access['pcAuthenticatedPlayback'] != false) {
+    return null;
+  }
+  final episodes = (series['vid_list'] as List<dynamic>?) ?? const [];
+  final accessible =
+      int.tryParse(_text(series['accessible_episode_cnt'])) ?? -1;
+  if (accessible < 1) return null;
+  var listed = false;
+  for (final item in episodes.take(accessible)) {
+    if (_text(item) == vid) {
+      listed = true;
+      break;
+    }
+  }
+  if (!listed) return null;
+
+  var duration = 0.0;
+  var definition = '网页片源';
+  final seo = _map(page['publicVideoSeo']);
+  if (seo['available'] == true) {
+    if (_text(seo['seriesId']) != seriesId || _text(seo['itemId']) != vid) {
+      return null;
+    }
+    duration = num.tryParse(_text(seo['durationSeconds']))?.toDouble() ?? 0;
+    if (duration <= 0 || !duration.isFinite) return null;
+    final pixels = [
+      int.tryParse(_text(seo['width'])) ?? 0,
+      int.tryParse(_text(seo['height'])) ?? 0,
+    ].reduce((a, b) => a < b ? a : b);
+    if (pixels > 0) definition = '网页 ${pixels}P';
+  }
+  return GuestPlaybackInfo(
+    seriesId: seriesId,
+    vid: vid,
+    publicDurationSeconds: duration,
+    definition: definition,
+  );
+}
+
 /// `player` 页能否作为这一集的直链来源：返回页面自己确认的 series_id。
 ///
 /// 官方对未公开分集只挂一段 SEO 预览片（元数据时长对得上，内容只有开头），

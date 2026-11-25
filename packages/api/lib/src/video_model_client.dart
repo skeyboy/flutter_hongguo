@@ -11,6 +11,7 @@ import 'upstream_failure.dart' show classifyUpstreamFailure;
 import 'playback_device.dart';
 import 'playback_routes.dart';
 import 'request_control.dart';
+import 'v5_playback.dart';
 import 'web_source.dart';
 
 /// The URL, its exact body bytes and the exact headers, frozen together: the
@@ -275,6 +276,7 @@ class VideoModelClient {
   final VideoRequestBuilder builder;
   final NetworkRetry retry;
   final PlaybackDeviceRegistry devices;
+  final V5PlaybackRequestBuilder v5Builder;
   final CatalogRequests _requests;
 
   /// How long one vid's answered playback info is kept. Every uncached episode
@@ -320,6 +322,7 @@ class VideoModelClient {
     VideoRequestBuilder? builder,
     NetworkRetry? retry,
     PlaybackDeviceRegistry? devices,
+    V5PlaybackRequestBuilder? v5Builder,
     Duration requestDeadline = const Duration(seconds: 20),
     this.trackTtl = const Duration(minutes: 3),
     DateTime Function()? now,
@@ -331,6 +334,7 @@ class VideoModelClient {
   }) : builder = builder ?? VideoRequestBuilder(),
        retry = retry ?? playbackRetry(),
        devices = devices ?? PlaybackDeviceRegistry(dio: dio),
+       v5Builder = v5Builder ?? V5PlaybackRequestBuilder(),
        now = now ?? DateTime.now,
        _info = info ?? <String, PlaybackInfoEntry>{},
        _requests = CatalogRequests(
@@ -578,13 +582,39 @@ class VideoModelClient {
               appError = error;
               rethrow;
             }
+          case PlaybackRouteId.appPlayerV5:
+            try {
+              final track = await _v5PlayerTrack(
+                vid,
+                sources,
+                quality: quality,
+              );
+              if (track != null) return track;
+            } on Object catch (error) {
+              appError ??= error;
+            }
+          case PlaybackRouteId.appVideoTabV5:
+            try {
+              final track = await _v5VideoTabTrack(
+                vid,
+                sources,
+                quality: quality,
+              );
+              if (track != null) return track;
+            } on Object catch (error) {
+              appError ??= error;
+            }
           case PlaybackRouteId.legacyPreload:
             if (!useLegacySource) continue;
             final legacy = await _legacyTrack(vid, sources);
             if (legacy != null) return legacy;
+          case PlaybackRouteId.webAnonymous:
+            // needsSeriesId guard above already skipped when sid is absent.
+            final anonymous = await _webAnonymousTrack(vid, seriesId!, sources);
+            if (anonymous != null) return anonymous;
           default:
-            // v5 / 老单集 / 官网匿名路由的签名器尚未接入。只记路由 ID，
-            // 不把未实现的请求伪装成成功，也不输出 URL 或签名头。
+            // 老单集 PlayerSign 尚未接入。只记路由 ID，不把未实现的请求
+            // 伪装成成功，也不输出 URL 或签名头。
             onRouteFailure?.call(route.id.label, 'unimplemented');
         }
       } on Object catch (error) {
@@ -603,6 +633,129 @@ class VideoModelClient {
       );
     }
     throw appError ?? const PlaybackUnavailable('暂时取不到这一集的播放信息，请稍后重试');
+  }
+
+  /// v5 `player/v1` gzip POST。签名器已与 Android carrier/digest 向量逐字节
+  /// 对拍；本方法只负责注册身份、发包、把响应整理成 selectTrack 认识的形态。
+  /// 失败只记 [sources] 并返回 null，让后续路由继续救场。
+  Future<VideoTrack?> _v5PlayerTrack(
+    String vid,
+    List<String> sources, {
+    required String quality,
+  }) async {
+    final budget = RequestBudget.current;
+    try {
+      final identity = await budget.measure(
+        'register',
+        () => devices.get(cancelToken: budget.token),
+      );
+      final request = v5Builder.player(
+        vid,
+        deviceId: identity.deviceId,
+        iid: identity.iid,
+        cdid: identity.cdid,
+      );
+      final response = await budget.transport(
+        () => dio.fetch<String>(
+          Options(
+                method: 'POST',
+                headers: request.headers,
+                responseType: ResponseType.plain,
+                followRedirects: false,
+                sendTimeout: _timeout(5),
+                receiveTimeout: _timeout(8),
+              )
+              .compose(
+                dio.options,
+                request.url,
+                data: Stream<Uint8List>.value(request.body!),
+                cancelToken: budget.token,
+              )
+              .copyWith(connectTimeout: _timeout(5)),
+        ),
+      );
+      if (response.statusCode != 200) {
+        sources.add('v5 播放接口：HTTP ${response.statusCode}');
+        devices.discard(identity);
+        return null;
+      }
+      if ((response.data ?? '').isEmpty) {
+        sources.add('v5 播放接口：空响应');
+        devices.discard(identity);
+        return null;
+      }
+      final root = _envelope(response.data);
+      _checkCodes(root);
+      final data = _envelope(root['data']);
+      final entries = _envelope(data['1004']);
+      final effective = entries.isNotEmpty ? entries : data;
+      final entry = _envelope(effective[vid]);
+      if (entry.isEmpty) {
+        sources.add('v5 播放接口：本集未提供片源');
+        return null;
+      }
+      devices.markSuccess(identity);
+      return selectTrack(_envelope(entry['video_model']), quality: quality);
+    } on Object catch (error) {
+      sources.add('v5 播放接口：${_sourceBrief(error)}');
+      return null;
+    }
+  }
+
+  /// v5 `video_tab` 无正文 GET。响应 `data.video_model_data[vid].video_model`
+  /// 复用同一 selectTrack。免签头只含 x-khronos/x-helios/x-medusa。
+  Future<VideoTrack?> _v5VideoTabTrack(
+    String vid,
+    List<String> sources, {
+    required String quality,
+  }) async {
+    final budget = RequestBudget.current;
+    try {
+      final identity = await budget.measure(
+        'register',
+        () => devices.get(cancelToken: budget.token),
+      );
+      final request = v5Builder.videoTab(
+        vid,
+        deviceId: identity.deviceId,
+        iid: identity.iid,
+        cdid: identity.cdid,
+      );
+      final response = await budget.transport(
+        () => dio.fetch<String>(
+          Options(
+                method: 'GET',
+                headers: request.headers,
+                responseType: ResponseType.plain,
+                followRedirects: false,
+                sendTimeout: _timeout(5),
+                receiveTimeout: _timeout(8),
+              )
+              .compose(dio.options, request.url, cancelToken: budget.token)
+              .copyWith(connectTimeout: _timeout(5)),
+        ),
+      );
+      if (response.statusCode != 200 || (response.data ?? '').isEmpty) {
+        sources.add('v5 视频列表：HTTP ${response.statusCode} 或空响应');
+        devices.discard(identity);
+        return null;
+      }
+      final root = _envelope(response.data);
+      _checkCodes(root);
+      final data = _envelope(root['data']);
+      final rows = _envelope(data['video_model_data']);
+      final row = _envelope(rows[vid]);
+      final model = _envelope(row['video_model']);
+      if (model.isEmpty) {
+        sources.add('v5 视频列表：本集未提供片源');
+        return null;
+      }
+      devices.markSuccess(identity);
+      return selectTrack(model, quality: quality);
+    } on Object catch (error) {
+      sources.add('v5 视频列表：${_sourceBrief(error)}');
+      return null;
+    }
   }
 
   /// 第 1 层：官网公开兜底接口（`/api/video/protected/fallback-play-info`）。
@@ -701,6 +854,105 @@ class VideoModelClient {
       sources.add('官网播放页：${_sourceBrief(error)}');
     }
     return null;
+  }
+
+  /// 官网访客（匿名）取址：先 GET `/player/{sid}/{vid}` 做页面鉴权，再 POST
+  /// `/api/video/protected/fallback-play-info` 取明文直链。两跳都免签、无 Cookie
+  /// 与 Authorization（对齐 Android `PublicEpisodeSource.fetch`）。页面拒绝
+  /// 时绝不发第二跳；任一失败只记 [sources] 返回 null。
+  Future<VideoTrack?> _webAnonymousTrack(
+    String vid,
+    String seriesId,
+    List<String> sources,
+  ) async {
+    final budget = RequestBudget.current;
+    final pageHeaders = {
+      'User-Agent': webUserAgent,
+      'Accept': 'text/html',
+      'Referer': webReferer,
+    };
+    GuestPlaybackInfo info;
+    try {
+      final page = await budget.transport(
+        () => dio.get<String>(
+          '$siteOrigin/player/$seriesId/$vid',
+          cancelToken: budget.token,
+          options: Options(
+            headers: pageHeaders,
+            responseType: ResponseType.plain,
+            followRedirects: false,
+            sendTimeout: _timeout(5),
+            receiveTimeout: _timeout(6),
+          ),
+        ),
+      );
+      if (page.statusCode != 200) {
+        sources.add('官网访客页：HTTP ${page.statusCode}');
+        return null;
+      }
+      final parsed = parseGuestPlayerPage(page.data ?? '', seriesId, vid);
+      if (parsed == null) {
+        sources.add('官网访客页：本集不向访客开放');
+        return null;
+      }
+      info = parsed;
+    } on Object catch (error) {
+      sources.add('官网访客页：${_sourceBrief(error)}');
+      return null;
+    }
+
+    try {
+      final response = await budget.transport(
+        () => dio.fetch<String>(
+          Options(
+                method: 'POST',
+                headers: {
+                  'User-Agent': webUserAgent,
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json',
+                  'Referer': webReferer,
+                },
+                responseType: ResponseType.plain,
+                followRedirects: false,
+                sendTimeout: _timeout(5),
+                receiveTimeout: _timeout(6),
+              )
+              .compose(
+                dio.options,
+                '$siteOrigin$publicFallbackPlayPath',
+                data: Stream<Uint8List>.value(
+                  Uint8List.fromList(utf8.encode(jsonEncode({'item_id': vid}))),
+                ),
+                cancelToken: budget.token,
+              )
+              .copyWith(connectTimeout: _timeout(5)),
+        ),
+      );
+      if (response.statusCode != 200) {
+        sources.add('官网访客取址：HTTP ${response.statusCode}');
+        return null;
+      }
+      final play = parsePublicFallbackPlayUrl(
+        _envelope(response.data),
+        nowMillis: DateTime.now().millisecondsSinceEpoch,
+      );
+      if (play == null) {
+        sources.add('官网访客取址：未提供可用片源');
+        return null;
+      }
+      return VideoTrack(
+        url: Uri.parse(play.url),
+        spadeA: '',
+        definition: info.definition,
+        size: 0,
+        userAgent: webUserAgent,
+        referer: webReferer,
+        fromWeb: true,
+      );
+    } on Object catch (error) {
+      sources.add('官网访客取址：${_sourceBrief(error)}');
+      return null;
+    }
   }
 
   /// 第 3 层：旧接口 `multi_video_model/preload/v1`，免签。上游偶尔只对

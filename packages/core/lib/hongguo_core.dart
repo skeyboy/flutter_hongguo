@@ -5,6 +5,8 @@ export 'src/crypto/bytes.dart';
 export 'src/crypto/pure_sign.dart' show PureSign;
 export 'src/crypto/account_sign.dart'
     show AccountRequest, AccountSigner, encodeAccountPart, encodeAccountQuery;
+export 'src/crypto/playback_sign.dart'
+    show PlaybackAesV3, PlaybackRequest, PlaybackSigner;
 export 'src/crypto/spade.dart';
 export 'src/crypto/media_url.dart';
 export 'src/diagnostics.dart';

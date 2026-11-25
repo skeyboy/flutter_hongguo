@@ -59,3 +59,21 @@ docs/design/hls-channel-evaluation.md for the decision and evidence.
   as `packages/core/test/fixtures/account_signing_vectors.json`.
 - This signing family is distinct from `pure_sign.dart`; it is not used for the
   legacy content/playback requests and must not be mixed into them.
+
+## Android v5 playback signing and guest playback (feature/api-alignment)
+
+- packages/core/lib/src/crypto/playback_sign.dart and
+  packages/core/lib/src/crypto/playback_sign_constants.dart are a pure Dart port
+  of `references/hongguo-android` `api/playback/Signer.kt`, `AesV3.kt`,
+  `Bytes.kt`, `V5Constants.kt` and `VendorConstants.kt` (GPL-3.0-only), adapted
+  from N3urda/hongguoTV commit 6672b55 and drpys commit 22261ad. The port is
+  byte-compatible with the 4 carrier vectors in `signing-v5-carrier.json` and
+  the 32 digest vectors in `signing-v5-f13.json`, copied unchanged into
+  `packages/core/test/fixtures/`. It is a separate family from `account_sign.dart`
+  (different AES sbox/tables, fixed mobileV5 hashF13 branch) and must not be
+  mixed with it.
+- packages/api/lib/src/v5_playback.dart adapts `api/playback/MobilePlayerV5.kt`
+  (query order, gzip body, endpoints).
+- The `webAnonymous` route and `parseGuestPlayerPage` in `web_source.dart`
+  adapt `api/service/PublicEpisodeSource.java`; its pinned page/response vectors
+  were transcribed into `packages/api/test/guest_playback_vectors_test.dart`.
