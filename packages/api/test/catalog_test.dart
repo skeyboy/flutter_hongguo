@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:hongguo_core/hongguo_core.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 import 'package:test/test.dart';
 
@@ -327,6 +328,63 @@ void main() {
     adapter.rankVersion = '';
     final page = await client.rankBoard();
     expect(page.updatedAt, isNull);
+  });
+
+  group('详情取源策略', () {
+    const id = '7661622467441478681';
+    CatalogClient appFirst({
+      void Function(String, String, String)? onFallback,
+    }) => CatalogClient(
+      dio: dio,
+      deviceId: '1234567890123456',
+      protocol: const AppSettings(
+        detailSourceOrder: DetailSourceOrder.appFirst,
+      ),
+      onDetailFallback: onFallback,
+    );
+
+    test('默认仍是官网优先，不请求 App 分集接口', () async {
+      final detail = await client.detail(id);
+      expect(detail.drama.title, '回退剧名');
+      expect(
+        adapter.requests.where((r) => r.path.contains('multi_video_detail')),
+        isEmpty,
+      );
+    });
+
+    test('appFirst 先打 App 接口，成功时不请求官网', () async {
+      final detail = await appFirst().detail(id);
+      expect(detail.drama.title, '测试剧名');
+      expect(
+        adapter.requests.where((r) => r.path.contains('multi_video_detail')),
+        hasLength(1),
+      );
+      expect(
+        adapter.requests.where((r) => r.path.contains('hongguoduanju.com')),
+        isEmpty,
+      );
+    });
+
+    test('appFirst 下 App 失败回落官网，诊断只记录分类', () async {
+      adapter.failDetail = true;
+      final fallbacks = <List<String>>[];
+      final detail = await appFirst(
+        onFallback: (a, b, c) => fallbacks.add([a, b, c]),
+      ).detail(id);
+      expect(detail.drama.title, '回退剧名');
+      expect(fallbacks, hasLength(1));
+      expect(fallbacks.single[0], 'appDetail');
+      expect(fallbacks.single[1], 'webDetailRace');
+      expect(fallbacks.single[2], 'risk-control');
+    });
+
+    test('切换策略后不复用另一顺序的缓存', () async {
+      final web = await client.detail(id);
+      expect(web.drama.title, '回退剧名');
+      final app = await appFirst().detail(id);
+      expect(app.drama.title, '测试剧名');
+      expect(app, isNot(same(web)));
+    });
   });
 
   group('限免边界落到分集', () {

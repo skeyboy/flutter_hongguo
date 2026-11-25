@@ -32,7 +32,11 @@ abstract interface class SourceSearchFacade {
   List<SourceAdapter> get sources;
 
   /// 按源搜索。
-  Future<CatalogPage> searchFrom(String sourceId, String query, {String? cursor});
+  Future<CatalogPage> searchFrom(
+    String sourceId,
+    String query, {
+    String? cursor,
+  });
 
   /// 详情（ID 自带来源前缀）。
   Future<DramaDetail> detail(String id);
@@ -98,7 +102,11 @@ class SourceResolver {
         }
         weak ??= _weakMatch(page.items, query) == null
             ? null
-            : (id: candidate.id, label: candidate.label, drama: _weakMatch(page.items, query)!);
+            : (
+                id: candidate.id,
+                label: candidate.label,
+                drama: _weakMatch(page.items, query)!,
+              );
       } on Object {
         // 单源失败不拖垮整体：静默进入下一个源，超预算即止。
         continue;

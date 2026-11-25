@@ -289,8 +289,14 @@ class MediaCache {
     Object? last;
     for (final attempt in attempts) {
       try {
-        await _downloadSingle(attempt, path, token,
-            domains: domains, policy: policy, onProgress: onProgress);
+        await _downloadSingle(
+          attempt,
+          path,
+          token,
+          domains: domains,
+          policy: policy,
+          onProgress: onProgress,
+        );
         return;
       } on DioException catch (error) {
         // 用户取消不是线路问题：立即上抛，绝不能被回退吞掉。
@@ -313,7 +319,10 @@ class MediaCache {
     required void Function(int received, int total) onProgress,
   }) async {
     // 候选 URL 与跳转一样逐条过策略：主轨已由调用方校验，这里幂等复查。
-    checkMediaUrl(track.url.toString(), policy ?? DomainAllowlistPolicy(domains));
+    checkMediaUrl(
+      track.url.toString(),
+      policy ?? DomainAllowlistPolicy(domains),
+    );
     // 官网直链层带官方桌面 UA 与官网 Referer；App 取址的 CDN 两项留空，
     // 沿用既有约定（CDN 对通用 UA 即回完整文件）。
     final headers = {

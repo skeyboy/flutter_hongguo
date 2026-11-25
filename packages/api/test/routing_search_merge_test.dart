@@ -8,8 +8,10 @@ void main() {
   group('搜索聚合合并（M0）', () {
     test('红果结果原样在前，其它源按传入顺序尾随，游标取红果', () {
       final result = RoutingCatalogRepository.mergeSearchPages(
-        CatalogPage([drama('hg:1', '同城爱情'), drama('hg:2', '逆袭')],
-            nextCursor: '18'),
+        CatalogPage([
+          drama('hg:1', '同城爱情'),
+          drama('hg:2', '逆袭'),
+        ], nextCursor: '18'),
         [
           CatalogPage([drama('xf:1', '西饭独占剧')]),
           CatalogPage([drama('hm:1', '河马独占剧')], nextCursor: '99'),
@@ -35,10 +37,7 @@ void main() {
           CatalogPage([drama('hm:1', '西饭另一部')]), // 与西饭重名，丢弃。
         ],
       );
-      expect(result.items.map((d) => d.id).toList(), [
-        'hg:1',
-        'xf:2',
-      ]);
+      expect(result.items.map((d) => d.id).toList(), ['hg:1', 'xf:2']);
     });
 
     test('失败源回空页不影响其它源；空标题跳过', () {

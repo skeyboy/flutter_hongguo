@@ -768,7 +768,8 @@ class _PlayerPageState extends State<PlayerPage>
     }
     if (widget.cachedOnly || widget.mergeId != null) return false;
     if (_crossAttempts >= 2) return false;
-    final SourceSearchFacade? facade = widget.runtime.catalog is SourceSearchFacade
+    final SourceSearchFacade? facade =
+        widget.runtime.catalog is SourceSearchFacade
         ? widget.runtime.catalog as SourceSearchFacade
         : null;
     if (facade == null) return false;
@@ -1400,9 +1401,11 @@ class _PlayerPageState extends State<PlayerPage>
                       final sourceFailure =
                           failure.kind == PlaybackFailureKind.noSource ||
                           failure.kind == PlaybackFailureKind.sourceRejected;
-                      final hint = _crossTriedSources.length > 1 && sourceFailure
+                      final hint =
+                          _crossTriedSources.length > 1 && sourceFailure
                           ? '已在 ${_crossTriedSources.length} 个片源尝试，均未提供这一集；可在 设置 → 片源 中开启更多来源。'
-                          : detail.episodes[position].beyondFree && sourceFailure
+                          : detail.episodes[position].beyondFree &&
+                                sourceFailure
                           ? '这一集在官网限免范围之外；上游当前没有返回取址数据，重试未必有效。'
                           : failure.hint;
                       return Column(
@@ -1662,16 +1665,15 @@ class _PlayerPageState extends State<PlayerPage>
           delegate: SliverChildBuilderDelegate((context, index) {
             // 标记收敛：有备选来源时不展示限免/锁定标注（点击失败由跨源
             // 解析兜底），只剩红果时如实标注。
-            final hasAlternative =
-                settingsFor(widget.runtime).sources.hasAlternativeSources;
+            final hasAlternative = settingsFor(widget.runtime)
+                .sources
+                .hasAlternativeSources;
             final episode = detail.episodes[index];
             final restricted =
                 !hasAlternative && (episode.beyondFree || episode.locked);
             final badge = restricted ? (episode.locked ? '不可播' : '限免外') : null;
             return Tooltip(
-              message: badge == null
-                  ? ''
-                  : '这一集在当前唯一来源不可播；启用更多片源后可自动切换。',
+              message: badge == null ? '' : '这一集在当前唯一来源不可播；启用更多片源后可自动切换。',
               child: FilledButton.tonal(
                 style: FilledButton.styleFrom(
                   padding: EdgeInsets.zero,
@@ -1943,9 +1945,7 @@ class _PlayerPageState extends State<PlayerPage>
             next: () => _step(1),
             exit: () => _exitPage(),
             retry: () => _play(position),
-            episodeLabels: [
-              for (final e in detail.episodes) '第 ${e.index} 集',
-            ],
+            episodeLabels: [for (final e in detail.episodes) '第 ${e.index} 集'],
             episode: position,
             selectEpisode: (i) => _play(i),
             quality: quality,

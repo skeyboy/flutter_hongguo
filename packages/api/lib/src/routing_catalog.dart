@@ -99,15 +99,12 @@ class RoutingCatalogRepository
 
     // 单源软超时：一个慢源不应让整个搜索卡住；失败静默跳过（设计 §1）。
     const perSource = Duration(seconds: 3);
-    final pages = await Future.wait(
-      [
-        for (final adapter in others)
-          adapter.search(query).timeout(perSource).catchError((Object _) {
-            return const CatalogPage(<Drama>[]);
-          }),
-      ],
-      eagerError: false,
-    );
+    final pages = await Future.wait([
+      for (final adapter in others)
+        adapter.search(query).timeout(perSource).catchError((Object _) {
+          return const CatalogPage(<Drama>[]);
+        }),
+    ], eagerError: false);
     return mergeSearchPages(primaryPage, pages);
   }
 

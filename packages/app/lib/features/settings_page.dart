@@ -345,8 +345,7 @@ class _SettingsPageState extends State<SettingsPage> {
           // 遥控没有文本输入，电视端只做启用/停用/删除；新增留给手机与桌面。
           _tvRow(
             config.name.isEmpty ? '未命名片源' : config.name,
-            subtitle:
-                '自定义源 · ${Uri.tryParse(config.url)?.host ?? config.url}',
+            subtitle: '自定义源 · ${Uri.tryParse(config.url)?.host ?? config.url}',
             state: config.enabled ? '已开启' : '已关闭',
             selected: config.enabled,
             onActivate: busy
@@ -446,8 +445,7 @@ class _SettingsPageState extends State<SettingsPage> {
     'reelshort': '海外源 · 需要海外网络；仅未加密 MP4。',
   };
 
-  String _sourceBlurb(String id) =>
-      _sourceBlurbs[id] ?? '搜索结果中混入该源内容。';
+  String _sourceBlurb(String id) => _sourceBlurbs[id] ?? '搜索结果中混入该源内容。';
 
   /// 添加/测试自定义片源。先在弹层里用适配器的 validate + test 做连通性
   /// 检查，通过后写入 draft；真正的持久化随统一保存事务提交。

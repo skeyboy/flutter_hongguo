@@ -51,6 +51,27 @@ Uint8List aesCbcDecrypt(Uint8List key, Uint8List iv, Uint8List ciphertext) {
   return out;
 }
 
+/// Raw CBC with no padding for callers that pre-pad the plaintext themselves
+/// (the legacy single-episode argus container pads to its own block rule).
+Uint8List aesCbcEncryptNoPadding(Uint8List key, Uint8List iv, Uint8List plain) {
+  if (key.length != 16 ||
+      iv.length != 16 ||
+      plain.isEmpty ||
+      plain.length % 16 != 0) {
+    throw ArgumentError(
+      'AES-CBC NoPadding requires 16-byte key/IV and '
+      'a non-empty multiple-of-16 plaintext',
+    );
+  }
+  final cipher = pc.CBCBlockCipher(pc.AESEngine())
+    ..init(true, pc.ParametersWithIV(pc.KeyParameter(key), iv));
+  final out = Uint8List(plain.length);
+  for (var at = 0; at < plain.length; at += 16) {
+    cipher.processBlock(plain, at, out, at);
+  }
+  return out;
+}
+
 /// PKCS#7 CBC for the anonymous device-registration envelope, which Node's
 /// `createCipheriv('aes-128-cbc', ...)` produces and the log endpoint unwraps.
 Uint8List aesCbcEncryptPkcs7(Uint8List key, Uint8List iv, Uint8List plain) {

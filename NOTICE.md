@@ -60,3 +60,45 @@ pinned by `node_oracle.json` against hongguo-web 1.1.5. Only public protocol
 observations (BVC2 detection semantics, Annex-B NAL acceptance) were adapted
 into our own pure-Dart media layer. See `tool/upstream_protocol_1_3_5.json`
 for the recorded sha256 baseline.
+
+## Android account signing family (feature/api-alignment)
+
+- packages/core/lib/src/crypto/account_sign.dart and
+  packages/core/lib/src/crypto/account_sign_constants.dart are a pure Dart port
+  of `references/hongguo-android` `account/protocol/Signer.kt`, `Bytes.kt`,
+  `VendorConstants.kt` and `AesV3.kt` (GPL-3.0-only). That Kotlin code is itself
+  adapted from tsukiyo-zero/hongguoTV commit 34c7930 and drpys commit 22261ad.
+  The port is byte-compatible with the 12 pinned vectors in
+  `app/src/test/java/com/hongguo/account/protocol/SigningOracleTest.kt`, copied
+  as `packages/core/test/fixtures/account_signing_vectors.json`.
+- This signing family is distinct from `pure_sign.dart`; it is not used for the
+  legacy content/playback requests and must not be mixed into them.
+
+- `lib/src/crypto/player_sign.dart` (`LegacyPlayerSign`) ports the legacy
+  single-episode signer from the same reference repository:
+  `app/src/main/java/com/hongguo/api/core/PlayerSign.java` (SPDX
+  GPL-3.0-only; upstream synced from LiuWQ0809/hongguo-android 3eaf813,
+  which credits Xanerix/guoapp ad8dc125). It emits x-gorgon / x-argus /
+  x-ladon for `/novel/player/video_model/v1/` and is byte-for-byte checked
+  against that file's pinned test vectors (`packages/core/test/
+  player_sign_test.dart`).
+- This family is independent of both `pure_sign.dart` and the v5 playback
+  signer; do not mix signatures across request families.
+
+## Android v5 playback signing and guest playback (feature/api-alignment)
+
+- packages/core/lib/src/crypto/playback_sign.dart and
+  packages/core/lib/src/crypto/playback_sign_constants.dart are a pure Dart port
+  of `references/hongguo-android` `api/playback/Signer.kt`, `AesV3.kt`,
+  `Bytes.kt`, `V5Constants.kt` and `VendorConstants.kt` (GPL-3.0-only), adapted
+  from N3urda/hongguoTV commit 6672b55 and drpys commit 22261ad. The port is
+  byte-compatible with the 4 carrier vectors in `signing-v5-carrier.json` and
+  the 32 digest vectors in `signing-v5-f13.json`, copied unchanged into
+  `packages/core/test/fixtures/`. It is a separate family from `account_sign.dart`
+  (different AES sbox/tables, fixed mobileV5 hashF13 branch) and must not be
+  mixed with it.
+- packages/api/lib/src/v5_playback.dart adapts `api/playback/MobilePlayerV5.kt`
+  (query order, gzip body, endpoints).
+- The `webAnonymous` route and `parseGuestPlayerPage` in `web_source.dart`
+  adapt `api/service/PublicEpisodeSource.java`; its pinned page/response vectors
+  were transcribed into `packages/api/test/guest_playback_vectors_test.dart`.

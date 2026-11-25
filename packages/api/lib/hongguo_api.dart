@@ -15,6 +15,10 @@ export 'src/source_resolver.dart';
 export 'src/sources/sources.dart';
 
 export 'src/network_retry.dart';
+export 'src/upstream_failure.dart';
+export 'src/playback_routes.dart';
+export 'src/v5_playback.dart';
+export 'src/single_playback.dart';
 
 export 'src/request_control.dart'
     show
