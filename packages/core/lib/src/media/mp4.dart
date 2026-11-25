@@ -508,10 +508,7 @@ class Mp4Cenc {
   }
 
   static int _startCodeAt(Uint8List b, int at) {
-    if (at + 3 <= b.length &&
-        b[at] == 0 &&
-        b[at + 1] == 0 &&
-        b[at + 2] == 1) {
+    if (at + 3 <= b.length && b[at] == 0 && b[at + 1] == 0 && b[at + 2] == 1) {
       return 3;
     }
     if (at + 4 <= b.length &&

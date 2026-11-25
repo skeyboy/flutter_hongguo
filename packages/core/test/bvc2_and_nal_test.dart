@@ -14,7 +14,10 @@ Uint8List _headWithStsdTag(String tag, {bool withBv2C = false}) {
   final out = <int>[
     ...prefix,
     ..._ascii('stsd'), // stsdAt..stsdAt+3
-    ...List<int>.filled(12, 0), // version/flags(4) + entry_count(4) + entry size(4)
+    ...List<int>.filled(
+      12,
+      0,
+    ), // version/flags(4) + entry_count(4) + entry size(4)
     ..._ascii(tag), // 条目 type：相对 stsdAt 的 +16
   ];
   if (withBv2C) out.addAll(_ascii('bv2C'));
@@ -79,7 +82,11 @@ void main() {
         isFalse,
       );
       expect(
-        Mp4Cenc.validNalSample(Uint8List.fromList([0, 0, 0, 2, 0x00, 0x00]), 4, 'avc1'),
+        Mp4Cenc.validNalSample(
+          Uint8List.fromList([0, 0, 0, 2, 0x00, 0x00]),
+          4,
+          'avc1',
+        ),
         isFalse,
       );
     });

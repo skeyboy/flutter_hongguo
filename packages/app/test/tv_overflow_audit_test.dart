@@ -36,10 +36,8 @@ Future<List<String>> _collectOverflow(Future<void> Function() body) async {
 
 Widget _shell({required Widget home}) => MaterialApp(
   theme: ThemeData(colorScheme: const ColorScheme.dark()),
-  builder: (context, inner) => TvEnvironment(
-    enabled: true,
-    child: TvNavigation(child: inner!),
-  ),
+  builder: (context, inner) =>
+      TvEnvironment(enabled: true, child: TvNavigation(child: inner!)),
   home: home,
 );
 
@@ -103,7 +101,9 @@ void main() {
   // The real-device regression: system CJK font metrics + a shorter viewport
   // made the settings rail's unbounded Column overflow 88px at the bottom.
   // Ahem (the default test font) hides it, so scale text and shrink height.
-  testWidgets('settings rail never overflows under large CJK-like text', (t) async {
+  testWidgets('settings rail never overflows under large CJK-like text', (
+    t,
+  ) async {
     await t.binding.setSurfaceSize(const Size(1280, 600));
     addTearDown(() => t.binding.setSurfaceSize(null));
     final runtime = FakeRuntime();
@@ -128,7 +128,13 @@ void main() {
     }
     // The regression was a vertical (bottom) overflow of the rail Column.
     // Horizontal text nudge at an artificial 1.4x scale is out of scope.
-    final vertical = overflows.where((o) => o.contains('on the bottom')).toList();
-    expect(vertical, isEmpty, reason: 'settings rail overflowed vertically: $vertical');
+    final vertical = overflows
+        .where((o) => o.contains('on the bottom'))
+        .toList();
+    expect(
+      vertical,
+      isEmpty,
+      reason: 'settings rail overflowed vertically: $vertical',
+    );
   });
 }
