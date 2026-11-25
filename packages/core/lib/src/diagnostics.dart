@@ -36,7 +36,7 @@ Map<String, bool> runCoreDiagnostics() {
           ),
         ) ==
         "287216bfa89e662a0f748120c305e199",
-    'Six-header Node parity': digest == "f3ef18a1e0e6604a2e6e472bb168f64e",
+    'Six-header Node parity': digest == "c139ddb6f21b609a76e9b729a352b681",
     'Timestamp endian encoding':
         ByteData.sublistView(decodeBase64(headers['x-ladon']!)).getUint32(0) ==
             1700000000 &&

@@ -40,6 +40,9 @@ void main() {
       },
     );
   }
+  test('core diagnostics all pass against the Node oracle', () {
+    expect(runCoreDiagnostics().values, everyElement(isTrue));
+  });
   for (final row in fixture['spade'] as List) {
     test('spade v1 ${row['key']}', () {
       final raw = unhex(row['raw'] as String);
