@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_core/hongguo_core.dart';
-import 'package:hongguo_api/src/sources/reelshort_adapter.dart';
 import 'package:test/test.dart';
 
 /// 离线回放 ReelShort 公开页面：所有路由都返回伪造的 `__NEXT_DATA__` HTML。

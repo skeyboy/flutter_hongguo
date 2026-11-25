@@ -530,7 +530,8 @@ class VideoModelClient {
             : '${appError.message}；${sources.join('；')}',
       );
     }
-    throw appError ?? PlaybackUnavailable('本集取源失败：${sources.join('；')}');
+    // 走到这里 appError 一定非空：上面 try 成功就会 return，失败则必然赋值。
+    throw appError;
   }
 
   /// 第 1 层：官网公开兜底接口（`/api/video/protected/fallback-play-info`）。

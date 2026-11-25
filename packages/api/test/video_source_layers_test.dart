@@ -4,7 +4,6 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:hongguo_api/hongguo_api.dart';
-import 'package:hongguo_core/hongguo_core.dart';
 import 'package:test/test.dart';
 
 /// 三层取源（官网直链 → App 取址 → 旧接口 preload）的层级测试。

@@ -348,7 +348,7 @@ class NativeRuntime
       expansiveFactories: [
         (sourceSettings) => customSourceAdapters(
           dio: () => _dio,
-          currentSources: () => this.settings.sources.customSources,
+          currentSources: () => settings.sources.customSources,
           tokens: _customTokens,
         ),
       ],

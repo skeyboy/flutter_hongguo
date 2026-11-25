@@ -1,3 +1,4 @@
+import '../crypto/bytes.dart';
 import '../crypto/media_url.dart';
 
 /// Preferences shared by native runtimes. Secret session data is stored separately.
@@ -399,6 +400,16 @@ class CustomSourceConfig {
       enabled: json['enabled'] is bool ? json['enabled'] as bool : false,
     );
   }
+}
+
+/// 新增自定义片源时生成 RFC 4122 v4 UUID（设置页与测试共用）。
+String newSourceUuid() {
+  final bytes = secureBytes(16);
+  bytes[6] = (bytes[6] & 15) | 64;
+  bytes[8] = (bytes[8] & 63) | 128;
+  final value = hex(bytes);
+  return '${value.substring(0, 8)}-${value.substring(8, 12)}-'
+      '${value.substring(12, 16)}-${value.substring(16, 20)}-${value.substring(20)}';
 }
 
 /// 内置源开关 + 自定义源列表。hongguo 不可关闭，其余按表或逐条 enabled。

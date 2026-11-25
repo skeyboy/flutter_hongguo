@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:hongguo_api/hongguo_api.dart';
-import 'package:hongguo_api/src/sources/dramabox_adapter.dart';
 import 'package:hongguo_core/hongguo_core.dart' show SourceSettings;
 import 'package:test/test.dart';
 
