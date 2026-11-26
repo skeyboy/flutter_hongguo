@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>红果剧场 · 官网搜索分页原型（/api/search/result）</title>
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --surface: #fff;
+      --line: #e3e6eb;
+      --text: #1d2430;
+      --muted: #6c7686;
+      --accent: #e8453c;
+      --accent-soft: #fff0ee;
+      --code: #1f2633;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font: 13px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    .icon { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; vertical-align: -3px; }
+
+    .ws-topbar {
+      position: sticky; top: 0; z-index: 20;
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      padding: 10px 20px; background: #fff; border-bottom: 1px solid var(--line);
+    }
+    .ws-topbar strong { font-size: 15px; }
+    .ws-topbar .sub { color: var(--muted); font-size: 11px; }
+    .ws-freeze {
+      margin-left: auto; padding: 5px 10px; font-size: 11px; color: #8b5a10;
+      background: #fff6df; border: 1px solid #f2d99b; border-radius: 999px;
+    }
+    .ws-select, .ws-input {
+      padding: 7px 10px; color: var(--text); background: #fff;
+      border: 1px solid var(--line); border-radius: 8px; outline: none;
+    }
+    .ws-input:focus, .ws-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+    .ws-layout {
+      display: grid; grid-template-columns: 250px minmax(0, 1fr) 320px;
+      gap: 16px; max-width: 1600px; margin: 16px auto; padding: 0 20px 40px;
+    }
+    @media (max-width: 1360px) { .ws-layout { grid-template-columns: 230px minmax(0, 1fr); } .ws-json { grid-column: 1 / -1; } }
+    @media (max-width: 900px) { .ws-layout { grid-template-columns: 1fr; } }
+
+    .ws-card {
+      background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+      padding: 14px; margin-bottom: 14px;
+    }
+    .ws-card h3 { margin: 0 0 8px; font-size: 13px; }
+    .ws-card p { margin: 6px 0; color: var(--muted); font-size: 11px; }
+    .ws-card code, .ws-kv code {
+      padding: 1px 4px; background: #f2f4f7; border-radius: 4px;
+      font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: #b4342c;
+    }
+    .ws-kv { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 5px 8px; font-size: 11px; }
+    .ws-kv span:first-child { color: var(--muted); }
+    .ws-note {
+      padding: 9px 10px; font-size: 11px; color: #7a4a10; line-height: 1.65;
+      background: #fff8e8; border-left: 3px solid #e6a93c; border-radius: 4px;
+    }
+
+    .ws-browser { background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    .ws-browser-bar { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: #eef0f4; border-bottom: 1px solid var(--line); }
+    .ws-dots { display: flex; gap: 5px; }
+    .ws-dots i { width: 9px; height: 9px; border-radius: 50%; background: #c8ccd4; }
+    .ws-url {
+      flex: 1; min-width: 0; padding: 5px 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #48536a;
+      background: #fff; border-radius: 6px;
+    }
+    .ws-site-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px 12px; }
+    .ws-logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 16px; }
+    .ws-logo i { display: grid; place-items: center; width: 30px; height: 30px; color: #fff; font-style: normal; background: var(--accent); border-radius: 9px; }
+    .ws-search-form { display: flex; flex: 1; max-width: 520px; gap: 8px; }
+    .ws-search-form .ws-input { flex: 1; }
+    .ws-primary { padding: 7px 16px; color: #fff; background: var(--accent); border: 1px solid var(--accent); border-radius: 8px; font-weight: 600; }
+    .ws-ghost { padding: 5px 10px; color: var(--text); background: #fff; border: 1px solid var(--line); border-radius: 7px; font-size: 11px; }
+    .ws-ghost[aria-current="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+    .ws-ghost:disabled { opacity: .45; cursor: not-allowed; }
+
+    .ws-quick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 20px 14px; }
+    .ws-quick > span { color: var(--muted); font-size: 11px; margin-right: 2px; }
+
+    .ws-result-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 20px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .ws-result-head strong { font-size: 13px; }
+    .ws-badge { padding: 2px 8px; font: 10px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: #167a55; background: #e8f7f0; border-radius: 999px; }
+    .ws-badge.off { color: #8b5a10; background: #fff6df; }
+    .ws-result-head .spacer { flex: 1; }
+    .ws-result-head small { color: var(--muted); }
+
+    .ws-list { padding: 12px 20px; min-height: 280px; }
+    .ws-hit { display: flex; gap: 14px; width: 100%; padding: 12px; margin-bottom: 10px; text-align: left; background: #fff; border: 1px solid var(--line); border-radius: 10px; transition: border-color .15s, box-shadow .15s; }
+    .ws-hit:hover, .ws-hit.selected { border-color: var(--accent); box-shadow: 0 2px 12px rgba(232, 69, 60, .12); }
+    .ws-hit-art { flex: 0 0 66px; height: 88px; overflow: hidden; border-radius: 6px; background: #282828; }
+    .ws-hit-art img { width: 100%; height: 100%; object-fit: cover; }
+    .ws-hit-copy { flex: 1; min-width: 0; }
+    .ws-hit-copy strong { display: block; font-size: 14px; }
+    .ws-hit-copy .meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 3px 0 5px; color: var(--muted); font-size: 11px; }
+    .ws-hit-copy .meta em { color: var(--accent); font-style: normal; }
+    .ws-hit-copy p { margin: 0; color: var(--muted); font-size: 11px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .ws-hit-id { display: block; margin-top: 5px; font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #99a2b0; }
+    .ws-state { padding: 46px 20px; text-align: center; color: var(--muted); }
+    .ws-state strong { display: block; margin-bottom: 4px; color: var(--text); font-size: 14px; }
+
+    .ws-pagination { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 12px 20px 18px; border-top: 1px solid var(--line); }
+    .ws-page { min-width: 30px; height: 30px; padding: 0 8px; background: #fff; border: 1px solid var(--line); border-radius: 7px; font-size: 11px; }
+    .ws-page[aria-current="page"] { color: #fff; background: var(--accent); border-color: var(--accent); }
+    .ws-page:disabled { opacity: .45; cursor: not-allowed; }
+    .ws-pagination small { margin-left: auto; color: var(--muted); }
+
+    .ws-json pre {
+      max-height: 380px; margin: 0; padding: 12px; overflow: auto;
+      color: #d7e3f4; background: var(--code); border-radius: 8px;
+      font: 10.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-all;
+    }
+    .ws-json .hint { margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <header class="ws-topbar">
+    <strong>官网搜索分页原型</strong>
+    <span class="sub">/api/search/result · page / hasMore · 免签 GET</span>
+    <label class="sub">数据场景
+      <select class="ws-select" id="wsScenario" aria-label="数据场景">
+        <option value="normal">正常</option>
+        <option value="empty">空结果</option>
+        <option value="error">服务不可用</option>
+      </select>
+    </label>
+    <span class="ws-freeze">本版本不执行播放页相关的交互操作变更</span>
+  </header>
+
+  <div class="ws-layout">
+    <aside>
+      <section class="ws-card">
+        <h3>接口契约</h3>
+        <div class="ws-kv">
+          <span>方法 / 路径</span><code>GET /api/search/result</code>
+          <span>固定参数</span><code>aid=8662</code>
+          <span>关键词</span><code>query=...</code>
+          <span>页码</span><code>page=1..n</code>
+          <span>每页条数</span><code>上游决定</code>
+          <span>游标</span><code>无 offset / cursor</code>
+        </div>
+        <p>官网翻页中途不会切到 App 的 <code>search/tab/v</code>（passback / search_id）。</p>
+      </section>
+      <section class="ws-card">
+        <h3>分页判定</h3>
+        <p>1. 优先 <code>hasMore</code>：true / 1 / "true" 为还有下一页。</p>
+        <p>2. 字段缺失时回退 <code>totalPages &gt; pageNum</code>。</p>
+        <p>3. 越界页仍回 200，但 <code>searchList</code> 为空 → 到头。</p>
+      </section>
+      <section class="ws-card">
+        <h3>字段归一</h3>
+        <div class="ws-kv">
+          <span>ID</span><code>series_id</code>
+          <span>标题</span><code>series_title</code>
+          <span>封面</span><code>series_cover</code>
+          <span>简介</span><code>series_intro</code>
+          <span>集数</span><code>episode_cnt</code>
+          <span>标签</span><code>tag_info.text</code>
+        </div>
+      </section>
+      <div class="ws-note">
+        诚实性：仓库没有该接口的原始留样。结果剧名 / 集数 / 徽标 / 评分取 2026-10-30 实机匿名采样；
+        <code>series_id</code> 为稳定派生 ID，封面与简介为占位。每页固定 4 条仅为演示翻页。
+      </div>
+    </aside>
+
+    <main class="ws-browser">
+      <div class="ws-browser-bar">
+        <span class="ws-dots"><i></i><i></i><i></i></span>
+        <span class="ws-url" id="wsUrl">—</span>
+      </div>
+      <div class="ws-site-head">
+        <div class="ws-logo"><i>红</i><span>红果剧场</span></div>
+        <form class="ws-search-form" id="wsForm">
+          <input class="ws-input" id="wsQuery" type="search" placeholder="搜索剧名" aria-label="搜索剧名" value="我" />
+          <button class="ws-primary" type="submit">搜索</button>
+        </form>
+      </div>
+      <div class="ws-quick">
+        <span>快速验证</span>
+        <button type="button" class="ws-ghost" data-query="我">我（多页）</button>
+        <button type="button" class="ws-ghost" data-query="离婚">离婚</button>
+        <button type="button" class="ws-ghost" data-query="吞噬">吞噬（单页）</button>
+        <button type="button" class="ws-ghost" data-query="不存在的剧名">空结果</button>
+      </div>
+      <div class="ws-result-head">
+        <strong id="wsSummary">正在读取搜索结果…</strong>
+        <span class="ws-badge" id="wsHasMore">hasMore</span>
+        <div class="spacer"></div>
+        <small id="wsPageLabel">—</small>
+      </div>
+      <div class="ws-list" id="wsResults"></div>
+      <div class="ws-pagination" id="wsPagination"></div>
+    </main>
+
+    <aside class="ws-json">
+      <section class="ws-card ws-json">
+        <h3>原始响应 · response</h3>
+        <pre id="wsRaw">{}</pre>
+        <p class="hint">右上角地址栏与此处响应同步；切页会重新发起请求。</p>
+      </section>
+      <section class="ws-card ws-json">
+        <h3>归一结果 · searchListFromJson</h3>
+        <pre id="wsParsed">[]</pre>
+      </section>
+    </aside>
+  </div>
+
+  <script src="prototype-real-data.js"></script>
+  <script src="prototype-data.js"></script>
+  <script src="interaction-prototype.js"></script>
+  <script src="web-search.js"></script>
+  <script>
+    (() => {
+      "use strict";
+      const Search = window.HGWebSearch;
+      const state = { query: "我", page: 1, response: null, items: [], selected: 0, request: 0 };
+      const $ = (selector) => document.querySelector(selector);
+      const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      // 封面是内联 SVG 占位，原样打印会把响应面板淹没；仅展示时折短。
+      const displayJson = (value) => JSON.stringify(value, (key, item) =>
+        (key === "series_cover" && typeof item === "string" && item.length > 80)
+          ? `[SVG 占位 · ${item.length} 字符]`
+          : item, 2);
+
+      async function load() {
+        const request = ++state.request;
+        $("#wsUrl").textContent = Search.urlFor(state.query, state.page);
+        $("#wsSummary").textContent = "正在读取搜索结果…";
+        try {
+          const response = await Search.request({ query: state.query, page: state.page });
+          if (request !== state.request) return;
+          state.response = response;
+          state.items = Search.parse(response);
+          state.selected = 0;
+          render();
+        } catch (error) {
+          $("#wsSummary").textContent = `请求失败：${error.message}`;
+          $("#wsResults").innerHTML = `<div class="ws-state"><strong>请求失败</strong><span>${escape(error.message)}</span></div>`;
+        }
+      }
+
+      function render() {
+        const response = state.response;
+        const totalPages = Number(response.totalPages) || 0;
+        const hasMore = Search.resolveHasMore(response);
+        const failed = String(response.code ?? 0) !== "0" && Number(response.code ?? 0) !== 0;
+
+        $("#wsSummary").textContent = failed
+          ? response.message
+          : response.totalCount
+            ? `找到 ${response.totalCount} 部相关剧集`
+            : "没有找到相关剧集";
+        const badge = $("#wsHasMore");
+        badge.textContent = `hasMore=${hasMore}`;
+        badge.classList.toggle("off", !hasMore);
+        $("#wsPageLabel").textContent = totalPages
+          ? `第 ${response.pageNum} / ${totalPages} 页 · 每页 ${Search.PAGE_SIZE} 条`
+          : `第 ${response.pageNum} 页 · 无可用分页`;
+
+        $("#wsResults").innerHTML = state.items.length
+          ? state.items.map((item, index) => `<button type="button" class="ws-hit ${index === state.selected ? "selected" : ""}" data-hit="${index}">
+              <span class="ws-hit-art"><img src="${escape(item.series_cover)}" alt="" /></span>
+              <span class="ws-hit-copy">
+                <strong>${escape(item.series_title)}</strong>
+                <span class="meta">
+                  <span>${escape(item.category_list || "剧集")}</span>
+                  <span>${item.episode_cnt} 集</span>
+                  ${item.tag_info.text ? `<em>${escape(item.tag_info.text)}</em>` : ""}
+                  ${item.score ? `<span>评分 ${escape(item.score)}</span>` : ""}
+                </span>
+                <p>${escape(item.series_intro)}</p>
+                <span class="ws-hit-id">series_id: ${escape(item.series_id)}</span>
+              </span>
+            </button>`).join("")
+          : `<div class="ws-state"><strong>${failed ? "服务不可用" : state.query ? "没有找到相关剧集" : "输入关键词开始搜索"}</strong>
+              <span>${failed ? escape(response.message) : "越界页或空结果：searchList 为空，不会降级为其他结果"}</span></div>`;
+
+        const pages = [];
+        for (let page = 1; page <= Math.min(totalPages, 6); page += 1) pages.push(page);
+        $("#wsPagination").innerHTML = `
+          <button type="button" class="ws-page" data-page="${Math.max(1, state.page - 1)}" ${state.page <= 1 ? "disabled" : ""}>上一页</button>
+          ${pages.map((page) => `<button type="button" class="ws-page" data-page="${page}" ${page === state.page ? 'aria-current="page"' : ""}>${page}</button>`).join("")}
+          <button type="button" class="ws-page" data-page="${Math.min(Math.max(1, totalPages), state.page + 1)}" ${!hasMore ? "disabled" : ""}>下一页</button>
+          <button type="button" class="ws-page" data-page="${totalPages + 1}" ${!totalPages ? "disabled" : ""}>越界页验证</button>
+          <small>← / → 翻页（输入框外）</small>`;
+
+        $("#wsRaw").textContent = displayJson(response);
+        $("#wsParsed").textContent = displayJson(state.items);
+      }
+
+      $("#wsForm").addEventListener("submit", (event) => {
+        event.preventDefault();
+        state.query = $("#wsQuery").value.trim();
+        state.page = 1;
+        load();
+      });
+      document.querySelectorAll("[data-query]").forEach((button) => button.addEventListener("click", () => {
+        state.query = button.dataset.query;
+        state.page = 1;
+        $("#wsQuery").value = state.query;
+        document.querySelectorAll("[data-query]").forEach((item) =>
+          item.setAttribute("aria-current", String(item === button)));
+        load();
+      }));
+      $("#wsPagination").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-page]");
+        if (!button || button.disabled) return;
+        state.page = Number(button.dataset.page) || 1;
+        load();
+      });
+      $("#wsResults").addEventListener("click", (event) => {
+        const hit = event.target.closest("[data-hit]");
+        if (!hit) return;
+        state.selected = Number(hit.dataset.hit) || 0;
+        document.querySelectorAll("[data-hit]").forEach((item) =>
+          item.classList.toggle("selected", Number(item.dataset.hit) === state.selected));
+        $("#wsParsed").textContent = displayJson(state.items[state.selected]);
+      });
+      $("#wsScenario").addEventListener("change", (event) => {
+        Search.setScenario(event.target.value);
+        state.page = 1;
+        load();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;
+        if (event.key === "ArrowRight" && Search.resolveHasMore(state.response || {})) {
+          state.page += 1; load();
+        } else if (event.key === "ArrowLeft" && state.page > 1) {
+          state.page -= 1; load();
+        }
+      });
+      HGProto.hydrateIcons(document);
+      load();
+    })();
+  </script>
+</body>
+</html>
