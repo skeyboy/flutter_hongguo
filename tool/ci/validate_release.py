@@ -30,6 +30,8 @@ notes = ROOT / 'build/release-notes.md'
 notes.parent.mkdir(exist_ok=True)
 notes.write_text(f'''Native Flutter / shared Dart release {release}.
 
+- 平台交互按 PC/iPad/Mobile/TV 四端原型完成一轮优化：详情页操作区对齐（继续观看/追剧/缓存 + 换源位置，主按钮可被测试定位）；发现与分类页顶部筛选改为二级主从（一级内容类型决定二级题材词表，切换联动），二级支持左右滑动切换，二级到边界后一级执行一次，双边界只提示一次「无可切换项」；引导性「主/从」标签按设计备注从页面与原型中全部移除，层级只由位置与联动体现。TV 端把内容面板聚合到「分类」语义入口下，零新增路由与索引。
+- Android 构建接入国内镜像：阿里云 google/central/gradle-plugin 前置、腾讯云兜底，并关闭 Kotlin 增量编译以规避网络盘上的 .tab 缓存锁。本轮三平台验证：Windows 编译 + 12 项测试全过；Android mobile 真机（arm64）安装启动零崩溃、页面无主/从残留；TV flavor 48 项测试全过、TV APK 构建成功。缺口：追剧/缓存按钮的点击行为未做真机点击验证，TV flavor 真机启动验证因设备掉线未完成。
 - Playback routing now defaults to the extended ladder: new and migrated installations use web-public, v5 video-tab/player, signed single-episode, multi-episode, legacy preload and anonymous web routes instead of the retired three-layer default. Every previously swallowed route failure now emits only a stable route id and failure kind to the application log, never URLs, headers, cookies, tokens or response bodies.
 - API alignment landed v5 playback signing, website anonymous acquisition and legacy single-episode PlayerSign, with explicit empty-envelope, risk-control, authentication and business failure classification; only transport and empty-envelope failures are replayed.
 - PureSign branch-0 message expansion once again assigns di0 = di1, and the core diagnostic digest now matches the independently calculated Node oracle. macOS foreground downloads follow up to five CDN redirects and re-run the public/allowlist media URL policy before every hop, so a 302 can no longer stop playback or send a request to an unapproved host.
