@@ -1,7 +1,9 @@
 #include "flutter_window.h"
 
+#include <flutter/encodable_value.h>
 #include <optional>
 #include <shellapi.h>
+#include <flutter/standard_method_codec.h>
 #include "resource.h"
 
 namespace {
@@ -40,6 +42,32 @@ void FlutterWindow::RestoreWindow() {
   if (GetForegroundWindow() != handle) SwitchToThisWindow(handle, TRUE);
 }
 
+void FlutterWindow::RegisterWindowChannel() {
+  if (!flutter_controller_ || window_channel_) {
+    return;
+  }
+  window_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(),
+          "hongguo/windows-window", &flutter::StandardMethodCodec::GetInstance());
+  window_channel_->SetMethodCallHandler(
+      [this](const auto& call, auto result) {
+        if (call.method_name() == "hide") {
+          ShowWindow(GetHandle(), SW_HIDE);
+          result->Success(flutter::EncodableValue(true));
+        } else if (call.method_name() == "quit") {
+          // The tray menu quits without asking; so does Dart's explicit exit.
+          DestroyWindow(GetHandle());
+          result->Success(flutter::EncodableValue(true));
+        } else {
+          result->NotImplemented();
+        }
+      });
+  // From here on the native close button asks Dart (closeRequested) instead of
+  // deciding between tray-hide and destroy on its own.
+  forward_close_ = true;
+}
+
 bool FlutterWindow::OnCreate() {
   if (!Win32Window::OnCreate()) {
     return false;
@@ -57,6 +85,7 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+  RegisterWindowChannel();
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
@@ -78,6 +107,7 @@ void FlutterWindow::OnDestroy() {
   icon.hWnd = GetHandle();
   icon.uID = 1;
   Shell_NotifyIconW(NIM_DELETE, &icon);
+  window_channel_ = nullptr;
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -90,7 +120,16 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
   // Handle close before plugins so the native close button retains the engine.
+  // Once the Dart channel is live the close decision (ask dialog / tray /
+  // exit) belongs to Dart; before that we keep the tray-hide fallback.
   if (message == WM_CLOSE) {
+    if (forward_close_ && window_channel_) {
+      window_channel_->InvokeMethod(
+          "closeRequested",
+          std::make_unique<flutter::EncodableValue>(
+              flutter::EncodableValue(tray_available_ != FALSE)));
+      return 0;
+    }
     if (tray_available_ || AddTrayIcon()) {
       ShowWindow(hwnd, SW_HIDE);
       return 0;

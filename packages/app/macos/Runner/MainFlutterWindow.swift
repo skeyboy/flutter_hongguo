@@ -8,6 +8,10 @@ class MainFlutterWindow: NSWindow {
   private var originalLevel: NSWindow.Level?
   private var topmostSuspended = false
   private var topmostObservers: [NSObjectProtocol] = []
+  // Close-button preference from Dart settings: ask | tray | exit.
+  private var closeBehavior = "ask"
+  private var rememberFrame = false
+  private var windowChannel: FlutterMethodChannel?
 
   private func applyTopmost() {
     guard playerTopmost else { return }
@@ -30,8 +34,29 @@ class MainFlutterWindow: NSWindow {
   }
   deinit { topmostObservers.forEach { NotificationCenter.default.removeObserver($0) } }
 
-  // Retain the same Flutter engine, routes, downloads and player when closing.
-  override func performClose(_ sender: Any?) { orderOut(sender) }
+  // The close button follows the user's 窗口行为 preference: ask forwards the
+  // decision to Dart (confirm dialog), tray keeps the engine with orderOut,
+  // exit terminates through the standard flow so AppKit can save state.
+  override func performClose(_ sender: Any?) {
+    switch closeBehavior {
+    case "exit": NSApp.terminate(sender)
+    case "tray": orderOut(sender)
+    default:
+      windowChannel?.invokeMethod("closeRequested", arguments: nil)
+    }
+  }
+
+  private func applyRememberFrame(_ enabled: Bool) {
+    if enabled {
+      if frameAutosaveName.isEmpty {
+        setFrameAutosaveName("HongguoMainWindow")
+      }
+      setFrameUsingName("HongguoMainWindow")
+    } else if !frameAutosaveName.isEmpty {
+      setFrameAutosaveName("")
+    }
+    rememberFrame = enabled
+  }
 
   override func toggleFullScreen(_ sender: Any?) {
     if !styleMask.contains(.fullScreen) {
@@ -60,16 +85,22 @@ class MainFlutterWindow: NSWindow {
 
   private func registerWindowChannel(_ controller: FlutterViewController) {
     let channel = FlutterMethodChannel(name: "hongguo/macos-window", binaryMessenger: controller.engine.binaryMessenger)
+    windowChannel = channel
     (NSApp.delegate as? AppDelegate)?.windowChannel = channel
     channel.setMethodCallHandler { [weak self] call, result in
       guard let self = self else { result(nil); return }
       let app = NSApp.delegate as? AppDelegate
       switch call.method {
       case "configure": app?.settingsAvailable = call.arguments as? Bool ?? false; result(nil)
+      case "setCloseBehavior": self.closeBehavior = call.arguments as? String ?? "ask"; result(nil)
+      case "setRememberFrame": self.applyRememberFrame(call.arguments as? Bool ?? false); result(nil)
       case "topmost": self.setPlayerTopmost(call.arguments as? Bool ?? false); result(nil)
       case "immersive": self.setImmersive(call.arguments as? Bool ?? false); result(nil)
       case "show": app?.showWindow(nil); result(nil)
-      case "hide": self.performClose(nil); result(nil)
+      // Pure hide: independent of the close preference.
+      case "hide": self.orderOut(nil); result(nil)
+      case "quit": NSApp.terminate(nil); result(nil)
+      case "close": self.performClose(nil); result(nil)
       case "fullscreenToggle": self.toggleFullScreen(nil); result(nil)
       case "zoom": self.performZoom(nil); result(nil)
       case "minimize": self.miniaturize(nil); result(nil)

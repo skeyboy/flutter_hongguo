@@ -10,6 +10,26 @@ class MacWindow {
   static const channel = MethodChannel('hongguo/macos-window');
   static final _players = <Object>{};
   static final _pinnedPlayers = <Object>{};
+
+  /// 原生窗口主动调 Dart：`settings`（打开设置页）与 `closeRequested`
+  /// （关闭按钮待裁决）。通道只允许一个 handler，这里集中分发给注册者。
+  static void Function(Object? arguments)? onSettings;
+  static Future<void> Function()? onCloseRequest;
+  static bool _inboundRegistered = false;
+
+  static void ensureInboundHandler() {
+    if (_inboundRegistered) return;
+    _inboundRegistered = true;
+    channel.setMethodCallHandler((call) async {
+      switch (call.method) {
+        case 'settings':
+          onSettings?.call(call.arguments);
+        case 'closeRequested':
+          await onCloseRequest?.call();
+      }
+    });
+  }
+
   static Future<void> invoke(String method, [Object? arguments]) async {
     if (!macHost) return;
     try {
@@ -84,10 +104,10 @@ class _MacCaption extends StatelessWidget {
         children: [
           const SizedBox(width: 6),
           _CaptionButton(
-            label: '隐藏窗口',
+            label: '关闭窗口',
             color: const Color(0xffff5f57),
             icon: Icons.close,
-            action: 'hide',
+            action: 'close',
           ),
           _CaptionButton(
             label: '最小化窗口',

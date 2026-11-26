@@ -141,4 +141,52 @@ void main() {
     expect(reopened.episodeSwipeHintShown, isTrue);
     expect(reopened.protocolJson(), old.protocolJson());
   });
+  test(
+    'window close behavior defaults to ask and remembers explicit choices',
+    () {
+      final old = AppSettings.fromJson({});
+      expect(old.windowCloseBehavior, WindowCloseBehavior.ask);
+      expect(old.rememberWindowState, isTrue);
+      expect(old.windowBounds, isEmpty);
+      expect(old.windowMaximized, isFalse);
+      final chosen = old.copyWith(
+        windowCloseBehavior: WindowCloseBehavior.exit,
+      );
+      chosen.validate();
+      final restored = AppSettings.fromJson(chosen.toJson());
+      expect(restored.windowCloseBehavior, WindowCloseBehavior.exit);
+      // 勾选记住后写回选择；取消记住恢复询问。
+      final backToAsk = restored.copyWith(
+        windowCloseBehavior: WindowCloseBehavior.ask,
+      );
+      backToAsk.validate();
+      expect(
+        AppSettings.fromJson(backToAsk.toJson()).windowCloseBehavior,
+        WindowCloseBehavior.ask,
+      );
+    },
+  );
+  test('window bounds persist only when sane', () {
+    final good = const AppSettings().copyWith(
+      windowBounds: '120,-40,1280,800',
+      windowMaximized: true,
+    );
+    good.validate();
+    final restored = AppSettings.fromJson(good.toJson());
+    expect(restored.windowBounds, '120,-40,1280,800');
+    expect(restored.windowMaximized, isTrue);
+    for (final bad in [
+      'x,y,w,h',
+      '1,2,3',
+      '0,0,200,100',
+      '1,2,3,4,5',
+      'a,b,c,d',
+    ]) {
+      expect(
+        () => const AppSettings().copyWith(windowBounds: bad).validate(),
+        throwsFormatException,
+        reason: bad,
+      );
+    }
+  });
 }

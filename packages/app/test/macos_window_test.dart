@@ -83,11 +83,12 @@ void main() {
       final body = find.byKey(const ValueKey('mac-frame-content'));
       expect(tester.getRect(body).top, 32);
       expect(tester.getRect(body).height, 568);
-      for (final action in ['hide', 'minimize', 'fullscreenToggle']) {
+      // 红色关闭键现在发 close（由窗口行为偏好裁决），不再是纯 hide。
+      for (final action in ['close', 'minimize', 'fullscreenToggle']) {
         await tester.tap(find.byKey(ValueKey('mac-window-$action')));
         await tester.pump();
       }
-      expect(actions, ['hide', 'minimize', 'fullscreenToggle']);
+      expect(actions, ['close', 'minimize', 'fullscreenToggle']);
       update(() => immersive = true);
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('mac-window-caption')), findsNothing);
