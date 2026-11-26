@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../navigation/app_navigation.dart';
 
 import 'package:dio/dio.dart';
@@ -60,6 +62,7 @@ class _SettingsPageState extends State<SettingsPage> {
       '内容列表',
       '片源',
       '缓存管理',
+      if (desktopHost && !tvBuild) '窗口行为',
       if (updateSupported) '更新',
       '签名与设备',
       '会话凭据',
@@ -258,6 +261,52 @@ class _SettingsPageState extends State<SettingsPage> {
     }, '主题已应用并保存');
   }
 
+  /// 窗口行为走即时自动保存（与主题一致），并同步下发原生。
+  Future<void> _windowBehavior(String value) async {
+    final runtime = configurable;
+    if (runtime == null || busy) return;
+    final behavior = WindowCloseBehavior.values.firstWhere(
+      (item) => item.name == value,
+      orElse: () => WindowCloseBehavior.ask,
+    );
+    final previous = draft.windowCloseBehavior;
+    setState(() => draft = draft.copyWith(windowCloseBehavior: behavior));
+    await _action(() async {
+      try {
+        // 只保存窗口行为，不携带表单里未显式保存的其余草稿字段。
+        await runtime.saveSettings(
+          runtime.settings.copyWith(windowCloseBehavior: behavior),
+        );
+        widget.onSaved?.call();
+      } catch (_) {
+        if (mounted) {
+          setState(() => draft = draft.copyWith(windowCloseBehavior: previous));
+        }
+        rethrow;
+      }
+    }, '关闭按钮行为已保存并生效');
+  }
+
+  Future<void> _rememberWindow(bool value) async {
+    final runtime = configurable;
+    if (runtime == null || busy) return;
+    final previous = draft.rememberWindowState;
+    setState(() => draft = draft.copyWith(rememberWindowState: value));
+    await _action(() async {
+      try {
+        await runtime.saveSettings(
+          runtime.settings.copyWith(rememberWindowState: value),
+        );
+        widget.onSaved?.call();
+      } catch (_) {
+        if (mounted) {
+          setState(() => draft = draft.copyWith(rememberWindowState: previous));
+        }
+        rethrow;
+      }
+    }, '窗口位置记忆已${value ? '开启' : '关闭'}');
+  }
+
   Future<void> _updateChecks(bool value) async {
     final runtime = configurable;
     if (runtime == null) return;
@@ -300,6 +349,34 @@ class _SettingsPageState extends State<SettingsPage> {
   /// 内置源开关走 withBuiltin（红果不可关）；自定义源走 CRUD 并在保存前
   /// 可「测试连接」。改动先落在 draft，随统一保存事务持久化，保存后
   /// 注册表即时重装（无需重启）。
+  /// 桌面端「窗口行为」分区；关闭行为与几何记忆即时生效，不进统一保存事务。
+  Widget _windowSection() {
+    return _section('窗口行为', [
+      const Text('仅桌面端生效。关闭按钮指窗口标题栏的关闭键。'),
+      const SizedBox(height: 8),
+      _choice(
+        '关闭按钮行为',
+        draft.windowCloseBehavior.name,
+        const {'ask': '每次询问', 'tray': '最小化到托盘', 'exit': '退出程序'},
+        _windowBehavior,
+        key: const ValueKey('window-close-behavior'),
+        enabled: !busy && configurable != null,
+      ),
+      const Text(
+        '每次询问：关闭窗口时弹出确认，可选择是否记住；最小化到托盘时播放与后台下载继续进行。',
+        style: TextStyle(fontSize: 12),
+      ),
+      const SizedBox(height: 6),
+      _switch(
+        '记住窗口位置和大小',
+        '重启后恢复上次的窗口位置、大小与最大化状态。',
+        draft.rememberWindowState,
+        // _switch 把回调包进 setState，异步保存必须吞掉 Future。
+        (v) => unawaited(_rememberWindow(v)),
+      ),
+    ]);
+  }
+
   Widget _sourcesSection() {
     // 注册表可用时以注册表为准；web/tv 与测试环境退回静态清单，两者顺序一致。
     const fallbackSources = {
@@ -1417,6 +1494,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                       ]),
                       if (updateSupported) _updateSection(),
+                      if (desktopHost && !tvBuild) _windowSection(),
                       _section('签名与设备', [
                         Text('签名由本地 Dart 核心生成。视频内容密钥按每集自动解析，无需手动填写。'),
                         const SizedBox(height: 10),

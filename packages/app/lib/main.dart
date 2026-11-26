@@ -16,6 +16,8 @@ import 'bootstrap.dart';
 import 'cast/cast_service.dart';
 import 'features/library_page.dart';
 import 'features/settings_page.dart';
+import 'platform/runtime.dart';
+import 'platform/window_close_gate.dart';
 import 'update/update_host.dart';
 
 Future<void> main() async {
@@ -78,7 +80,19 @@ class HongguoApp extends ConsumerWidget {
           title: tvBuild ? "$name TV" : name,
           builder: (context, child) => TvEnvironment(
             enabled: tvBuild,
-            child: tvBuild ? TvNavigation(child: child!) : child!,
+            child: tvBuild
+                ? TvNavigation(child: child!)
+                : WindowCloseGate(
+                    readSettings: () => ref.read(appSettingsProvider.future),
+                    persist: (next) async {
+                      final runtime = await ref.read(runtimeProvider.future);
+                      if (runtime is ConfigurableRuntime) {
+                        await runtime.saveSettings(next);
+                      }
+                    },
+                    settings: settings,
+                    child: child!,
+                  ),
           ),
           debugShowCheckedModeBanner: false,
           locale: const Locale('zh', 'CN'),
@@ -136,7 +150,7 @@ class HongguoApp extends ConsumerWidget {
         return tvBuild
             ? TvBackDispatcher(builder: (_, key) => app(key))
             : RoutedApplication(
-                configuration: app(null),
+                configuration: app(WindowCloseGate.navigatorKey),
                 settingsBuilder: runtime == null
                     ? null
                     : (_) => SettingsPage(runtime: runtime),

@@ -170,9 +170,10 @@ class _RoutedApplicationState extends State<RoutedApplication> {
   void initState() {
     super.initState();
     if (macHost) {
-      MacWindow.channel.setMethodCallHandler((call) async {
-        if (call.method == 'settings' &&
-            mounted &&
+      // macOS 通道只允许一个 Dart handler：入站统一由 MacWindow 分发，
+      // 这里只订阅「打开设置页」事件（WindowCloseGate 订阅 closeRequested）。
+      MacWindow.onSettings = (_) {
+        if (mounted &&
             widget.settingsBuilder != null &&
             router.current.name != AppScreen.settings.routeName) {
           unawaited(
@@ -184,7 +185,8 @@ class _RoutedApplicationState extends State<RoutedApplication> {
             ),
           );
         }
-      });
+      };
+      MacWindow.ensureInboundHandler();
       unawaited(MacWindow.invoke('configure', widget.settingsBuilder != null));
     }
   }

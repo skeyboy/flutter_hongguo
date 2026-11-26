@@ -13,6 +13,10 @@ enum PlaybackIdentityPolicy { freshPerAsk, reuseOnSuccess }
 /// 播放路由集合。默认 `extended`；`current` 仅保留旧三层用于显式兼容。
 enum PlaybackRouteSet { current, extended }
 
+/// 桌面端关闭按钮行为。`ask` 每次弹确认对话框（默认）；`tray` 直接最小化到
+/// 托盘；`exit` 直接退出——后两者通常来自确认框里勾选的「记住我的选择」。
+enum WindowCloseBehavior { ask, tray, exit }
+
 DetailSourceOrder _readDetailSourceOrder(Object? value) => value == 'appFirst'
     ? DetailSourceOrder.appFirst
     : DetailSourceOrder.webFirst;
@@ -24,6 +28,12 @@ PlaybackIdentityPolicy _readIdentityPolicy(Object? value) =>
 
 PlaybackRouteSet _readPlaybackRouteSet(Object? value) =>
     value == 'current' ? PlaybackRouteSet.current : PlaybackRouteSet.extended;
+
+WindowCloseBehavior _readWindowCloseBehavior(Object? value) => value == 'tray'
+    ? WindowCloseBehavior.tray
+    : value == 'exit'
+    ? WindowCloseBehavior.exit
+    : WindowCloseBehavior.ask;
 
 /// Preferences shared by native runtimes. Secret session data is stored separately.
 class AppSettings {
@@ -77,6 +87,18 @@ class AppSettings {
   /// the native runtime resolves its cache directory once, at construction.
   final String cacheDir;
 
+  /// 桌面端关闭按钮行为：弹确认、隐藏到托盘还是直接退出。仅桌面原生层消费。
+  final WindowCloseBehavior windowCloseBehavior;
+
+  /// 是否在重启后恢复上次的窗口位置、大小与最大化状态（桌面端）。
+  final bool rememberWindowState;
+
+  /// 上次的窗口几何 `"x,y,w,h"`。仅由窗口监听器写回，空串表示从未记录。
+  final String windowBounds;
+
+  /// 上次关闭（隐藏）时窗口是否处于最大化状态。
+  final bool windowMaximized;
+
   /// 多源开关与自定义源配置。默认全红果行为，老 JSON 缺字段时走默认值。
   final SourceSettings sources;
 
@@ -120,6 +142,10 @@ class AppSettings {
     this.videoUserAgent = defaultVideoUserAgent,
     this.mergeExportDir = '',
     this.cacheDir = '',
+    this.windowCloseBehavior = WindowCloseBehavior.ask,
+    this.rememberWindowState = true,
+    this.windowBounds = '',
+    this.windowMaximized = false,
     this.updateChecksEnabled = true,
     this.ignoredUpdateVersion = '',
     this.lastUpdateCheckAt = 0,
@@ -168,6 +194,10 @@ class AppSettings {
     'downloadConcurrent': downloadConcurrent,
     'mergeExportDir': mergeExportDir,
     'cacheDir': cacheDir,
+    'windowCloseBehavior': windowCloseBehavior.name,
+    'rememberWindowState': rememberWindowState,
+    'windowBounds': windowBounds,
+    'windowMaximized': windowMaximized,
     'updateChecksEnabled': updateChecksEnabled,
     'ignoredUpdateVersion': ignoredUpdateVersion,
     'lastUpdateCheckAt': lastUpdateCheckAt,
@@ -216,6 +246,15 @@ class AppSettings {
       downloadConcurrent: read('downloadConcurrent', 1),
       mergeExportDir: read('mergeExportDir', ''),
       cacheDir: read('cacheDir', ''),
+      windowCloseBehavior: _readWindowCloseBehavior(
+        json['windowCloseBehavior'],
+      ),
+      rememberWindowState: read(
+        'rememberWindowState',
+        defaults.rememberWindowState,
+      ),
+      windowBounds: read('windowBounds', ''),
+      windowMaximized: read('windowMaximized', false),
       timeoutSeconds: read('timeoutSeconds', defaults.timeoutSeconds),
       signLists: read('signLists', defaults.signLists),
       apiHost: read('apiHost', defaults.apiHost),
@@ -275,6 +314,10 @@ class AppSettings {
     String? videoUserAgent,
     String? mergeExportDir,
     String? cacheDir,
+    WindowCloseBehavior? windowCloseBehavior,
+    bool? rememberWindowState,
+    String? windowBounds,
+    bool? windowMaximized,
     bool? updateChecksEnabled,
     String? ignoredUpdateVersion,
     int? lastUpdateCheckAt,
@@ -311,6 +354,11 @@ class AppSettings {
     'downloadConcurrent': downloadConcurrent ?? this.downloadConcurrent,
     'mergeExportDir': mergeExportDir ?? this.mergeExportDir,
     'cacheDir': cacheDir ?? this.cacheDir,
+    'windowCloseBehavior':
+        (windowCloseBehavior ?? this.windowCloseBehavior).name,
+    'rememberWindowState': rememberWindowState ?? this.rememberWindowState,
+    'windowBounds': windowBounds ?? this.windowBounds,
+    'windowMaximized': windowMaximized ?? this.windowMaximized,
     'timeoutSeconds': timeoutSeconds ?? this.timeoutSeconds,
     'signLists': signLists ?? this.signLists,
     'apiHost': apiHost ?? this.apiHost,
@@ -357,6 +405,16 @@ class AppSettings {
     }
     if (cacheDir.length > 1024 || RegExp(r'[\r\n\u0000]').hasMatch(cacheDir)) {
       throw const FormatException('缓存目录无效');
+    }
+    if (windowBounds.isNotEmpty) {
+      final bounds = RegExp(r'^-?\d{1,5},-?\d{1,5},\d{1,5},\d{1,5}$')
+          .firstMatch(windowBounds);
+      if (windowBounds.length > 64 ||
+          bounds == null ||
+          int.parse(windowBounds.split(',')[2]) < 400 ||
+          int.parse(windowBounds.split(',')[3]) < 300) {
+        throw const FormatException('窗口几何无效');
+      }
     }
     if (timeoutSeconds < 10 || timeoutSeconds > 120) {
       throw const FormatException('请求超时应为 10～120 秒');
