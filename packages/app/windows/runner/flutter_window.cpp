@@ -54,13 +54,13 @@ void FlutterWindow::RegisterWindowChannel() {
       [this](const auto& call, auto result) {
         if (call.method_name() == "hide") {
           ShowWindow(GetHandle(), SW_HIDE);
-          result(flutter::EncodableValue(true));
+          result->Success(flutter::EncodableValue(true));
         } else if (call.method_name() == "quit") {
           // The tray menu quits without asking; so does Dart's explicit exit.
           DestroyWindow(GetHandle());
-          result(flutter::EncodableValue(true));
+          result->Success(flutter::EncodableValue(true));
         } else {
-          result(nullptr);
+          result->NotImplemented();
         }
       });
   // From here on the native close button asks Dart (closeRequested) instead of
