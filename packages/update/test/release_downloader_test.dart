@@ -78,6 +78,11 @@ void main() {
     destination: destination,
   );
 
+  // ReleaseDownloader builds paths with Platform.pathSeparator; the test must
+  // do the same or the string assertion breaks on Windows (backslash).
+  String pathOf(String fileName) =>
+      '${destination.path}${Platform.pathSeparator}$fileName';
+
   test('a matching hash lands the file and reports what it is', () async {
     final downloader = fetcher({url: payload});
     final progress = <int>[];
@@ -86,13 +91,13 @@ void main() {
       release(),
       onProgress: (received, total) => progress.add(total),
     );
-    expect(downloaded.path, '${destination.path}/$name');
+    expect(downloaded.path, pathOf(name));
     expect(downloaded.bytes, payload.length);
     expect(downloaded.sha256, payloadHash);
     expect(File(downloaded.path).readAsBytesSync(), payload);
     expect(progress, isNotEmpty);
     expect(
-      File('${destination.path}/$name.part').existsSync(),
+      File('${pathOf(name)}.part').existsSync(),
       isFalse,
       reason: 'the working file must not survive a completed download',
     );
@@ -239,7 +244,7 @@ void main() {
   });
 
   test('a truncated leftover is fetched again, not trusted', () async {
-    File('${destination.path}/$name')
+    File(pathOf(name))
       ..createSync()
       ..writeAsBytesSync(payload.sublist(0, payload.length - 1));
     final adapter = Routed({url: payload});
