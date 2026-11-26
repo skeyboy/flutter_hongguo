@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import 'anchored_panel.dart';
 
@@ -21,6 +22,7 @@ class HoverPeek extends StatefulWidget {
     required this.enabled,
     required this.onShow,
     required this.onLeave,
+    this.dismissWhenCovered,
     required this.child,
   });
 
@@ -28,12 +30,16 @@ class HoverPeek extends StatefulWidget {
   /// the first tap of every card a dead tap.
   final bool enabled;
 
-  /// Called with this card's global rect once the pointer has held still.
-  final void Function(Rect anchor) onShow;
+  /// Called with this card's global rect and still-mounted source context once
+  /// the pointer has held still.
+  final void Function(Rect anchor, BuildContext sourceContext) onShow;
 
   /// Called the moment the pointer leaves: the page decides when that means
   /// closing.
   final VoidCallback onLeave;
+
+  /// A page can preserve this lower layer while its own overlay covers the card.
+  final bool Function()? dismissWhenCovered;
 
   final Widget child;
 
@@ -46,6 +52,17 @@ class _HoverPeekState extends State<HoverPeek> {
 
   final GlobalKey _anchor = GlobalKey();
   Timer? _timer;
+
+  @override
+  void didUpdateWidget(covariant HoverPeek oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled ||
+        widget.child != oldWidget.child ||
+        widget.key != oldWidget.key) {
+      _timer?.cancel();
+      _timer = null;
+    }
+  }
 
   @override
   void dispose() {
@@ -64,13 +81,37 @@ class _HoverPeekState extends State<HoverPeek> {
       onEnter: (_) {
         _timer?.cancel();
         _timer = Timer(_hold, () {
-          final box = _anchor.currentContext;
-          final rect = box == null ? null : globalRectOf(box);
-          if (rect != null) widget.onShow(rect);
+          _timer = null;
+          if (!mounted || !widget.enabled) return;
+          final sourceContext = _anchor.currentContext;
+          if (sourceContext == null || !sourceContext.mounted) return;
+          final rect = globalRectOf(sourceContext);
+          if (rect != null) widget.onShow(rect, sourceContext);
         });
       },
-      onExit: (_) {
+      onExit: (event) {
         _timer?.cancel();
+        _timer = null;
+        final sourceContext = _anchor.currentContext;
+        final rect = sourceContext == null ? null : globalRectOf(sourceContext);
+        // Hit-testing can change without pointer movement. A stationary exit
+        // dismisses only when the new layer really covers this source.
+        if (rect != null && rect.contains(event.position)) {
+          final view = WidgetsBinding.instance.rootElement?.findRenderObject();
+          final source = _anchor.currentContext?.findRenderObject();
+          if (view is! RenderView || source == null) {
+            widget.onLeave();
+            return;
+          }
+          final hits = HitTestResult();
+          final sourceHit =
+              view.hitTest(hits, position: event.position) &&
+              hits.path.any((entry) => entry.target == source);
+          if (sourceHit || (widget.dismissWhenCovered?.call() ?? true)) {
+            widget.onLeave();
+          }
+          return;
+        }
         widget.onLeave();
       },
       child: widget.child,

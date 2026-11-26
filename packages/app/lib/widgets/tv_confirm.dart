@@ -14,6 +14,7 @@ Future<bool?> showTvConfirm(
   required String title,
   required String body,
   required String confirmLabel,
+  String cancelLabel = '取消',
 }) {
   final tv = TvEnvironment.of(context);
   return showDialog<bool>(
@@ -24,12 +25,15 @@ Future<bool?> showTvConfirm(
       actions: tv
           ? [
               TvFocusable(
-                label: '取消',
+                label: cancelLabel,
                 autofocus: true,
                 onActivate: () => Navigator.pop(context, false),
-                child: const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: Text('取消', style: TextStyle(fontSize: 20)),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    cancelLabel,
+                    style: const TextStyle(fontSize: 20),
+                  ),
                 ),
               ),
               TvFocusable(
@@ -50,7 +54,7 @@ Future<bool?> showTvConfirm(
           : [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('取消'),
+                child: Text(cancelLabel),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(context, true),

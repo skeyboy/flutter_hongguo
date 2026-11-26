@@ -45,6 +45,7 @@ class _SettingsPageState extends State<SettingsPage> {
       cookie,
       token;
   bool busy = false, credentialsEdited = false, changed = false;
+  bool _dirty = false, _confirmingDiscard = false;
 
   /// The advanced panel is an `ExpansionTile` on touch. Its header is a Material
   /// ink target the ring would have to share with the whole subtree, so TV opens
@@ -103,17 +104,30 @@ class _SettingsPageState extends State<SettingsPage> {
         .catchError((Object _) {});
   }
 
+  bool get _unsaved => _dirty || credentialsEdited;
+
+  /// The draft stays separate from runtime settings until the full save. Keep
+  /// dirty tracking here so every kind of edit is guarded, while autosaved theme,
+  /// update and capability actions can still use ordinary assignment.
+  void _edit(AppSettings Function(AppSettings) update) {
+    setState(() {
+      draft = update(draft);
+      _dirty = true;
+      error = null;
+    });
+  }
+
+  void _editCredentials() {
+    if (!credentialsEdited) setState(() => credentialsEdited = true);
+  }
+
   Future<void> _pickCacheDir() async {
     final dir = await FilePicker.getDirectoryPath(
       dialogTitle: '选择视频缓存目录',
       initialDirectory: draft.cacheDir.isEmpty ? null : draft.cacheDir,
     );
     if (dir == null || !mounted) return;
-    setState(() {
-      draft = draft.copyWith(cacheDir: dir);
-      changed = true;
-      error = null;
-    });
+    _edit((draft) => draft.copyWith(cacheDir: dir));
   }
 
   Future<void> _usage() async {
@@ -143,7 +157,12 @@ class _SettingsPageState extends State<SettingsPage> {
     super.dispose();
   }
 
-  Future<void> _action(Future<void> Function() action, String success) async {
+  Future<void> _action(
+    Future<void> Function() action,
+    String success, {
+    bool changed = false,
+    VoidCallback? onSuccess,
+  }) async {
     setState(() {
       busy = true;
       error = null;
@@ -153,73 +172,122 @@ class _SettingsPageState extends State<SettingsPage> {
       await action();
       if (mounted) {
         setState(() {
-          status = success;
-          changed = true;
+          onSuccess?.call();
+          this.changed = this.changed || changed;
         });
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(success)));
       }
     } catch (e) {
       if (mounted) {
-        setState(
-          () => error = e is FormatException
-              ? e.message
-              : '操作未完成，请检查系统安全存储或磁盘空间后重试。',
-        );
+        final message = e is FormatException
+            ? e.message
+            : '操作未完成，请检查系统安全存储或磁盘空间后重试。';
+        setState(() {
+          error = message;
+          status = null;
+        });
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: Theme.of(context).colorScheme.error,
+              showCloseIcon: true,
+            ),
+          );
       }
     } finally {
       if (mounted) setState(() => busy = false);
     }
   }
 
+  Future<void> _leave() async {
+    if (busy || _confirmingDiscard) return;
+    if (widget.embedded || !_unsaved) {
+      Navigator.pop(context, changed);
+      return;
+    }
+    if (_confirmingDiscard) return;
+    _confirmingDiscard = true;
+    try {
+      final discard = await showTvConfirm(
+        context,
+        title: '有未保存的更改',
+        body: '离开设置会丢弃本次修改。你可以继续编辑，或放弃后返回。',
+        confirmLabel: '放弃并返回',
+        cancelLabel: '继续编辑',
+      );
+      if (!mounted || discard != true) return;
+      setState(() {
+        _dirty = false;
+        credentialsEdited = false;
+      });
+      Navigator.pop(context, false);
+    } finally {
+      _confirmingDiscard = false;
+    }
+  }
+
   Future<void> _save() async {
     final runtime = configurable;
     if (runtime == null) return;
-    await _action(() async {
-      final next = draft.copyWith(
-        backgroundPlayback: mobileHost
-            ? runtime.settings.backgroundPlayback
-            : draft.backgroundPlayback,
-        backgroundDownloads: mobileHost
-            ? runtime.settings.backgroundDownloads
-            : draft.backgroundDownloads,
-        floatingPlayback: mobileHost
-            ? runtime.settings.floatingPlayback
-            : draft.floatingPlayback,
-        backgroundPlaybackPrompted:
-            runtime.settings.backgroundPlaybackPrompted ||
-            draft.backgroundPlaybackPrompted,
-        floatingPlaybackPrompted:
-            runtime.settings.floatingPlaybackPrompted ||
-            draft.floatingPlaybackPrompted,
-        apiHost: apiHost.text.trim(),
-        videoHost: videoHost.text.trim(),
-        catalogVersion: catalogVersion.text.trim(),
-        catalogVersionCode: catalogCode.text.trim(),
-        videoVersion: videoVersion.text.trim(),
-        videoVersionCode: videoCode.text.trim(),
-        videoUserAgent: userAgent.text.trim(),
-      );
-      next.validate();
-      await runtime.saveSettings(
-        next,
-        credentials: credentialsEdited
-            ? SessionCredentials(
-                cookie: cookie.text.trim(),
-                ttToken: token.text.trim(),
-              )
-            : null,
-      );
-      widget.onSaved?.call();
-      if (mounted && !widget.embedded && widget.closeOnSave) {
-        Navigator.pop(context, true);
-      }
-    }, '设置已保存');
+    await _action(
+      () async {
+        final next = draft.copyWith(
+          backgroundPlayback: mobileHost
+              ? runtime.settings.backgroundPlayback
+              : draft.backgroundPlayback,
+          backgroundDownloads: mobileHost
+              ? runtime.settings.backgroundDownloads
+              : draft.backgroundDownloads,
+          floatingPlayback: mobileHost
+              ? runtime.settings.floatingPlayback
+              : draft.floatingPlayback,
+          backgroundPlaybackPrompted:
+              runtime.settings.backgroundPlaybackPrompted ||
+              draft.backgroundPlaybackPrompted,
+          floatingPlaybackPrompted:
+              runtime.settings.floatingPlaybackPrompted ||
+              draft.floatingPlaybackPrompted,
+          apiHost: apiHost.text.trim(),
+          videoHost: videoHost.text.trim(),
+          catalogVersion: catalogVersion.text.trim(),
+          catalogVersionCode: catalogCode.text.trim(),
+          videoVersion: videoVersion.text.trim(),
+          videoVersionCode: videoCode.text.trim(),
+          videoUserAgent: userAgent.text.trim(),
+        );
+        next.validate();
+        await runtime.saveSettings(
+          next,
+          credentials: credentialsEdited
+              ? SessionCredentials(
+                  cookie: cookie.text.trim(),
+                  ttToken: token.text.trim(),
+                )
+              : null,
+        );
+        widget.onSaved?.call();
+        if (mounted && !widget.embedded && widget.closeOnSave) {
+          Navigator.pop(context, true);
+        }
+      },
+      '设置已保存',
+      changed: true,
+      onSuccess: () {
+        _dirty = false;
+        credentialsEdited = false;
+      },
+    );
   }
 
   Future<void> _capability(PlaybackCapability capability, bool value) async {
     final runtime = configurable;
     if (runtime == null || busy) return;
     if (!mobileHost) {
-      setState(() => draft = capability.apply(draft, value));
+      _edit((draft) => capability.apply(draft, value));
       return;
     }
     setState(() => busy = true);
@@ -231,31 +299,43 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!mounted) return;
     setState(() => busy = false);
     if (!accepted) return;
-    await _action(() async {
-      // Commit only this capability; preserve unrelated unsaved form edits.
-      await runtime.saveSettings(capability.apply(runtime.settings, value));
-      if (mounted) setState(() => draft = capability.apply(draft, value));
-      widget.onSaved?.call();
-    }, '${capability.title}已${value ? '开启' : '关闭'}并生效');
+    await _action(
+      () async {
+        // Commit only this capability; preserve unrelated unsaved form edits.
+        await runtime.saveSettings(capability.apply(runtime.settings, value));
+        if (mounted) setState(() => draft = capability.apply(draft, value));
+        widget.onSaved?.call();
+      },
+      '${capability.title}已${value ? '开启' : '关闭'}并生效',
+      changed: true,
+    );
   }
 
   Future<void> _theme(String value) async {
     final runtime = configurable;
     if (runtime == null) return;
     final previous = draft.themeMode;
-    setState(() => draft = draft.copyWith(themeMode: value));
-    await _action(() async {
-      try {
-        // Save only theme here; other draft fields still require explicit save.
-        await runtime.saveSettings(runtime.settings.copyWith(themeMode: value));
-        widget.onSaved?.call();
-      } catch (_) {
-        if (mounted) {
-          setState(() => draft = draft.copyWith(themeMode: previous));
+    setState(() {
+      draft = draft.copyWith(themeMode: value);
+    });
+    await _action(
+      () async {
+        try {
+          // Save only theme here; other draft fields still require explicit save.
+          await runtime.saveSettings(
+            runtime.settings.copyWith(themeMode: value),
+          );
+          widget.onSaved?.call();
+        } catch (_) {
+          if (mounted) {
+            setState(() => draft = draft.copyWith(themeMode: previous));
+          }
+          rethrow;
         }
-        rethrow;
-      }
-    }, '主题已应用并保存');
+      },
+      '主题已应用并保存',
+      changed: true,
+    );
   }
 
   Future<void> _updateChecks(bool value) async {
@@ -263,20 +343,26 @@ class _SettingsPageState extends State<SettingsPage> {
     if (runtime == null) return;
     final previous = draft.updateChecksEnabled;
     setState(() => draft = draft.copyWith(updateChecksEnabled: value));
-    await _action(() async {
-      try {
-        // Saving the switch must not carry the rest of the unsaved form.
-        await runtime.saveSettings(
-          runtime.settings.copyWith(updateChecksEnabled: value),
-        );
-        widget.onSaved?.call();
-      } catch (_) {
-        if (mounted) {
-          setState(() => draft = draft.copyWith(updateChecksEnabled: previous));
+    await _action(
+      () async {
+        try {
+          // Saving the switch must not carry the rest of the unsaved form.
+          await runtime.saveSettings(
+            runtime.settings.copyWith(updateChecksEnabled: value),
+          );
+          widget.onSaved?.call();
+        } catch (_) {
+          if (mounted) {
+            setState(
+              () => draft = draft.copyWith(updateChecksEnabled: previous),
+            );
+          }
+          rethrow;
         }
-        rethrow;
-      }
-    }, value ? '自动检查更新已开启' : '自动检查更新已关闭');
+      },
+      value ? '自动检查更新已开启' : '自动检查更新已关闭',
+      changed: true,
+    );
   }
 
   void _protocolDefaults() {
@@ -286,13 +372,19 @@ class _SettingsPageState extends State<SettingsPage> {
         signLists: value.signLists,
         timeoutSeconds: value.timeoutSeconds,
       );
-      apiHost.text = value.apiHost;
-      videoHost.text = value.videoHost;
-      catalogVersion.text = value.catalogVersion;
-      catalogCode.text = value.catalogVersionCode;
-      videoVersion.text = value.videoVersion;
-      videoCode.text = value.videoVersionCode;
-      userAgent.text = value.videoUserAgent;
+      for (final entry in [
+        (apiHost, value.apiHost),
+        (videoHost, value.videoHost),
+        (catalogVersion, value.catalogVersion),
+        (catalogCode, value.catalogVersionCode),
+        (videoVersion, value.videoVersion),
+        (videoCode, value.videoVersionCode),
+        (userAgent, value.videoUserAgent),
+      ]) {
+        entry.$1.text = entry.$2;
+      }
+      _dirty = true;
+      error = null;
     });
   }
 
@@ -319,8 +411,8 @@ class _SettingsPageState extends State<SettingsPage> {
             entry.value.$1,
             entry.value.$2,
             draft.sources.isEnabled(entry.key),
-            (v) => setState(
-              () => draft = draft.copyWith(
+            (v) => _edit(
+              (draft) => draft.copyWith(
                 sources: draft.sources.withBuiltin(entry.key, v),
               ),
             ),
@@ -332,8 +424,8 @@ class _SettingsPageState extends State<SettingsPage> {
               adapter.label,
               _sourceBlurb(adapter.id),
               draft.sources.isEnabled(adapter.id),
-              (v) => setState(
-                () => draft = draft.copyWith(
+              (v) => _edit(
+                (draft) => draft.copyWith(
                   sources: draft.sources.withBuiltin(adapter.id, v),
                 ),
               ),
@@ -347,11 +439,11 @@ class _SettingsPageState extends State<SettingsPage> {
             config.name.isEmpty ? '未命名片源' : config.name,
             subtitle: '自定义源 · ${Uri.tryParse(config.url)?.host ?? config.url}',
             state: config.enabled ? '已开启' : '已关闭',
-            selected: config.enabled,
+            checked: config.enabled,
             onActivate: busy
                 ? null
-                : () => setState(
-                    () => draft = draft.copyWith(
+                : () => _edit(
+                    (draft) => draft.copyWith(
                       sources: draft.sources.toggleCustom(
                         config.uuid,
                         !config.enabled,
@@ -364,8 +456,8 @@ class _SettingsPageState extends State<SettingsPage> {
             icon: Icons.delete_outline,
             onActivate: busy
                 ? null
-                : () => setState(
-                    () => draft = draft.copyWith(
+                : () => _edit(
+                    (draft) => draft.copyWith(
                       sources: draft.sources.removeCustom(config.uuid),
                     ),
                   ),
@@ -387,8 +479,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   value: config.enabled,
                   onChanged: busy
                       ? null
-                      : (v) => setState(
-                          () => draft = draft.copyWith(
+                      : (v) => _edit(
+                          (draft) => draft.copyWith(
                             sources: draft.sources.toggleCustom(config.uuid, v),
                           ),
                         ),
@@ -398,8 +490,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   icon: const Icon(Icons.delete_outline),
                   onPressed: busy
                       ? null
-                      : () => setState(
-                          () => draft = draft.copyWith(
+                      : () => _edit(
+                          (draft) => draft.copyWith(
                             sources: draft.sources.removeCustom(config.uuid),
                           ),
                         ),
@@ -531,12 +623,24 @@ class _SettingsPageState extends State<SettingsPage> {
           enabled: true,
         ),
       );
+      _edit(
+        (draft) => draft.copyWith(sources: draft.sources.upsertCustom(checked)),
+      );
+    } on SourceException catch (sourceError) {
+      final message = sourceError.message;
       setState(() {
-        draft = draft.copyWith(sources: draft.sources.upsertCustom(checked));
-        changed = true;
+        status = message;
+        error = message;
       });
-    } on SourceException catch (error) {
-      setState(() => status = error.message);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            showCloseIcon: true,
+          ),
+        );
     }
   }
 
@@ -563,7 +667,7 @@ class _SettingsPageState extends State<SettingsPage> {
           '启动或回到前台时自动检查',
           subtitle: '一天最多询问一次；没有新版本时不打扰。',
           state: draft.updateChecksEnabled ? '已开启' : '已关闭',
-          selected: draft.updateChecksEnabled,
+          checked: draft.updateChecksEnabled,
           key: const Key('自动检查更新'),
           onActivate: busy
               ? null
@@ -735,12 +839,14 @@ class _SettingsPageState extends State<SettingsPage> {
     String? subtitle,
     String? state,
     bool selected = false,
+    bool? checked,
     VoidCallback? onActivate,
     Key? key,
   }) => TvFocusable(
     key: key,
     label: state == null ? title : '$title $state',
     selected: selected,
+    checked: checked,
     onActivate: onActivate,
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
@@ -826,13 +932,13 @@ class _SettingsPageState extends State<SettingsPage> {
       '列表接口也签名',
       '默认开启；旧配置遇到空响应时会自动补签重试。',
       draft.signLists,
-      (v) => draft = draft.copyWith(signLists: v),
+      (v) => _edit((draft) => draft.copyWith(signLists: v)),
     ),
     _number(
       '请求超时',
       draft.timeoutSeconds,
       [10, 15, 20, 30, 60, 120],
-      (v) => draft = draft.copyWith(timeoutSeconds: v),
+      (v) => _edit((draft) => draft.copyWith(timeoutSeconds: v)),
       suffix: ' 秒',
     ),
     Text(
@@ -862,8 +968,8 @@ class _SettingsPageState extends State<SettingsPage> {
         title,
         subtitle: subtitle,
         state: value ? '已开启' : '已关闭',
-        selected: value,
-        onActivate: busy ? null : () => setState(() => update(!value)),
+        checked: value,
+        onActivate: busy ? null : () => update(!value),
       );
     }
     return SwitchListTile.adaptive(
@@ -871,7 +977,7 @@ class _SettingsPageState extends State<SettingsPage> {
       title: Text(title),
       subtitle: Text(subtitle),
       value: value,
-      onChanged: busy ? null : (v) => setState(() => update(v)),
+      onChanged: busy ? null : update,
     );
   }
 
@@ -882,10 +988,8 @@ class _SettingsPageState extends State<SettingsPage> {
         capability.title,
         subtitle: subtitle,
         state: value ? '已开启' : '已关闭',
-        selected: value,
-        onActivate: busy
-            ? null
-            : () => setState(() => _capability(capability, !value)),
+        checked: value,
+        onActivate: busy ? null : () => _capability(capability, !value),
       );
     }
     return SwitchListTile.adaptive(
@@ -913,11 +1017,8 @@ class _SettingsPageState extends State<SettingsPage> {
         state: '$value$suffix',
         key: key,
         onActivate: enabled
-            ? () => setState(
-                () => update(
-                  options[(options.indexOf(value) + 1) % options.length],
-                ),
-              )
+            ? () =>
+                  update(options[(options.indexOf(value) + 1) % options.length])
             : null,
       );
     }
@@ -933,7 +1034,7 @@ class _SettingsPageState extends State<SettingsPage> {
               for (final item in options)
                 DropdownMenuItem(value: item, child: Text('$item$suffix')),
             ],
-            onChanged: enabled ? (v) => setState(() => update(v!)) : null,
+            onChanged: enabled ? (v) => update(v!) : null,
           ),
         ],
       ),
@@ -992,7 +1093,9 @@ class _SettingsPageState extends State<SettingsPage> {
       obscureText: secret,
       enableSuggestions: !secret,
       autocorrect: false,
-      onChanged: secret ? (_) => credentialsEdited = true : null,
+      onChanged: secret
+          ? (_) => _editCredentials()
+          : (_) => _edit((draft) => draft),
       style: tv ? const TextStyle(fontSize: 22) : null,
       decoration: InputDecoration(
         labelText: label,
@@ -1048,9 +1151,9 @@ class _SettingsPageState extends State<SettingsPage> {
       },
     );
     return PopScope<bool>(
-      canPop: widget.embedded || !changed,
+      canPop: !busy && !_confirmingDiscard && (widget.embedded || !_unsaved),
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) Navigator.pop(context, changed);
+        if (!didPop && !busy && !_confirmingDiscard) _leave();
       },
       child: Scaffold(
         appBar: AppBar(
@@ -1058,7 +1161,9 @@ class _SettingsPageState extends State<SettingsPage> {
           automaticallyImplyLeading: !widget.embedded,
           leading: widget.embedded
               ? null
-              : BackButton(onPressed: () => Navigator.pop(context, changed)),
+              : BackButton(
+                  onPressed: busy || _confirmingDiscard ? null : _leave,
+                ),
           actions: [
             Padding(
               padding: const EdgeInsets.only(right: 12),
@@ -1115,11 +1220,6 @@ class _SettingsPageState extends State<SettingsPage> {
                             ),
                           ),
                         ),
-                      if (status != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 16),
-                          child: Text(status!),
-                        ),
                       if (!tvBuild)
                         _section('后台与悬浮播放', [
                           if (desktopHost)
@@ -1144,8 +1244,10 @@ class _SettingsPageState extends State<SettingsPage> {
                               '后台下载仅 Wi-Fi',
                               '只作用于开启后台下载后的新系统任务；关闭后可能使用移动数据。',
                               draft.backgroundWifiOnly,
-                              (v) =>
-                                  draft = draft.copyWith(backgroundWifiOnly: v),
+                              (v) => _edit(
+                                (draft) =>
+                                    draft.copyWith(backgroundWifiOnly: v),
+                              ),
                             ),
                           _capabilitySwitch(
                             PlaybackCapability.floatingPlayback,
@@ -1167,21 +1269,26 @@ class _SettingsPageState extends State<SettingsPage> {
                             '边下边播',
                             '加密剧集在下载完成前就播放已解密的片段，弱网下更快起播；这一集会临时占用约两倍空间。',
                             draft.progressivePlayback,
-                            (v) =>
-                                draft = draft.copyWith(progressivePlayback: v),
+                            (v) => _edit(
+                              (draft) => draft.copyWith(progressivePlayback: v),
+                            ),
                           ),
                         _switch(
                           '提前缓存后续剧集',
                           '播放当前集时，自动准备后续剧集的完整文件。',
                           draft.prefetchEnabled,
-                          (v) => draft = draft.copyWith(prefetchEnabled: v),
+                          (v) => _edit(
+                            (draft) => draft.copyWith(prefetchEnabled: v),
+                          ),
                         ),
                         if (!tvBuild)
                           _number(
                             '提前缓存集数',
                             draft.prefetchEpisodes,
                             tvBuild ? [1] : [3, 4, 5],
-                            (v) => draft = draft.copyWith(prefetchEpisodes: v),
+                            (v) => _edit(
+                              (draft) => draft.copyWith(prefetchEpisodes: v),
+                            ),
                             suffix: ' 集',
                           ),
                         if (!tvBuild)
@@ -1189,8 +1296,9 @@ class _SettingsPageState extends State<SettingsPage> {
                             '同时准备数量',
                             draft.concurrentPreparations,
                             tvBuild ? [1] : [1, 2, 3],
-                            (v) => draft = draft.copyWith(
-                              concurrentPreparations: v,
+                            (v) => _edit(
+                              (draft) =>
+                                  draft.copyWith(concurrentPreparations: v),
                             ),
                           ),
                         Text(
@@ -1206,7 +1314,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           '同时下载数量',
                           draft.downloadConcurrent,
                           [1, 2, 3, 4, 5],
-                          (v) => draft = draft.copyWith(downloadConcurrent: v),
+                          (v) => _edit(
+                            (draft) => draft.copyWith(downloadConcurrent: v),
+                          ),
                           suffix: ' 个',
                           key: const ValueKey('download-concurrent-setting'),
                         ),
@@ -1228,8 +1338,8 @@ class _SettingsPageState extends State<SettingsPage> {
                             '720p': '720p',
                             '1080p': '1080p',
                           },
-                          (v) => setState(
-                            () => draft = draft.copyWith(defaultQuality: v),
+                          (v) => _edit(
+                            (draft) => draft.copyWith(defaultQuality: v),
                           ),
                           enabled: !busy,
                         ),
@@ -1246,7 +1356,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           '自动连播',
                           '当前集结束后继续播放下一集。',
                           draft.autoNext,
-                          (v) => draft = draft.copyWith(autoNext: v),
+                          (v) => _edit((draft) => draft.copyWith(autoNext: v)),
                         ),
                         _choice(
                           '界面主题',
@@ -1260,7 +1370,9 @@ class _SettingsPageState extends State<SettingsPage> {
                             '自动加载下一页',
                             '列表接近底部时自动加载更多内容。',
                             draft.autoLoadMore,
-                            (v) => draft = draft.copyWith(autoLoadMore: v),
+                            (v) => _edit(
+                              (draft) => draft.copyWith(autoLoadMore: v),
+                            ),
                           ),
                       ]),
                       _section('内容列表', [
@@ -1272,9 +1384,8 @@ class _SettingsPageState extends State<SettingsPage> {
                             'hot_score': '热度优先',
                             'hot_collect': '收藏最多',
                           },
-                          (v) => setState(
-                            () => draft = draft.copyWith(catalogSort: v),
-                          ),
+                          (v) =>
+                              _edit((draft) => draft.copyWith(catalogSort: v)),
                           key: const ValueKey('catalog-sort-setting'),
                           enabled: !busy && runtime != null,
                         ),
@@ -1284,8 +1395,9 @@ class _SettingsPageState extends State<SettingsPage> {
                             'TV 分类每页条数',
                             draft.tvPageSize,
                             [30, 50],
-                            (value) =>
-                                draft = draft.copyWith(tvPageSize: value),
+                            (value) => _edit(
+                              (draft) => draft.copyWith(tvPageSize: value),
+                            ),
                             suffix: ' 条',
                             key: const ValueKey('tv-page-size-setting'),
                           ),
@@ -1373,14 +1485,17 @@ class _SettingsPageState extends State<SettingsPage> {
                           '自动缓存剧集数量',
                           draft.maxCacheFiles,
                           [10, 20, 30, 50, 100, 200],
-                          (v) => draft = draft.copyWith(maxCacheFiles: v),
+                          (v) => _edit(
+                            (draft) => draft.copyWith(maxCacheFiles: v),
+                          ),
                           suffix: ' 集',
                         ),
                         _number(
                           '自动缓存空间上限',
                           draft.maxCacheMb,
                           [128, 256, 512, 1024, 2048, 4096],
-                          (v) => draft = draft.copyWith(maxCacheMb: v),
+                          (v) =>
+                              _edit((draft) => draft.copyWith(maxCacheMb: v)),
                           suffix: ' MB',
                         ),
                         Text(
@@ -1568,7 +1683,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                     setState(() {
                                       cookie.clear();
                                       token.clear();
-                                      credentialsEdited = true;
+                                      _editCredentials();
                                     });
                                   },
                           )
@@ -1580,7 +1695,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                     setState(() {
                                       cookie.clear();
                                       token.clear();
-                                      credentialsEdited = true;
+                                      _editCredentials();
                                     });
                                   },
                             child: Text('清空会话字段（保存后生效）'),

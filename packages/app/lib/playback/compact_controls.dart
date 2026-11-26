@@ -48,7 +48,7 @@ class CompactControls extends StatefulWidget {
 }
 
 class CompactControlsState extends State<CompactControls> {
-  bool visible = true, keyboardFocus = false, wokeOnDown = false;
+  bool visible = true, wokeOnDown = false;
   bool keyboardReveal = false;
 
   /// A pointer parked on the progress bar: the bars must not fade while the
@@ -71,7 +71,6 @@ class CompactControlsState extends State<CompactControls> {
         ModalRoute.of(context)?.isCurrent != false &&
         FocusScope.of(context).hasFocus) {
       keyboardReveal = true;
-      if (event.logicalKey == LogicalKeyboardKey.tab) keyboardFocus = true;
       show();
     }
     return false;
@@ -83,8 +82,19 @@ class CompactControlsState extends State<CompactControls> {
       !widget.busy &&
       pointers.isEmpty &&
       !progressHold &&
-      !keyboardFocus &&
+      !_focusInControls &&
       !MediaQuery.accessibleNavigationOf(context);
+
+  /// Mouse movement is activity, not a focus transfer. Only an actual focus
+  /// change may release the keyboard hold; the picture still hides normally
+  /// after focus has moved back to the playback surface.
+  bool get _focusInControls {
+    final focused = FocusManager.instance.primaryFocus;
+    if (focused == null) return false;
+    return focused.context != null &&
+        focused.context!.findAncestorWidgetOfExactType<CompactControls>() !=
+            null;
+  }
 
   void holdOnProgress(bool value) {
     if (progressHold == value) return;
@@ -106,7 +116,6 @@ class CompactControlsState extends State<CompactControls> {
   }
 
   void pointerActivity() {
-    keyboardFocus = false;
     keyboardReveal = false;
     show();
   }
@@ -123,6 +132,9 @@ class CompactControlsState extends State<CompactControls> {
     if (!visible ||
         !widget.playing ||
         widget.busy ||
+        pointers.isNotEmpty ||
+        progressHold ||
+        _focusInControls ||
         MediaQuery.accessibleNavigationOf(context)) {
       return;
     }
@@ -194,35 +206,24 @@ class CompactControlsState extends State<CompactControls> {
   @override
   Widget build(BuildContext context) => Focus(
     onKeyEvent: (_, event) {
-      if (event is KeyDownEvent) {
-        if (event.logicalKey == LogicalKeyboardKey.tab) keyboardFocus = true;
-        show();
-      }
+      if (event is KeyDownEvent) show();
       return KeyEventResult.ignored;
     },
     onFocusChange: (value) {
-      if (!value) {
-        keyboardFocus = false;
-        _schedule();
-      }
+      if (!value) _schedule();
     },
     child: MouseRegion(
       cursor: visible ? MouseCursor.defer : SystemMouseCursors.none,
       onEnter: (event) {
         if (event.kind == PointerDeviceKind.mouse) {
-          keyboardFocus = false;
           keyboardReveal = false;
           show();
         }
       },
-      onExit: (_) {
-        keyboardFocus = false;
-        _schedule();
-      },
+      onExit: (_) => _schedule(),
       onHover: (event) {
         if (event.kind == PointerDeviceKind.mouse &&
             event.delta.distanceSquared > 0) {
-          keyboardFocus = false;
           keyboardReveal = false;
           show();
         }
@@ -232,7 +233,6 @@ class CompactControlsState extends State<CompactControls> {
         onPointerDown: (event) {
           wokeOnDown = !visible;
           keyboardReveal = false;
-          keyboardFocus = false;
           pointers.add(event.pointer);
           show();
         },

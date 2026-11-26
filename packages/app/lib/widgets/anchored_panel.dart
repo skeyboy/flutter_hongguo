@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 /// One panel hanging under a rect the caller already measured, over a scrim that
@@ -14,6 +16,7 @@ import 'package:flutter/material.dart';
 OverlayEntry showAnchoredPanel({
   required BuildContext context,
   required Rect anchor,
+  Rect Function()? anchorProvider,
   required String id,
   required Widget Function(BuildContext context, VoidCallback close) panel,
   bool alignRight = true,
@@ -25,7 +28,6 @@ OverlayEntry showAnchoredPanel({
   VoidCallback? onDismiss,
 }) {
   final overlay = Overlay.of(context);
-  final anchored = overlayLocalAnchor(overlay, anchor);
   late final OverlayEntry entry;
   void close() {
     entry.remove();
@@ -34,45 +36,65 @@ OverlayEntry showAnchoredPanel({
 
   entry = OverlayEntry(
     builder: (context) => LayoutBuilder(
-      builder: (context, space) => Material(
-        type: MaterialType.transparency,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: GestureDetector(
-                key: ValueKey('$id-scrim'),
-                behavior: HitTestBehavior.opaque,
-                onTap: close,
-                child: const SizedBox.expand(),
-              ),
-            ),
-            Positioned(
-              top: anchored.bottom + 6,
-              left: alignRight ? null : anchored.left,
-              right: alignRight ? 12 : null,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: width ?? 380,
-                  // What the overlay actually has under the chip, not what the
-                  // window has: the two differ by the frame around it.
-                  maxHeight: space.maxHeight - anchored.bottom - 24,
+      builder: (context, space) {
+        final anchored = overlayLocalAnchor(
+          overlay,
+          anchorProvider?.call() ?? anchor,
+        );
+        final margin = math.min(12.0, space.maxWidth / 2);
+        final availableWidth = math.max(0.0, space.maxWidth - margin * 2);
+        final panelWidth = math.max(
+          0.0,
+          math.min(width ?? 380, availableWidth),
+        );
+        final maxLeft = math.max(margin, space.maxWidth - margin - panelWidth);
+        final top = (anchored.bottom + 6)
+            .clamp(0.0, space.maxHeight)
+            .toDouble();
+        return Material(
+          type: MaterialType.transparency,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  key: ValueKey('$id-scrim'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: close,
+                  child: const SizedBox.expand(),
                 ),
-                child: anchoredSurface(
-                  context: context,
-                  // The panel is handed what is left under the chip, and a type
-                  // that publishes five dimensions is taller than that. So the
-                  // surface scrolls instead of overflowing: the drawer is drawn
-                  // `overflow:auto` in the prototype for exactly this reason, and
-                  // a clipped 「完成」 is a drawer that cannot be closed.
-                  child: SingleChildScrollView(
-                    child: Builder(builder: (context) => panel(context, close)),
+              ),
+              Positioned(
+                top: top,
+                left: alignRight
+                    ? null
+                    : anchored.left.clamp(margin, maxLeft).toDouble(),
+                right: alignRight ? margin : null,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: panelWidth,
+                    // What the overlay actually has under the chip, not what the
+                    // window has: the two differ by the frame around it.
+                    maxHeight: math.max(0.0, space.maxHeight - top - margin),
+                  ),
+                  child: anchoredSurface(
+                    context: context,
+                    // The panel is handed what is left under the chip, and a type
+                    // that publishes five dimensions is taller than that. So the
+                    // surface scrolls instead of overflowing: the drawer is drawn
+                    // `overflow:auto` in the prototype for exactly this reason, and
+                    // a clipped 「完成」 is a drawer that cannot be closed.
+                    child: SingleChildScrollView(
+                      child: Builder(
+                        builder: (context) => panel(context, close),
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
+            ],
+          ),
+        );
+      },
     ),
   );
   overlay.insert(entry);
@@ -93,36 +115,59 @@ OverlayEntry showAnchoredPanel({
 OverlayEntry showAnchoredPeek({
   required BuildContext context,
   required Rect anchor,
+  Rect Function()? anchorProvider,
   required Widget Function(BuildContext context) card,
   VoidCallback? onPointerEnter,
   VoidCallback? onPointerExit,
+  VoidCallback? onDispose,
   double width = 300,
 }) {
   final overlay = Overlay.of(context);
-  final anchored = overlayLocalAnchor(overlay, anchor);
   late final OverlayEntry entry;
   entry = OverlayEntry(
     builder: (context) => LayoutBuilder(
       builder: (context, space) {
+        final anchored = overlayLocalAnchor(
+          overlay,
+          anchorProvider?.call() ?? anchor,
+        );
         final size = space.biggest;
-        final below = size.height - anchored.bottom - 24;
-        final above = anchored.top - 8;
+        final margin = math.min(12.0, size.width / 2);
+        final peekWidth = math.max(
+          0.0,
+          math.min(width, size.width - margin * 2),
+        );
+        final maxLeft = math.max(margin, size.width - margin - peekWidth);
+        final below = math.max(0.0, size.height - anchored.bottom - 24);
+        final above = math.max(0.0, anchored.top - 8);
         final flip = below < 200 && above > below;
-        final maxLeft = size.width - width - 12;
+        final double? top;
+        final double? bottom;
+        final double maxHeight;
+        if (flip) {
+          final peekBottom = (anchored.top - 8)
+              .clamp(0.0, size.height)
+              .toDouble();
+          bottom = size.height - peekBottom;
+          top = null;
+          maxHeight = peekBottom;
+        } else {
+          top = (anchored.bottom + 8).clamp(0.0, size.height).toDouble();
+          bottom = null;
+          maxHeight = math.max(0.0, size.height - top - 16);
+        }
         return Material(
           type: MaterialType.transparency,
           child: Stack(
             children: [
               Positioned(
-                left: maxLeft <= 12
-                    ? 12
-                    : anchored.left.clamp(12.0, maxLeft).toDouble(),
-                top: flip ? null : anchored.bottom + 8,
-                bottom: flip ? size.height - anchored.top + 8 : null,
+                left: anchored.left.clamp(margin, maxLeft).toDouble(),
+                top: top,
+                bottom: bottom,
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
-                    maxWidth: width,
-                    maxHeight: flip ? above : below,
+                    maxWidth: peekWidth,
+                    maxHeight: maxHeight,
                   ),
                   child: MouseRegion(
                     onEnter: (_) => onPointerEnter?.call(),
@@ -140,6 +185,9 @@ OverlayEntry showAnchoredPeek({
       },
     ),
   );
+  entry.addListener(() {
+    if (!entry.mounted) onDispose?.call();
+  });
   overlay.insert(entry);
   return entry;
 }

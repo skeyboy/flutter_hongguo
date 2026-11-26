@@ -1,11 +1,23 @@
 import 'package:flutter/foundation.dart'
     show debugDefaultTargetPlatformOverride;
-import 'package:flutter/material.dart' show ChoiceChip, MouseRegion, ValueKey;
+import 'package:flutter/material.dart'
+    show
+        ChoiceChip,
+        Material,
+        MaterialApp,
+        MediaQuery,
+        Scrollable,
+        ScrollableState,
+        SingleChildScrollView,
+        TextField,
+        ValueKey;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hongguo_app/features/library_page.dart' show DramaCard;
+import 'package:hongguo_app/features/library_page.dart'
+    show DramaCard, LibraryPage;
 
 import 'desktop_fakes.dart';
+import 'fakes.dart';
 
 void main() {
   testWidgets('the strip of the mouse family ends in 更多筛选 and 排序', (
@@ -96,13 +108,36 @@ void main() {
     expect(find.byKey(const ValueKey('sort-hot_score')), findsNothing);
     expect(
       tester.binding.focusManager.primaryFocus?.debugLabel,
-      'discover-sort-chip',
+      'discover-filter-chip',
     );
     // Opening and dismissing a dropdown is not a decision: nothing was asked for.
     expect(catalog.browseCalls, before);
     debugDefaultTargetPlatformOverride = null;
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'closing sort above suggestions keeps the search layer and focus',
+    (tester) async {
+      await mount(tester, DesktopCatalog());
+      final search = find.byKey(const ValueKey('search-field-discover'));
+      await tester.tap(search);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('search-suggestions')), findsOneWidget);
+
+      await hover(tester, find.byKey(const ValueKey('sort-menu')));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.byKey(const ValueKey('sort-hot_score')), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('sort-hot_score')), findsNothing);
+      expect(find.byKey(const ValueKey('search-suggestions')), findsOneWidget);
+      expect(tester.widget<TextField>(search).focusNode!.hasFocus, isTrue);
+      expect(tester.takeException(), isNull);
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
 
   testWidgets('排序 asks for the same page again and does not move the list', (
     tester,
@@ -182,6 +217,49 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('a bounded peek scrolls instead of overflowing with large text', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    await tester.binding.setSurfaceSize(const Size(1440, 400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.platformDispatcher.textScaleFactorTestValue = 1.15;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    const longIntro =
+        '一段关于相遇的故事，在拥挤的城市里展开。'
+        '每个人都带着自己的秘密前行，又一次次在命运的路口重逢。';
+    final runtime = FakeRuntime(TaggedCatalog(const ['玄幻'], intro: longIntro));
+    addTearDown(runtime.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        // Scale the overlay as accessibility text, while keeping this assertion
+        // about the peek rather than the catalog's unrelated chrome.
+        home: MediaQuery.withNoTextScaling(
+          child: LibraryPage(runtime: runtime),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final card = find.byType(DramaCard).first;
+    await hover(tester, card);
+    await tester.pump(const Duration(milliseconds: 1600));
+    expect(find.byKey(const ValueKey('peek-title-tagged')), findsOneWidget);
+    expect(peekSurface(tester), findsOneWidget);
+    final scroll = tester.state<ScrollableState>(
+      find
+          .descendant(
+            of: peekSurface(tester),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    expect(scroll.position.maxScrollExtent, greaterThan(0));
+    expect(tester.getSize(peekSurface(tester)).height, lessThan(400));
+    expect(tester.takeException(), isNull);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets('a word outside this type list is not stretched to a near one', (
     tester,
   ) async {
@@ -232,9 +310,12 @@ void main() {
 
 /// The preview card's own surface -- the box the page anchored it to, which is
 /// what a promise about where the preview lands is a promise about.
-Finder peekSurface(WidgetTester tester) => find
-    .ancestor(
-      of: find.byKey(const ValueKey('peek-drill-theme')),
-      matching: find.byType(MouseRegion),
-    )
-    .first;
+Finder peekSurface(WidgetTester tester) {
+  final scroll = find
+      .ancestor(
+        of: find.byKey(const ValueKey('peek-drill-theme')),
+        matching: find.byType(SingleChildScrollView),
+      )
+      .first;
+  return find.ancestor(of: scroll, matching: find.byType(Material)).first;
+}

@@ -106,7 +106,8 @@ class UnfilteredCatalog extends DesktopCatalog {
 /// `category_schema`, which `Drama.tagNames` is made of.
 class TaggedCatalog extends DesktopCatalog {
   final List<String> tags;
-  TaggedCatalog(this.tags);
+  TaggedCatalog(this.tags, {this.intro = '一段关于相遇的故事'});
+  final String intro;
 
   @override
   Future<CatalogPage> browse({
@@ -124,7 +125,7 @@ class TaggedCatalog extends DesktopCatalog {
       Drama(
         id: 'tagged',
         title: '剧名',
-        intro: '一段关于相遇的故事',
+        intro: intro,
         episodeCount: 12,
         tagNames: tags,
       ),

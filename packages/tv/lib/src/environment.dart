@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import 'pane_boundary.dart';
@@ -106,13 +107,36 @@ class TvNavigation extends StatelessWidget {
     return true;
   }
 
-  /// The node's box in global logical coordinates, or null while it has no
-  /// attached, laid-out widget.
+  /// The node's visible, laid-out box in global logical coordinates, or null
+  /// when it cannot be a remote target.
   static Rect? _globalRect(FocusNode node) {
-    if (node.context == null) return null;
+    final context = node.context;
+    if (context == null || !context.mounted) return null;
+    final object = context.findRenderObject();
+    if (object is! RenderBox || !object.attached) return null;
     try {
+      if (!object.hasSize || object.size.isEmpty) return null;
+      // A maintained Visibility can keep a laid-out, focusable subtree while
+      // suppressing paint. Its render proxy is private; use the public query.
+      if (!Visibility.of(context)) return null;
+      for (
+        RenderObject? current = object;
+        current != null;
+        current = current.parent
+      ) {
+        if (!current.attached) return null;
+        if (current is RenderOffstage && current.offstage) return null;
+        if (current is RenderSliverOpacity && current.opacity == 0) return null;
+        final parent = current.parent;
+        // The public render-tree contract also catches zero-opacity proxies and
+        // other ancestors that suppress painting despite retaining geometry.
+        if (parent != null && !parent.paintsChild(current)) return null;
+      }
       final rect = node.rect;
-      return rect.isEmpty ? null : rect;
+      if (rect.isEmpty || !rect.width.isFinite || !rect.height.isFinite) {
+        return null;
+      }
+      return rect;
     } on FlutterError {
       return null;
     }

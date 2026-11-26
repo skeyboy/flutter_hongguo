@@ -244,6 +244,33 @@ class _Runtime
   }
 }
 
+class _DeferredRecommendationRuntime extends _Runtime {
+  final recommendationSaveStarted = Completer<void>();
+  final recommendationSaveRelease = Completer<void>();
+  int recommendationSaves = 0;
+
+  _DeferredRecommendationRuntime(super.bytes, super.directory)
+    : super(
+        settings: const AppSettings(prefetchEnabled: false, autoNext: false),
+      );
+
+  @override
+  Future<void> saveSettings(
+    AppSettings value, {
+    SessionCredentials? credentials,
+  }) async {
+    if (!settings.backgroundPlaybackPrompted &&
+        value.backgroundPlaybackPrompted) {
+      recommendationSaves++;
+      if (!recommendationSaveStarted.isCompleted) {
+        recommendationSaveStarted.complete();
+      }
+      await recommendationSaveRelease.future;
+    }
+    await super.saveSettings(value, credentials: credentials);
+  }
+}
+
 class _ManualRuntime extends _Runtime implements DownloadRuntime {
   @override
   late final DownloadManager downloads;
@@ -2170,6 +2197,76 @@ void main() {
           'IMMERSIVE_ACCEPTANCE=real viewport; no AppBar; all chrome hidden; platform reveal; pause keeps exit; fullscreen preserves player; exit returns',
         );
       } finally {
+        await tester.pumpWidget(const SizedBox());
+        await state.platformUpdates;
+        await tester.pumpAndSettle();
+        await runtime.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'Back during the initial recommendation save prevents a late capability dialog',
+    (tester) async {
+      if (!_mobileDevice) return;
+      final asset = await rootBundle.load('assets/verification.cenc.mp4');
+      final runtime = _DeferredRecommendationRuntime(
+        asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
+        Directory.systemTemp.createTempSync('hongguo-recommend-back-'),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PlayerPage(
+            runtime: runtime,
+            detail: await runtime.catalog.detail('123'),
+          ),
+        ),
+      );
+      await tester.pump();
+      final dynamic state = tester.state(find.byType(PlayerPage));
+      final player = state.player as Player;
+      try {
+        await player.setVolume(0);
+        for (var i = 0; i < 150 && state.preparing; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(state.error, isNull);
+        expect(state.preparing, isFalse);
+        await player.play();
+        for (var i = 0; i < 20 && !state.hasPlayed; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(state.hasPlayed, isTrue);
+
+        state.didChangeAppLifecycleState(AppLifecycleState.paused);
+        state.didChangeAppLifecycleState(AppLifecycleState.resumed);
+        await tester.pump(const Duration(milliseconds: 900));
+        await tester.pump();
+        expect(runtime.recommendationSaveStarted.isCompleted, isTrue);
+        expect(runtime.recommendationSaveRelease.isCompleted, isFalse);
+        expect(state.recommendationOpen, isTrue);
+        expect(find.text('试试后台播放？'), findsNothing);
+
+        await tester.binding.handlePopRoute();
+        await tester.pump();
+        expect(find.byType(PlayerPage), findsOneWidget);
+        expect(state.recommendationOpen, isFalse);
+        expect(find.text('试试后台播放？'), findsNothing);
+
+        runtime.recommendationSaveRelease.complete();
+        await tester.pumpAndSettle();
+        expect(find.byType(PlayerPage), findsOneWidget);
+        expect(state.recommendationOpen, isFalse);
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(find.text('试试后台播放？'), findsNothing);
+        expect(runtime.recommendationSaves, 1);
+        expect(runtime.settings.backgroundPlaybackPrompted, isTrue);
+        expect(tester.takeException(), isNull);
+      } finally {
+        if (!runtime.recommendationSaveRelease.isCompleted) {
+          runtime.recommendationSaveRelease.complete();
+        }
+        state.didChangeAppLifecycleState(AppLifecycleState.resumed);
         await tester.pumpWidget(const SizedBox());
         await state.platformUpdates;
         await tester.pumpAndSettle();

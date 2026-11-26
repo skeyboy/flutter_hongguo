@@ -254,8 +254,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('theme-rail')), findsNothing);
     await tester.tap(find.text('清除搜索'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
     expect(find.byKey(const ValueKey('theme-rail')), findsOneWidget);
+
+    // Clear keeps focus in the field; tapping away closes the restored search
+    // layer before opening another destination.
+    await tester.tapAt(const Offset(640, 450));
+    await tester.pumpAndSettle();
 
     // 榜单 no longer borrows this strip. `rankBoard` takes neither 类型 nor 题材,
     // so the mode had to empty the rail and fill it with boards; the destination
