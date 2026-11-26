@@ -1,9 +1,9 @@
 #include "flutter_window.h"
 
-#include <encodable_value.h>
+#include <flutter/encodable_value.h>
 #include <optional>
 #include <shellapi.h>
-#include <standard_method_codec.h>
+#include <flutter/standard_method_codec.h>
 #include "resource.h"
 
 namespace {
