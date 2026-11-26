@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>红果剧场 · iPad / Android 大屏交互原型（真值数据）</title>
+  <link rel="stylesheet" href="interaction-prototype.css" />
+  <link rel="stylesheet" href="ipad-prototype.css" />
+</head>
+<body class="pad-page">
+  <header class="pad-toolbar">
+    <div class="pad-toolbar-brand"><span class="brand-mark">红</span><strong>红果剧场 · 大屏</strong><span class="pad-toolbar-badge">真值采样 2026-10-30</span><span class="pad-toolbar-freeze">此版本不执行播放页相关的交互操作变更</span></div>
+    <div class="pad-toolbar-controls">
+      <div class="seg" role="group" aria-label="设备形态">
+        <button type="button" data-pad-mode="landscape" aria-pressed="true">横屏两栏</button>
+        <button type="button" data-pad-mode="portrait" aria-pressed="false">竖屏单列</button>
+        <button type="button" data-pad-mode="split" aria-pressed="false">分屏窄窗</button>
+      </div>
+      <div class="seg" role="group" aria-label="场景">
+        <select id="scenarioSelect" aria-label="数据场景">
+          <option value="normal">正常</option><option value="empty">空</option><option value="error">错误</option><option value="live">实时空榜</option>
+        </select>
+      </div>
+      <span class="pad-toolbar-hint" id="padSource">—</span>
+    </div>
+  </header>
+
+  <div class="pad-stage" id="padStage" data-mode="landscape">
+    <div class="pad-device">
+      <div class="app pad-app" id="padApp">
+        <!-- 左侧 rail -->
+        <aside class="pad-rail" aria-label="主导航">
+          <div class="pad-rail-brand"><span class="brand-mark">红</span><strong>红果剧场</strong></div>
+          <nav class="pad-rail-nav">
+            <button type="button" class="pad-rail-item" data-pad-screen="discover" aria-current="page"><span data-icon="compass"></span><span>发现</span></button>
+            <button type="button" class="pad-rail-item" data-pad-screen="rank"><span data-icon="rank"></span><span>榜单</span></button>
+            <button type="button" class="pad-rail-item" data-pad-screen="categories"><span data-icon="grid"></span><span>分类</span></button>
+            <button type="button" class="pad-rail-item" data-pad-screen="mine"><span data-icon="user"></span><span>我的</span></button>
+          </nav>
+          <div class="pad-rail-foot"><span data-icon="spark"></span><span>大屏沉浸</span></div>
+        </aside>
+
+        <!-- 内容区 -->
+        <main class="pad-main">
+          <header class="pad-topbar">
+            <label class="search"><span data-icon="search"></span><input id="padSearch" type="search" placeholder="搜索剧名" aria-label="搜索剧名" /></label>
+            <button type="button" class="icon-button" data-pad-screen="mine" data-icon="user" aria-label="我的"></button>
+          </header>
+
+          <!-- 发现：两栏栅格 -->
+          <section class="pad-screen" data-pad-screen="discover">
+            <div class="pad-content">
+              <div class="pad-hero" id="padHero"></div>
+              <div class="pad-section-head"><h2>为你推荐</h2><p id="padFeedCount">正在读取真值目录…</p></div>
+              <div class="pad-chip-row" id="padGenreChips" aria-label="题材筛选"></div>
+              <div class="pad-grid" id="padGrid"></div>
+              <div class="pad-loadmore" id="padLoadMore" hidden><button type="button" class="button" data-pad-loadmore>加载更多</button></div>
+            </div>
+          </section>
+
+          <!-- 榜单：5 赛道 × 真值榜名 -->
+          <section class="pad-screen" data-pad-screen="rank" hidden>
+            <div class="pad-content">
+              <div class="pad-section-head"><h2>榜单</h2><p id="padRankNotice">赛道 × 榜单 · 上游现读</p></div>
+              <div class="pad-chip-row" id="padRankTracks" aria-label="榜单赛道"></div>
+              <div class="pad-chip-row" id="padRankBoards" aria-label="榜单"></div>
+              <div class="pad-rank-list" id="padRankList"></div>
+            </div>
+          </section>
+
+          <!-- 分类：与 PC 一致的内容类型筛选 -->
+          <section class="pad-screen" data-pad-screen="categories" hidden>
+            <div class="pad-content">
+              <div class="pad-section-head"><h2>分类浏览</h2><p id="padCategorySummary">鼠标 / 触控精确选择，内容类型来自真值词表</p></div>
+              <div class="pad-chip-row" id="padCategoryTypes" aria-label="内容类型"></div>
+              <div class="pad-grid" id="padCategoryGrid"></div>
+              <div class="pad-loadmore" id="padCategoryLoadMore" hidden><button type="button" class="button" data-pad-category-more>加载更多</button></div>
+            </div>
+          </section>
+
+          <!-- 详情：PC 式顺序（选集在相关推荐之上）；播放页保持原需求未改 -->
+          <section class="pad-screen" data-pad-screen="detail" hidden>
+            <div class="pad-content">
+              <div class="pad-detail-head">
+                <div class="pad-detail-art" id="padDetailArt" aria-hidden="true"></div>
+                <div class="pad-detail-copy">
+                  <div class="pad-chip-row" id="padDetailTags" aria-label="详情标签"></div>
+                  <h2 id="padDetailTitle">正在加载详情</h2>
+                  <p id="padDetailSummary"></p>
+                  <p id="padDetailMeta" class="pad-detail-meta"></p>
+                  <div class="pad-chip-row" id="padDetailTracks" aria-label="播放线路"></div>
+                  <button type="button" class="button ghost" data-source-switch style="margin-top:8px">换源 · 查看解析预算</button>
+                  <div class="pad-detail-actions">
+                    <button type="button" class="button primary" id="padDetailPlay">
+                      <span data-icon="play"></span>继续观看
+                    </button>
+                    <button type="button" class="button" id="padDetailFollow">
+                      <span data-icon="heart"></span>追剧
+                    </button>
+                    <button type="button" class="button" data-toast="已加入下载队列">
+                      <span data-icon="download"></span>缓存
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="pad-section-head"><h2>选集</h2><p id="padDetailEpisodeSummary">正在加载选集…</p></div>
+              <div class="pad-episode-grid pad-detail-episodes" id="padDetailEpisodes"></div>
+              <div class="pad-loadmore" id="padDetailLoadMore" hidden><button type="button" class="button" data-pad-episode-more>加载更多选集</button></div>
+              <div class="pad-section-head"><h2>相关推荐</h2><p>同题材 · 同内容类型的真值样例</p></div>
+              <div class="pad-grid" id="padDetailRelated"></div>
+            </div>
+          </section>
+
+          <!-- 我的：与 Mobile / PC / TV 共用组件与交互 -->
+          <section class="pad-screen" data-pad-screen="mine" hidden>
+            <div class="pad-content" id="padMine"><div class="mine-loading">正在读取本地数据…</div></div>
+          </section>
+        </main>
+
+        <!-- 三段式播放面板：选集 / 播放 / 详情弹幕 -->
+        <section class="pad-player" id="padPlayer" hidden aria-label="播放器">
+          <div class="pad-player-top">
+            <button type="button" class="icon-button" data-pad-back aria-label="返回">←</button>
+            <strong id="padPlayerTitle">正在加载</strong>
+            <div class="spacer"></div>
+            <button type="button" class="icon-button" id="padPip" data-icon="pip" aria-label="画中画"></button>
+            <button type="button" class="icon-button" id="padFit" aria-label="适应/铺满">适应</button>
+          </div>
+          <div class="pad-player-body">
+            <!-- 左：选集 -->
+            <aside class="pad-episodes-pane">
+              <div class="pad-pane-head"><strong>选集</strong><span id="padEpisodeSummary">—</span></div>
+              <div class="pad-episode-grid" id="padEpisodeGrid"></div>
+              <button type="button" class="button ghost" data-pad-more-episodes hidden>加载更多</button>
+            </aside>
+            <!-- 中：播放 -->
+            <div class="pad-video-pane">
+              <div class="pad-video-stage" id="padVideoStage" tabindex="0">
+                <div class="pad-video-poster" id="padVideoPoster"></div>
+                <button type="button" class="pad-center-play" id="padCenterPlay" data-icon="play" aria-label="播放/暂停"></button>
+                <div class="pad-video-controls" id="padControls">
+                  <button type="button" class="icon-button" id="padPlayBtn" data-icon="pause" aria-label="播放/暂停"></button>
+                  <span id="padCurrentTime">0:00</span>
+                  <div class="pad-progress" id="padProgress" role="slider" tabindex="0" aria-label="进度" aria-valuemin="0" aria-valuemax="748" aria-valuenow="0"><i></i></div>
+                  <span id="padDuration">12:28</span>
+                  <button type="button" class="pad-ctl-btn" id="padRate" aria-label="倍速">1.0×</button>
+                  <button type="button" class="pad-ctl-btn" id="padQuality" aria-label="清晰度">1080P</button>
+                  <button type="button" class="pad-ctl-btn" data-source-switch>换源</button>
+                  <button type="button" class="icon-button" data-icon="fullscreen" aria-label="全屏"></button>
+                </div>
+              </div>
+              <div class="pad-video-meta"><strong id="padVideoTitle">—</strong><span id="padVideoMeta">—</span></div>
+            </div>
+            <!-- 右：详情 + 弹幕 -->
+            <aside class="pad-info-pane">
+              <div class="pad-pane-head"><strong>剧情与弹幕</strong></div>
+              <p class="pad-info-summary" id="padInfoSummary">—</p>
+              <div class="pad-info-actions">
+                <button type="button" class="button primary" id="padFollow">追剧</button>
+                <button type="button" class="button" id="padReserve">预约</button>
+              </div>
+              <div class="pad-danmaku" id="padDanmaku" aria-label="弹幕"></div>
+              <div class="pad-danmaku-input"><input id="padDanmakuInput" placeholder="发条弹幕…" aria-label="弹幕输入" /><button type="button" class="button" id="padSendDanmaku">发送</button></div>
+            </aside>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="pad-snackbar" id="padSnackbar" role="status" aria-live="polite" hidden></div>
+
+  <section class="pad-doc">
+    <h2>iPad / Android 大屏交互设计说明</h2>
+    <p><strong>本版定位</strong>：iPad 是「小一号的 PC」——导航栏与页面顺序对齐 PC（发现 / 分类 / 榜单 / 我的），详情页采用 PC 的「选集在相关推荐之上」；已删除独立「追剧」tab，追剧入口收进「我的」。</p>
+    <table>
+      <thead><tr><th>形态</th><th>布局</th><th>依据（主流调研）</th></tr></thead>
+      <tbody>
+        <tr><td>横向大屏</td><td>180px 带标签 rail + 内容区；栅格 5 列；分类 / 详情沿用 PC 的信息层级</td><td>PC 侧栏 + 顶部搜索共识、Disney+ 顶部+左侧双层导航</td></tr>
+        <tr><td>竖屏单列</td><td>rail 收窄为图标、内容单列</td><td>iPad 竖屏退化单列、Netflix iPad 放大手机版</td></tr>
+        <tr><td>分屏窄窗</td><td>rail 进一步折叠，栅格降列</td><td>iPadOS 多窗口 / Stage Manager 窗口变窄自动降列</td></tr>
+        <tr><td>详情页</td><td>选集 → 相关推荐（PC 顺序）；操作区为 继续观看 / 追剧 / 缓存，换源在详情头文案区（与 PC 一致）</td><td>PC 详情页样式的等比缩小</td></tr>
+        <tr><td>播放页</td><td><strong>此版本不执行播放页相关的交互操作变更</strong>，沿用上一版三段式播放面板</td><td>本轮需求明确冻结播放页</td></tr>
+        <tr><td>换源面板</td><td>显示 quality / format / candidates / 8s 解析预算</td><td>SourceResolver.resolve 命中/未命中语义</td></tr>
+      </tbody>
+    </table>
+    <p>数据：所有剧名、集数、评分、热度、收藏、徽标、主色、赛道榜名与筛选项 ID 均来自 <code>docs/evidence/ranking-fields/</code> 2026-10-30 四次实机匿名采样；仅简介、封面占位为原型模拟。</p>
+  </section>
+
+  <script src="prototype-real-data.js"></script>
+  <script src="prototype-data.js"></script>
+  <script src="interaction-prototype.js"></script>
+  <script src="ipad-prototype.js"></script>
+</body>
+</html>

@@ -16,6 +16,7 @@ enum ControlSurface {
       this == ControlSurface.desktopNarrow;
   bool get touch => !desktop;
   bool get portrait => this == ControlSurface.mobilePortrait;
+  bool get landscape => this == ControlSurface.mobileLandscape;
 
   /// The order things are dropped in when the row runs out of room. Play,
   /// episodes, speed and fullscreen are never dropped.
@@ -371,9 +372,16 @@ class PlaybackTransportState extends State<PlaybackTransport> {
     widget.fullscreenToggle,
   );
 
-  List<Widget> _left() {
+  List<Widget> _left({bool compact = false}) {
     final surface = widget.surface;
     return [
+      if (surface.landscape && !compact)
+        _icon(
+          'transport-seek-back',
+          Icons.replay_10_rounded,
+          surface.desktop ? '快退 10 秒（J）' : '快退 10 秒',
+          widget.busy ? null : () => _nudge(-10),
+        ),
       IconButton(
         key: const ValueKey('transport-play'),
         tooltip: widget.playing
@@ -384,7 +392,7 @@ class PlaybackTransportState extends State<PlaybackTransport> {
           widget.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
         ),
       ),
-      if (surface != ControlSurface.mobilePortrait) ...[
+      if (surface != ControlSurface.mobilePortrait && !surface.landscape) ...[
         _icon(
           'transport-seek-back',
           Icons.replay_10_rounded,
@@ -413,9 +421,10 @@ class PlaybackTransportState extends State<PlaybackTransport> {
         ),
       ],
       if (surface.desktop) _volume(),
-      if (surface == ControlSurface.desktopNarrow ||
-          surface == ControlSurface.mobileLandscape)
-        _clock(),
+      if (surface == ControlSurface.desktopNarrow)
+        _clock()
+      else if (surface.landscape && compact)
+        _clock(withSeconds: false),
     ];
   }
 
@@ -428,8 +437,8 @@ class PlaybackTransportState extends State<PlaybackTransport> {
         Flexible(child: _episodes())
       else
         _episodes(),
-      if (surface == ControlSurface.desktopWide ||
-          surface == ControlSurface.mobileLandscape)
+      if (surface.landscape) _clock(),
+      if (surface == ControlSurface.desktopWide || surface.landscape)
         _quality(),
       _speed(),
       if (surface != ControlSurface.mobilePortrait) _cast(),
@@ -438,79 +447,171 @@ class PlaybackTransportState extends State<PlaybackTransport> {
     ];
   }
 
-  @override
-  Widget build(BuildContext context) => IconButtonTheme(
-    data: IconButtonThemeData(
-      style: IconButton.styleFrom(
-        foregroundColor: Colors.white,
-        disabledForegroundColor: Colors.white24,
-      ),
+  Widget _compactEpisodes() => TextButton(
+    key: const ValueKey('toggle-episodes'),
+    onPressed: widget.episodes,
+    style: TextButton.styleFrom(
+      foregroundColor: Colors.white,
+      minimumSize: const Size(48, 48),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
     ),
-    child: DefaultTextStyle(
-      style: const TextStyle(color: Colors.white, fontSize: 12),
-      child: SafeArea(
-        top: false,
-        minimum: const EdgeInsets.symmetric(horizontal: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (widget.title != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 10, 10, 2),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '${widget.title} · 第 ${widget.episode} 集',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w500,
+    child: const Icon(
+      Icons.playlist_play_rounded,
+      key: ValueKey('transport-episodes-compact-icon'),
+    ),
+  );
+
+  Widget _secondaryMenu() => PopupMenuButton<void>(
+    key: const ValueKey('transport-secondary-menu'),
+    tooltip: '更多播放设置',
+    onOpened: () => widget.onMenuChanged(true),
+    onCanceled: () => widget.onMenuChanged(false),
+    onSelected: (_) => widget.onMenuChanged(false),
+    itemBuilder: (_) => [
+      for (final option in widget.qualities)
+        PopupMenuItem<void>(
+          key: ValueKey('transport-quality-$option'),
+          onTap: widget.qualities.length > 1
+              ? () => widget.onQuality!(option)
+              : null,
+          child: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                child: option == widget.quality
+                    ? const Icon(Icons.check, size: 16)
+                    : null,
+              ),
+              Text(option == 'best' || option == 'auto' ? '自动' : option),
+            ],
+          ),
+        ),
+      if (widget.cast != null)
+        PopupMenuItem<void>(
+          onTap: widget.cast,
+          child: Text(widget.castActive ? '投屏中' : '投屏到电视'),
+        ),
+    ],
+    child: Padding(
+      key: const ValueKey('transport-secondary-menu-icon'),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      child: Icon(Icons.more_horiz_rounded),
+    ),
+  );
+
+  bool get _hasSecondaryActions =>
+      (widget.qualities.isNotEmpty && widget.onQuality != null) ||
+      widget.cast != null;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final surface = widget.surface;
+      final compactLandscape =
+          surface.landscape &&
+          (constraints.maxWidth < 600 || constraints.maxHeight <= 380);
+      final clockAbove =
+          surface == ControlSurface.desktopWide || surface.portrait;
+      return IconButtonTheme(
+        data: IconButtonThemeData(
+          style: IconButton.styleFrom(
+            foregroundColor: Colors.white,
+            disabledForegroundColor: Colors.white24,
+          ),
+        ),
+        child: DefaultTextStyle(
+          style: const TextStyle(color: Colors.white, fontSize: 12),
+          child: SafeArea(
+            top: false,
+            minimum: const EdgeInsets.symmetric(horizontal: 6),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (widget.title != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 2),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${widget.title} · 第 ${widget.episode} 集',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-            if (widget.notice != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    widget.notice!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.amber, fontSize: 12),
+                if (widget.notice != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        widget.notice!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.amber,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (clockAbove)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: _clock(),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: PlayerProgressBar(
+                    key: const ValueKey('player-progress'),
+                    player: widget.player,
+                    touch: widget.surface.touch,
+                    onActivityChanged: widget.onProgressActivity,
+                    enabled:
+                        !widget.busy &&
+                        widget.player.durationValue > Duration.zero,
                   ),
                 ),
-              ),
-            if (widget.surface == ControlSurface.desktopWide ||
-                widget.surface == ControlSurface.mobilePortrait)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 4),
-                  child: _clock(),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Row(
+                    children: [
+                      ..._left(compact: compactLandscape),
+                      const Spacer(),
+                      if (compactLandscape && _hasSecondaryActions)
+                        _secondaryMenu()
+                      else if (surface.landscape && !compactLandscape)
+                        _icon(
+                          'transport-seek-forward',
+                          Icons.forward_10_rounded,
+                          surface.desktop ? '快进 10 秒（L）' : '快进 10 秒',
+                          widget.busy ? null : () => _nudge(10),
+                        ),
+                      if (compactLandscape) ...[
+                        _speed(),
+                        _compactEpisodes(),
+                        _fullscreen(),
+                      ] else ...[
+                        const SizedBox(width: 4),
+                        ..._right(),
+                      ],
+                      if (!compactLandscape) const SizedBox(width: 4),
+                    ],
+                  ),
                 ),
-              ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: PlayerProgressBar(
-                key: const ValueKey('player-progress'),
-                player: widget.player,
-                touch: widget.surface.touch,
-                onActivityChanged: widget.onProgressActivity,
-                enabled:
-                    !widget.busy && widget.player.durationValue > Duration.zero,
-              ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 2),
-              child: Row(children: [..._left(), const Spacer(), ..._right()]),
-            ),
-          ],
+          ),
         ),
-      ),
-    ),
+      );
+    },
   );
 }

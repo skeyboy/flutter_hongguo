@@ -31,3 +31,6 @@ __pycache__/
 
 # 会话工作目录（记忆、临时产物），不属于源码
 .workbuddy/
+
+# IDE 配置
+.idea/

@@ -120,6 +120,37 @@ void main() {
       }
     },
   );
+  testWidgets('direct hide cannot drop focused controls', (tester) async {
+    final key = GlobalKey<CompactControlsState>();
+    final exitFocus = FocusNode(debugLabel: 'exit');
+    addTearDown(exitFocus.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CompactControls(
+            key: key,
+            playing: true,
+            busy: false,
+            video: const ColoredBox(color: Colors.black),
+            header: IconButton(
+              focusNode: exitFocus,
+              onPressed: () {},
+              icon: const Icon(Icons.arrow_back),
+            ),
+            controls: const SizedBox(height: 60),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    exitFocus.requestFocus();
+    await tester.pumpAndSettle();
+    key.currentState!.hide();
+    await tester.pump();
+    expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+    expect(key.currentState!.mayHide, isFalse);
+  });
+
   testWidgets('touch held on video keeps controls present until release', (
     tester,
   ) async {
@@ -214,6 +245,91 @@ void main() {
       await tester.pump(const Duration(seconds: 10));
       await tester.pumpAndSettle();
       expect(find.text('影片标题'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'pointer activity reveals instantly but cannot release focused controls',
+    (tester) async {
+      final key = GlobalKey<CompactControlsState>();
+      final exitFocus = FocusNode(debugLabel: 'focused-exit');
+      final outsideFocus = FocusNode(debugLabel: 'outside-controls');
+      addTearDown(exitFocus.dispose);
+      addTearDown(outsideFocus.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                Expanded(
+                  child: CompactControls(
+                    key: key,
+                    playing: true,
+                    busy: false,
+                    video: const ColoredBox(color: Colors.black),
+                    header: IconButton(
+                      key: const ValueKey('focused-exit'),
+                      focusNode: exitFocus,
+                      onPressed: () {},
+                      icon: const Icon(Icons.arrow_back),
+                    ),
+                    controls: const SizedBox(height: 60),
+                  ),
+                ),
+                Focus(
+                  focusNode: outsideFocus,
+                  child: const SizedBox(height: 1),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('focused-exit')), findsNothing);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(find.byKey(const ValueKey('focused-exit')), findsOneWidget);
+      expect(
+        tester
+            .widget<AnimatedSwitcher>(
+              find.ancestor(
+                of: find.byKey(const ValueKey('focused-exit')),
+                matching: find.byType(AnimatedSwitcher),
+              ),
+            )
+            .duration,
+        Duration.zero,
+      );
+      exitFocus.requestFocus();
+      await tester.pump();
+      expect(key.currentState!.mayHide, isFalse);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: const Offset(-1, -1));
+      await mouse.moveTo(const Offset(100, 120));
+      await tester.pump();
+      await mouse.moveTo(const Offset(120, 120));
+      await tester.pump();
+      expect(key.currentState!.mayHide, isFalse);
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('focused-exit')), findsOneWidget);
+      await mouse.moveTo(const Offset(-1, -1));
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('focused-exit')), findsOneWidget);
+
+      outsideFocus.requestFocus();
+      await tester.pumpAndSettle();
+      expect(key.currentState!.mayHide, isTrue);
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('focused-exit')), findsNothing);
+      await mouse.removePointer();
     },
   );
 

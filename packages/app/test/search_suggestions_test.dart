@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_app/bootstrap.dart';
+import 'package:hongguo_app/features/library_page.dart';
 import 'package:hongguo_app/main.dart';
 import 'package:hongguo_app/platform/runtime.dart';
 import 'package:hongguo_app/search/search_history.dart';
@@ -98,7 +99,9 @@ void main() {
     List<String> terms,
   ) async {
     for (final term in terms) {
-      await tester.enterText(find.byType(TextField), term);
+      final field = find.byKey(const ValueKey('search-field-discover'));
+      await tester.showKeyboard(field);
+      await tester.enterText(field, term);
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pumpAndSettle();
     }
@@ -106,12 +109,22 @@ void main() {
   }
 
   Future<void> openDropdown(WidgetTester tester) async {
+    final field = find.byKey(const ValueKey('search-field-discover'));
     if (find.text('清除搜索').evaluate().isNotEmpty) {
       await tester.tap(find.text('清除搜索'));
       await tester.pumpAndSettle();
     }
-    await tester.tap(find.byType(TextField));
-    await tester.pumpAndSettle();
+    final widget = tester.widget<TextField>(field);
+    if (!widget.focusNode!.hasFocus) {
+      await tester.tap(field);
+      await tester.pumpAndSettle();
+    } else if (find
+        .byKey(const ValueKey('search-suggestions'))
+        .evaluate()
+        .isEmpty) {
+      await tester.tap(field);
+      await tester.pumpAndSettle();
+    }
   }
 
   BoardsCatalog boards() =>
@@ -160,18 +173,35 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('a board row opens the series without searching', (tester) async {
-    final runtime = FakeRuntime(boards());
-    await mount(tester, runtime);
-    await openDropdown(tester);
-    final before = runtime.catalog.lastQuery;
+  testWidgets(
+    'a board row opens current detail without restoring search focus',
+    (tester) async {
+      final runtime = FakeRuntime(boards());
+      await mount(tester, runtime);
+      await openDropdown(tester);
+      final before = runtime.catalog.lastQuery;
+      final searchFocus = tester
+          .widget<TextField>(
+            find.byKey(const ValueKey('search-field-discover')),
+          )
+          .focusNode!;
+      final catalogRoute = ModalRoute.of(
+        tester.element(find.byType(LibraryPage)),
+      )!;
+      expect(searchFocus.hasFocus, isTrue);
 
-    await tester.tap(find.byKey(const ValueKey('search-suggest-h1')));
-    await tester.pumpAndSettle();
-    expect(find.text('选择剧集'), findsOneWidget);
-    expect(runtime.catalog.lastQuery, before);
-    expect(find.byKey(const ValueKey('search-suggestions')), findsNothing);
-  });
+      await tester.tap(find.byKey(const ValueKey('search-suggest-h1')));
+      await tester.pumpAndSettle();
+      expect(find.text('选择剧集'), findsOneWidget);
+      expect(runtime.catalog.lastQuery, before);
+      expect(find.byKey(const ValueKey('search-suggestions')), findsNothing);
+      final detailRoute = ModalRoute.of(tester.element(find.text('选择剧集')))!;
+      expect(detailRoute.isCurrent, isTrue);
+      expect(catalogRoute.isCurrent, isFalse);
+      expect(searchFocus.hasFocus, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('tapping away closes the dropdown and the boards stay cached', (
     tester,
@@ -181,7 +211,7 @@ void main() {
     await openDropdown(tester);
     final calls = runtime.catalog.browseCalls;
 
-    await tester.tap(find.byKey(const ValueKey('search-suggestions-dismiss')));
+    await tester.tapAt(const Offset(10, 400));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('search-suggestions')), findsNothing);
 

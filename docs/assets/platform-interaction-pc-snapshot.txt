@@ -1,0 +1,598 @@
+uid=1_1 RootWebArea "红果剧场 · PC 交互原型" focusable url="file:///Volumes/PSSD/own/flutter_hongguo/docs/design/prototypes/platform-interaction-pc.html"
+  uid=1_2 none
+    uid=1_3 none
+      uid=1_4 banner
+        uid=1_5 none
+          uid=1_6 strong
+            uid=1_7 StaticText "红果剧场 · PC 交互原型"
+              InlineTextBox "红果剧场 · PC 交互原型"
+          uid=1_8 none
+            uid=1_9 StaticText "侧栏 / Rail 导航、键盘与指针协作、浮层重锚、播放器与设置反馈"
+              InlineTextBox "侧栏 / Rail 导航、键盘与指针协作、浮层重锚、播放器与设置反馈"
+        uid=1_10 generic "窗口宽度"
+          uid=1_11 button "1280" focusable invalid="false" pressed="true"
+            uid=1_12 StaticText "1280"
+              InlineTextBox "1280"
+          uid=1_13 button "1024" focusable invalid="false" pressed="false"
+            uid=1_14 StaticText "1024"
+              InlineTextBox "1024"
+          uid=1_15 button "720" focusable invalid="false" pressed="false"
+            uid=1_16 StaticText "720"
+              InlineTextBox "720"
+        uid=1_17 button "模拟系统返回" focusable invalid="false"
+          uid=1_18 StaticText "模拟系统返回"
+            InlineTextBox "模"
+            InlineTextBox "拟"
+            InlineTextBox "系"
+            InlineTextBox "统"
+            InlineTextBox "返"
+            InlineTextBox "回"
+        uid=1_19 button "减弱动态" focusable invalid="false" pressed="false"
+          uid=1_20 StaticText "减弱动态"
+            InlineTextBox "减"
+            InlineTextBox "弱"
+            InlineTextBox "动"
+            InlineTextBox "态"
+        uid=1_21 none
+          uid=1_22 StaticText "当前焦点"
+            InlineTextBox "当前焦点"
+          uid=1_23 strong
+            uid=1_24 StaticText "页面"
+              InlineTextBox "页面"
+      uid=1_25 generic
+        uid=1_26 generic
+          uid=1_27 generic
+            uid=1_28 none
+              uid=1_29 generic
+                uid=1_30 StaticText "红果剧场"
+                  InlineTextBox "红果剧场"
+              uid=1_31 none
+                uid=1_32 StaticText "桌面交互验证"
+                  InlineTextBox "桌面交互验证"
+            uid=1_33 generic
+              uid=1_34 complementary "主导航"
+                uid=1_35 none
+                  uid=1_36 none
+                    uid=1_37 StaticText "红"
+                      InlineTextBox "红"
+                  uid=1_38 strong
+                    uid=1_39 StaticText "红果剧场"
+                      InlineTextBox "红果剧场"
+                uid=1_40 navigation
+                  uid=1_41 button "发现" focusable invalid="false"
+                    uid=1_42 none
+                    uid=1_43 none
+                      uid=1_44 StaticText "发现"
+                        InlineTextBox "发现"
+                  uid=1_45 button "分类" focusable invalid="false"
+                    uid=1_46 none
+                    uid=1_47 none
+                      uid=1_48 StaticText "分类"
+                        InlineTextBox "分类"
+                  uid=1_49 button "榜单" focusable invalid="false"
+                    uid=1_50 none
+                    uid=1_51 none
+                      uid=1_52 StaticText "榜单"
+                        InlineTextBox "榜单"
+                  uid=1_53 button "我的" focusable invalid="false"
+                    uid=1_54 none
+                    uid=1_55 none
+                      uid=1_56 StaticText "我的"
+                        InlineTextBox "我的"
+                uid=1_57 none
+                  uid=1_58 button "设置" focusable invalid="false"
+                    uid=1_59 none
+                    uid=1_60 none
+                      uid=1_61 StaticText "设置"
+                        InlineTextBox "设置"
+              uid=1_62 main
+                uid=1_63 sectionheader
+                  uid=1_64 heading "发现好故事" level="1"
+                    uid=1_65 StaticText "发现好故事"
+                      InlineTextBox "发现好故事"
+                  uid=1_66 none
+                  uid=1_67 LabelText
+                    uid=1_68 none
+                      uid=1_69 none
+                        uid=1_70 none
+                        uid=1_71 none
+                    uid=1_72 searchbox "搜索" editable="plaintext" focusable invalid="false" settable
+                      uid=1_73 none
+                      uid=1_74 none
+                        uid=1_75 generic editable="plaintext"
+                    uid=1_76 generic
+                      uid=1_77 StaticText "/"
+                        InlineTextBox "/"
+                  uid=1_78 button "切换主题" focusable invalid="false"
+                uid=1_79 generic
+                  uid=1_80 none
+                    uid=1_81 generic
+                      uid=1_82 generic "题材筛选"
+                        uid=1_83 button "全部" focusable invalid="false" pressed="true"
+                          uid=1_84 StaticText "全部"
+                            InlineTextBox "全部"
+                        uid=1_85 button "古装" focusable invalid="false" pressed="false"
+                          uid=1_86 StaticText "古装"
+                            InlineTextBox "古装"
+                        uid=1_87 button "甜宠" focusable invalid="false" pressed="false"
+                          uid=1_88 StaticText "甜宠"
+                            InlineTextBox "甜宠"
+                        uid=1_89 button "悬疑" focusable invalid="false" pressed="false"
+                          uid=1_90 StaticText "悬疑"
+                            InlineTextBox "悬疑"
+                        uid=1_91 button "都市" focusable invalid="false" pressed="false"
+                          uid=1_92 StaticText "都市"
+                            InlineTextBox "都市"
+                        uid=1_93 button "科幻" focusable invalid="false" pressed="false"
+                          uid=1_94 StaticText "科幻"
+                            InlineTextBox "科幻"
+                        uid=1_95 button "治愈" focusable invalid="false" pressed="false"
+                          uid=1_96 StaticText "治愈"
+                            InlineTextBox "治愈"
+                      uid=1_97 generic "状态筛选"
+                        uid=1_98 button "全部状态" focusable invalid="false" pressed="true"
+                          uid=1_99 StaticText "全部状态"
+                            InlineTextBox "全部状态"
+                        uid=1_100 button "连载中" focusable invalid="false" pressed="false"
+                          uid=1_101 StaticText "连载中"
+                            InlineTextBox "连载中"
+                        uid=1_102 button "已完结" focusable invalid="false" pressed="false"
+                          uid=1_103 StaticText "已完结"
+                            InlineTextBox "已完结"
+                        uid=1_104 button "有配音" focusable invalid="false" pressed="false"
+                          uid=1_105 StaticText "有配音"
+                            InlineTextBox "有配音"
+                    uid=1_106 none
+                      uid=1_107 heading "为你推荐" level="2"
+                        uid=1_108 StaticText "为你推荐"
+                          InlineTextBox "为你推荐"
+                      uid=1_109 paragraph
+                        uid=1_110 StaticText "全部题材 · 热度优先"
+                          InlineTextBox "全部题材 · 热度优先"
+                      uid=1_111 none
+                      uid=1_112 button "热门" focusable invalid="false"
+                        uid=1_113 none
+                        uid=1_114 generic
+                          uid=1_115 StaticText "热门"
+                            InlineTextBox "热门"
+                        uid=1_116 none
+                    uid=1_117 generic
+                      uid=1_118 button "母凭子贵后被皇家宠上天" focusable invalid="false"
+                        uid=1_119 none
+                          uid=1_120 none
+                            uid=1_121 StaticText "热播"
+                              InlineTextBox "热播"
+                          uid=1_122 none
+                            uid=1_123 StaticText "母凭子贵后被皇家宠上天"
+                              InlineTextBox "母凭子贵后被皇家宠上天"
+                        uid=1_124 strong
+                          uid=1_125 StaticText "母凭子贵后被皇家宠上天"
+                            InlineTextBox "母凭子贵后被皇家宠上天"
+                        uid=1_126 none
+                          uid=1_127 StaticText "古装 · 82 集 · 更新至 82 集"
+                            InlineTextBox "古装 · 82 集 · 更新至 82 集"
+                      uid=1_128 button "山海来信" focusable invalid="false"
+                        uid=1_129 none
+                          uid=1_130 none
+                            uid=1_131 StaticText "新"
+                              InlineTextBox "新"
+                          uid=1_132 none
+                            uid=1_133 StaticText "山海来信"
+                              InlineTextBox "山海来信"
+                        uid=1_134 strong
+                          uid=1_135 StaticText "山海来信"
+                            InlineTextBox "山海来信"
+                        uid=1_136 none
+                          uid=1_137 StaticText "悬疑 · 24 集 · 全 24 集"
+                            InlineTextBox "悬疑 · 24 集 · 全 24 集"
+                      uid=1_138 button "长夜有微光" focusable invalid="false"
+                        uid=1_139 none
+                          uid=1_140 none
+                            uid=1_141 StaticText "高分"
+                              InlineTextBox "高分"
+                          uid=1_142 none
+                            uid=1_143 StaticText "长夜有微光"
+                              InlineTextBox "长夜有微光"
+                        uid=1_144 strong
+                          uid=1_145 StaticText "长夜有微光"
+                            InlineTextBox "长夜有微光"
+                        uid=1_146 none
+                          uid=1_147 StaticText "都市 · 36 集 · 更新至 36 集"
+                            InlineTextBox "都市 · 36 集 · 更新至 36 集"
+                      uid=1_148 button "殿下请留步" focusable invalid="false"
+                        uid=1_149 none
+                          uid=1_150 none
+                            uid=1_151 StaticText "独播"
+                              InlineTextBox "独播"
+                          uid=1_152 none
+                            uid=1_153 StaticText "殿下请留步"
+                              InlineTextBox "殿下请留步"
+                        uid=1_154 strong
+                          uid=1_155 StaticText "殿下请留步"
+                            InlineTextBox "殿下请留步"
+                        uid=1_156 none
+                          uid=1_157 StaticText "古装 · 48 集 · 全 48 集"
+                            InlineTextBox "古装 · 48 集 · 全 48 集"
+                      uid=1_158 button "风从海上来" focusable invalid="false"
+                        uid=1_159 none
+                          uid=1_160 none
+                            uid=1_161 StaticText "推荐"
+                              InlineTextBox "推荐"
+                          uid=1_162 none
+                            uid=1_163 StaticText "风从海上来"
+                              InlineTextBox "风从海上来"
+                        uid=1_164 strong
+                          uid=1_165 StaticText "风从海上来"
+                            InlineTextBox "风从海上来"
+                        uid=1_166 none
+                          uid=1_167 StaticText "爱情 · 30 集 · 更新至 30 集"
+                            InlineTextBox "爱情 · 30 集 · 更新至 30 集"
+                      uid=1_168 button "第七码头" focusable invalid="false"
+                        uid=1_169 none
+                          uid=1_170 none
+                            uid=1_171 StaticText "完结"
+                              InlineTextBox "完结"
+                          uid=1_172 none
+                            uid=1_173 StaticText "第七码头"
+                              InlineTextBox "第七码头"
+                        uid=1_174 strong
+                          uid=1_175 StaticText "第七码头"
+                            InlineTextBox "第七码头"
+                        uid=1_176 none
+                          uid=1_177 StaticText "悬疑 · 20 集 · 全 20 集"
+                            InlineTextBox "悬疑 · 20 集 · 全 20 集"
+                      uid=1_178 button "春日宴" focusable invalid="false"
+                        uid=1_179 none
+                          uid=1_180 none
+                            uid=1_181 StaticText "独播"
+                              InlineTextBox "独播"
+                          uid=1_182 none
+                            uid=1_183 StaticText "春日宴"
+                              InlineTextBox "春日宴"
+                        uid=1_184 strong
+                          uid=1_185 StaticText "春日宴"
+                            InlineTextBox "春日宴"
+                        uid=1_186 none
+                          uid=1_187 StaticText "古装 · 40 集 · 全 40 集"
+                            InlineTextBox "古装 · 40 集 · 全 40 集"
+                      uid=1_188 button "人间小满" focusable invalid="false"
+                        uid=1_189 none
+                          uid=1_190 none
+                            uid=1_191 StaticText "高分"
+                              InlineTextBox "高分"
+                          uid=1_192 none
+                            uid=1_193 StaticText "人间小满"
+                              InlineTextBox "人间小满"
+                        uid=1_194 strong
+                          uid=1_195 StaticText "人间小满"
+                            InlineTextBox "人间小满"
+                        uid=1_196 none
+                          uid=1_197 StaticText "治愈 · 28 集 · 全 28 集"
+                            InlineTextBox "治愈 · 28 集 · 全 28 集"
+                      uid=1_198 button "月照归途" focusable invalid="false"
+                        uid=1_199 none
+                          uid=1_200 none
+                            uid=1_201 StaticText "新"
+                              InlineTextBox "新"
+                          uid=1_202 none
+                            uid=1_203 StaticText "月照归途"
+                              InlineTextBox "月照归途"
+                        uid=1_204 strong
+                          uid=1_205 StaticText "月照归途"
+                            InlineTextBox "月照归途"
+                        uid=1_206 none
+                          uid=1_207 StaticText "剧情 · 32 集 · 更新至 32 集"
+                            InlineTextBox "剧情 · 32 集 · 更新至 32 集"
+                      uid=1_208 button "星河入梦" focusable invalid="false"
+                        uid=1_209 none
+                          uid=1_210 none
+                            uid=1_211 StaticText "独播"
+                              InlineTextBox "独播"
+                          uid=1_212 none
+                            uid=1_213 StaticText "星河入梦"
+                              InlineTextBox "星河入梦"
+                        uid=1_214 strong
+                          uid=1_215 StaticText "星河入梦"
+                            InlineTextBox "星河入梦"
+                        uid=1_216 none
+                          uid=1_217 StaticText "科幻 · 26 集 · 全 26 集"
+                            InlineTextBox "科幻 · 26 集 · 全 26 集"
+                      uid=1_218 button "一城烟雨" focusable invalid="false"
+                        uid=1_219 none
+                          uid=1_220 none
+                            uid=1_221 StaticText "推荐"
+                              InlineTextBox "推荐"
+                          uid=1_222 none
+                            uid=1_223 StaticText "一城烟雨"
+                              InlineTextBox "一城烟雨"
+                        uid=1_224 strong
+                          uid=1_225 StaticText "一城烟雨"
+                            InlineTextBox "一城烟雨"
+                        uid=1_226 none
+                          uid=1_227 StaticText "民国 · 42 集 · 全 42 集"
+                            InlineTextBox "民国 · 42 集 · 全 42 集"
+                      uid=1_228 button "橘子汽水" focusable invalid="false"
+                        uid=1_229 none
+                          uid=1_230 none
+                            uid=1_231 StaticText "高分"
+                              InlineTextBox "高分"
+                          uid=1_232 none
+                            uid=1_233 StaticText "橘子汽水"
+                              InlineTextBox "橘子汽水"
+                        uid=1_234 strong
+                          uid=1_235 StaticText "橘子汽水"
+                            InlineTextBox "橘子汽水"
+                        uid=1_236 none
+                          uid=1_237 StaticText "青春 · 18 集 · 全 18 集"
+                            InlineTextBox "青春 · 18 集 · 全 18 集"
+                uid=1_238 none
+                  uid=1_239 none
+                    uid=1_240 none
+                      uid=1_241 none
+                    uid=1_242 none
+                      uid=1_243 none
+                  uid=1_244 none
+                    uid=1_245 none
+                      uid=1_246 none
+                        uid=1_247 none
+                        uid=1_248 none
+                        uid=1_249 none
+                uid=1_250 none
+                  uid=1_251 none
+                    uid=1_252 none
+                      uid=1_253 none
+                    uid=1_254 none
+                      uid=1_255 none
+                  uid=1_256 none
+                uid=1_257 none
+                  uid=1_258 none
+                    uid=1_259 none
+                      uid=1_260 none
+                    uid=1_261 none
+                      uid=1_262 none
+                  uid=1_263 none
+                uid=1_264 none
+                  uid=1_265 none
+                    uid=1_266 none
+                      uid=1_267 none
+                    uid=1_268 none
+                      uid=1_269 none
+                  uid=1_270 none
+                    uid=1_271 none
+                      uid=1_272 none
+                        uid=1_273 none
+                        uid=1_274 none
+                        uid=1_275 none
+                uid=1_276 none
+                  uid=1_277 none
+                    uid=1_278 none
+                      uid=1_279 none
+                    uid=1_280 none
+                      uid=1_281 none
+                  uid=1_282 none
+                    uid=1_283 none
+                      uid=1_284 none
+                uid=1_285 none
+                uid=1_286 none
+                  uid=1_287 none
+                uid=1_288 none
+                  uid=1_289 none
+      uid=1_290 generic
+        uid=1_291 heading "这个原型验证什么" level="2"
+          uid=1_292 StaticText "这个原型验证什么"
+            InlineTextBox "这"
+            InlineTextBox "个"
+            InlineTextBox "原"
+            InlineTextBox "型"
+            InlineTextBox "验"
+            InlineTextBox "证"
+            InlineTextBox "什"
+            InlineTextBox "么"
+        uid=1_293 paragraph
+          uid=1_294 StaticText "不是重做页面，而是把 PC 的“精确输入 + 多层返回 + 常驻焦点”做成可操作契约。点击海报、搜索、筛选、设置和播放器；按"
+            InlineTextBox "不"
+            InlineTextBox "是"
+            InlineTextBox "重"
+            InlineTextBox "做"
+            InlineTextBox "页"
+            InlineTextBox "面，"
+            InlineTextBox "而"
+            InlineTextBox "是"
+            InlineTextBox "把"
+            InlineTextBox "PC"
+            InlineTextBox "的"
+            InlineTextBox "“精"
+            InlineTextBox "确"
+            InlineTextBox "输"
+            InlineTextBox "入"
+            InlineTextBox "+"
+            InlineTextBox "多"
+            InlineTextBox "层"
+            InlineTextBox "返"
+            InlineTextBox "回"
+            InlineTextBox "+"
+            InlineTextBox "常"
+            InlineTextBox "驻"
+            InlineTextBox "焦"
+            InlineTextBox "点”"
+            InlineTextBox "做"
+            InlineTextBox "成"
+            InlineTextBox "可"
+            InlineTextBox "操"
+            InlineTextBox "作"
+            InlineTextBox "契"
+            InlineTextBox "约。"
+            InlineTextBox "点"
+            InlineTextBox "击"
+            InlineTextBox "海"
+            InlineTextBox "报、"
+            InlineTextBox "搜"
+            InlineTextBox "索、"
+            InlineTextBox "筛"
+            InlineTextBox "选、"
+            InlineTextBox "设"
+            InlineTextBox "置"
+            InlineTextBox "和"
+            InlineTextBox "播"
+            InlineTextBox "放"
+            InlineTextBox "器；"
+            InlineTextBox "按"
+          uid=1_295 StaticText "Tab"
+            InlineTextBox "Tab"
+          uid=1_296 StaticText "、"
+            InlineTextBox "、"
+          uid=1_297 StaticText "Esc"
+            InlineTextBox "Esc"
+          uid=1_298 StaticText "、"
+            InlineTextBox "、"
+          uid=1_299 StaticText "/"
+            InlineTextBox "/"
+          uid=1_300 StaticText "、"
+            InlineTextBox "、"
+          uid=1_301 StaticText "?"
+            InlineTextBox "?"
+          uid=1_302 StaticText "与方向键验证。"
+            InlineTextBox "与"
+            InlineTextBox "方"
+            InlineTextBox "向"
+            InlineTextBox "键"
+            InlineTextBox "验"
+            InlineTextBox "证。"
+        uid=1_303 table
+          uid=1_304 rowgroup
+            uid=1_305 row
+              uid=1_306 columnheader "Before"
+                uid=1_307 StaticText "Before"
+                  InlineTextBox "Before"
+              uid=1_308 columnheader "After"
+                uid=1_309 StaticText "After"
+                  InlineTextBox "After"
+              uid=1_310 columnheader "Why"
+                uid=1_311 StaticText "Why"
+                  InlineTextBox "Why"
+          uid=1_312 none
+            uid=1_313 row
+              uid=1_314 cell "“我的 / 榜单”不响应系统返回"
+                uid=1_315 StaticText "“我的 / 榜单”不响应系统返回"
+                  InlineTextBox "“我的 /"
+                  InlineTextBox "榜单”"
+                  InlineTextBox "不响应"
+                  InlineTextBox "系统返"
+                  InlineTextBox "回"
+              uid=1_316 cell "统一页面栈，返回先关闭顶层浮层"
+                uid=1_317 StaticText "统一页面栈，返回先关闭顶层浮层"
+                  InlineTextBox "统一页"
+                  InlineTextBox "面栈，"
+                  InlineTextBox "返回先"
+                  InlineTextBox "关闭顶"
+                  InlineTextBox "层浮层"
+              uid=1_318 cell "系统行为与用户预期一致"
+                uid=1_319 StaticText "系统行为与用户预期一致"
+                  InlineTextBox "系统"
+                  InlineTextBox "行为"
+                  InlineTextBox "与用"
+                  InlineTextBox "户预"
+                  InlineTextBox "期一"
+                  InlineTextBox "致"
+            uid=1_320 row
+              uid=1_321 cell "桌面分类缺少排序和更多筛选"
+                uid=1_322 StaticText "桌面分类缺少排序和更多筛选"
+                  InlineTextBox "桌面分"
+                  InlineTextBox "类缺少"
+                  InlineTextBox "排序和"
+                  InlineTextBox "更多筛"
+                  InlineTextBox "选"
+              uid=1_323 cell "与触屏分类共享同一筛选模型"
+                uid=1_324 StaticText "与触屏分类共享同一筛选模型"
+                  InlineTextBox "与触屏"
+                  InlineTextBox "分类共"
+                  InlineTextBox "享同一"
+                  InlineTextBox "筛选模"
+                  InlineTextBox "型"
+              uid=1_325 cell "键盘和鼠标都能完成精确选择"
+                uid=1_326 StaticText "键盘和鼠标都能完成精确选择"
+                  InlineTextBox "键盘"
+                  InlineTextBox "和鼠"
+                  InlineTextBox "标都"
+                  InlineTextBox "能完"
+                  InlineTextBox "成精"
+                  InlineTextBox "确选"
+                  InlineTextBox "择"
+            uid=1_327 row
+              uid=1_328 cell "浮层打开后不随窗口尺寸重锚"
+                uid=1_329 StaticText "浮层打开后不随窗口尺寸重锚"
+                  InlineTextBox "浮层打"
+                  InlineTextBox "开后不"
+                  InlineTextBox "随窗口"
+                  InlineTextBox "尺寸重"
+                  InlineTextBox "锚"
+              uid=1_330 cell "Resize 时重新测量触发器"
+                uid=1_331 StaticText "Resize 时重新测量触发器"
+                  InlineTextBox "Resize"
+                  InlineTextBox "时重新"
+                  InlineTextBox "测量触"
+                  InlineTextBox "发器"
+              uid=1_332 cell "旋转、缩放和窗口避让不错位"
+                uid=1_333 StaticText "旋转、缩放和窗口避让不错位"
+                  InlineTextBox "旋"
+                  InlineTextBox "转、"
+                  InlineTextBox "缩放"
+                  InlineTextBox "和窗"
+                  InlineTextBox "口避"
+                  InlineTextBox "让不"
+                  InlineTextBox "错位"
+            uid=1_334 row
+              uid=1_335 cell "鼠标移动会清掉键盘焦点，控制栏自动隐藏"
+                uid=1_336 StaticText "鼠标移动会清掉键盘焦点，控制栏自动隐藏"
+                  InlineTextBox "鼠标移"
+                  InlineTextBox "动会清"
+                  InlineTextBox "掉键盘"
+                  InlineTextBox "焦点，"
+                  InlineTextBox "控制栏"
+                  InlineTextBox "自动隐"
+                  InlineTextBox "藏"
+              uid=1_337 cell "指针只唤醒显示，焦点仍可阻止自动隐藏"
+                uid=1_338 StaticText "指针只唤醒显示，焦点仍可阻止自动隐藏"
+                  InlineTextBox "指针只"
+                  InlineTextBox "唤醒显"
+                  InlineTextBox "示，焦"
+                  InlineTextBox "点仍可"
+                  InlineTextBox "阻止自"
+                  InlineTextBox "动隐藏"
+              uid=1_339 cell "键盘用户不会在操作中丢失控件"
+                uid=1_340 StaticText "键盘用户不会在操作中丢失控件"
+                  InlineTextBox "键盘"
+                  InlineTextBox "用户"
+                  InlineTextBox "不会"
+                  InlineTextBox "在操"
+                  InlineTextBox "作中"
+                  InlineTextBox "丢失"
+                  InlineTextBox "控件"
+            uid=1_341 row
+              uid=1_342 cell "设置编辑不标记脏状态，保存反馈可能在屏外"
+                uid=1_343 StaticText "设置编辑不标记脏状态，保存反馈可能在屏外"
+                  InlineTextBox "设置编"
+                  InlineTextBox "辑不标"
+                  InlineTextBox "记脏状"
+                  InlineTextBox "态，保"
+                  InlineTextBox "存反馈"
+                  InlineTextBox "可能在"
+                  InlineTextBox "屏外"
+              uid=1_344 cell "编辑即脏、保存有即时状态、返回前确认"
+                uid=1_345 StaticText "编辑即脏、保存有即时状态、返回前确认"
+                  InlineTextBox "编辑即"
+                  InlineTextBox "脏、保"
+                  InlineTextBox "存有即"
+                  InlineTextBox "时状"
+                  InlineTextBox "态、返"
+                  InlineTextBox "回前确"
+                  InlineTextBox "认"
+              uid=1_346 cell "防止静默丢失，反馈始终可见"
+                uid=1_347 StaticText "防止静默丢失，反馈始终可见"
+                  InlineTextBox "防止"
+                  InlineTextBox "静默"
+                  InlineTextBox "丢"
+                  InlineTextBox "失，"
+                  InlineTextBox "反馈"
+                  InlineTextBox "始终"
+                  InlineTextBox "可见"

@@ -138,7 +138,7 @@
 1. 新增 `desktopWindow` 统一封装：`minimize()` / `toggleMaximize()` / `hide()` / `show()` / `restore()`，macOS 走 `hongguo/macos-window` channel，其余桌面走 `window_manager`，Web/移动为 no-op；plugin 缺失时吞掉异常便于 widget 测试。
 2. 播放页浮层在 `desktopHost` 下提供最小化与隐藏按钮（macOS 保留置顶），键名沿用 `hide-player-window` 并新增 `minimize-player-window`。
 3. 任务栏图标本身已由原生资源提供，无需新增依赖；不当作缺陷处理。
-4. 后续建议（未落地）：设置页「窗口行为」分区——关闭时最小化到托盘 / 退出、记住最大化状态、任务栏角标；需要跨端偏好持久化与原生 `WM_CLOSE` 联动，单独排期。
+4. 后续建议（未落地）：设置页「窗口行为」分区——关闭时最小化到托盘 / 退出、记住最大化状态、任务栏角标；需要跨端偏好持久化与原生 `WM_CLOSE` 联动，单独排期。执行规划见 [窗口行为偏好方案](../design/window-behavior-preferences.md)（2026-11-26）。
 
 ## 验证清单
 

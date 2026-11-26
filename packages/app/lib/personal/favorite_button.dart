@@ -13,12 +13,17 @@ class FavoriteButton extends StatefulWidget {
   /// icon in an action row reads as decoration rather than a third action.
   final bool tvLayout;
   final FocusNode? focusNode;
+
+  /// 详情页操作区的「追剧」形态：复用同一套收藏状态机，只把图标按钮换成
+  /// 带文案的按钮，语义与 AppBar 的收藏入口完全一致。
+  final bool actionRow;
   const FavoriteButton({
     super.key,
     required this.runtime,
     required this.drama,
     this.tvLayout = false,
     this.focusNode,
+    this.actionRow = false,
   });
   @override
   State<FavoriteButton> createState() => _FavoriteButtonState();
@@ -94,6 +99,14 @@ class _FavoriteButtonState extends State<FavoriteButton> {
             style: const TextStyle(fontSize: 20),
           ),
         ),
+      );
+    }
+    if (widget.actionRow) {
+      return OutlinedButton.icon(
+        key: const ValueKey('favorite-drama-action'),
+        onPressed: busy || (!ready && error == null) ? null : _toggle,
+        icon: Icon(favorite ? Icons.favorite : Icons.favorite_border),
+        label: Text(favorite ? '已追剧' : '追剧'),
       );
     }
     return IconButton(

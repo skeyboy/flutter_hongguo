@@ -1,0 +1,1663 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>红果剧场 · 手机交互原型</title>
+    <link rel="stylesheet" href="interaction-prototype.css" />
+  </head>
+  <body>
+    <header class="proto-bar" style="flex-wrap:wrap">
+      <div class="proto-title">
+        <strong>红果剧场 · 手机交互原型</strong>
+        <span>触控反馈、底部弹层、安全区、竖横屏与 Split View 降级</span>
+      </div>
+      <span class="proto-freeze">此版本不执行播放页相关的交互操作变更</span>
+      <div class="proto-seg" aria-label="设备形态">
+        <button type="button" data-device="phone" aria-pressed="true">手机</button>
+        <button type="button" data-device="ipad" aria-pressed="false">iPad 竖屏</button>
+        <button type="button" data-device="ipadLandscape" aria-pressed="false">iPad 横屏</button>
+        <button type="button" data-device="split" aria-pressed="false">分屏</button>
+      </div>
+      <button type="button" class="proto-button" id="protoBack">模拟系统返回</button>
+      <button type="button" class="proto-button" id="motionToggle" aria-pressed="false">减弱动态</button>
+      <label class="data-scenario">数据场景
+        <select id="scenarioSelect" aria-label="数据场景">
+          <option value="normal">正常</option>
+          <option value="empty">空结果</option>
+          <option value="error">请求失败</option>
+          <option value="live">实时空榜</option>
+        </select>
+      </label>
+      <div class="proto-status">当前焦点 <strong id="focusStatus">页面</strong></div>
+    </header>
+
+    <div class="source-strip" id="sourceStrip" role="status" aria-live="polite">
+      <span class="source-badge">原型数据</span><span id="sourceText">目录采样日期待加载</span>
+      <span class="spacer"></span><span>简介、状态、海报、收藏数与线路均为模拟，不代表线上真实值</span>
+    </div>
+
+    <div class="proto-stage">
+      <div class="device-wrap" id="frameWrap">
+        <div class="device" id="device">
+          <div class="mobile-status" aria-hidden="true">
+            <span>9:41</span>
+            <span class="safe-right"><span data-icon="volume"></span><span>Wi-Fi</span><span>100%</span></span>
+          </div>
+
+          <div class="app dark" id="app">
+            <aside class="sidebar" aria-label="主导航">
+              <div class="brand"><div class="brand-mark">红</div><strong>红果剧场</strong></div>
+              <nav class="nav-list">
+                <button type="button" class="nav-item" data-screen="discover" aria-current="page"><span data-icon="compass"></span><span class="nav-label">发现</span></button>
+                <button type="button" class="nav-item" data-screen="categories"><span data-icon="grid"></span><span class="nav-label">分类</span></button>
+                <button type="button" class="nav-item" data-screen="rank"><span data-icon="rank"></span><span class="nav-label">榜单</span></button>
+                <button type="button" class="nav-item" data-screen="mine"><span data-icon="user"></span><span class="nav-label">我的</span></button>
+                <button type="button" class="nav-item" data-screen="settings"><span data-icon="settings"></span><span class="nav-label">设置</span></button>
+              </nav>
+              <div class="sidebar-foot">触控与遥控共享导航语义</div>
+            </aside>
+
+            <main class="main-pane">
+              <header class="mobile-top" id="mobileTop">
+                <div class="brand"><div class="brand-mark">红</div><strong>红果剧场</strong></div>
+                <label class="search" id="searchWrap">
+                  <span data-icon="search"></span>
+                  <input id="searchInput" type="search" autocomplete="off" placeholder="搜索剧名、演员" aria-label="搜索" />
+                </label>
+                <button type="button" class="icon-button" id="themeButton" data-icon="sun" aria-label="切换主题"></button>
+              </header>
+
+              <section class="screen mobile-screen" data-screen="discover">
+                <div class="mobile-content">
+                  <!-- 二级主从筛选：一级内容类型决定二级题材词表 -->
+                  <div class="filter-band cascade" id="filterBand">
+                    <div class="cascade-row">
+                      <div class="chip-row" id="primaryTypeChips" aria-label="一级筛选：内容类型"></div>
+                    </div>
+                    <div class="cascade-row">
+                      <div class="chip-row" id="secondaryThemeChips" aria-label="二级筛选：题材，随内容类型联动"></div>
+                      <button type="button" class="filter-trigger" id="filterButton" aria-label="更多筛选" aria-haspopup="dialog">
+                        <span data-icon="filter"></span><span class="filter-badge" id="filterBadge" hidden>0</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="section-head compact-head">
+                    <h2>为你推荐</h2><p id="resultCount" aria-live="polite">加载中</p><div class="spacer"></div>
+                    <button type="button" class="icon-button" id="feedModeButton" data-icon="grid" aria-label="切换沉浸/九宫格模式" aria-pressed="false" title="切换单列沉浸 / 九宫格选剧"></button>
+                  </div>
+                  <div class="poster-grid" id="posterGrid"></div>
+                  <div class="load-more" id="feedLoadMore" hidden><button type="button" class="button" data-load-feed>加载更多</button></div>
+                </div>
+              </section>
+
+              <!-- 分类：与 PC 同款筛选轴（题材 / 内容类型 / 状态），复用同一份真值目录 -->
+              <section class="screen mobile-screen" data-screen="categories" hidden>
+                <div class="mobile-content">
+                  <!-- 与发现页同款二级主从结构；分类页额外保留状态行 -->
+                  <div class="filter-band cascade" id="categoryFilterBand">
+                    <div class="cascade-row">
+                      <div class="chip-row" id="categoryTypeChips" aria-label="一级筛选：内容类型"></div>
+                    </div>
+                    <div class="cascade-row">
+                      <div class="chip-row" id="categoryThemeChips" aria-label="二级筛选：题材，随内容类型联动"></div>
+                    </div>
+                    <div class="cascade-row">
+                      <span class="cascade-label plain">状态</span>
+                      <div class="chip-row" id="categoryStatusChips" aria-label="分类状态"></div>
+                    </div>
+                  </div>
+                  <div class="section-head compact-head">
+                    <h2>分类浏览</h2><p id="categoryCount" aria-live="polite">加载中</p><div class="spacer"></div>
+                  </div>
+                  <div class="poster-grid" id="categoryGrid"></div>
+                  <div class="load-more" id="categoryLoadMore" hidden><button type="button" class="button" data-load-category>加载更多</button></div>
+                </div>
+              </section>
+
+              <section class="screen mobile-screen" data-screen="rank" hidden>
+                <div class="mobile-content">
+                  <div class="section-head"><h2 id="rankTitle">推荐榜</h2><p id="rankNotice" aria-live="polite">加载中</p></div>
+                  <div class="chip-row" id="rankTracks" aria-label="榜单赛道"></div>
+                  <div class="chip-row" id="rankTabs" aria-label="榜单类型">
+                    <button type="button" class="chip" data-rank="recommend" aria-pressed="true">推荐</button>
+                    <button type="button" class="chip" data-rank="hot" aria-pressed="false">热播</button>
+                    <button type="button" class="chip" data-rank="new" aria-pressed="false">新剧</button>
+                  </div>
+                  <div class="rank-list" id="rankList"></div>
+                </div>
+              </section>
+
+              <section class="screen mobile-screen" data-screen="mine" hidden>
+                <div class="mobile-content" id="mineContent">
+                  <div class="mine-header">
+                    <div class="mine-avatar">红</div>
+                    <div class="mine-identity"><strong id="mineName">红果观众</strong><span>本地账号 · 数据仅存本机</span></div>
+                    <button type="button" class="icon-button" data-screen="settings" data-icon="settings" aria-label="设置"></button>
+                  </div>
+                  <div class="mine-stats" id="mineStats" aria-label="个人数据概览"></div>
+                  <div class="mine-quick-grid" id="mineQuick" aria-label="常用入口"></div>
+                  <div class="mine-section" id="mineContinueSection">
+                    <div class="section-head"><h2>继续观看</h2><p>观看历史 · WatchRecord</p></div>
+                    <div id="mineHistory"></div>
+                  </div>
+                  <div class="mine-section" id="mineFavSection">
+                    <div class="section-head"><h2>我的追剧</h2><p>favorites</p></div>
+                    <div class="mine-row-list" id="mineFavorites"></div>
+                  </div>
+                  <div class="mine-section" id="mineDownloadSection">
+                    <div class="section-head"><h2>缓存与下载</h2><p>本地文件 · DownloadRuntime</p></div>
+                    <div id="mineDownloads"></div>
+                  </div>
+                  <div class="mine-section" id="mineReserveSection">
+                    <div class="section-head"><h2>预约更新</h2><p>更新提醒</p></div>
+                    <div class="mine-row-list" id="mineReservations"></div>
+                  </div>
+                  <p class="mine-foot" id="mineFoot"></p>
+                </div>
+              </section>
+
+              <section class="screen mobile-screen" data-screen="detail" hidden>
+                <div class="mobile-detail" id="detailBody" tabindex="-1" aria-live="polite">
+                  <div class="detail-head">
+                    <div class="detail-art" id="detailArt" aria-hidden="true"></div>
+                    <div class="detail-copy">
+                      <div class="tags" id="detailTags"></div>
+                      <h2 id="detailTitle">正在加载详情</h2>
+                      <p id="detailSummary"></p>
+                    </div>
+                  </div>
+                  <div class="detail-actions">
+                    <button type="button" class="button primary" id="continueButton" disabled><span data-icon="play"></span>继续观看</button>
+                    <button type="button" class="button" data-toast="已加入下载队列"><span data-icon="download"></span>缓存</button>
+                  </div>
+                  <div class="section-head"><h2>选集</h2><p id="episodeSummary">加载中</p></div>
+                  <div class="episode-grid" id="episodeGrid"></div>
+                  <div class="load-more" id="detailLoadMore" hidden><button type="button" class="button" data-load-episodes>加载更多选集</button></div>
+                  <div class="section-head"><h2>相关推荐</h2><p>同题材的匿名样例</p></div>
+                  <div class="poster-grid" id="relatedGrid"></div>
+                  <div class="data-state" id="relatedEmpty" hidden><strong>暂无相关内容</strong><p>同题材内容会在可用时显示。</p></div>
+                </div>
+              </section>
+
+              <section class="screen mobile-screen mobile-settings" data-screen="settings" hidden>
+                <div class="settings-layout">
+                  <nav class="settings-rail" aria-label="设置分区">
+                    <button type="button" data-setting="playback" aria-current="true">播放</button>
+                    <button type="button" data-setting="download">下载</button>
+                    <button type="button" data-setting="account">账号</button>
+                    <button type="button" data-setting="about">关于</button>
+                    <button type="button" class="button primary" id="saveSettings" style="margin-top:12px">保存</button>
+                  </nav>
+                  <div class="settings-content">
+                    <section class="settings-section" id="setting-playback">
+                      <h2>播放</h2><p>修改立即生效，离开前明确提示未保存内容。</p>
+                      <label class="setting-row">
+                        <span><strong>默认清晰度</strong><small>新视频优先使用所选清晰度</small></span>
+                        <select class="select" data-dirty><option>1080P</option><option>720P</option><option>自动</option></select>
+                      </label>
+                      <label class="setting-row">
+                        <span><strong>自动播放下一集</strong><small>当前视频结束后继续播放</small></span>
+                        <button type="button" class="switch" role="switch" aria-checked="true" aria-label="自动播放下一集" data-switch data-dirty></button>
+                      </label>
+                    </section>
+                    <section class="settings-section" id="setting-download">
+                      <h2>下载</h2><p>仅通过 Wi-Fi 下载高清视频，避免占用移动网络。</p>
+                      <label class="setting-row">
+                        <span><strong>仅 Wi-Fi 下载</strong><small>移动网络下暂停新任务</small></span>
+                        <button type="button" class="switch" role="switch" aria-checked="true" aria-label="仅 Wi-Fi 下载" data-switch data-dirty></button>
+                      </label>
+                    </section>
+                    <section class="settings-section" id="setting-account">
+                      <h2>账号</h2><p>凭据只保存在本机安全存储中，不进入日志。</p>
+                      <label class="setting-row"><span><strong>显示名称</strong><small>用于个人页展示</small></span><input class="select" value="红果观众" data-dirty aria-label="显示名称" /></label>
+                    </section>
+                    <section class="settings-section" id="setting-about"><h2>关于</h2><p>红果剧场 · 交互原型</p></section>
+                  </div>
+                </div>
+              </section>
+            </main>
+
+            <nav class="bottom-nav" aria-label="底部导航">
+              <button type="button" class="nav-item" data-screen="discover" aria-current="page"><span data-icon="compass"></span><span class="nav-label">发现</span></button>
+              <button type="button" class="nav-item" data-screen="categories"><span data-icon="grid"></span><span class="nav-label">分类</span></button>
+              <button type="button" class="nav-item" data-screen="rank"><span data-icon="rank"></span><span class="nav-label">榜单</span></button>
+              <button type="button" class="nav-item" data-screen="mine"><span data-icon="user"></span><span class="nav-label">我的</span></button>
+              <button type="button" class="nav-item" data-screen="settings"><span data-icon="settings"></span><span class="nav-label">设置</span></button>
+            </nav>
+
+            <section class="mobile-player" id="mobilePlayer" hidden aria-label="播放器">
+              <div class="video-stage controls-visible" id="videoStage" tabindex="0" aria-label="播放画面，双击中央播放或暂停，双击两侧快退或快进">
+                <div class="video-poster" aria-hidden="true"></div>
+                <div class="player-title">
+                  <button type="button" class="icon-button" data-player-back data-icon="back" aria-label="退出播放器"></button>
+                  <span id="mobilePlayerTitle">正在加载剧集</span>
+                </div>
+                <div class="player-center" id="playerCenter" data-icon="pause"></div>
+                <div class="episode-swipe-hint">上下滑动切集</div>
+                <div class="seek-preview" id="seekPreview">00:32</div>
+                <div class="player-controls" id="playerControls">
+                  <div class="progress-row">
+                    <span id="currentTime">5:02</span>
+                    <input id="mobileProgress" type="range" min="0" max="100" value="42" aria-label="播放进度" style="flex:1;accent-color:var(--brand)" />
+                    <span>12:28</span>
+                  </div>
+                  <div class="control-row">
+                    <button type="button" class="icon-button" id="playButton" data-icon="pause" aria-label="暂停"></button>
+                    <button type="button" class="icon-button secondary-control" data-toast="已打开倍速面板" data-icon="speed" aria-label="倍速"></button>
+                    <button type="button" class="icon-button" id="muteButton" data-icon="volume" aria-label="静音"></button>
+                    <div class="spacer"></div>
+                    <button type="button" class="icon-button secondary-control" data-toast="投屏设备列表已打开" data-icon="cast" aria-label="投屏"></button>
+                    <button type="button" class="icon-button secondary-control" data-toast="画中画已开启" data-icon="pip" aria-label="画中画"></button>
+                    <button type="button" class="fit-toggle" id="fitButton" aria-label="切换适应/铺满" aria-pressed="false" title="竖屏短剧：适应保留完整画面 / 铺满裁切">适应</button>
+                    <button type="button" class="icon-button" id="rotateButton" data-icon="rotate" aria-label="旋转屏幕"></button>
+                    <button type="button" class="icon-button" id="playerPanelButton" data-icon="episodes" aria-label="选集"></button>
+                  </div>
+                </div>
+              </div>
+              <aside class="player-panel" id="playerPanel" aria-label="选集面板">
+                <header><strong>选集</strong><div style="flex:1"></div><button type="button" class="icon-button" id="closePlayerPanel" data-icon="close" aria-label="关闭选集"></button></header>
+                <div class="episodes" id="playerEpisodes"></div>
+              </aside>
+            </section>
+
+            <div class="popover" id="searchSuggestions" role="dialog" aria-label="搜索建议" hidden>
+              <div class="popover-head"><strong>搜索建议</strong><div style="flex:1"></div><span>点击打开</span></div>
+              <div class="suggestion-list" id="suggestionList"></div>
+            </div>
+
+            <div class="sheet-layer" id="sheetLayer" hidden>
+              <section class="sheet" id="filterSheet" role="dialog" aria-modal="true" aria-labelledby="filterSheetTitle" style="touch-action:pan-y" hidden>
+                <div class="sheet-grab" aria-label="拖动关闭"><i></i></div>
+                <div class="sheet-head"><div><h2 id="filterSheetTitle">筛选</h2><p>内容类型与题材已在顶部联动，此处提供题材完整词表与状态</p></div></div>
+                <div class="sheet-body">
+                  <h3 style="font-size:13px">题材 · 二级完整词表（随一级内容类型联动）</h3>
+                  <div class="chip-row" id="sheetGenreChips"></div>
+                  <h3 style="font-size:13px">状态</h3>
+                  <div class="chip-row" id="sheetStatusChips"></div>
+                  <h3 style="font-size:13px">排序</h3>
+                  <div class="chip-row" id="sheetSortChips" aria-label="排序方式（三档，与上游一致）"></div>
+                </div>
+                <div class="sheet-actions"><button type="button" class="button" id="resetFilters">重置</button><button type="button" class="button primary" id="doneFilters">应用</button></div>
+              </section>
+            </div>
+
+            <div class="dialog-layer" id="dialogLayer" hidden>
+              <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="dialogTitle" aria-describedby="dialogMessage">
+                <h2 id="dialogTitle">有未保存的更改</h2>
+                <p id="dialogMessage">离开设置会丢弃本次修改。</p>
+                <div class="dialog-actions"><button type="button" class="button" id="dialogCancel">继续编辑</button><button type="button" class="button danger" id="dialogConfirm">放弃并返回</button></div>
+              </div>
+            </div>
+
+            <div class="snackbar" id="snackbar" role="status" aria-live="polite" hidden><span class="ok" data-icon="check"></span><span id="snackbarText">设置已保存</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section class="proto-note">
+      <h2>这个原型验证什么</h2>
+      <p>切换手机、iPad 竖横屏和分屏，再进入详情、播放器、筛选弹层与设置。播放器支持单击显隐、双击中央播放、左右双击快进退、长按 2×、触控上下滑切集；弹层可从把手直接拖走。</p>
+      <table>
+        <thead><tr><th>Before</th><th>After</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td>小屏把桌面控件硬塞进同一行</td><td>主操作常驻，次级操作按宽度渐进披露</td><td>横竖屏与分屏都保留可达性</td></tr>
+          <tr><td>弹层只能点按钮关闭</td><td>支持系统返回、遮罩与可打断的拖拽关闭</td><td>符合触控设备的直接操作预期</td></tr>
+          <tr><td>播放器点击/双击/长按/滑动互相抢占</td><td>并行识别意图，位移阈值后取消失败者</td><td>手势不迟滞，也不误触切集</td></tr>
+          <tr><td>iPad 只按 mobileHost 处理</td><td>竖屏 Rail、横屏宽播放器、分屏自动回退底部导航</td><td>形态变化时交互仍稳定</td></tr>
+          <tr><td>移动端缺少独立「分类」入口</td><td>顶部 / 底部导航均为发现 → 分类 → 榜单 → 我的 → 设置；分类页筛选状态独立于发现页</td><td>与 PC / iPad 导航和信息层级一致，又不覆盖发现页筛选</td></tr>
+          <tr><td>顶部筛选平铺，看不出层级依赖</td><td>发现 / 分类页均改为一级内容类型在上、二级题材在下，切换一级联动换词表并清空失效二级值；层级由位置与联动体现，不展示「主 / 从」引导话术标签</td><td>词表来自真值分域数据（真人剧 29 / 漫剧 8 / AI剧 8），题材不伪造过滤并明示</td></tr>
+          <tr><td>筛选只能逐项点击，跨级切换要来回找按钮</td><td>左右滑动：二级优先切项；二级到边界后一级沿同方向切一次；两级均到边界则给出「无可切换项」反馈</td><td>一次手势即可跨级浏览，左 / 右规则对称，键盘方向键等价</td></tr>
+          <tr><td>设置反馈停留在内容顶部</td><td>保存反馈在安全区上方常驻可见</td><td>从页面底部保存也能确认结果</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <script src="prototype-real-data.js"></script>
+    <script src="prototype-data.js"></script>
+    <script src="interaction-prototype.js"></script>
+    <script>
+      (() => {
+        const { clamp, fitFrame, hydrateIcons, project, spring, trapFocus, PlaybackClock, SettingsStore } = HGProto;
+        const Data = window.HGPrototypeData;
+        const catalog = Data.allDramas(); // 真值剧目池（供「我的」本地记录关联）
+        const app = document.querySelector("#app");
+        const device = document.querySelector("#device");
+        const frameWrap = document.querySelector("#frameWrap");
+        const contentTypes = Data.CONTENT_TYPES;
+        const statuses = [{ id: "", name: "全部" }, ...Data.STATUSES];
+        const rankNames = { recommend: "推荐榜", hot: "热播榜", new: "新剧榜" };
+        const rankTracks = Data.RANK_TRACKS || [{
+          id: "comic_series_rank", name: "漫剧榜",
+          boards: [
+            { id: "board_recommend", name: "推荐榜", type: "recommend" },
+            { id: "board_hot", name: "热播榜", type: "hot" },
+            { id: "board_new", name: "新剧榜", type: "new" },
+          ],
+        }];
+        const state = {
+          device: "phone",
+          screen: "discover",
+          stack: [],
+          themeId: "",
+          statusId: "",
+          contentType: "short_play",
+          sort: "online_time",
+          feedMode: "grid", // grid=九宫格选剧 / immersive=单列沉浸 feed（红果双模式）
+          feedItems: [],
+          nextCursor: null,
+          total: 0,
+          feedRequest: 0,
+          feedLoading: false,
+          feedError: false,
+          category: { themeId: "", statusId: "", contentType: "short_play" },
+          categoryItems: [],
+          categoryCursor: null,
+          categoryTotal: 0,
+          categoryRequest: 0,
+          categoryLoading: false,
+          categoryError: false,
+          rankType: "recommend",
+          rankTrack: rankTracks[0]?.id || "comic_series_rank",
+          rankRequest: 0,
+          detailId: null,
+          detail: null,
+          detailRequest: 0,
+          episodeList: [],
+          episodeCursor: null,
+          episodeLoading: false,
+          episodeRequest: 0,
+          episodeNavigation: 0,
+          searchRequest: 0,
+          dirty: false,
+          playing: true,
+          muted: false,
+          panelOpen: false,
+          currentEpisode: 3,
+          currentTrack: "main",
+          rate: 1,
+          boostFrom: null,
+          searchOpen: false,
+          sheetOpen: false,
+          dialogAction: null,
+          dialogTrigger: null,
+        };
+        const clock = PlaybackClock({
+          duration: 748, initial: 302,
+          onUpdate: (position, duration) => {
+            const range = document.querySelector("#mobileProgress");
+            if (range) {
+              const next = String((position / duration) * 100);
+              if (range.value !== next) range.value = next;
+            }
+            const time = document.querySelector("#currentTime");
+            if (time) time.textContent = HGProto.formatTime(position);
+          },
+        });
+        let toastTimer;
+        let hideTimer;
+        let singleTapTimer;
+        let searchTimer;
+        let lastTap = null;
+        let sheetCancel = null;
+        let sheetY = 0;
+        let sheetVelocity = 0;
+        let sheetTrigger = null;
+        let boostTimer = null;
+        let gesture = null;
+        let suppressClickUntil = 0;
+
+        function escapeHtml(value) {
+          return String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
+        }
+
+        function safeImage(value) {
+          const source = String(value || "");
+          return /^(data:image\/(?:svg\+xml|png|jpe?g|webp);|https:\/\/)/i.test(source) ? source : "";
+        }
+
+        function sampleDate(value) {
+          return String(value || "").slice(0, 10) || "日期未知";
+        }
+
+        function setSourceStrip(message, cached = false) {
+          const strip = document.querySelector("#sourceStrip");
+          strip.dataset.cached = String(cached);
+          document.querySelector("#sourceText").textContent = message;
+        }
+
+        function stateMarkup(title, message, action = "") {
+          return `<div class="data-state"><div><span class="state-icon">${HGProto.icon("info")}</span><strong>${escapeHtml(title)}</strong><p>${escapeHtml(message)}</p>${action}</div></div>`;
+        }
+
+        function skeletonMarkup(count = 6) {
+          return `<div class="skeleton-grid">${Array.from({ length: count }, () => '<div class="skeleton-card" aria-hidden="true"><div class="skeleton-art"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>').join("")}</div>`;
+        }
+
+        function posterMarkup(item) {
+          const title = escapeHtml(item.title);
+          const theme = escapeHtml(item.theme?.name || "剧情");
+          const status = escapeHtml(Data.statusName(item.creationStatus));
+          const type = escapeHtml(Data.contentTypeName(item.contentType));
+          const episodes = escapeHtml(`${item.episodeCount} 集`);
+          const badge = item.isNew ? "新" : type;
+          return `<button type="button" class="poster" data-poster="${escapeHtml(item.id)}" aria-label="${title}，${theme}，${episodes}，${status}，${type}">
+            <span class="poster-art"><img src="${escapeHtml(safeImage(item.poster))}" alt="" loading="lazy" /><span class="badge">${badge}</span><span class="poster-word">${title}</span></span>
+            <span class="poster-meta"><strong>${title}</strong><span>${theme} · ${episodes} · ${status} · ${type}</span></span>
+          </button>`;
+        }
+
+        function renderFeed() {
+          const grid = document.querySelector("#posterGrid");
+          document.querySelector("#resultCount").textContent = state.total ? `共 ${state.total} 部 · 已显示 ${state.feedItems.length} 部` : "共 0 部";
+          const more = document.querySelector("#feedLoadMore");
+          more.hidden = !state.nextCursor;
+          more.querySelector("button").disabled = state.feedLoading;
+          more.querySelector("button").textContent = state.feedLoading ? "加载中…" : "加载更多";
+          if (!state.feedLoading && state.feedError) {
+            document.querySelector("#resultCount").textContent = "加载失败";
+            return;
+          }
+          grid.classList.toggle("immersive-feed", state.feedMode === "immersive");
+          grid.innerHTML = !state.feedLoading && state.total === 0 ? stateMarkup("暂无匹配内容", "试试调整内容类型、题材或状态") : state.feedItems.map(posterMarkup).join("");
+          document.querySelector("#feedModeButton").setAttribute("aria-pressed", String(state.feedMode === "immersive"));
+        }
+
+        async function refreshDiscover(append = false) {
+          const request = ++state.feedRequest;
+          state.feedLoading = true;
+          state.feedError = false;
+          const cursor = append ? state.nextCursor : "0";
+          if (!append) {
+            state.feedItems = [];
+            state.nextCursor = null;
+            state.total = 0;
+            document.querySelector("#posterGrid").innerHTML = skeletonMarkup();
+            document.querySelector("#feedLoadMore").hidden = true;
+            document.querySelector("#resultCount").textContent = "加载中";
+            setSourceStrip("正在读取匿名目录…");
+          } else renderFeed();
+          try {
+            const page = await Data.browse({ contentType: state.contentType, themeId: state.themeId, statusId: state.statusId, sort: state.sort, cursor, pageSize: 12 });
+            if (request !== state.feedRequest) return;
+            state.feedItems = append ? [...state.feedItems, ...page.items] : page.items;
+            state.nextCursor = page.nextCursor;
+            state.total = page.total;
+            if (state.screen === "discover") setSourceStrip(`目录采样 ${sampleDate(page.source)} · ${page.cached ? "历史缓存" : "本次请求"}${state.themeId ? " · 二级题材为词表演示（真值 feed 无题材字段）" : ""}`, page.cached);
+          } catch (error) {
+            if (request !== state.feedRequest) return;
+            if (!append) {
+              state.feedError = true;
+              document.querySelector("#posterGrid").innerHTML = stateMarkup("目录加载失败", error.message || "请稍后重试", '<button type="button" class="button state-action" data-retry-feed>重试</button>');
+              document.querySelector("#resultCount").textContent = "加载失败";
+            }
+            if (state.screen === "discover") setSourceStrip(`目录请求失败 · ${error.message || "请稍后重试"}`);
+            if (append) showToast(error.message || "加载更多失败，请重试");
+          } finally {
+            if (request === state.feedRequest) {
+              state.feedLoading = false;
+              renderFeed();
+            }
+          }
+        }
+
+        // 分类页：与 PC 共享筛选轴与真值目录，独立游标，不覆盖发现页筛选
+        function categorySummary() {
+          const filter = state.category;
+          const typeName = Data.CONTENT_TYPES.find((type) => type.id === filter.contentType)?.name || Data.contentTypeName(filter.contentType);
+          const themeName = filter.themeId ? (Data.dimsFor(filter.contentType).themes.find((theme) => theme.id === filter.themeId)?.name || filter.themeId) : "全部题材";
+          const statusName = filter.statusId ? Data.statusName(filter.statusId) : "全部状态";
+          return `${typeName} · ${themeName} · ${statusName}${filter.themeId ? " · 题材为词表演示" : ""}`;
+        }
+
+        function renderCategory() {
+          const grid = document.querySelector("#categoryGrid");
+          const more = document.querySelector("#categoryLoadMore");
+          const button = more.querySelector("button");
+          more.hidden = !state.categoryCursor;
+          button.disabled = state.categoryLoading;
+          button.textContent = state.categoryLoading ? "加载中…" : "加载更多";
+          document.querySelector("#categoryCount").textContent = state.categoryError ? "加载失败"
+            : state.categoryTotal ? `共 ${state.categoryTotal} 部 · 已显示 ${state.categoryItems.length} 部 · ${categorySummary()}` : "共 0 部";
+          if (!state.categoryLoading && state.categoryError) return;
+          grid.innerHTML = !state.categoryLoading && state.categoryTotal === 0
+            ? stateMarkup("暂无匹配内容", "试试调整题材、内容类型或状态")
+            : state.categoryItems.map(posterMarkup).join("");
+        }
+
+        async function refreshCategory(append = false) {
+          const request = ++state.categoryRequest;
+          state.categoryLoading = true;
+          state.categoryError = false;
+          const cursor = append ? state.categoryCursor : "0";
+          if (!append) {
+            state.categoryItems = [];
+            state.categoryCursor = null;
+            state.categoryTotal = 0;
+            document.querySelector("#categoryGrid").innerHTML = skeletonMarkup();
+            document.querySelector("#categoryLoadMore").hidden = true;
+            document.querySelector("#categoryCount").textContent = "加载中";
+          } else renderCategory();
+          try {
+            const page = await Data.browse({
+              contentType: state.category.contentType, themeId: state.category.themeId,
+              statusId: state.category.statusId, sort: state.sort, cursor, pageSize: 12,
+            });
+            if (request !== state.categoryRequest) return;
+            state.categoryItems = append ? [...state.categoryItems, ...page.items] : page.items;
+            state.categoryCursor = page.nextCursor;
+            state.categoryTotal = page.total;
+            if (state.screen === "categories") setSourceStrip(`目录采样 ${sampleDate(page.source)} · ${page.cached ? "历史缓存" : "本次请求"}`, page.cached);
+          } catch (error) {
+            if (request !== state.categoryRequest) return;
+            if (!append) {
+              state.categoryError = true;
+              document.querySelector("#categoryGrid").innerHTML = stateMarkup("目录加载失败", error.message || "请稍后重试", '<button type="button" class="button state-action" data-retry-category>重试</button>');
+              document.querySelector("#categoryCount").textContent = "加载失败";
+            }
+            if (state.screen === "categories") setSourceStrip(`目录请求失败 · ${error.message || "请稍后重试"}`);
+            if (append) showToast(error.message || "加载更多失败，请重试");
+          } finally {
+            if (request === state.categoryRequest) {
+              state.categoryLoading = false;
+              renderCategory();
+            }
+          }
+        }
+
+        function renderChips(target, values, selected, attribute, key = "id") {
+          target.innerHTML = values.map((value) => {
+            const id = String(value[key] ?? "");
+            const name = String(value.name ?? value);
+            return `<button type="button" class="chip" ${attribute}="${escapeHtml(id)}" aria-pressed="${id === selected}">${escapeHtml(name)}</button>`;
+          }).join("");
+        }
+
+        // 紧凑筛选条：题材横滑常驻，内容类型/状态/排序全部收进抽屉。
+        // 角标显示「非默认」筛选项数，避免顶部三行 chip 挤压内容区。
+        function updateFilterBadge() {
+          const badge = document.querySelector("#filterBadge");
+          const active = Number(Boolean(state.themeId)) + Number(Boolean(state.statusId))
+            + Number(state.sort !== "online_time") + Number(state.contentType !== "short_play");
+          badge.textContent = String(active);
+          badge.hidden = active === 0;
+          document.querySelector("#filterButton").setAttribute("aria-label", active ? `更多筛选，${active} 项已生效` : "更多筛选");
+        }
+
+        // 二级主从：一级内容类型决定二级题材词表。真值 feed 无题材字段，仅做词表演示，不伪造过滤结果。
+        function cascadeThemes(contentType, limit = 0) {
+          const all = [{ id: "", name: "全部" }, ...Data.dimsFor(contentType).themes];
+          return limit ? all.slice(0, limit + 1) : all;
+        }
+
+        function selectPrimaryType(filter, value, onChange, label) {
+          if (filter.contentType === value) return;
+          filter.contentType = value;
+          const valid = Data.themeIdsFor(value);
+          const reset = Boolean(filter.themeId) && !valid.has(filter.themeId);
+          if (reset) filter.themeId = "";
+          showToast(`${label}切换到${Data.contentTypeName(value)} · 二级词表已更新${reset ? "，已选题材已清空" : ""}`);
+          renderFilters();
+          onChange();
+        }
+
+        function renderFilters() {
+          // 发现页：主（内容类型）→ 从（题材，随主联动）；抽屉承载二级完整词表
+          renderChips(document.querySelector("#primaryTypeChips"), contentTypes, state.contentType, "data-primary-type");
+          renderChips(document.querySelector("#secondaryThemeChips"), cascadeThemes(state.contentType, 10), state.themeId, "data-theme");
+          renderChips(document.querySelector("#sheetGenreChips"), cascadeThemes(state.contentType), state.themeId, "data-sheet-theme");
+          renderChips(document.querySelector("#sheetStatusChips"), statuses, state.statusId, "data-sheet-status");
+          renderChips(document.querySelector("#sheetSortChips"), Data.SORTS, state.sort, "data-sheet-sort");
+          // 分类页：同款主从结构 + 状态行，筛选状态独立于发现页
+          renderChips(document.querySelector("#categoryTypeChips"), contentTypes, state.category.contentType, "data-cat-primary-type");
+          renderChips(document.querySelector("#categoryThemeChips"), cascadeThemes(state.category.contentType, 10), state.category.themeId, "data-cat-theme");
+          renderChips(document.querySelector("#categoryStatusChips"), statuses, state.category.statusId, "data-cat-status");
+          updateFilterBadge();
+        }
+
+        function episodeMarkup() {
+          return state.episodeList.map((episode) => {
+            const locked = Boolean(episode.locked || episode.beyondFree);
+            return `<button type="button" class="episode ${episode.number === state.currentEpisode ? "current" : ""} ${locked ? "locked" : ""}" data-episode="${escapeHtml(episode.number)}" data-locked="${locked}" aria-label="第 ${escapeHtml(episode.number)} 集${locked ? "，限免外" : ""}" aria-pressed="${episode.number === state.currentEpisode}">${escapeHtml(episode.number)}</button>`;
+          }).join("");
+        }
+
+        function updatePlayerTitle() {
+          document.querySelector("#mobilePlayerTitle").textContent = state.detail ? `${state.detail.title} · 第 ${state.currentEpisode} 集` : "正在加载剧集";
+          const poster = document.querySelector(".video-poster");
+          poster.innerHTML = state.detail?.poster ? `<img src="${escapeHtml(safeImage(state.detail.poster))}" alt="" style="display:block;width:100%;height:100%" />` : "";
+        }
+
+        // ===== 「我的」：四端共用 HGProto.PersonalCenter（同一份真结构与交互） =====
+        const personalCenter = HGProto.PersonalCenter({
+          mount: document.querySelector("#mineContent"),
+          Data,
+          onOpenDetail: (id) => openDetail(id),
+          onContinue: (id, episode) => openDetail(id).then(() => {
+            state.currentEpisode = episode;
+            renderEpisodes();
+            showToast(`已从第 ${episode} 集继续`);
+          }),
+          onSettings: () => requestScreen("settings"),
+          toast: showToast,
+          emptyState: stateMarkup,
+        });
+        async function renderMine() { await personalCenter.render(); }
+
+        function renderEpisodes() {
+          const markup = episodeMarkup();
+          document.querySelector("#episodeGrid").innerHTML = markup;
+          document.querySelector("#playerEpisodes").innerHTML = markup;
+          const continueButton = document.querySelector("#continueButton");
+          if (continueButton) {
+            continueButton.disabled = !state.detail;
+            continueButton.innerHTML = `${HGProto.icon("play")}继续观看 · 第 ${state.currentEpisode} 集`;
+          }
+          const summary = document.querySelector("#episodeSummary");
+          if (summary) summary.textContent = state.detail ? `当前第 ${state.currentEpisode} / ${state.detail.episodeCount} 集 · 已加载 ${state.episodeList.length} 集` : "加载中";
+          const more = document.querySelector("#detailLoadMore");
+          if (more) {
+            more.hidden = !state.episodeCursor;
+            const button = more.querySelector("button");
+            button.disabled = state.episodeLoading;
+            button.textContent = state.episodeLoading ? "加载中…" : "加载更多选集";
+          }
+          updatePlayerTitle();
+        }
+
+        function renderDetail() {
+          const detail = state.detail;
+          if (!detail) return;
+          document.querySelector("#detailArt").innerHTML = `<img src="${escapeHtml(safeImage(detail.poster))}" alt="" style="display:block;width:100%;height:100%;object-fit:cover" />`;
+          document.querySelector("#detailTags").innerHTML = [detail.theme?.name, `${detail.episodeCount} 集`, Data.statusName(detail.creationStatus), Data.contentTypeName(detail.contentType)].map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("");
+          document.querySelector("#detailTitle").textContent = detail.title;
+          document.querySelector("#detailSummary").textContent = detail.summary;
+          document.querySelector("#detailMeta").textContent = `${detail.sourceLabel || "匿名目录"} · 采样 ${sampleDate(detail.sampledAt)} · 模拟字段：${(detail.simulatedFields || []).join("、")}`;
+          const freeCount = detail.episodes?.filter((e) => !e.locked).length || 6;
+          const freeHint = document.querySelector("#freeHint");
+          if (freeHint) freeHint.textContent = `前 ${freeCount} 集限免 · 后续可用备用线路继续观看`;
+          document.querySelector("#detailTracks").innerHTML = (detail.tracks || []).map((track) => `<button type="button" class="chip" data-track="${escapeHtml(track.id)}" aria-pressed="${track.id === state.currentTrack}" ${track.playable ? "" : "disabled"} title="${escapeHtml(track.quality || "")} · ${escapeHtml(track.format || "mp4")} · ${Number(track.candidates || 1)} 条线路">${escapeHtml(track.label)}${track.quality ? ` · ${escapeHtml(track.quality)}` : ""}</button>`).join("");
+          document.querySelector("#relatedGrid").innerHTML = (detail.related || []).map(posterMarkup).join("");
+          document.querySelector("#relatedGrid").hidden = !detail.related?.length;
+          document.querySelector("#relatedEmpty").hidden = Boolean(detail.related?.length);
+          setSourceStrip(`${detail.sourceLabel || "匿名目录"} · 采样 ${sampleDate(detail.sampledAt)} · ${detail.provenance === "historical-api" ? "历史缓存" : "本次请求"}`, detail.provenance === "historical-api");
+          renderEpisodes();
+        }
+
+        function showDetailSkeleton() {
+          state.detail = null;
+          state.episodeList = [];
+          state.episodeCursor = null;
+          document.querySelector("#detailBody").innerHTML = `<div class="data-state detail-state"><div><span class="state-icon">${HGProto.icon("info")}</span><strong>正在加载详情</strong><p>剧集信息与选集即将呈现</p></div></div>${skeletonMarkup(4)}`;
+          updatePlayerTitle();
+          setSourceStrip("正在读取剧集详情…");
+        }
+
+        function showDetailError(message) {
+          document.querySelector("#detailBody").innerHTML = stateMarkup("详情加载失败", message, '<button type="button" class="button state-action" data-retry-detail>重试</button>');
+          setSourceStrip(`详情请求失败 · ${message}`);
+        }
+
+        async function openDetail(id) {
+          const detailId = String(id || state.detailId || state.feedItems[0]?.id || "");
+          if (!Data) return;
+          if (state.screen !== "detail") state.stack.push(state.screen);
+          state.detailId = detailId;
+          const request = ++state.detailRequest;
+          ++state.episodeRequest;
+          ++state.episodeNavigation;
+          state.currentEpisode = 3;
+          state.episodeLoading = false;
+          openScreen("detail", false);
+          showDetailSkeleton();
+          try {
+            const detail = await Data.detail(detailId);
+            if (request !== state.detailRequest || state.detailId !== detailId) return;
+            state.detail = detail;
+            state.episodeList = detail.episodes || [];
+            state.episodeCursor = detail.nextEpisodeCursor || null;
+            state.currentTrack = detail.tracks?.[0]?.id || "main";
+            state.currentEpisode = Math.min(3, Math.max(1, detail.episodeCount));
+            document.querySelector("#detailBody").innerHTML = `<div class="detail-head"><div class="detail-art" id="detailArt" aria-hidden="true"></div><div class="detail-copy"><div class="tags" id="detailTags"></div><h2 id="detailTitle"></h2><p id="detailSummary"></p><p id="detailMeta" class="detail-status"></p><div class="tags" id="detailTracks" aria-label="播放线路"></div></div></div><div class="detail-actions"><button type="button" class="button primary" id="continueButton">${HGProto.icon("play")}继续观看</button><button type="button" class="button" id="favoriteButton" aria-pressed="false">${HGProto.icon("heart")}追剧</button><button type="button" class="button" id="reserveButton" aria-pressed="false">${HGProto.icon("bell")}预约</button><button type="button" class="button" data-source-switch>换源</button><button type="button" class="button" data-toast="已加入下载队列">${HGProto.icon("download")}缓存</button></div><p class="free-hint" id="freeHint"></p><div class="section-head"><h2>选集</h2><p id="episodeSummary"></p></div><div class="episode-grid" id="episodeGrid"></div><div class="load-more" id="detailLoadMore" hidden><button type="button" class="button" data-load-episodes>加载更多选集</button></div><div class="section-head"><h2>相关推荐</h2><p>同题材的匿名样例</p></div><div class="poster-grid" id="relatedGrid"></div><div class="data-state" id="relatedEmpty" hidden><strong>暂无相关内容</strong><p>同题材内容会在可用时显示。</p></div>`;
+            hydrateIcons(document.querySelector("#detailBody"));
+            renderDetail();
+          } catch (error) {
+            if (request === state.detailRequest) showDetailError(error.message || "请返回后重试");
+          }
+        }
+
+        async function loadMoreEpisodes() {
+          if (!state.detail || !state.episodeCursor || state.episodeLoading) return false;
+          const detailId = state.detailId;
+          const cursor = state.episodeCursor;
+          const request = ++state.episodeRequest;
+          state.episodeLoading = true;
+          renderEpisodes();
+          try {
+            const page = await Data.episodes(detailId, Number(cursor), 60);
+            if (request !== state.episodeRequest || state.detailId !== detailId) return;
+            const existing = new Set(state.episodeList.map((episode) => episode.number));
+            state.episodeList.push(...page.items.filter((episode) => !existing.has(episode.number)));
+            state.episodeCursor = page.nextCursor;
+            return request === state.episodeRequest && state.detailId === detailId;
+          } catch (error) {
+            if (request === state.episodeRequest) showToast(error.message || "选集加载失败，请重试");
+            return false;
+          } finally {
+            if (request === state.episodeRequest) {
+              state.episodeLoading = false;
+              renderEpisodes();
+            }
+          }
+        }
+
+        function rankMarkup(item) {
+          const position = escapeHtml(item.position);
+          const heat = escapeHtml(item.heat || "");
+          const badge = item.badge ? `<span class="rank-badge">${escapeHtml(item.badge)}</span>` : "";
+          const sub = escapeHtml(item.subtitle || `${item.theme?.name || "剧情"} · 全${item.episodeCount}集`);
+          return `<button type="button" class="rank-row" data-rank-id="${escapeHtml(item.id)}" aria-label="第 ${position} 名，${escapeHtml(item.title)}${heat ? "，" + heat : ""}"><span class="rank-position" data-top="${item.position <= 3}">${position}</span><span class="rank-thumb" style="background:${escapeHtml(item.dominateColor || "#282828")}"><img src="${escapeHtml(safeImage(item.poster))}" alt="" loading="lazy" /></span><span class="rank-copy"><strong>${escapeHtml(item.title)}</strong>${badge}<span>${sub}</span></span><span class="rank-metrics">${heat ? `<em>${heat}</em>` : ""}${item.score ? `<em>评分 ${escapeHtml(item.score)}</em>` : ""}${item.collect ? `<small>${escapeHtml(item.collect)}</small>` : ""}</span></button>`;
+        }
+
+        function renderRankTabs() {
+          const track = rankTracks.find((item) => item.id === state.rankTrack) || rankTracks[0];
+          document.querySelector("#rankTracks").innerHTML = rankTracks.map((item) => `<button type="button" class="chip" data-rank-track="${escapeHtml(item.id)}" aria-pressed="${item.id === state.rankTrack}">${escapeHtml(item.name)}</button>`).join("");
+          const seen = new Set();
+          document.querySelectorAll("[data-rank]").forEach((button) => {
+            const board = track.boards.find((item) => item.type === button.dataset.rank && !seen.has(item.id));
+            if (board) seen.add(board.id);
+            button.textContent = board ? board.name : button.textContent;
+            button.hidden = !board; // 某赛道本次没有的子榜整枚不画，避免空 tab
+            button.setAttribute("aria-pressed", String(button.dataset.rank === state.rankType));
+          });
+          return track;
+        }
+
+        async function renderRank() {
+          const type = state.rankType;
+          const request = ++state.rankRequest;
+          const track = renderRankTabs();
+          document.querySelector("#rankTitle").textContent = `${track.name} · ${rankNames[type]}`;
+          document.querySelector("#rankNotice").textContent = "加载中";
+          document.querySelector("#rankList").innerHTML = skeletonMarkup(4);
+          if (state.screen === "rank") setSourceStrip("正在读取榜单…");
+          try {
+            const page = await Data.rank(type, state.rankTrack);
+            if (request !== state.rankRequest || state.screen !== "rank") return;
+            const liveEmpty = !page.items.length && page.notice?.includes("空榜");
+            const updated = page.updatedAt ? ` · 更新于 ${page.updatedAt}` : "";
+            const notice = `${liveEmpty ? "上游实时接口返回空榜，不使用发现页推荐替代" : page.notice || `共 ${page.count} 部`}${updated}`;
+            document.querySelector("#rankNotice").textContent = notice;
+            setSourceStrip(`榜单采样 ${sampleDate(page.sampledAt)} · ${page.cached ? "历史缓存" : liveEmpty ? "实时接口返回空榜" : "本次请求"}`, page.cached);
+            document.querySelector("#rankList").innerHTML = page.items.length ? page.items.map(rankMarkup).join("") : stateMarkup(liveEmpty ? "实时榜单为空" : "暂无榜单内容", notice);
+          } catch (error) {
+            if (request !== state.rankRequest || state.screen !== "rank") return;
+            document.querySelector("#rankNotice").textContent = "加载失败";
+            document.querySelector("#rankList").innerHTML = stateMarkup("榜单加载失败", error.message || "请稍后重试", '<button type="button" class="button state-action" data-retry-rank>重试</button>');
+            setSourceStrip(`榜单请求失败 · ${error.message || "请稍后重试"}`);
+          }
+        }
+
+        function preserveViewportAnchor(update) {
+          const screen = document.querySelector(`.screen[data-screen="${state.screen}"]`);
+          const scrollTop = screen?.scrollTop || 0;
+          const focused = document.activeElement;
+          update();
+          requestAnimationFrame(() => {
+            if (screen?.isConnected) screen.scrollTop = scrollTop;
+            if (focused?.isConnected && HGProto.isVisible(focused)) focused.focus({ preventScroll: true });
+            reanchorOpenOverlays();
+          });
+        }
+
+        function applyDevice(type) {
+          preserveViewportAnchor(() => {
+            state.device = type;
+            device.className = "device";
+            if (type === "ipad") device.classList.add("pad");
+            if (type === "ipadLandscape") device.classList.add("pad", "landscape");
+            if (type === "split") device.classList.add("split");
+            document.querySelectorAll("[data-device]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.device === type)));
+            document.querySelector("#mobilePlayer").classList.toggle("landscape", ["ipadLandscape", "split"].includes(type));
+            document.querySelector("#mobileTop").style.display = state.screen === "player" ? "none" : "";
+            fitFrame(device, frameWrap);
+          });
+        }
+
+        function openScreen(name, push = true) {
+          if (!["discover", "categories", "rank", "mine", "detail", "settings", "player"].includes(name)) return;
+          closeSheet(false);
+          closeSearch();
+          closeDialog(false);
+          closePlayerPanel(false);
+          if (push && name !== state.screen) state.stack.push(state.screen);
+          state.screen = name;
+          document.querySelectorAll(".screen[data-screen]").forEach((screen) => {
+            screen.hidden = screen.dataset.screen !== name;
+          });
+          document.querySelectorAll("nav [data-screen]").forEach((item) => {
+            const active = item.dataset.screen === name;
+            if (active) item.setAttribute("aria-current", "page");
+            else item.removeAttribute("aria-current");
+          });
+          document.querySelector("#mobilePlayer").hidden = name !== "player";
+          document.querySelector("#mobileTop").style.display = name === "player" ? "none" : "";
+          if (name === "player") {
+            showPlayerControls();
+            document.querySelector("#videoStage").focus({ preventScroll: true });
+          } else if (name === "detail") {
+            document.querySelector("#detailBody").focus({ preventScroll: true });
+          } else {
+            const active = document.querySelector(`.bottom-nav [data-screen="${name}"]`) || document.querySelector(`.sidebar [data-screen="${name}"]`);
+            active?.focus({ preventScroll: true });
+          }
+          if (name === "rank") renderRank();
+          if (name === "discover") refreshDiscover();
+          if (name === "categories") refreshCategory();
+          if (name === "mine") renderMine();
+        }
+
+        function requestScreen(name) {
+          if (state.screen === "settings" && state.dirty && name !== "settings") {
+            openDialog({
+              title: "有未保存的更改",
+              message: "离开设置会丢弃本次修改。",
+              confirmText: "放弃并前往",
+              cancelText: "继续编辑",
+              destructive: true,
+              onConfirm: () => {
+                state.dirty = false;
+                updateDirty();
+                openScreen(name);
+              },
+            });
+            return;
+          }
+          openScreen(name);
+        }
+
+        function goBack() {
+          if (!document.querySelector("#dialogLayer").hidden) {
+            closeDialog();
+            return;
+          }
+          if (state.sheetOpen) {
+            closeSheet();
+            return;
+          }
+          if (state.searchOpen) {
+            closeSearch();
+            return;
+          }
+          if (state.panelOpen) {
+            closePlayerPanel();
+            return;
+          }
+          if (state.screen === "settings" && state.dirty) {
+            openDialog({
+              title: "有未保存的更改",
+              message: "离开设置会丢弃本次修改。",
+              confirmText: "放弃并返回",
+              cancelText: "继续编辑",
+              destructive: true,
+              onConfirm: () => {
+                state.dirty = false;
+                updateDirty();
+                const previous = state.stack.pop() || "discover";
+                openScreen(previous, false);
+              },
+            });
+            return;
+          }
+          if (state.screen === "player") {
+            closePlayerPanel(false);
+            const previous = state.stack.pop() || "detail";
+            openScreen(previous, false);
+            return;
+          }
+          const previous = state.stack.pop();
+          if (previous) openScreen(previous, false);
+          else showToast("已经在首页");
+        }
+
+        function showToast(message) {
+          const toast = document.querySelector("#snackbar");
+          document.querySelector("#snackbarText").textContent = message;
+          toast.hidden = false;
+          clearTimeout(toastTimer);
+          toastTimer = setTimeout(() => { toast.hidden = true; }, 2400);
+        }
+
+        function localPosition(element, anchor) {
+          const parent = element.offsetParent || app;
+          const parentRect = parent.getBoundingClientRect();
+          const anchorRect = anchor.getBoundingClientRect();
+          const scale = parentRect.width / parent.offsetWidth;
+          const width = element.offsetWidth;
+          const height = element.offsetHeight;
+          const left = clamp((anchorRect.left - parentRect.left) / scale, 12, Math.max(12, parent.offsetWidth - width - 12));
+          const top = clamp((anchorRect.bottom - parentRect.top) / scale + 6, 40, Math.max(40, parent.offsetHeight - height - 12));
+          element.style.left = `${left}px`;
+          element.style.top = `${top}px`;
+        }
+
+        async function runSearch() {
+          if (!state.searchOpen) return;
+          const query = document.querySelector("#searchInput").value.trim();
+          const request = ++state.searchRequest;
+          const list = document.querySelector("#suggestionList");
+          list.innerHTML = '<div class="data-state" style="min-height:120px"><strong>正在搜索</strong></div>';
+          try {
+            const page = await Data.search({ contentType: state.contentType, themeId: "", statusId: "", sort: state.sort, query, cursor: "0", pageSize: 6 });
+            if (request !== state.searchRequest || !state.searchOpen) return;
+            list.innerHTML = page.items.length ? page.items.map((item) => `<button type="button" class="suggestion" data-suggestion="${escapeHtml(item.id)}"><span>${escapeHtml(item.title)}</span><small>${escapeHtml(`${item.theme?.name || "剧情"} · ${item.episodeCount} 集 · ${Data.contentTypeName(item.contentType)}`)}</small></button>`).join("") : stateMarkup("没有匹配的剧集", query ? "换个关键词试试" : "输入剧名或题材开始搜索");
+          } catch (error) {
+            if (request !== state.searchRequest || !state.searchOpen) return;
+            list.innerHTML = stateMarkup("搜索失败", error.message || "请稍后重试", '<button type="button" class="button state-action" data-retry-search>重试</button>');
+          }
+        }
+
+        function openSearch() {
+          if (!["discover", "rank", "mine"].includes(state.screen)) return;
+          state.searchOpen = true;
+          const element = document.querySelector("#searchSuggestions");
+          element.hidden = false;
+          localPosition(element, document.querySelector("#searchWrap"));
+          clearTimeout(searchTimer);
+          runSearch();
+        }
+
+        function scheduleSearch() {
+          clearTimeout(searchTimer);
+          searchTimer = setTimeout(runSearch, 220);
+        }
+
+        function closeSearch() {
+          clearTimeout(searchTimer);
+          ++state.searchRequest;
+          state.searchOpen = false;
+          document.querySelector("#searchSuggestions").hidden = true;
+        }
+
+        function reanchorOpenOverlays() {
+          if (state.searchOpen) localPosition(document.querySelector("#searchSuggestions"), document.querySelector("#searchWrap"));
+          if (state.sheetOpen) fitSheetBody();
+        }
+
+        function fitSheetBody() {
+          const sheet = document.querySelector("#filterSheet");
+          if (!sheet.clientHeight) return;
+          const fixed = [".sheet-grab", ".sheet-head", ".sheet-actions"].reduce((height, selector) => height + (sheet.querySelector(selector)?.offsetHeight || 0), 0);
+          sheet.querySelector(".sheet-body").style.maxHeight = `${Math.max(80, sheet.clientHeight - fixed)}px`;
+        }
+
+        function openSheet() {
+          if (state.sheetOpen) return;
+          closeSearch();
+          state.sheetOpen = true;
+          sheetTrigger = document.activeElement;
+          const layer = document.querySelector("#sheetLayer");
+          const sheet = document.querySelector("#filterSheet");
+          layer.hidden = false;
+          sheet.hidden = false;
+          fitSheetBody();
+          sheet.style.transform = `translateY(${sheet.offsetHeight}px)`;
+          sheetY = sheet.offsetHeight;
+          sheetVelocity = 0;
+          sheetCancel?.();
+          sheetCancel = spring({
+            from: sheetY,
+            to: 0,
+            damping: 1,
+            response: 0.3,
+            onUpdate: (value) => {
+              sheetY = value;
+              sheet.style.transform = `translateY(${value}px)`;
+            },
+          });
+          document.querySelector("#doneFilters").focus({ preventScroll: true });
+        }
+
+        function closeSheet(animate = true) {
+          if (!state.sheetOpen) return;
+          state.sheetOpen = false;
+          const layer = document.querySelector("#sheetLayer");
+          const sheet = document.querySelector("#filterSheet");
+          sheetCancel?.();
+          if (!animate || app.classList.contains("reduced-motion")) {
+            layer.hidden = true;
+            sheet.hidden = true;
+            sheetTrigger?.focus({ preventScroll: true });
+            return;
+          }
+          sheetCancel = spring({
+            from: sheetY,
+            to: sheet.offsetHeight,
+            velocity: sheetVelocity,
+            damping: 0.82,
+            response: 0.28,
+            onUpdate: (value) => {
+              sheetY = value;
+              sheet.style.transform = `translateY(${value}px)`;
+            },
+            onComplete: () => {
+              layer.hidden = true;
+              sheet.hidden = true;
+              sheetTrigger?.focus({ preventScroll: true });
+            },
+          });
+        }
+
+        function bindSheetDrag() {
+          const grab = document.querySelector(".sheet-grab");
+          const sheet = document.querySelector("#filterSheet");
+          let drag = null;
+          let history = [];
+          grab.addEventListener("pointerdown", (event) => {
+            if (!state.sheetOpen) return;
+            sheetCancel?.();
+            grab.setPointerCapture(event.pointerId);
+            drag = { id: event.pointerId, startY: event.clientY, from: sheetY, scale: device.getBoundingClientRect().width / device.offsetWidth };
+            history = [{ y: sheetY, time: performance.now() }];
+          });
+          grab.addEventListener("pointermove", (event) => {
+            if (!drag || drag.id !== event.pointerId) return;
+            const delta = (event.clientY - drag.startY) / (drag.scale || 1);
+            const raw = drag.from + delta;
+            sheetY = raw < 0 ? raw * 0.18 : raw;
+            sheetVelocity = 0;
+            history.push({ y: sheetY, time: performance.now() });
+            history = history.slice(-6);
+            if (history.length >= 2) {
+              const first = history[0];
+              const last = history[history.length - 1];
+              sheetVelocity = ((last.y - first.y) / (last.time - first.time)) * 1000;
+            }
+            sheet.style.transform = `translateY(${sheetY}px)`;
+          });
+          const release = (event) => {
+            if (!drag || drag.id !== event.pointerId) return;
+            drag = null;
+            const projected = sheetY + project(sheetVelocity);
+            const dismiss = projected > sheet.offsetHeight * 0.32 || sheetVelocity > 900;
+            if (dismiss) {
+              closeSheet();
+              return;
+            }
+            sheetCancel = spring({
+              from: sheetY,
+              to: 0,
+              velocity: sheetVelocity,
+              damping: sheetVelocity < -200 ? 0.82 : 1,
+              response: 0.3,
+              onUpdate: (value) => {
+                sheetY = value;
+                sheet.style.transform = `translateY(${value}px)`;
+              },
+            });
+          };
+          grab.addEventListener("pointerup", release);
+          grab.addEventListener("pointercancel", release);
+        }
+
+        function openDialog({ title, message, confirmText, cancelText, destructive, onConfirm }) {
+          state.dialogTrigger = document.activeElement;
+          state.dialogAction = onConfirm;
+          document.querySelector("#dialogTitle").textContent = title;
+          document.querySelector("#dialogMessage").textContent = message;
+          document.querySelector("#dialogConfirm").textContent = confirmText;
+          document.querySelector("#dialogCancel").textContent = cancelText;
+          document.querySelector("#dialogConfirm").classList.toggle("danger", destructive);
+          document.querySelector("#dialogLayer").hidden = false;
+          document.querySelector("#dialogCancel").focus({ preventScroll: true });
+        }
+
+        function closeDialog(confirm = false) {
+          const layer = document.querySelector("#dialogLayer");
+          if (layer.hidden) return;
+          const action = state.dialogAction;
+          state.dialogAction = null;
+          layer.hidden = true;
+          if (confirm) action?.();
+          else state.dialogTrigger?.focus({ preventScroll: true });
+        }
+
+        function showPlayerControls() {
+          document.querySelector("#videoStage").classList.add("controls-visible");
+          clearTimeout(hideTimer);
+          if (state.playing && !state.panelOpen && !state.sheetOpen) {
+            hideTimer = setTimeout(() => {
+              const focusedControl = document.querySelector("#playerControls").contains(document.activeElement);
+              if (!focusedControl && document.activeElement === document.querySelector("#videoStage")) {
+                document.querySelector("#videoStage").classList.remove("controls-visible");
+              }
+            }, 3000);
+          }
+        }
+
+        function togglePlaying() {
+          state.playing = !state.playing;
+          clock.setPlaying(state.playing);
+          const button = document.querySelector("#playButton");
+          button.innerHTML = HGProto.icon(state.playing ? "pause" : "play");
+          button.setAttribute("aria-label", state.playing ? "暂停" : "播放");
+          const center = document.querySelector("#playerCenter");
+          center.innerHTML = HGProto.icon(state.playing ? "pause" : "play");
+          center.classList.add("show");
+          setTimeout(() => center.classList.remove("show"), 480);
+          showPlayerControls();
+          if (!state.playing) clearTimeout(hideTimer);
+        }
+
+        function seekBy(seconds) {
+          const before = clock.position;
+          const after = clock.seek(seconds);
+          const moved = Math.abs(after - before);
+          showPlayerControls();
+          showToast(`${seconds < 0 ? "后退" : "前进"} ${Math.round(moved)} 秒`);
+        }
+
+        async function setEpisode(episode, notify = false) {
+          if (!state.detail) {
+            showToast("剧集信息加载中，请稍后");
+            return;
+          }
+          if (episode < 1 || episode > state.detail.episodeCount) {
+            showToast(episode < 1 ? "已经是第一集" : "已经是最后一集");
+            return;
+          }
+          const navigation = ++state.episodeNavigation;
+          while (!state.episodeList.some((item) => item.number === episode) && state.episodeCursor) {
+            if (state.episodeLoading) {
+              showToast("选集加载中，请稍后");
+              return;
+            }
+            const loaded = await loadMoreEpisodes();
+            if (navigation !== state.episodeNavigation || !loaded) return;
+          }
+          if (navigation !== state.episodeNavigation || !state.episodeList.some((item) => item.number === episode)) return;
+          const target = state.episodeList.find((item) => item.number === episode);
+          if (target?.locked && !state.detail?.tracks?.some((track) => track.id !== state.currentTrack && track.playable)) {
+            showToast("该集在限免范围外，暂无可用线路");
+            return;
+          }
+          state.currentEpisode = episode;
+          renderEpisodes();
+          closePlayerPanel(false);
+          if (state.screen !== "player") openScreen("player");
+          else showPlayerControls();
+          if (notify) showToast(`已切换到第 ${episode} 集`);
+        }
+
+        function togglePlayerPanel(open = !state.panelOpen) {
+          state.panelOpen = open;
+          document.querySelector("#mobilePlayer").classList.toggle("panel-open", open);
+          if (open) {
+            clearTimeout(hideTimer);
+            document.querySelector("#closePlayerPanel").focus({ preventScroll: true });
+          } else {
+            document.querySelector("#playerPanelButton").focus({ preventScroll: true });
+            showPlayerControls();
+          }
+        }
+
+        function closePlayerPanel(restoreFocus = true) {
+          if (!state.panelOpen) return;
+          state.panelOpen = false;
+          document.querySelector("#mobilePlayer").classList.remove("panel-open");
+          if (restoreFocus) document.querySelector("#playerPanelButton").focus({ preventScroll: true });
+          showPlayerControls();
+        }
+
+        function beginBoost() {
+          if (state.rate >= 2) {
+            showToast("当前已是 2 倍速");
+            return;
+          }
+          state.boostFrom = state.rate;
+          state.rate = 2;
+          clock.setRate(2);
+          showPlayerControls();
+          showToast("2 倍速快进中，松手恢复");
+        }
+
+        function endBoost() {
+          clearTimeout(boostTimer);
+          boostTimer = null;
+          if (state.boostFrom == null) return;
+          state.rate = state.boostFrom;
+          state.boostFrom = null;
+          clock.setRate(state.rate);
+          showToast("已恢复正常速度");
+        }
+
+        function handleTap(event) {
+          if (performance.now() < suppressClickUntil) return;
+          if (event.target.closest(".player-controls, .player-title, .player-panel")) return;
+          const now = performance.now();
+          const rect = document.querySelector("#videoStage").getBoundingClientRect();
+          const point = { x: event.clientX - rect.left, y: event.clientY - rect.top, width: rect.width };
+          if (lastTap && now - lastTap.time < 300 && Math.abs(point.x - lastTap.x) < 42 && Math.abs(point.y - lastTap.y) < 42) {
+            clearTimeout(singleTapTimer);
+            lastTap = null;
+            if (point.x < point.width * 0.33) seekBy(-10);
+            else if (point.x > point.width * 0.67) seekBy(10);
+            else togglePlaying();
+            return;
+          }
+          lastTap = { ...point, time: now };
+          singleTapTimer = setTimeout(() => {
+            lastTap = null;
+            const visible = document.querySelector("#videoStage").classList.contains("controls-visible");
+            if (visible) document.querySelector("#videoStage").classList.remove("controls-visible");
+            else showPlayerControls();
+          }, 240);
+        }
+
+        function bindPlayerGestures() {
+          const stage = document.querySelector("#videoStage");
+          stage.addEventListener("pointerdown", (event) => {
+            if (event.target.closest(".player-controls, .player-title, .player-panel")) return;
+            if (event.pointerType === "mouse") return;
+            stage.setPointerCapture(event.pointerId);
+            gesture = {
+              id: event.pointerId,
+              startX: event.clientX,
+              startY: event.clientY,
+              lastX: event.clientX,
+              lastY: event.clientY,
+              startTime: performance.now(),
+              moved: false,
+              axis: null,
+              boosted: false,
+            };
+            boostTimer = setTimeout(() => {
+              if (!gesture || gesture.moved) return;
+              gesture.boosted = true;
+              beginBoost();
+            }, 560);
+          });
+          stage.addEventListener("pointermove", (event) => {
+            if (!gesture || gesture.id !== event.pointerId) return;
+            const dx = event.clientX - gesture.startX;
+            const dy = event.clientY - gesture.startY;
+            if (!gesture.moved && Math.hypot(dx, dy) > 10) {
+              gesture.moved = true;
+              gesture.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+              clearTimeout(boostTimer);
+              boostTimer = null;
+              if (gesture.boosted) endBoost();
+            }
+            if (!gesture.moved) return;
+            showPlayerControls();
+            if (gesture.axis === "y") {
+              document.querySelector("#mobilePlayer").classList.add("swiping");
+            } else {
+              const preview = document.querySelector("#seekPreview");
+              preview.textContent = dx < 0 ? "快退 10 秒" : "快进 10 秒";
+              preview.classList.add("show");
+            }
+            gesture.lastX = event.clientX;
+            gesture.lastY = event.clientY;
+          });
+          const release = (event) => {
+            if (!gesture || gesture.id !== event.pointerId) return;
+            const current = gesture;
+            gesture = null;
+            clearTimeout(boostTimer);
+            boostTimer = null;
+            document.querySelector("#mobilePlayer").classList.remove("swiping");
+            document.querySelector("#seekPreview").classList.remove("show");
+            const dx = event.clientX - current.startX;
+            const dy = event.clientY - current.startY;
+            const elapsed = performance.now() - current.startTime;
+            const velocityY = dy / elapsed;
+            if (current.boosted) {
+              suppressClickUntil = performance.now() + 350;
+              endBoost();
+              return;
+            }
+            if (current.moved && current.axis === "y" && (Math.abs(dy) > 72 || Math.abs(velocityY) > 0.62)) {
+              suppressClickUntil = performance.now() + 350;
+              setEpisode(state.currentEpisode + (dy < 0 ? 1 : -1), true);
+              return;
+            }
+            if (current.moved && current.axis === "x" && Math.abs(dx) > 64) {
+              suppressClickUntil = performance.now() + 350;
+              seekBy(dx < 0 ? 10 : -10);
+              return;
+            }
+          };
+          stage.addEventListener("pointerup", release);
+          stage.addEventListener("pointercancel", release);
+          stage.addEventListener("click", handleTap);
+          stage.addEventListener("pointermove", showPlayerControls);
+          stage.addEventListener("contextmenu", (event) => event.preventDefault());
+        }
+
+        function updateDirty() {
+          app.classList.toggle("has-dirty", state.dirty);
+        }
+
+        function bindFilterGroup(selector, attribute, key) {
+          document.querySelector(selector).addEventListener("click", (event) => {
+            const button = event.target.closest(`[${attribute}]`);
+            if (!button) return;
+            state[key] = button.getAttribute(attribute);
+            renderFilters();
+            document.querySelector(`${selector} [${attribute}="${CSS.escape(state[key])}"]`)?.focus({ preventScroll: true });
+            if (!state.sheetOpen) refreshDiscover();
+          });
+        }
+
+        function bindCategoryGroup(selector, attribute, key) {
+          document.querySelector(selector).addEventListener("click", (event) => {
+            const button = event.target.closest(`[${attribute}]`);
+            if (!button) return;
+            state.category[key] = button.getAttribute(attribute);
+            renderFilters();
+            document.querySelector(`${selector} [${attribute}="${CSS.escape(state.category[key])}"]`)?.focus({ preventScroll: true });
+            refreshCategory();
+          });
+        }
+
+        // ===== 主从筛选左右滑动 =====
+        // 规则：二级优先沿手势方向切一项；二级到边界后，一级沿同方向切一次（二级随之联动重置）；
+        // 一级也到边界则本次滑动不可执行，给出明确反馈。左滑与右滑完全对称。
+        function cascadeStep(band, primarySelector, secondarySelector, direction, label) {
+          const primary = [...band.querySelectorAll(primarySelector)];
+          const secondary = [...band.querySelectorAll(secondarySelector)];
+          if (!primary.length || !secondary.length) return "none";
+          const step = direction === "right" ? 1 : -1;
+          const sIndex = secondary.findIndex((button) => button.getAttribute("aria-pressed") === "true");
+          const pIndex = primary.findIndex((button) => button.getAttribute("aria-pressed") === "true");
+          const nextSecondary = sIndex + step;
+          if (nextSecondary >= 0 && nextSecondary < secondary.length) {
+            secondary[nextSecondary].click();
+            // click 会重建 chip DOM，重新取节点再滚动到视口
+            band.querySelectorAll(secondarySelector)[nextSecondary]?.scrollIntoView({ block: "nearest", inline: "center" });
+            return "secondary";
+          }
+          const nextPrimary = pIndex + step;
+          if (nextPrimary >= 0 && nextPrimary < primary.length) {
+            primary[nextPrimary].click();
+            return "primary";
+          }
+          showToast(`${label}${direction === "right" ? "右滑已到末项" : "左滑已到首项"}，无可切换项`);
+          return "none";
+        }
+
+        function bindCascadeSwipe(band, primarySelector, secondarySelector, label) {
+          let startX = 0;
+          let startY = 0;
+          let tracking = false;
+          band.addEventListener("pointerdown", (event) => {
+            if (event.pointerType === "mouse") return;
+            tracking = true;
+            startX = event.clientX;
+            startY = event.clientY;
+          });
+          band.addEventListener("pointercancel", () => { tracking = false; });
+          band.addEventListener("pointerup", (event) => {
+            if (!tracking) return;
+            tracking = false;
+            const dx = event.clientX - startX;
+            const dy = event.clientY - startY;
+            // 位移阈值 + 主轴判定，避免与竖向滚动或点击误触抢占
+            if (Math.abs(dx) < 36 || Math.abs(dx) <= Math.abs(dy)) return;
+            event.preventDefault();
+            cascadeStep(band, primarySelector, secondarySelector, dx > 0 ? "right" : "left", label);
+          });
+          // 键盘等价操作：chip 聚焦时左右键走同一套规则（Tab + 方向键可达）
+          band.addEventListener("keydown", (event) => {
+            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+            if (!event.target.closest(".chip")) return;
+            event.preventDefault();
+            event.stopPropagation();
+            cascadeStep(band, primarySelector, secondarySelector, event.key === "ArrowRight" ? "right" : "left", label);
+          });
+        }
+
+        function refreshScenario() {
+          if (!Data) return;
+          Data.setScenario(document.querySelector("#scenarioSelect").value);
+          if (state.screen === "rank") renderRank();
+          else if (state.screen === "categories") refreshCategory();
+          else if (state.screen === "detail" || state.screen === "player") openDetail(state.detailId);
+          else refreshDiscover();
+        }
+
+        function bindEvents() {
+          document.querySelectorAll("[data-device]").forEach((button) => button.addEventListener("click", () => applyDevice(button.dataset.device)));
+          document.querySelectorAll("nav [data-screen]").forEach((button) => button.addEventListener("click", () => requestScreen(button.dataset.screen)));
+          document.querySelector("#protoBack").addEventListener("click", goBack);
+          document.querySelectorAll("[data-player-back]").forEach((button) => button.addEventListener("click", goBack));
+          document.querySelector("#scenarioSelect").addEventListener("change", refreshScenario);
+
+          document.querySelector("#searchInput").addEventListener("focus", openSearch);
+          document.querySelector("#searchInput").addEventListener("input", () => state.searchOpen ? scheduleSearch() : openSearch());
+          document.querySelector("#suggestionList").addEventListener("click", (event) => {
+            const retry = event.target.closest("[data-retry-search]");
+            if (retry) {
+              runSearch();
+              return;
+            }
+            const button = event.target.closest("[data-suggestion]");
+            if (!button) return;
+            const id = button.dataset.suggestion;
+            document.querySelector("#searchInput").value = button.querySelector("span")?.textContent || "";
+            closeSearch();
+            openDetail(id);
+          });
+          document.addEventListener("pointerdown", (event) => {
+            if (state.searchOpen && !event.target.closest("#searchWrap, #searchSuggestions")) closeSearch();
+          });
+
+          // 一级（主）：切换后二级词表联动，失效的已选题材自动清空
+          document.querySelector("#primaryTypeChips").addEventListener("click", (event) => {
+            const button = event.target.closest("[data-primary-type]");
+            if (!button) return;
+            selectPrimaryType(state, button.dataset.primaryType, refreshDiscover, "发现页一级");
+          });
+          document.querySelector("#categoryTypeChips").addEventListener("click", (event) => {
+            const button = event.target.closest("[data-cat-primary-type]");
+            if (!button) return;
+            selectPrimaryType(state.category, button.dataset.catPrimaryType, refreshCategory, "分类页一级");
+          });
+          bindFilterGroup("#secondaryThemeChips", "data-theme", "themeId");
+          bindFilterGroup("#sheetGenreChips", "data-sheet-theme", "themeId");
+          bindFilterGroup("#sheetStatusChips", "data-sheet-status", "statusId");
+          bindFilterGroup("#sheetSortChips", "data-sheet-sort", "sort");
+          bindCategoryGroup("#categoryThemeChips", "data-cat-theme", "themeId");
+          bindCategoryGroup("#categoryStatusChips", "data-cat-status", "statusId");
+          bindCascadeSwipe(
+            document.querySelector("#filterBand"), "[data-primary-type]", "[data-theme]", "发现页",
+          );
+          bindCascadeSwipe(
+            document.querySelector("#categoryFilterBand"), "[data-cat-primary-type]", "[data-cat-theme]", "分类页",
+          );
+          document.querySelector("#categoryLoadMore").addEventListener("click", () => refreshCategory(true));
+          document.querySelector("#categoryGrid").addEventListener("click", (event) => {
+            if (event.target.closest("[data-retry-category]")) refreshCategory();
+          });
+          document.querySelector("#feedModeButton").addEventListener("click", () => {
+            state.feedMode = state.feedMode === "grid" ? "immersive" : "grid";
+            renderFeed();
+            showToast(state.feedMode === "immersive" ? "沉浸模式 · 上滑切剧" : "九宫格选剧模式");
+          });
+          document.querySelector("#filterButton").addEventListener("click", openSheet);
+          document.querySelector("#doneFilters").addEventListener("click", () => {
+            closeSheet();
+            refreshDiscover();
+            showToast("筛选已应用，结果已刷新");
+          });
+          document.querySelector("#resetFilters").addEventListener("click", () => {
+            state.contentType = "short_play";
+            state.themeId = "";
+            state.statusId = "";
+            state.sort = "online_time";
+            renderFilters();
+            refreshDiscover();
+            showToast("已重置筛选并刷新");
+          });
+          document.querySelector("#rankTracks").addEventListener("click", (event) => {
+            const button = event.target.closest("[data-rank-track]");
+            if (!button || button.dataset.rankTrack === state.rankTrack) return;
+            state.rankTrack = button.dataset.rankTrack;
+            const boards = rankTracks.find((item) => item.id === state.rankTrack)?.boards || [];
+            if (boards.length && !boards.some((b) => b.type === state.rankType)) state.rankType = boards[0].type;
+            renderRank();
+          });
+          document.querySelector("#rankTabs").addEventListener("click", (event) => {
+            const button = event.target.closest("[data-rank]");
+            if (!button || button.dataset.rank === state.rankType) return;
+            state.rankType = button.dataset.rank;
+            renderRank();
+          });
+
+          document.addEventListener("click", (event) => {
+            const toast = event.target.closest("[data-toast]");
+            if (toast) showToast(toast.dataset.toast);
+            const open = event.target.closest("[data-open-detail]");
+            if (open) openDetail(state.detailId || state.feedItems[0]?.id);
+            const poster = event.target.closest("[data-poster]");
+            if (poster) openDetail(poster.dataset.poster);
+            const rank = event.target.closest("[data-rank-id]");
+            if (rank) openDetail(rank.dataset.rankId);
+            if (event.target.closest("[data-source-switch]")) {
+              HGProto.SourceSwitch({
+                tracks: state.detail?.tracks || [], currentId: state.currentTrack,
+                onChoose: (id, result) => {
+                  state.currentTrack = id;
+                  document.querySelectorAll("[data-track]").forEach((item) => item.setAttribute("aria-pressed", String(item.dataset.track === id)));
+                  showToast(result.hit ? "已切换播放线路" : "解析超时，已回退可用线路");
+                },
+              });
+              return;
+            }
+            const track = event.target.closest("[data-track]");
+            if (track && !track.disabled) {
+              state.currentTrack = track.dataset.track;
+              document.querySelectorAll("[data-track]").forEach((item) => item.setAttribute("aria-pressed", String(item === track)));
+              showToast(`已切换至${track.textContent.trim()}`);
+            }
+            const episode = event.target.closest("[data-episode]");
+            if (episode) setEpisode(Number(episode.dataset.episode));
+            if (event.target.closest("#continueButton")) setEpisode(state.currentEpisode);
+            if (event.target.closest("[data-retry-feed]")) refreshDiscover();
+            if (event.target.closest("[data-retry-rank]")) renderRank();
+            if (event.target.closest("[data-retry-detail]")) openDetail(state.detailId);
+            if (event.target.closest("[data-load-feed]")) refreshDiscover(true);
+            if (event.target.closest("[data-load-episodes]")) loadMoreEpisodes();
+          });
+          document.querySelector("#playButton").addEventListener("click", togglePlaying);
+          document.querySelector("#muteButton").addEventListener("click", (event) => {
+            state.muted = !state.muted;
+            event.currentTarget.innerHTML = HGProto.icon(state.muted ? "mute" : "volume");
+            event.currentTarget.setAttribute("aria-label", state.muted ? "取消静音" : "静音");
+          });
+          document.querySelector("#mobileProgress").addEventListener("input", (event) => {
+            const seconds = Math.round(Number(event.target.value) * 7.48);
+            clock.seekTo(seconds);
+            document.querySelector("#currentTime").textContent = HGProto.formatTime(clock.position);
+          });
+          document.querySelector("#playerPanelButton").addEventListener("click", () => togglePlayerPanel());
+          document.querySelector("#closePlayerPanel").addEventListener("click", () => togglePlayerPanel(false));
+          document.querySelector("#rotateButton").addEventListener("click", () => {
+            applyDevice(state.device === "phone" ? "ipadLandscape" : state.device === "ipad" ? "ipadLandscape" : state.device === "ipadLandscape" ? "ipad" : "phone");
+            showPlayerControls();
+          });
+          document.querySelector("#playerControls").addEventListener("focusin", () => clearTimeout(hideTimer));
+          document.querySelector("#playerControls").addEventListener("focusout", showPlayerControls);
+
+          document.querySelectorAll("[data-switch]").forEach((button) => button.addEventListener("click", () => {
+            button.setAttribute("aria-checked", String(button.getAttribute("aria-checked") !== "true"));
+            state.dirty = true;
+            updateDirty();
+          }));
+          document.querySelectorAll("[data-dirty]").forEach((input) => input.addEventListener("input", () => {
+            state.dirty = true;
+            updateDirty();
+          }));
+          document.addEventListener("click", (event) => {
+            const fav = event.target.closest("#favoriteButton");
+            if (fav) {
+              const active = fav.getAttribute("aria-pressed") !== "true";
+              fav.setAttribute("aria-pressed", String(active));
+              fav.classList.toggle("primary", active);
+              showToast(active ? "已加入追剧列表" : "已取消追剧");
+              return;
+            }
+            const reserve = event.target.closest("#reserveButton");
+            if (reserve) {
+              const active = reserve.getAttribute("aria-pressed") !== "true";
+              reserve.setAttribute("aria-pressed", String(active));
+              reserve.classList.toggle("primary", active);
+              showToast(active ? "已预约更新提醒" : "已取消预约");
+            }
+          });
+          document.querySelector("#fitButton").addEventListener("click", (event) => {
+            const fill = event.currentTarget.getAttribute("aria-pressed") !== "true";
+            event.currentTarget.setAttribute("aria-pressed", String(fill));
+            event.currentTarget.textContent = fill ? "铺满" : "适应";
+            document.querySelector(".video-poster").classList.toggle("fill", fill);
+            showToast(fill ? "铺满 · 画面裁切以填满屏幕" : "适应 · 保留完整画面（可能有黑边）");
+          });
+          document.querySelector("#saveSettings").addEventListener("click", () => {
+            const ok = SettingsStore.save(SettingsStore.collect(app));
+            state.dirty = false;
+            updateDirty();
+            showToast(ok ? "设置已保存到本机" : "保存失败：本机存储不可用");
+          });
+          SettingsStore.apply(app, SettingsStore.load());
+          document.querySelectorAll("[data-setting]").forEach((button) => button.addEventListener("click", () => {
+            document.querySelectorAll("[data-setting]").forEach((item) => item.setAttribute("aria-current", String(item === button)));
+            document.querySelector(`#setting-${button.dataset.setting}`).scrollIntoView({ block: "start" });
+          }));
+          document.querySelector("#dialogCancel").addEventListener("click", () => closeDialog(false));
+          document.querySelector("#dialogConfirm").addEventListener("click", () => closeDialog(true));
+
+          document.querySelector("#themeButton").addEventListener("click", () => {
+            app.classList.toggle("dark");
+            document.querySelector("#themeButton").innerHTML = HGProto.icon(app.classList.contains("dark") ? "sun" : "moon");
+          });
+          document.querySelector("#motionToggle").addEventListener("click", (event) => {
+            const reduced = event.currentTarget.getAttribute("aria-pressed") !== "true";
+            event.currentTarget.setAttribute("aria-pressed", String(reduced));
+            app.classList.toggle("reduced-motion", reduced);
+          });
+
+          document.addEventListener("keydown", (event) => {
+            if (event.key === "Tab") {
+              if (!document.querySelector("#dialogLayer").hidden) trapFocus(document.querySelector("#dialogLayer"), event);
+              else if (state.sheetOpen) trapFocus(document.querySelector("#filterSheet"), event);
+            }
+            if (event.key === "Escape" || (event.altKey && event.key === "ArrowLeft")) {
+              event.preventDefault();
+              goBack();
+            }
+          });
+          document.addEventListener("focusin", (event) => {
+            const label = event.target.getAttribute("aria-label") || event.target.textContent.trim() || event.target.tagName.toLowerCase();
+            document.querySelector("#focusStatus").textContent = label.slice(0, 18);
+            if (state.screen === "player") showPlayerControls();
+          });
+          window.addEventListener("resize", () => preserveViewportAnchor(() => fitFrame(device, frameWrap)));
+        }
+
+        renderFilters();
+        renderEpisodes();
+        hydrateIcons();
+        refreshDiscover();
+        bindSheetDrag();
+        bindPlayerGestures();
+        bindEvents();
+        applyDevice("phone");
+        // 设计评审辅助：?screen=categories|mine|rank|settings 可直接打开指定页（默认 discover）
+        const initialScreen = new URLSearchParams(location.search).get("screen");
+        if (initialScreen && ["categories", "mine", "rank", "settings"].includes(initialScreen)) requestScreen(initialScreen);
+      })();
+    </script>
+  </body>
+</html>

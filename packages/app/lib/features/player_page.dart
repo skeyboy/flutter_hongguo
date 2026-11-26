@@ -116,6 +116,7 @@ class _PlayerPageState extends State<PlayerPage>
   bool appBackground = false, preparationInterrupted = false;
   bool fullscreen = false, menuOpen = false;
   bool hasPlayed = false, returnEligible = false, recommendationOpen = false;
+  int _recommendationTicket = 0;
   Timer? returnTimer;
   String? _historyVid;
   bool _episodePlayed = false, _episodeCompleted = false;
@@ -208,6 +209,7 @@ class _PlayerPageState extends State<PlayerPage>
   ControlSurface surface = ControlSurface.mobilePortrait;
   bool streamBuffering = false;
   double boostFrom = 1.0;
+  bool _speedBoosted = false;
 
   /// The level M comes back to; 0 would not be a level worth returning to.
   double muteFrom = 100;
@@ -1251,11 +1253,18 @@ class _PlayerPageState extends State<PlayerPage>
   /// menu says it should be — the boost is never a saved preference.
   void _speedBoost(bool on) {
     if (on) {
-      if (player.state.rate >= 1.99) return;
+      if (_speedBoosted || player.state.rate >= 1.99) return;
       boostFrom = player.state.rate;
-      player.setRate(2.0);
-    } else if (player.state.rate >= 1.99) {
-      player.setRate(boostFrom);
+      _speedBoosted = true;
+      unawaited(player.setRate(2.0));
+    } else {
+      // Gesture end/cancel can repeat. Only a boost started by this gesture owns
+      // the restore; a 2x preference must never fall back to an old rate.
+      if (!_speedBoosted) return;
+      _speedBoosted = false;
+      final restore = boostFrom;
+      boostFrom = 1.0;
+      unawaited(player.setRate(restore));
     }
     _fleetingNotice(on ? '2 倍速快进中，松手恢复' : '已恢复正常速度');
   }
@@ -1742,10 +1751,13 @@ class _PlayerPageState extends State<PlayerPage>
         ModalRoute.of(context)?.isCurrent != true) {
       return;
     }
+    final ticket = ++_recommendationTicket;
     _redraw(() => recommendationOpen = true);
     try {
       await runtime.saveSettings(policy.markAsked(runtime.settings, candidate));
       if (!mounted ||
+          !recommendationOpen ||
+          ticket != _recommendationTicket ||
           appBackground ||
           ModalRoute.of(context)?.isCurrent != true) {
         return;
@@ -1756,16 +1768,23 @@ class _PlayerPageState extends State<PlayerPage>
         true,
         recommendation: true,
       );
-      if (enable) {
+      if (enable &&
+          mounted &&
+          recommendationOpen &&
+          ticket == _recommendationTicket &&
+          !appBackground &&
+          ModalRoute.of(context)?.isCurrent == true) {
         await runtime.saveSettings(candidate.apply(runtime.settings, true));
       }
     } catch (_) {
-      if (mounted) {
+      if (mounted && recommendationOpen && ticket == _recommendationTicket) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('设置未能保存，请在设置页重试。')));
       }
     } finally {
-      if (mounted) _redraw(() => recommendationOpen = false);
+      if (mounted && ticket == _recommendationTicket) {
+        _redraw(() => recommendationOpen = false);
+      }
     }
   }
 
@@ -1805,8 +1824,42 @@ class _PlayerPageState extends State<PlayerPage>
     compactControls.currentState?.show();
   }
 
+  bool _editorHasFocus() {
+    final focusContext = FocusManager.instance.primaryFocus?.context;
+    if (focusContext == null) return false;
+    final editable = focusContext.findAncestorStateOfType<EditableTextState>();
+    return editable != null && editable.widget.readOnly != true;
+  }
+
+  bool _buttonLikeHasFocus() {
+    final focusedContext = FocusManager.instance.primaryFocus?.context;
+    if (focusedContext == null) return false;
+    var buttonFocused = false;
+    bool check(Element element) {
+      final widget = element.widget;
+      final isButton =
+          widget is ButtonStyleButton ||
+          (widget is Semantics &&
+              (widget.properties.button == true ||
+                  widget.properties.onTap != null));
+      buttonFocused = buttonFocused || isButton;
+      return true;
+    }
+
+    check(focusedContext as Element);
+    focusedContext.visitAncestorElements(check);
+    return buttonFocused;
+  }
+
   void _back() {
-    if (episodeWorkspace.currentState?.visible == true) {
+    if (sheetOpen) {
+      Navigator.of(context).pop();
+    } else if (menuOpen) {
+      Navigator.of(context).pop();
+    } else if (recommendationOpen) {
+      _recommendationTicket++;
+      _redraw(() => recommendationOpen = false);
+    } else if (episodeWorkspace.currentState?.visible == true) {
       episodeWorkspace.currentState?.hide();
     } else if (fullscreen) {
       _setFullscreen(false);
@@ -2131,43 +2184,76 @@ class _PlayerPageState extends State<PlayerPage>
                 if (mounted) _redraw(() {});
               },
             );
+      bool playbackHotkeysBlocked() =>
+          sheetOpen ||
+          menuOpen ||
+          recommendationOpen ||
+          episodeVisible ||
+          _editorHasFocus() ||
+          _buttonLikeHasFocus();
+
       return CallbackShortcuts(
         bindings: {
           const SingleActivator(LogicalKeyboardKey.space): () {
-            compactControls.currentState?.show();
-            player.playOrPause();
+            if (!playbackHotkeysBlocked()) {
+              compactControls.currentState?.show();
+              player.playOrPause();
+            }
           },
           const SingleActivator(LogicalKeyboardKey.keyK): () {
-            compactControls.currentState?.show();
-            player.playOrPause();
+            if (!playbackHotkeysBlocked()) {
+              compactControls.currentState?.show();
+              player.playOrPause();
+            }
           },
           const SingleActivator(LogicalKeyboardKey.arrowLeft): () {
-            compactControls.currentState?.show();
-            _seek(-5);
+            if (!playbackHotkeysBlocked()) {
+              compactControls.currentState?.show();
+              _seek(-5);
+            }
           },
           const SingleActivator(LogicalKeyboardKey.arrowRight): () {
-            compactControls.currentState?.show();
-            _seek(5);
+            if (!playbackHotkeysBlocked()) {
+              compactControls.currentState?.show();
+              _seek(5);
+            }
           },
-          const SingleActivator(LogicalKeyboardKey.keyJ): () => _nudge(-10),
-          const SingleActivator(LogicalKeyboardKey.keyL): () => _nudge(10),
-          const SingleActivator(LogicalKeyboardKey.keyM): _toggleMute,
-          const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
-              _nudgeVolume(5),
-          const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
-              _nudgeVolume(-5),
-          const SingleActivator(LogicalKeyboardKey.pageDown): () => _step(1),
-          const SingleActivator(LogicalKeyboardKey.pageUp): () => _step(-1),
-          const SingleActivator(LogicalKeyboardKey.keyI): episodes,
-          const SingleActivator(LogicalKeyboardKey.keyF): () =>
-              _setFullscreen(!fullscreen),
+          const SingleActivator(LogicalKeyboardKey.keyJ): () {
+            if (!playbackHotkeysBlocked()) _nudge(-10);
+          },
+          const SingleActivator(LogicalKeyboardKey.keyL): () {
+            if (!playbackHotkeysBlocked()) _nudge(10);
+          },
+          const SingleActivator(LogicalKeyboardKey.keyM): () {
+            if (!playbackHotkeysBlocked()) _toggleMute();
+          },
+          const SingleActivator(LogicalKeyboardKey.arrowUp): () {
+            if (!playbackHotkeysBlocked()) _nudgeVolume(5);
+          },
+          const SingleActivator(LogicalKeyboardKey.arrowDown): () {
+            if (!playbackHotkeysBlocked()) _nudgeVolume(-5);
+          },
+          const SingleActivator(LogicalKeyboardKey.pageDown): () {
+            if (!playbackHotkeysBlocked()) _step(1);
+          },
+          const SingleActivator(LogicalKeyboardKey.pageUp): () {
+            if (!playbackHotkeysBlocked()) _step(-1);
+          },
+          const SingleActivator(LogicalKeyboardKey.keyI): () {
+            if (!playbackHotkeysBlocked()) episodes();
+          },
+          const SingleActivator(LogicalKeyboardKey.keyF): () {
+            if (!playbackHotkeysBlocked()) _setFullscreen(!fullscreen);
+          },
+          // Back belongs to the topmost layer, even while its editor or button
+          // owns focus. The macOS native transition handler remains unchanged.
           if (!macHost) const SingleActivator(LogicalKeyboardKey.escape): _back,
         },
         child: Focus(
           focusNode: playbackFocus,
           autofocus: true,
           child: PopScope(
-            canPop: !fullscreen && !episodeVisible,
+            canPop: !fullscreen && !episodeVisible && !recommendationOpen,
             onPopInvokedWithResult: (didPop, _) {
               if (!didPop) _back();
             },

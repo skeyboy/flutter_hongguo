@@ -745,18 +745,15 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       final state = shell(tester);
       expect(state.suggestionsPane, 0);
-      // The panel covers the screen with a dismiss layer, so nothing can be
-      // swiped out from under it -- which is also why one panel can never be
-      // hanging over the other page: it has to be closed first. No level
-      // moves while it is open, and the pull lands on the layer, not the list.
+      // The dismiss layer covers the feed but leaves the field and panel live,
+      // so nothing can be swiped out from under it. The pull lands on the layer,
+      // not the list, and tapping away closes it before the next swipe.
       await swipe(tester, 0, -300, warnIfMissed: false);
       expectPage(tester, 0);
       expectInner(tester, 0, 'short_play');
       expectLevel2(tester, 0, '');
       expect(state.suggestionsPane, 0);
-      await tester.tap(
-        find.byKey(const ValueKey('search-suggestions-dismiss')),
-      );
+      await tester.tapAt(const Offset(10, 400));
       await tester.pumpAndSettle();
       expect(state.suggestionsPane, isNull);
       await swipe(tester, 0, -300);

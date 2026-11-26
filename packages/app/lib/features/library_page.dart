@@ -135,6 +135,35 @@ class _LibraryPageState extends LibraryPageStateBase {
   /// filed in the feed that asked for it, not in whichever page is on screen.
   final feeds = <String, _ThemeFeed>{};
   String _activeKey = '';
+  late String _lastSourceIdentity;
+
+  /// Opened layers carry a sequence number so one Back/Escape removes only the
+  /// most recent logical layer, rather than every unrelated overlay at once.
+  int _overlaySequence = 0;
+  int _catalogLayerOrder = 0;
+  int _suggestionsOrder = 0;
+  int _filterOrder = 0;
+  int _sortOrder = 0;
+  int _peekOrder = 0;
+  int _activeSuggestionTicket = 0;
+
+  /// One boundary answer per gesture: a long pull reports overscroll many times,
+  /// but the viewer needs to be told once that the chain has ended (§7.10).
+  bool _boundaryToastShown = false;
+  int? _suppressSuggestionFocusPane;
+  Timer? _suggestionFocusSuppression;
+  FocusNode? _sortReturnFocus;
+  FocusNode? _catalogReturnFocus;
+  int _nextOverlayOrder() => ++_overlaySequence;
+
+  bool get _catalogLayerOpen => mineOpen || rankOpen;
+  bool get _sortMenuOpen => sortMenuKey.currentState?.isOpen ?? false;
+  bool get _hasOverlays =>
+      _catalogLayerOpen ||
+      suggestionsPane != null ||
+      _filterLayerOpen ||
+      _sortMenuOpen ||
+      peekEntry != null;
 
   /// The request one list would ask for. The key carries its own first level and
   /// its own second level, so a swipe can show what the page next to it holds
@@ -142,6 +171,30 @@ class _LibraryPageState extends LibraryPageStateBase {
   /// where it was asked for. 类型 is the shared 一级 and 题材 the shared 二级 --
   /// both pages read them the same way, see
   /// docs/design/discover-catalog-cascade-tabs.md.
+  /// Only stable source identities participate in a feed key. In particular,
+  /// credentials and custom-source URLs never enter a cache key. The default
+  /// enabled set keeps the legacy key so existing snapshots remain readable.
+  List<String> get _enabledSourceIds {
+    final sources = settingsFor(widget.runtime).sources;
+    return [
+      ...sources.builtin.entries
+          .where((entry) => entry.key == 'hongguo' || entry.value)
+          .map((entry) => entry.key),
+      ...sources.customSources
+          .where((source) => source.enabled)
+          .map((source) => 'custom:${source.uuid}'),
+    ]..sort();
+  }
+
+  List<String>? get _feedSources {
+    final ids = _enabledSourceIds;
+    const legacy = {'hongguo', 'xifan', 'hema'};
+    if (ids.length == legacy.length && ids.every(legacy.contains)) return null;
+    return ids;
+  }
+
+  String get _sourceIdentity => jsonEncode(_enabledSourceIds);
+
   String feedKeyAtLevel(int pane, String slot, String level2) => jsonEncode({
     'destination': pane,
     'query': queryOf(pane),
@@ -157,6 +210,7 @@ class _LibraryPageState extends LibraryPageStateBase {
     // changed shape every time a viewer opened the app would throw away the
     // snapshot on disk for a dimension nobody used.
     if (_orderedDims.isNotEmpty) 'dims': _orderedDims,
+    'sources': ?_feedSources,
   });
   String feedKeyAt(int pane, String slot) =>
       feedKeyAtLevel(pane, slot, level2At(pane, slot));
@@ -471,6 +525,7 @@ class _LibraryPageState extends LibraryPageStateBase {
     if (notification is ScrollStartNotification ||
         notification is ScrollEndNotification) {
       edgePull = 0;
+      _boundaryToastShown = false;
       return false;
     }
     if (notification is! OverscrollNotification) return false;
@@ -489,10 +544,17 @@ class _LibraryPageState extends LibraryPageStateBase {
     if (overscroll.sign != edgePull.sign) edgePull = 0;
     edgePull += overscroll;
     if (edgePull.abs() < _edgePullExtent) return false;
-    final wanted = edgePull > 0 ? destination + 1 : destination - 1;
+    final forward = edgePull > 0;
+    final wanted = destination + (forward ? 1 : -1);
     edgePull = 0;
-    // 我的 is not in the swipe, and nothing lies before 发现.
-    if (panes.contains(wanted)) _selectTab(wanted);
+    // 我的 is not in the swipe, and nothing lies before 发现. Both ends are now
+    // an explicit answer rather than a silent drop (§7.10 双边界不可执行).
+    if (panes.contains(wanted)) {
+      _selectTab(wanted);
+    } else if (!_boundaryToastShown) {
+      _boundaryToastShown = true;
+      _explain(_cascadeBoundaryMessage(forward));
+    }
     return false;
   }
 
@@ -688,6 +750,7 @@ class _LibraryPageState extends LibraryPageStateBase {
   void initState() {
     super.initState();
     final runtime = widget.runtime;
+    _lastSourceIdentity = _sourceIdentity;
     _activeKey = feedKey;
     feedCache = runtime is LibraryCacheRuntime
         ? runtime.libraryCache
@@ -698,14 +761,21 @@ class _LibraryPageState extends LibraryPageStateBase {
       sortEvents = runtime.settingsChanges.listen((value) {
         if (!mounted) return;
         final clientChanged = !identical(lastCatalog, runtime.catalog);
-        if (value.catalogSort == lastSort && !clientChanged) return;
+        final sourcesChanged = _sourceIdentity != _lastSourceIdentity;
+        if (value.catalogSort == lastSort &&
+            !clientChanged &&
+            !sourcesChanged) {
+          return;
+        }
         lastCatalog = runtime.catalog;
         lastSort = value.catalogSort;
+        _lastSourceIdentity = _sourceIdentity;
         settingsChanged = true;
         // The active page reloads; the other one reloads when it is entered.
-        if (!mineOpen && !rankOpen && query.isEmpty) {
+        // Source changes also alter search results, unlike a catalog sort.
+        if (!mineOpen && !rankOpen && (query.isEmpty || sourcesChanged)) {
           _switchFeed();
-          unawaited(_reload(feed));
+          unawaited(_reload(feed, refreshThemes: false));
         }
       });
     }
@@ -737,6 +807,7 @@ class _LibraryPageState extends LibraryPageStateBase {
     // delivered to a body that no longer has a page to read.
     filterSheetSetState = null;
     peekHide?.cancel();
+    _suggestionFocusSuppression?.cancel();
     peekEntry?.remove();
     peekEntry = null;
     filterChipFocus.dispose();
@@ -772,6 +843,7 @@ class _LibraryPageState extends LibraryPageStateBase {
     }
     router.dispose();
     viewRev.dispose();
+    themeVocabExpanded.dispose();
     super.dispose();
   }
 
@@ -1265,19 +1337,69 @@ class _LibraryPageState extends LibraryPageStateBase {
     });
   }
 
+  /// A search field can remain laid out in an Offstage pane. Focus and text
+  /// events from that pane must not reopen a layer over 我的/榜单 or another tab.
+  bool _searchPaneAvailable(int pane) {
+    if (!mounted || _catalogLayerOpen || pane != destination) return false;
+    final context = paneField[pane]!.currentContext;
+    if (context == null || !context.mounted) return false;
+    final field = context.findRenderObject();
+    return field is RenderBox && field.attached && field.hasSize;
+  }
+
+  void _suppressSuggestionReopen(int pane, {bool closeReopened = false}) {
+    _suggestionFocusSuppression?.cancel();
+    _suppressSuggestionFocusPane = pane;
+    _suggestionFocusSuppression = Timer(const Duration(milliseconds: 100), () {
+      if (_suppressSuggestionFocusPane == pane) {
+        _suppressSuggestionFocusPane = null;
+        if (closeReopened &&
+            mounted &&
+            suggestionsPane == pane &&
+            !_catalogLayerOpen &&
+            paneFocus[pane]!.hasFocus) {
+          _closeSuggestions(restoreFocus: false, preserveFocus: true);
+        }
+      }
+    });
+  }
+
+  void _restoreFocus(
+    FocusNode? node, {
+    bool suppressSuggestions = false,
+    bool closeReopenedSuggestions = false,
+  }) {
+    if (node == null || node.context?.mounted != true) return;
+    if (suppressSuggestions && identical(node, paneFocus[destination])) {
+      _suppressSuggestionReopen(
+        destination,
+        closeReopened: closeReopenedSuggestions,
+      );
+    }
+    if (!node.hasFocus) node.requestFocus();
+  }
+
   void _onSearchFocus(int pane) {
+    if (!_searchPaneAvailable(pane)) return;
     if (paneFocus[pane]!.hasFocus) {
+      if (_suppressSuggestionFocusPane == pane) {
+        return;
+      }
       _openSuggestions(pane);
     } else if (suggestionsPane == pane) {
-      _closeSuggestions();
+      _closeSuggestions(restoreFocus: false);
     }
   }
 
   void _onSearchText(int pane) {
-    if (suggestionsPane == pane) _openSuggestions(pane);
+    if (_searchPaneAvailable(pane) && paneFocus[pane]!.hasFocus) {
+      _openSuggestions(pane);
+    }
   }
 
   void _openSuggestions(int pane) {
+    if (!_searchPaneAvailable(pane)) return;
+    final opening = suggestionsEntry == null;
     final store = searchHistoryFor(widget.runtime);
     final text = paneSearch[pane]!.text;
     setState(() {
@@ -1285,12 +1407,13 @@ class _LibraryPageState extends LibraryPageStateBase {
       historyRows = store.matching(text);
       suggestionAnchor = _anchoredSearchRect(pane);
     });
-    unawaited(_loadHistory(store, pane));
     if (suggestionAnchor == null) {
       _closeSuggestions();
       return;
     }
+    if (opening) _suggestionsOrder = _nextOverlayOrder();
     _showSuggestions();
+    unawaited(_loadHistory(store, pane));
     // Recommendations only answer a blank field; a typed term already has the
     // results grid below it.
     if (text.isNotEmpty || suggestionsLoading) return;
@@ -1300,22 +1423,30 @@ class _LibraryPageState extends LibraryPageStateBase {
 
   /// A fresh session holds nothing in memory yet, so the panel has to read what
   /// the last one left on disk. A damaged history file only costs the history
-  /// rows, never the focus event.
+  /// rows, never the focus event. The overlay instance, pane and exact text are
+  /// captured together: a late read may update only that same open question.
   Future<void> _loadHistory(SearchHistory store, int pane) async {
+    final text = paneSearch[pane]!.text;
+    final query = queryOf(pane);
+    final entry = suggestionsEntry;
     try {
       await store.load();
     } on Object catch (_) {
       return;
     }
-    if (!mounted) return;
-    final hits = store.matching(paneSearch[pane]!.text);
-    if (hits.isEmpty) return;
-    if (suggestionsPane != pane) {
-      if (paneFocus[pane]!.hasFocus) _openSuggestions(pane);
+    if (!mounted ||
+        entry == null ||
+        !identical(suggestionsEntry, entry) ||
+        !_searchPaneAvailable(pane) ||
+        suggestionsPane != pane ||
+        paneSearch[pane]!.text != text ||
+        queryOf(pane) != query) {
       return;
     }
+    final hits = store.matching(text);
+    if (hits.isEmpty) return;
     setState(() => historyRows = hits);
-    suggestionsEntry?.markNeedsBuild();
+    entry.markNeedsBuild();
   }
 
   /// The panel lives in the overlay because a box only receives taps inside its
@@ -1331,9 +1462,17 @@ class _LibraryPageState extends LibraryPageStateBase {
   }
 
   Rect? _anchoredSearchRect(int pane) {
-    final field = paneField[pane]!.currentContext?.findRenderObject();
-    final overlay = Overlay.of(context).context.findRenderObject();
-    if (field is! RenderBox || overlay is! RenderBox) return null;
+    final context = paneField[pane]!.currentContext;
+    final field = context?.findRenderObject();
+    final overlay = Overlay.of(this.context).context.findRenderObject();
+    if (field is! RenderBox ||
+        !field.attached ||
+        !field.hasSize ||
+        overlay is! RenderBox ||
+        !overlay.attached ||
+        !overlay.hasSize) {
+      return null;
+    }
     final origin = overlay.globalToLocal(field.localToGlobal(Offset.zero));
     return Rect.fromLTWH(
       origin.dx,
@@ -1344,46 +1483,145 @@ class _LibraryPageState extends LibraryPageStateBase {
   }
 
   Future<void> _loadSuggestions() async {
+    final pane = suggestionsPane;
+    if (pane == null) return;
+    final requestedGenre = genre;
+    final text = paneSearch[pane]!.text;
+    final query = queryOf(pane);
+    final entry = suggestionsEntry;
     final ticket = ++suggestionsRevision;
+    _activeSuggestionTicket = ticket;
     suggestionsLoading = true;
     final rows = await suggester.load(widget.runtime.catalog, genre: genre);
+    if (!mounted ||
+        ticket != suggestionsRevision ||
+        ticket != _activeSuggestionTicket) {
+      return;
+    }
+    _activeSuggestionTicket = 0;
     suggestionsLoading = false;
-    if (!mounted || ticket != suggestionsRevision) return;
+    // A board answer belongs to the blank field that asked for it. Closing the
+    // panel, typing, turning a page or covering the catalog invalidates it even
+    // when the suggestion service itself still has the rows cached.
+    if (!_searchPaneAvailable(pane) ||
+        suggestionsPane != pane ||
+        entry == null ||
+        !identical(suggestionsEntry, entry) ||
+        requestedGenre != genre ||
+        paneSearch[pane]!.text != text ||
+        queryOf(pane) != query) {
+      return;
+    }
     setState(() {
       suggestionRows = rows;
-      suggestionsGenre = genre;
+      suggestionsGenre = requestedGenre;
     });
     if (rows.isEmpty && historyRows.isEmpty) {
       // Nothing to offer: leave the caret in the field instead of painting an
       // empty card over the feed.
-      setState(() => suggestionsPane = null);
-      suggestionsEntry?.remove();
-      suggestionsEntry = null;
+      _closeSuggestions();
       return;
     }
     suggestionsEntry?.markNeedsBuild();
   }
 
-  void _closeSuggestions() {
+  void _closeSuggestions({
+    bool restoreFocus = true,
+    bool preserveFocus = false,
+  }) {
     suggestionsRevision++;
+    _activeSuggestionTicket = 0;
+    _suggestionsOrder = 0;
+    suggestionsLoading = false;
     suggestionsEntry?.remove();
     suggestionsEntry = null;
     final pane = suggestionsPane;
     if (pane == null) return;
-    if (mounted) setState(() => suggestionsPane = null);
-    if (paneFocus[pane]!.hasFocus) paneFocus[pane]!.unfocus();
+    if (mounted) {
+      setState(() {
+        suggestionsPane = null;
+        suggestionAnchor = null;
+      });
+    }
+    if (!preserveFocus && paneFocus[pane]!.hasFocus) {
+      paneFocus[pane]!.unfocus();
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (restoreFocus &&
+          mounted &&
+          ModalRoute.of(context)?.isCurrent == true &&
+          !_catalogLayerOpen &&
+          !_filterLayerOpen &&
+          !_sortMenuOpen &&
+          pane == destination) {
+        _suppressSuggestionReopen(pane);
+        paneFocus[pane]!.requestFocus();
+      }
+    });
   }
 
-  /// Escape and the back gesture dismiss the search suggestions; the filters
-  /// are part of the page now, so there is no layer under them to close.
-  /// 每一处自己盖上去的层：搜索联想、L2′ 抽屉、L3 下拉。`Esc`、系统返回和换目的地
-  /// 都走这一条——规格要的是「Esc 关弹层并把焦点还给触发它的那枚控件」，而还开着的
-  /// 抽屉就是一次还没还的焦点。
-  void _closeOverlays() {
-    if (suggestionsPane != null) _closeSuggestions();
-    _closePeek();
-    _closeFilterPanel();
-    _closeSortMenu();
+  /// Escape and Back dismiss one logical layer. Opening another destination is
+  /// different: that navigation intentionally clears every catalog layer first.
+  void _closeOverlays({bool all = false}) {
+    if (all) {
+      _closeCatalogLayer();
+      _closeSuggestions(restoreFocus: false);
+      _closeFilterPanel();
+      _closeSortMenu();
+      _closePeek();
+      return;
+    }
+    final layers = <String, int>{
+      if (_catalogLayerOpen) 'catalog': _catalogLayerOrder,
+      if (suggestionsPane != null) 'suggestions': _suggestionsOrder,
+      if (_filterLayerOpen) 'filter': _filterOrder,
+      if (_sortMenuOpen) 'sort': _sortOrder,
+      if (peekEntry != null) 'peek': _peekOrder,
+    };
+    if (layers.isEmpty) return;
+    final top = layers.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+    switch (top) {
+      case 'catalog':
+        _closeCatalogLayer();
+      case 'suggestions':
+        _closeSuggestions();
+      case 'filter':
+        _closeFilterPanel();
+      case 'sort':
+        _closeSortMenu();
+      case 'peek':
+        _closePeek();
+    }
+  }
+
+  /// 我的/榜单 cover the catalog instead of replacing it. Closing either one
+  /// restores the kept-alive feed and refreshes it only when settings changed.
+  bool _closeCatalogLayer({bool restoreFocus = true}) {
+    if (!_catalogLayerOpen) return false;
+    final returnFocus = _catalogReturnFocus;
+    _catalogReturnFocus = null;
+    setState(() {
+      mineOpen = false;
+      rankOpen = false;
+      _catalogLayerOrder = 0;
+    });
+    _switchFeed(keepAlive: true, refresh: settingsChanged);
+    settingsChanged = false;
+    _scheduleMore(feed);
+    if (restoreFocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            ModalRoute.of(context)?.isCurrent == true &&
+            !_catalogLayerOpen) {
+          _restoreFocus(
+            returnFocus,
+            suppressSuggestions: true,
+            closeReopenedSuggestions: true,
+          );
+        }
+      });
+    }
+    return true;
   }
 
   /// 排序下拉是唯一一枚 hover 就会开的层，所以「关它」有一半的时候后面没有人。焦点
@@ -1391,8 +1629,8 @@ class _LibraryPageState extends LibraryPageStateBase {
   void _closeSortMenu() {
     final menu = sortMenuKey.currentState;
     if (menu == null || !menu.isOpen) return;
+    _sortOrder = 0;
     menu.close();
-    sortChipFocus.requestFocus();
   }
 
   /// A single-key shortcut must not eat a letter the viewer is typing.
@@ -1409,21 +1647,31 @@ class _LibraryPageState extends LibraryPageStateBase {
 
   Future<void> _removeHistory(String value) async {
     final store = searchHistoryFor(widget.runtime);
+    final pane = suggestionsPane;
+    final entry = suggestionsEntry;
+    final text = paneSearch[pane ?? destination]!.text;
     await store.remove(value);
-    if (!mounted) return;
-    final pane = suggestionsPane ?? destination;
-    setState(() => historyRows = store.matching(paneSearch[pane]!.text));
-    if (historyRows.isEmpty && suggestionRows.isEmpty) {
-      setState(() => suggestionsPane = null);
-      suggestionsEntry?.remove();
-      suggestionsEntry = null;
+    final query = queryOf(pane ?? destination);
+    if (!mounted ||
+        pane == null ||
+        entry == null ||
+        !identical(suggestionsEntry, entry) ||
+        !_searchPaneAvailable(pane) ||
+        suggestionsPane != pane ||
+        paneSearch[pane]!.text != text ||
+        queryOf(pane) != query) {
       return;
     }
-    suggestionsEntry?.markNeedsBuild();
+    setState(() => historyRows = store.matching(text));
+    if (historyRows.isEmpty && suggestionRows.isEmpty) {
+      _closeSuggestions();
+      return;
+    }
+    entry.markNeedsBuild();
   }
 
   void _openSuggestion(Suggestion row) {
-    _closeSuggestions();
+    _closeSuggestions(restoreFocus: false);
     pushAppPage<void>(
       context,
       AppScreen.detail,
@@ -1463,22 +1711,11 @@ class _LibraryPageState extends LibraryPageStateBase {
       _openMine();
       return;
     }
-    final wasOverlay = mineOpen || rankOpen;
-    if (wasOverlay) {
-      setState(() {
-        mineOpen = false;
-        rankOpen = false;
-      });
-    }
+    final wasOverlay = _closeCatalogLayer();
     if (index == destination) {
-      if (wasOverlay) {
-        // Back from an overlay: the rows and the cursor are the ones that were
-        // left, unless the viewer changed something in there that moves the
-        // feed.
-        _switchFeed(keepAlive: true, refresh: settingsChanged);
-        settingsChanged = false;
-        _scheduleMore(feed);
-      }
+      // Back from an overlay: the rows and the cursor are the ones that were
+      // left, unless the viewer changed something in there that moves the feed.
+      if (wasOverlay) _scheduleMore(feed);
       return;
     }
     tabs?.setActiveIndex(index);
@@ -1486,9 +1723,14 @@ class _LibraryPageState extends LibraryPageStateBase {
 
   void _openMine() {
     if (mineOpen) return;
-    _closeOverlays();
+    final returnFocus = _catalogLayerOpen
+        ? _catalogReturnFocus
+        : FocusManager.instance.primaryFocus;
+    _closeOverlays(all: true);
+    _catalogReturnFocus = returnFocus;
     final active = scrollOf(feed);
     if (active.hasClients) feed.scroll = active.offset;
+    _catalogLayerOrder = _nextOverlayOrder();
     setState(() {
       mineOpen = true;
       rankOpen = false;
@@ -1502,9 +1744,14 @@ class _LibraryPageState extends LibraryPageStateBase {
   /// starting over.
   void _openRanking() {
     if (rankOpen) return;
-    _closeOverlays();
+    final returnFocus = _catalogLayerOpen
+        ? _catalogReturnFocus
+        : FocusManager.instance.primaryFocus;
+    _closeOverlays(all: true);
+    _catalogReturnFocus = returnFocus;
     final active = scrollOf(feed);
     if (active.hasClients) feed.scroll = active.offset;
+    _catalogLayerOrder = _nextOverlayOrder();
     setState(() {
       rankOpen = true;
       mineOpen = false;
@@ -1518,6 +1765,7 @@ class _LibraryPageState extends LibraryPageStateBase {
   void _onTabChanged() {
     final next = tabs?.activeIndex;
     if (next == null || next == destination) return;
+    if (suggestionsPane != next) _closeSuggestions();
     swipeHintSeen = true;
     setState(() => destination = next);
     // Both levels of this page may have moved while it was away -- 类型 and
@@ -1773,14 +2021,26 @@ class _LibraryPageState extends LibraryPageStateBase {
     final chip = filterChipKey.currentContext;
     final anchor = chip == null ? null : globalRectOf(chip);
     if (anchor == null) return;
+    _filterOrder = _nextOverlayOrder();
     filterPanelEntry = showAnchoredPanel(
       context: context,
       anchor: anchor,
+      anchorProvider: () {
+        final context = filterChipKey.currentContext;
+        return context == null ? anchor : globalRectOf(context) ?? anchor;
+      },
       id: 'filter-panel',
       panel: (context, close) => DiscoverFilterPanel(
         genre: genre,
         genreLabel: _genreNames[genre] ?? genre,
         rows: themesOf(genre).rows,
+        themeItems: themesOf(genre).values,
+        selectedTheme: theme ?? '',
+        onPickTheme: (id) {
+          _selectFilter('theme', id, destination);
+          _repaintFilterPanel();
+        },
+        themeVocabExpanded: themeVocabExpanded,
         selected: dims,
         loading: themesOf(genre).loading,
         error: themesOf(genre).error,
@@ -1797,6 +2057,7 @@ class _LibraryPageState extends LibraryPageStateBase {
   /// rebuild the page asks for, so 选完留在原地 is one mechanism rather than two.
   void _openFilterSheet() {
     StateSetter? bound;
+    _filterOrder = _nextOverlayOrder();
     unawaited(
       showModalBottomSheet<void>(
         context: context,
@@ -1819,6 +2080,13 @@ class _LibraryPageState extends LibraryPageStateBase {
                   genre: genre,
                   genreLabel: _genreNames[genre] ?? genre,
                   rows: bucket.rows,
+                  themeItems: bucket.values,
+                  selectedTheme: theme ?? '',
+                  onPickTheme: (id) {
+                    _selectFilter('theme', id, destination);
+                    _repaintFilterPanel();
+                  },
+                  themeVocabExpanded: themeVocabExpanded,
                   selected: dims,
                   loading: bucket.loading,
                   error: bucket.error,
@@ -1862,6 +2130,7 @@ class _LibraryPageState extends LibraryPageStateBase {
   void _filterPanelClosed() {
     filterPanelEntry = null;
     filterSheetSetState = null;
+    _filterOrder = 0;
     // The sheet's own route took the focus and gives it back by being popped; a
     // keyboard focus request from here would only fight that dismissal.
     if (desktopHost) filterChipFocus.requestFocus();
@@ -1871,15 +2140,33 @@ class _LibraryPageState extends LibraryPageStateBase {
 
   /// §6.1.6 的卡面下钻。开在页面上而不是控件里，因为「鼠标移进预览卡就不收起」这条
   /// 只有握着浮层的页面能同时听见卡与预览两头的进出。
-  void _showPeek(Drama drama, Rect anchor) {
+  void _showPeek(Drama drama, Rect anchor, BuildContext sourceContext) {
     _closePeek();
-    peekEntry = showAnchoredPeek(
+    _peekOrder = _nextOverlayOrder();
+    var open = true;
+    late final OverlayEntry entry;
+    entry = showAnchoredPeek(
       context: context,
       anchor: anchor,
+      anchorProvider: () {
+        if (!sourceContext.mounted) return anchor;
+        return globalRectOf(sourceContext) ?? anchor;
+      },
       card: (context) => _peekCard(context, drama),
       onPointerEnter: () => peekHide?.cancel(),
       onPointerExit: _schedulePeekClose,
+      onDispose: () {
+        if (!open) return;
+        open = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && identical(peekEntry, entry)) {
+            peekEntry = null;
+            _peekOrder = 0;
+          }
+        });
+      },
     );
+    peekEntry = entry;
   }
 
   /// 300ms，可 cancel——Netflix 那类界面被骂的点就是预览收不掉。
@@ -1891,6 +2178,7 @@ class _LibraryPageState extends LibraryPageStateBase {
   void _closePeek() {
     peekHide?.cancel();
     peekHide = null;
+    _peekOrder = 0;
     peekEntry?.remove();
     peekEntry = null;
   }
@@ -1900,92 +2188,94 @@ class _LibraryPageState extends LibraryPageStateBase {
     final title = drama.title.isEmpty ? '未命名短剧' : drama.title;
     return Padding(
       padding: const EdgeInsets.all(12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 预览用的就是那张封面，不做占位色：观众认的是画面，不是色块。
-              SizedBox(
-                width: 72,
-                height: 96,
-                child: DramaCover(
-                  key: ValueKey('peek-cover-${drama.id}'),
-                  drama: drama,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 预览用的就是那张封面，不做占位色：观众认的是画面，不是色块。
+                SizedBox(
+                  width: 72,
+                  height: 96,
+                  child: DramaCover(
+                    key: ValueKey('peek-cover-${drama.id}'),
+                    drama: drama,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      key: ValueKey('peek-title-${drama.id}'),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        height: 1.35,
-                      ),
-                    ),
-                    if (drama.episodeCount > 0 || label.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          [
-                            if (label.isNotEmpty) label,
-                            if (drama.episodeCount > 0)
-                              '${drama.episodeCount} 集',
-                          ].join(' · '),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
-                          ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        key: ValueKey('peek-title-${drama.id}'),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          height: 1.35,
                         ),
                       ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (drama.intro.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                drama.intro,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.6,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Row(
-              children: [
-                TextButton(
-                  key: const ValueKey('peek-drill-theme'),
-                  onPressed: () => _drillTheme(drama),
-                  child: const Text('找同题材 ›'),
-                ),
-                TextButton(
-                  key: const ValueKey('peek-drill-rank'),
-                  onPressed: () => _drillRank(),
-                  child: const Text('看它所在的榜 ›'),
+                      if (drama.episodeCount > 0 || label.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            [
+                              if (label.isNotEmpty) label,
+                              if (drama.episodeCount > 0)
+                                '${drama.episodeCount} 集',
+                            ].join(' · '),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
+            if (drama.intro.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  drama.intro,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.6,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(
+                children: [
+                  TextButton(
+                    key: const ValueKey('peek-drill-theme'),
+                    onPressed: () => _drillTheme(drama),
+                    child: const Text('找同题材 ›'),
+                  ),
+                  TextButton(
+                    key: const ValueKey('peek-drill-rank'),
+                    onPressed: () => _drillRank(),
+                    child: const Text('看它所在的榜 ›'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2087,6 +2377,49 @@ class _LibraryPageState extends LibraryPageStateBase {
     );
   }
 
+  /// One wording for both ways of reaching a dead end -- a swipe that ran out
+  /// of levels and an arrow key on a focused chip (§7.10 左/右对称).
+  String _cascadeBoundaryMessage(bool forward) =>
+      forward ? '右滑已到末项，无可切换项' : '左滑已到首项，无可切换项';
+
+  /// The keyboard equivalent of the handover chain: 二级优先, then 一级, then an
+  /// explicit boundary answer. It calls the very same writers a chip tap and a
+  /// swipe use, so a direction key cannot grow a second state machine.
+  void _cascadeStep(int pane, int delta) {
+    if (queryOf(pane).isNotEmpty) return;
+    final slot = slotOfPane(pane);
+    final options = level2Options(pane, slot);
+    final wanted = level2IndexOf(pane, slot) + delta;
+    if (wanted >= 0 && wanted < options.length) {
+      final id = options[wanted].id;
+      if (id != level2At(pane, slot)) _selectFilter('theme', id, pane);
+      return;
+    }
+    final slots = slotSets[pane]!;
+    final next = slots.indexOf(slot) + delta;
+    if (next >= 0 && next < slots.length) {
+      _gotoSlot(pane, slots[next]);
+      return;
+    }
+    _explain(_cascadeBoundaryMessage(delta > 0));
+  }
+
+  /// Arrow keys on a focused filter chip answer here; `handled` stops the key
+  /// from also reaching the shell's Alt+← back shortcut.
+  KeyEventResult _onFilterKey(int pane, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final delta = switch (event.logicalKey) {
+      LogicalKeyboardKey.arrowLeft => -1,
+      LogicalKeyboardKey.arrowRight => 1,
+      _ => 0,
+    };
+    if (delta == 0) return KeyEventResult.ignored;
+    _cascadeStep(pane, delta);
+    return KeyEventResult.handled;
+  }
+
   void _diagnostics() {
     final checks = runCoreDiagnostics();
     showDialog<void>(
@@ -2127,8 +2460,10 @@ class _LibraryPageState extends LibraryPageStateBase {
       key: ValueKey('search-field-${paneName(pane)}'),
       controller: paneSearch[pane],
       focusNode: paneFocus[pane],
+      onTapAlwaysCalled: true,
       groupId: paneTapGroup[pane]!,
       textInputAction: TextInputAction.search,
+      onTap: () => _openSuggestions(pane),
       onSubmitted: (_) => _search(pane),
       decoration: InputDecoration(
         hintText: '搜索剧名…',
@@ -2146,23 +2481,81 @@ class _LibraryPageState extends LibraryPageStateBase {
     final anchor = suggestionAnchor;
     if (anchor == null) return const SizedBox.shrink();
     final viewport = MediaQuery.sizeOf(context);
+    final pane = suggestionsPane ?? destination;
+    final field = paneField[pane]!.currentContext?.findRenderObject();
+    final fieldHole = field is RenderBox && field.attached && field.hasSize
+        ? () {
+            final fieldRect = field.localToGlobal(Offset.zero) & field.size;
+            final overlayBox =
+                Overlay.of(this.context).context.findRenderObject()!
+                    as RenderBox;
+            return overlayBox.globalToLocal(fieldRect.topLeft) & fieldRect.size;
+          }()
+        : null;
     return SizedBox.expand(
       child: Stack(
         children: [
-          Positioned.fill(
-            child: GestureDetector(
-              key: const ValueKey('search-suggestions-dismiss'),
-              behavior: HitTestBehavior.opaque,
-              onTap: _closeSuggestions,
-              child: const ColoredBox(color: Colors.transparent),
+          if (fieldHole == null)
+            Positioned.fill(
+              child: GestureDetector(
+                key: const ValueKey('search-suggestions-dismiss'),
+                behavior: HitTestBehavior.opaque,
+                onTap: _closeSuggestions,
+                child: const ColoredBox(color: Colors.transparent),
+              ),
+            )
+          else ...[
+            Positioned(
+              left: 0,
+              top: 0,
+              width: viewport.width,
+              height: fieldHole.top,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _closeSuggestions,
+                child: const ColoredBox(color: Colors.transparent),
+              ),
             ),
-          ),
+            Positioned(
+              left: 0,
+              top: fieldHole.bottom,
+              width: viewport.width,
+              height: viewport.height - fieldHole.bottom,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _closeSuggestions,
+                child: const ColoredBox(color: Colors.transparent),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              top: fieldHole.top,
+              width: fieldHole.left,
+              height: fieldHole.height,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _closeSuggestions,
+                child: const ColoredBox(color: Colors.transparent),
+              ),
+            ),
+            Positioned(
+              left: fieldHole.right,
+              top: fieldHole.top,
+              width: viewport.width - fieldHole.right,
+              height: fieldHole.height,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _closeSuggestions,
+                child: const ColoredBox(color: Colors.transparent),
+              ),
+            ),
+          ],
           Positioned(
             left: anchor.left,
             top: anchor.top,
             width: anchor.width,
             child: _suggestionPanel(
-              suggestionsPane ?? destination,
+              pane,
               (viewport.height - anchor.top - 24)
                   .clamp(120.0, 320.0)
                   .toDouble(),
@@ -2420,19 +2813,29 @@ class _LibraryPageState extends LibraryPageStateBase {
     final choices = rowAt(rowKey);
     return SizedBox(
       height: _filterRowHeight,
-      child: Scrollbar(
-        controller: choices,
-        child: SingleChildScrollView(
-          key: ValueKey('filter-choices-${paneName(pane)}'),
-          controller: choices,
-          scrollDirection: Axis.horizontal,
-          physics: _rowPhysics,
-          padding: EdgeInsets.symmetric(
-            horizontal: compact ? 12 : 24,
-            vertical: 4,
+      child: Row(
+        children: [
+          Expanded(
+            child: Scrollbar(
+              controller: choices,
+              child: SingleChildScrollView(
+                key: ValueKey('filter-choices-${paneName(pane)}'),
+                controller: choices,
+                scrollDirection: Axis.horizontal,
+                physics: _rowPhysics,
+                padding: EdgeInsets.symmetric(
+                  horizontal: compact ? 12 : 24,
+                  vertical: 4,
+                ),
+                child: Focus(
+                  canRequestFocus: false,
+                  onKeyEvent: (node, event) => _onFilterKey(pane, event),
+                  child: Row(key: rowContentAt(rowKey), children: children),
+                ),
+              ),
+            ),
           ),
-          child: Row(key: rowContentAt(rowKey), children: children),
-        ),
+        ],
       ),
     );
   }
@@ -2627,6 +3030,23 @@ class _LibraryPageState extends LibraryPageStateBase {
           focusNode: sortChipFocus,
           selected: sortFor(pane, slotOfPane(pane)),
           onPick: (value) => _selectFilter('sort', value, pane),
+          onOpenChanged: (open) {
+            if (open) {
+              _sortReturnFocus = FocusManager.instance.primaryFocus;
+              _sortOrder = _nextOverlayOrder();
+            } else {
+              _sortOrder = 0;
+              final returnFocus = _sortReturnFocus;
+              _sortReturnFocus = null;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted &&
+                    ModalRoute.of(context)?.isCurrent == true &&
+                    !_sortMenuOpen) {
+                  _restoreFocus(returnFocus, suppressSuggestions: true);
+                }
+              });
+            }
+          },
         ),
       ),
     ];
@@ -2729,7 +3149,11 @@ class _LibraryPageState extends LibraryPageStateBase {
         child: SingleChildScrollView(
           key: const ValueKey('theme-rail'),
           scrollDirection: Axis.horizontal,
-          child: Row(children: _themeChips(pane, slot, selected)),
+          child: Focus(
+            canRequestFocus: false,
+            onKeyEvent: (node, event) => _onFilterKey(pane, event),
+            child: Row(children: _themeChips(pane, slot, selected)),
+          ),
         ),
       );
     } else {
@@ -2750,9 +3174,13 @@ class _LibraryPageState extends LibraryPageStateBase {
             horizontal: compact ? 12 : 24,
             vertical: 4,
           ),
-          child: Row(
-            key: rowContentAt('rail-$pane'),
-            children: _themeChips(pane, slot, selected),
+          child: Focus(
+            canRequestFocus: false,
+            onKeyEvent: (node, event) => _onFilterKey(pane, event),
+            child: Row(
+              key: rowContentAt('rail-$pane'),
+              children: _themeChips(pane, slot, selected),
+            ),
           ),
         ),
       );
@@ -2769,14 +3197,12 @@ class _LibraryPageState extends LibraryPageStateBase {
         child: LayoutBuilder(
           builder: (context, box) {
             final trailing = _narrowControls(pane, box.maxWidth);
-            return trailing.isEmpty
-                ? body
-                : Row(
-                    children: [
-                      Expanded(child: body),
-                      ...trailing,
-                    ],
-                  );
+            return Row(
+              children: [
+                Expanded(child: body),
+                ...trailing,
+              ],
+            );
           },
         ),
       ),
@@ -3032,8 +3458,13 @@ class _LibraryPageState extends LibraryPageStateBase {
                   // 移进预览卡就收回那句话。触控族不套这层——点卡本来就是进详情。
                   return HoverPeek(
                     enabled: desktopHost && pane == destination,
-                    onShow: (anchor) => _showPeek(drama, anchor),
+                    onShow: (anchor, sourceContext) =>
+                        _showPeek(drama, anchor, sourceContext),
                     onLeave: _schedulePeekClose,
+                    dismissWhenCovered: () =>
+                        suggestionsPane == null &&
+                        !_filterLayerOpen &&
+                        !_sortMenuOpen,
                     child: DramaCard(
                       drama: drama,
                       onTap: () => pushAppPage<void>(
@@ -3139,13 +3570,7 @@ class _LibraryPageState extends LibraryPageStateBase {
         animatePageTransition: !desktopHost,
         builder: (context, child, _) {
           _attachTabs(AutoTabsRouter.of(context));
-          return PopScope(
-            canPop: suggestionsPane == null && !_filterLayerOpen,
-            onPopInvokedWithResult: (didPop, _) {
-              if (!didPop) _closeOverlays();
-            },
-            child: child,
-          );
+          return child;
         },
       );
       const destinations = [
@@ -3269,14 +3694,20 @@ class _LibraryPageState extends LibraryPageStateBase {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      Offstage(
-                        offstage: mineOpen || rankOpen,
-                        // Whatever the chip rows and the inner pages cannot spend
-                        // -- no page that way inside this one -- is spent here,
-                        // where the other page of the catalog waits.
-                        child: NotificationListener<ScrollNotification>(
-                          onNotification: _onNestedScroll,
-                          child: pages,
+                      ExcludeFocus(
+                        excluding: mineOpen || rankOpen,
+                        child: ExcludeSemantics(
+                          excluding: mineOpen || rankOpen,
+                          child: Offstage(
+                            offstage: mineOpen || rankOpen,
+                            // Whatever the chip rows and the inner pages cannot spend
+                            // -- no page that way inside this one -- is spent here,
+                            // where the other page of the catalog waits.
+                            child: NotificationListener<ScrollNotification>(
+                              onNotification: _onNestedScroll,
+                              child: pages,
+                            ),
+                          ),
                         ),
                       ),
                       if (rankOpen)
@@ -3414,6 +3845,7 @@ class _LibraryPageState extends LibraryPageStateBase {
   /// page; the children of the type being entered are asked for only when
   /// nobody has fetched them yet -- a type already walked keeps its own rail.
   void _writeSlot(String slot) {
+    final clearedTheme = theme != null;
     genre = slot;
     // 详情页的标签 chip 要把这部剧的题材词映射成 id，只能对着这一页正在用的那张
     // 词表映射：词表按类型发布，换一型就是另一张表。
@@ -3429,6 +3861,13 @@ class _LibraryPageState extends LibraryPageStateBase {
     final bucket = themesOf(slot);
     if (bucket.values.isEmpty && !bucket.loading && bucket.error == null) {
       unawaited(_loadThemes(slot));
+    }
+    // 清空不是静默发生的：二级词表跟着一级换了，被丢掉的题材要说出来。延到
+    // 本帧之后，避免在 setState 回调里再动 ScaffoldMessenger 的状态。
+    if (clearedTheme) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _explain('二级词表已更新，已选题材已清空');
+      });
     }
   }
 
@@ -3505,8 +3944,15 @@ class _LibraryPageState extends LibraryPageStateBase {
       target.items.isNotEmpty;
 
   @override
-  Widget build(BuildContext context) =>
-      Router(routerDelegate: router.delegate());
+  Widget build(BuildContext context) => PopScope(
+    canPop: !_hasOverlays,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop) _closeOverlays();
+    },
+    // This scope must sit above the catalog's nested Router. Inside it, Back
+    // belongs to the tab route; outside, it belongs to the app's Catalog route.
+    child: Router(routerDelegate: router.delegate()),
+  );
 }
 
 /// The routed frame. `Router` re-renders its routed tree only when its own

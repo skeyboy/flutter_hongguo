@@ -285,6 +285,7 @@ class _DetailPageState extends State<DetailPage> {
                                     runSpacing: 8,
                                     children: [
                                       FilledButton.icon(
+                                        key: const ValueKey('detail-play'),
                                         onPressed: data.episodes.isEmpty
                                             ? null
                                             : () => play(null),
@@ -299,6 +300,12 @@ class _DetailPageState extends State<DetailPage> {
                                               : '继续观看',
                                         ),
                                       ),
+                                      // A2 追剧 = FavoriteButton 收藏语义，复用其状态机。
+                                      FavoriteButton(
+                                        runtime: widget.runtime,
+                                        drama: widget.initial,
+                                        actionRow: true,
+                                      ),
                                       if (widget.runtime is DownloadRuntime)
                                         OutlinedButton.icon(
                                           key: const ValueKey('download-drama'),
@@ -312,7 +319,7 @@ class _DetailPageState extends State<DetailPage> {
                                           icon: const Icon(
                                             Icons.download_outlined,
                                           ),
-                                          label: const Text('下载'),
+                                          label: const Text('缓存'),
                                         ),
                                       if (!tvBuild &&
                                           widget.runtime is MergeRuntime)

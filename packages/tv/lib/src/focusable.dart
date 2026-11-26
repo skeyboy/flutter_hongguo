@@ -8,6 +8,7 @@ class TvFocusable extends StatefulWidget {
   final Widget child;
   final VoidCallback? onActivate;
   final bool autofocus, selected;
+  final bool? checked;
   final FocusNode? focusNode;
   final String label;
   final ValueChanged<bool>? onFocusChange;
@@ -18,6 +19,7 @@ class TvFocusable extends StatefulWidget {
     this.onActivate,
     this.autofocus = false,
     this.selected = false,
+    this.checked,
     this.focusNode,
     this.onFocusChange,
   });
@@ -57,6 +59,7 @@ class _TvFocusableState extends State<TvFocusable> {
   Widget build(BuildContext context) => Semantics(
     button: true,
     label: widget.label,
+    checked: widget.checked,
     selected: widget.selected,
     enabled: widget.onActivate != null,
     child: Actions(

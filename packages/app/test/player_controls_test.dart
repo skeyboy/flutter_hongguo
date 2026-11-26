@@ -113,6 +113,7 @@ Future<void> _mountBar(
   WidgetTester tester,
   _FakePlayer player,
   ControlSurface surface, {
+  Size? size,
   List<String> qualities = const ['best', '720p', '1080p'],
   String quality = 'best',
   ValueChanged<String>? onQuality,
@@ -120,9 +121,10 @@ Future<void> _mountBar(
   bool buffering = false,
 }) async {
   await tester.binding.setSurfaceSize(
-    surface.touch && surface.portrait
-        ? const Size(390, 260)
-        : const Size(1100, 260),
+    size ??
+        (surface.touch && surface.portrait
+            ? const Size(390, 260)
+            : const Size(1100, 260)),
   );
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
@@ -257,7 +259,12 @@ void main() {
     testWidgets('mobileLandscape keeps the settings but never the volume', (
       tester,
     ) async {
-      await _mountBar(tester, _FakePlayer(), ControlSurface.mobileLandscape);
+      await _mountBar(
+        tester,
+        _FakePlayer(),
+        ControlSurface.mobileLandscape,
+        size: const Size(1100, 500),
+      );
       expect(find.byKey(const ValueKey('transport-seek-back')), findsOneWidget);
       expect(
         find.byKey(const ValueKey('transport-seek-forward')),
@@ -265,9 +272,117 @@ void main() {
       );
       expect(find.byKey(const ValueKey('transport-quality')), findsOneWidget);
       expect(find.byKey(const ValueKey('cast-device')), findsOneWidget);
+      expect(find.text('00:00 / 01:04'), findsOneWidget);
       expect(find.byKey(const ValueKey('transport-volume')), findsNothing);
       expect(find.byKey(const ValueKey('enter-pip')), findsNothing);
     });
+
+    for (final size in [const Size(640, 360), const Size(700, 360)]) {
+      testWidgets(
+        'mobile landscape ${size.width.toInt()} keeps essential controls without overflow',
+        (tester) async {
+          final player = _FakePlayer();
+          final selectedQualities = <String>[];
+          var casts = 0;
+          await tester.binding.setSurfaceSize(size);
+          addTearDown(() => tester.binding.setSurfaceSize(null));
+          await tester.pumpWidget(
+            _host(
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: PlaybackTransport(
+                  player: player,
+                  surface: ControlSurface.mobileLandscape,
+                  playing: true,
+                  fullscreen: false,
+                  busy: false,
+                  episode: 3,
+                  onMenuChanged: (_) {},
+                  episodes: () {},
+                  previous: () {},
+                  next: () {},
+                  fullscreenToggle: () {},
+                  canPrevious: true,
+                  canNext: true,
+                  qualities: const ['best', '720p', '1080p'],
+                  quality: 'best',
+                  onQuality: selectedQualities.add,
+                  floating: () {},
+                  cast: () => casts++,
+                  title: 'The narrow transport keeps its title on one line',
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(tester.takeException(), isNull);
+          for (final key in [
+            'transport-play',
+            'transport-speed',
+            'toggle-episodes',
+            'transport-fullscreen',
+            'player-progress',
+          ]) {
+            expect(find.byKey(ValueKey(key)), findsOneWidget, reason: key);
+          }
+          final essential = [
+            'transport-play',
+            'transport-speed',
+            'toggle-episodes',
+            'transport-fullscreen',
+          ];
+          for (final key in essential) {
+            expect(
+              tester.getRect(find.byKey(ValueKey(key))).right,
+              lessThanOrEqualTo(size.width),
+              reason: key,
+            );
+          }
+          expect(
+            find.byKey(const ValueKey('transport-seek-back')),
+            findsNothing,
+          );
+          expect(
+            find.byKey(const ValueKey('transport-seek-forward')),
+            findsNothing,
+          );
+          expect(
+            find.byKey(const ValueKey('transport-secondary-menu')),
+            findsOneWidget,
+          );
+          expect(find.byKey(const ValueKey('cast-device')), findsNothing);
+          expect(find.byKey(const ValueKey('transport-quality')), findsNothing);
+
+          await tester.tap(
+            find.byKey(const ValueKey('transport-secondary-menu')),
+          );
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+          await tester.tap(find.text('投屏到电视'));
+          await tester.pumpAndSettle();
+          expect(casts, 1);
+          await tester.tap(
+            find.byKey(const ValueKey('transport-secondary-menu')),
+          );
+          await tester.pumpAndSettle();
+          expect(
+            find.byKey(const ValueKey('transport-quality-best')),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(const ValueKey('transport-quality-720p')),
+            findsOneWidget,
+          );
+          await tester.tap(
+            find.byKey(const ValueKey('transport-quality-1080p')),
+          );
+          await tester.pumpAndSettle();
+          expect(selectedQualities, ['1080p']);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
   });
 
   group('progress bar', () {
