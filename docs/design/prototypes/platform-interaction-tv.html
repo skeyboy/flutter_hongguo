@@ -564,11 +564,13 @@
             const known = new Set(state.detailEpisodes.map((episode) => episode.number));
             state.detailEpisodes.push(...result.items.filter((episode) => !known.has(episode.number)));
             state.nextEpisodeCursor = result.nextCursor;
+            state.episodeLoading = false;
             renderEpisodes();
             restoreFocus(focusRequest, document.querySelector("#episodeGrid .episode.current") || document.querySelector('[data-load-more="episodes"]'));
           } catch (error) {
             if (request !== state.episodeSeq || navigation !== state.navigationVersion || detailRequest !== state.detailSeq) return;
             state.episodeError = error?.message || "选集加载失败，请重试";
+            state.episodeLoading = false;
             renderEpisodeLoadMore();
             restoreFocus(focusRequest, document.querySelector('[data-retry="episodes"]'));
           } finally {

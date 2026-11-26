@@ -267,7 +267,7 @@
         const frameWrap = document.querySelector("#frameWrap");
         const themes = [{ id: "", name: "全部" }, ...Data.THEMES];
         const contentTypes = Data.CONTENT_TYPES;
-        const statuses = [{ id: "", name: "全部状态" }, ...Data.STATUSES];
+        const statuses = [{ id: "", name: "全部" }, ...Data.STATUSES];
         const rankNames = { recommend: "推荐榜", hot: "热播榜", new: "新剧榜" };
         const state = {
           device: "phone",
@@ -428,7 +428,7 @@
           document.querySelector("#mobilePlayerTitle").textContent = state.detail ? `${state.detail.title} · 第 ${state.currentEpisode} 集` : "正在加载剧集";
           document.querySelector("#mineContinueTitle").textContent = state.detail ? `${state.detail.title} · 第 ${state.currentEpisode} 集` : "尚未开始观看";
           const poster = document.querySelector(".video-poster");
-          poster.innerHTML = state.detail?.poster ? `<img src="${escapeHtml(safeImage(state.detail.poster))}" alt="" />` : "";
+          poster.innerHTML = state.detail?.poster ? `<img src="${escapeHtml(safeImage(state.detail.poster))}" alt="" style="display:block;width:100%;height:100%;object-fit:cover" />` : "";
         }
 
         function renderEpisodes() {

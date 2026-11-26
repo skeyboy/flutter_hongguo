@@ -20,7 +20,7 @@
       <button type="button" class="proto-button" id="protoBack">模拟系统返回</button>
       <button type="button" class="proto-button" id="motionToggle" aria-pressed="false">减弱动态</button>
       <label class="proto-scenario">数据场景
-        <select id="scenarioSelect" aria-label="数据场景">
+        <select class="select" id="scenarioSelect" aria-label="数据场景">
           <option value="normal">正常</option>
           <option value="empty">空结果</option>
           <option value="error">请求失败</option>
@@ -530,6 +530,7 @@
           $("#detailStatus").textContent = "";
           $("#detailTracks").innerHTML = "";
           $("#continueButton").disabled = true;
+          $("#favoriteButton").disabled = true;
           $("#episodeGrid").innerHTML = skeletonMarkup(6);
           $("#episodeLoadMore").hidden = true;
           $("#detailError").hidden = true;
@@ -570,6 +571,8 @@
           $("#playerTitleText").textContent = `${data.title} · 第 ${state.currentEpisode} 集`;
           $("#playerEpisodeTotal").textContent = `全 ${data.episodeCount} 集`;
           $("#videoPoster").style.backgroundImage = `linear-gradient(90deg, rgba(7, 10, 16, .48), rgba(7, 10, 16, .12)), url("${data.poster}")`;
+          $("#videoPoster").style.backgroundSize = "cover";
+          $("#videoPoster").style.backgroundPosition = "center";
           $("#episodeLoadMore").hidden = !data.nextEpisodeCursor && !data.episodeError;
           $("#episodeLoadMore").innerHTML = data.episodeError
             ? dataStateMarkup({ icon: "alert", title: "更多选集加载失败", message: data.episodeError, action: "重试", retry: "episodes" })
@@ -607,7 +610,7 @@
 
         function renderDetail(data) {
           $("#detailContent").setAttribute("aria-busy", "false");
-          $("#detailArt").innerHTML = `<img src="${escapeHtml(data.poster)}" alt="${escapeHtml(data.title)} 海报" />`;
+          $("#detailArt").innerHTML = `<img src="${escapeHtml(data.poster)}" alt="${escapeHtml(data.title)} 海报" style="width:100%;height:100%;object-fit:cover" />`;
           $("#detailTags").innerHTML = [...(data.tagNames || []), `全 ${data.episodeCount} 集`, typeName(data.contentType)]
             .map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("");
           $("#detailTitle").textContent = data.title;
