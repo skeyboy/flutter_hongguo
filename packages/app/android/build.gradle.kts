@@ -1,5 +1,9 @@
 allprojects {
     repositories {
+        // 国内镜像优先，官方源兜底；与 settings.gradle.kts 的 pluginManagement 一致。
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/central") }
+        maven { url = uri("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/") }
         google()
         mavenCentral()
     }
