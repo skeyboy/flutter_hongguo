@@ -82,6 +82,10 @@ abstract class LibraryPageStateBase extends State<LibraryPage> {
   /// 下面），所以换目的地、`Esc`、再开一次都走同一个 `_closeFilterPanel`。
   OverlayEntry? filterPanelEntry;
 
+  /// 抽屉里「题材 · 二级完整词表」的展开状态。页面持有它，换一级后重画抽屉
+  /// 不会把观众刚展开的词表又收起来。
+  final ValueNotifier<bool> themeVocabExpanded = ValueNotifier<bool>(false);
+
   /// 触控族的同一层是一条路由（底部弹层），不是浮层，所以页面握着的不是 entry
   /// 而是它的 `setState`：抽屉里的每一次选中都改了页面，而页面重画不会重画路由。
   /// 值为 null 就是「没开着」——判开合的地方两族一起问。

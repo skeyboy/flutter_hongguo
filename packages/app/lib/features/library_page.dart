@@ -146,6 +146,10 @@ class _LibraryPageState extends LibraryPageStateBase {
   int _sortOrder = 0;
   int _peekOrder = 0;
   int _activeSuggestionTicket = 0;
+
+  /// One boundary answer per gesture: a long pull reports overscroll many times,
+  /// but the viewer needs to be told once that the chain has ended (§7.10).
+  bool _boundaryToastShown = false;
   int? _suppressSuggestionFocusPane;
   Timer? _suggestionFocusSuppression;
   FocusNode? _sortReturnFocus;
@@ -521,6 +525,7 @@ class _LibraryPageState extends LibraryPageStateBase {
     if (notification is ScrollStartNotification ||
         notification is ScrollEndNotification) {
       edgePull = 0;
+      _boundaryToastShown = false;
       return false;
     }
     if (notification is! OverscrollNotification) return false;
@@ -539,10 +544,17 @@ class _LibraryPageState extends LibraryPageStateBase {
     if (overscroll.sign != edgePull.sign) edgePull = 0;
     edgePull += overscroll;
     if (edgePull.abs() < _edgePullExtent) return false;
-    final wanted = edgePull > 0 ? destination + 1 : destination - 1;
+    final forward = edgePull > 0;
+    final wanted = destination + (forward ? 1 : -1);
     edgePull = 0;
-    // 我的 is not in the swipe, and nothing lies before 发现.
-    if (panes.contains(wanted)) _selectTab(wanted);
+    // 我的 is not in the swipe, and nothing lies before 发现. Both ends are now
+    // an explicit answer rather than a silent drop (§7.10 双边界不可执行).
+    if (panes.contains(wanted)) {
+      _selectTab(wanted);
+    } else if (!_boundaryToastShown) {
+      _boundaryToastShown = true;
+      _explain(_cascadeBoundaryMessage(forward));
+    }
     return false;
   }
 
@@ -831,6 +843,7 @@ class _LibraryPageState extends LibraryPageStateBase {
     }
     router.dispose();
     viewRev.dispose();
+    themeVocabExpanded.dispose();
     super.dispose();
   }
 
@@ -2021,6 +2034,13 @@ class _LibraryPageState extends LibraryPageStateBase {
         genre: genre,
         genreLabel: _genreNames[genre] ?? genre,
         rows: themesOf(genre).rows,
+        themeItems: themesOf(genre).values,
+        selectedTheme: theme ?? '',
+        onPickTheme: (id) {
+          _selectFilter('theme', id, destination);
+          _repaintFilterPanel();
+        },
+        themeVocabExpanded: themeVocabExpanded,
         selected: dims,
         loading: themesOf(genre).loading,
         error: themesOf(genre).error,
@@ -2060,6 +2080,13 @@ class _LibraryPageState extends LibraryPageStateBase {
                   genre: genre,
                   genreLabel: _genreNames[genre] ?? genre,
                   rows: bucket.rows,
+                  themeItems: bucket.values,
+                  selectedTheme: theme ?? '',
+                  onPickTheme: (id) {
+                    _selectFilter('theme', id, destination);
+                    _repaintFilterPanel();
+                  },
+                  themeVocabExpanded: themeVocabExpanded,
                   selected: dims,
                   loading: bucket.loading,
                   error: bucket.error,
@@ -2348,6 +2375,49 @@ class _LibraryPageState extends LibraryPageStateBase {
         content: Text(message),
       ),
     );
+  }
+
+  /// One wording for both ways of reaching a dead end -- a swipe that ran out
+  /// of levels and an arrow key on a focused chip (§7.10 左/右对称).
+  String _cascadeBoundaryMessage(bool forward) =>
+      forward ? '右滑已到末项，无可切换项' : '左滑已到首项，无可切换项';
+
+  /// The keyboard equivalent of the handover chain: 二级优先, then 一级, then an
+  /// explicit boundary answer. It calls the very same writers a chip tap and a
+  /// swipe use, so a direction key cannot grow a second state machine.
+  void _cascadeStep(int pane, int delta) {
+    if (queryOf(pane).isNotEmpty) return;
+    final slot = slotOfPane(pane);
+    final options = level2Options(pane, slot);
+    final wanted = level2IndexOf(pane, slot) + delta;
+    if (wanted >= 0 && wanted < options.length) {
+      final id = options[wanted].id;
+      if (id != level2At(pane, slot)) _selectFilter('theme', id, pane);
+      return;
+    }
+    final slots = slotSets[pane]!;
+    final next = slots.indexOf(slot) + delta;
+    if (next >= 0 && next < slots.length) {
+      _gotoSlot(pane, slots[next]);
+      return;
+    }
+    _explain(_cascadeBoundaryMessage(delta > 0));
+  }
+
+  /// Arrow keys on a focused filter chip answer here; `handled` stops the key
+  /// from also reaching the shell's Alt+← back shortcut.
+  KeyEventResult _onFilterKey(int pane, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final delta = switch (event.logicalKey) {
+      LogicalKeyboardKey.arrowLeft => -1,
+      LogicalKeyboardKey.arrowRight => 1,
+      _ => 0,
+    };
+    if (delta == 0) return KeyEventResult.ignored;
+    _cascadeStep(pane, delta);
+    return KeyEventResult.handled;
   }
 
   void _diagnostics() {
@@ -2743,19 +2813,29 @@ class _LibraryPageState extends LibraryPageStateBase {
     final choices = rowAt(rowKey);
     return SizedBox(
       height: _filterRowHeight,
-      child: Scrollbar(
-        controller: choices,
-        child: SingleChildScrollView(
-          key: ValueKey('filter-choices-${paneName(pane)}'),
-          controller: choices,
-          scrollDirection: Axis.horizontal,
-          physics: _rowPhysics,
-          padding: EdgeInsets.symmetric(
-            horizontal: compact ? 12 : 24,
-            vertical: 4,
+      child: Row(
+        children: [
+          Expanded(
+            child: Scrollbar(
+              controller: choices,
+              child: SingleChildScrollView(
+                key: ValueKey('filter-choices-${paneName(pane)}'),
+                controller: choices,
+                scrollDirection: Axis.horizontal,
+                physics: _rowPhysics,
+                padding: EdgeInsets.symmetric(
+                  horizontal: compact ? 12 : 24,
+                  vertical: 4,
+                ),
+                child: Focus(
+                  canRequestFocus: false,
+                  onKeyEvent: (node, event) => _onFilterKey(pane, event),
+                  child: Row(key: rowContentAt(rowKey), children: children),
+                ),
+              ),
+            ),
           ),
-          child: Row(key: rowContentAt(rowKey), children: children),
-        ),
+        ],
       ),
     );
   }
@@ -3069,7 +3149,11 @@ class _LibraryPageState extends LibraryPageStateBase {
         child: SingleChildScrollView(
           key: const ValueKey('theme-rail'),
           scrollDirection: Axis.horizontal,
-          child: Row(children: _themeChips(pane, slot, selected)),
+          child: Focus(
+            canRequestFocus: false,
+            onKeyEvent: (node, event) => _onFilterKey(pane, event),
+            child: Row(children: _themeChips(pane, slot, selected)),
+          ),
         ),
       );
     } else {
@@ -3090,9 +3174,13 @@ class _LibraryPageState extends LibraryPageStateBase {
             horizontal: compact ? 12 : 24,
             vertical: 4,
           ),
-          child: Row(
-            key: rowContentAt('rail-$pane'),
-            children: _themeChips(pane, slot, selected),
+          child: Focus(
+            canRequestFocus: false,
+            onKeyEvent: (node, event) => _onFilterKey(pane, event),
+            child: Row(
+              key: rowContentAt('rail-$pane'),
+              children: _themeChips(pane, slot, selected),
+            ),
           ),
         ),
       );
@@ -3109,14 +3197,12 @@ class _LibraryPageState extends LibraryPageStateBase {
         child: LayoutBuilder(
           builder: (context, box) {
             final trailing = _narrowControls(pane, box.maxWidth);
-            return trailing.isEmpty
-                ? body
-                : Row(
-                    children: [
-                      Expanded(child: body),
-                      ...trailing,
-                    ],
-                  );
+            return Row(
+              children: [
+                Expanded(child: body),
+                ...trailing,
+              ],
+            );
           },
         ),
       ),
@@ -3759,6 +3845,7 @@ class _LibraryPageState extends LibraryPageStateBase {
   /// page; the children of the type being entered are asked for only when
   /// nobody has fetched them yet -- a type already walked keeps its own rail.
   void _writeSlot(String slot) {
+    final clearedTheme = theme != null;
     genre = slot;
     // 详情页的标签 chip 要把这部剧的题材词映射成 id，只能对着这一页正在用的那张
     // 词表映射：词表按类型发布，换一型就是另一张表。
@@ -3774,6 +3861,13 @@ class _LibraryPageState extends LibraryPageStateBase {
     final bucket = themesOf(slot);
     if (bucket.values.isEmpty && !bucket.loading && bucket.error == null) {
       unawaited(_loadThemes(slot));
+    }
+    // 清空不是静默发生的：二级词表跟着一级换了，被丢掉的题材要说出来。延到
+    // 本帧之后，避免在 setState 回调里再动 ScaffoldMessenger 的状态。
+    if (clearedTheme) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _explain('二级词表已更新，已选题材已清空');
+      });
     }
   }
 

@@ -24,6 +24,15 @@ class DiscoverFilterPanel extends StatelessWidget {
   /// What `filterRows` returned for this type, in the order upstream sent it.
   final List<CatalogDim> rows;
 
+  /// 题材属于二级，完整词表由当前一级的桶给出；换一级后这里读到的是新桶，
+  /// 抽屉无需关闭重开就能跟上「30 → 9」（§7.9）。
+  final List<CatalogFilter> themeItems;
+  final String selectedTheme;
+  final void Function(String themeId) onPickTheme;
+
+  /// 完整词表默认收起：展开状态由页面持有，换一级后的重画不会把它关掉。
+  final ValueNotifier<bool> themeVocabExpanded;
+
   /// One or no chosen item per dimension; an absent key is 「不限」. The shape is
   /// the request's (`select_items` takes a list per key) so that a choice here
   /// and the array that goes upstream are the same object, not a translation.
@@ -38,6 +47,10 @@ class DiscoverFilterPanel extends StatelessWidget {
     required this.genre,
     required this.genreLabel,
     required this.rows,
+    required this.themeItems,
+    required this.selectedTheme,
+    required this.onPickTheme,
+    required this.themeVocabExpanded,
     required this.selected,
     required this.onPick,
     required this.onRetry,
@@ -91,6 +104,17 @@ class DiscoverFilterPanel extends StatelessWidget {
                   ),
                 ),
               ),
+              // 一级换了，themeItems 就是另一个桶的长度（§7.9 抽屉 30 → 9）。
+              // 完整词表默认收起，避免把「完成」顶出触控族抽屉的可视区。
+              ValueListenableBuilder<bool>(
+                valueListenable: themeVocabExpanded,
+                builder: (context, expanded, _) => TextButton(
+                  key: const ValueKey('filter-theme-toggle'),
+                  onPressed: () =>
+                      themeVocabExpanded.value = !themeVocabExpanded.value,
+                  child: Text(expanded ? '题材收起' : '题材（${themeItems.length}）'),
+                ),
+              ),
               if (dismissLabel != null)
                 TextButton(
                   key: const ValueKey('filter-panel-dismiss'),
@@ -99,7 +123,58 @@ class DiscoverFilterPanel extends StatelessWidget {
                 ),
             ],
           ),
-          if (loading && sections.isEmpty)
+          // 展开后才是完整词表；真值 feed 没有题材字段，所以明说是词表演示。
+          ValueListenableBuilder<bool>(
+            valueListenable: themeVocabExpanded,
+            builder: (context, expanded, _) => expanded
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12, bottom: 4),
+                        child: Text(
+                          '题材 · 二级完整词表（${themeItems.length}）',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          _Item(
+                            key: const ValueKey('filter-theme-all'),
+                            label: '全部',
+                            chosen: selectedTheme.isEmpty,
+                            onTap: () => onPickTheme(''),
+                          ),
+                          for (final item in themeItems)
+                            _Item(
+                              key: ValueKey('filter-theme-${item.id}'),
+                              label: item.name,
+                              chosen: selectedTheme == item.id,
+                              onTap: () => onPickTheme(item.id),
+                            ),
+                        ],
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '题材为词表演示（真值 feed 无题材字段）',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : const SizedBox.shrink(),
+          ),
+          if (loading && sections.isEmpty && themeItems.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
               child: Center(
@@ -111,7 +186,7 @@ class DiscoverFilterPanel extends StatelessWidget {
                 ),
               ),
             )
-          else if (sections.isEmpty)
+          else if (sections.isEmpty && themeItems.isEmpty)
             // An absent vocabulary is still a drawer the viewer asked for: it
             // says so and offers the way back, rather than opening a blank box.
             Padding(
