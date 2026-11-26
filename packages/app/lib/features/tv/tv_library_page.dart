@@ -257,6 +257,21 @@ class _TvSidebarShellState extends State<_TvSidebarShell> {
                               ),
                             ),
                           ),
+                          // 分类入口：TV 的「分类」真实形态就是按内容类型分栏。
+                          // 这里把短剧/漫剧/AI 短剧三栏显性聚合到「分类」组下，
+                          // 不新增导航项，nav/panes/routes/remembered 索引全部不变。
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+                            child: Text(
+                              '分类',
+                              semanticsLabel: '分类入口',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          ),
                           for (var i = 0; i < labels.length; i++)
                             Focus(
                               canRequestFocus: false,
@@ -614,7 +629,14 @@ class _TvGenrePageState extends State<_TvGenrePage> {
                   style: TextStyle(fontSize: 16),
                 ),
               )
-            : const SizedBox.shrink(),
+            // 分类语义标签：本栏即「分类 > {内容类型}」，题材 chip 的词表来自
+            // CatalogDim 真值，卡片 feed 由 TvFeedPage 的 CatalogRequestScope 驱动。
+            : Text(
+                '分类 · ${labels[section]} · 题材为真值词表（复用现有 feed）',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 15),
+              ),
       ),
     ],
   );
