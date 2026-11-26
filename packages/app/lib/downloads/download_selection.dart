@@ -60,7 +60,7 @@ Future<void> showDownloadSelection(
   if (accepted == true && context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('已加入下载，可在“我的 → 下载管理”查看'),
+        content: const Text('已加入下载队列，可在“我的 → 下载管理”查看'),
         persist: false,
         showCloseIcon: true,
         action: SnackBarAction(
