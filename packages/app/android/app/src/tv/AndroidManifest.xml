@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
     <uses-feature android:name="android.software.leanback" android:required="true"/>
     <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
+    <!-- The TV update path asks permission_handler for this before handing the
+         verified APK to the system installer through the FileProvider declared
+         in the main manifest. Without it the side-loaded install is blocked. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <application android:banner="@drawable/tv_banner" android:label="@string/tv_app_name" tools:replace="android:label">
         <activity android:name="com.example.hongguo_app.MainActivity"
             android:enableOnBackInvokedCallback="false" android:screenOrientation="landscape" android:supportsPictureInPicture="false" tools:replace="android:supportsPictureInPicture">

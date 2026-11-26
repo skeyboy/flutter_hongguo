@@ -38,6 +38,15 @@ enum PlaybackFailureKind {
   unknown,
 }
 
+/// 取源成功后原生播放器自己报出的失败。TV 的 video_player 只把平台消息以
+/// 字符串交给上层，包一层才能像其它失败一样进入分类与「详情」。
+class PlaybackRuntimeError implements Exception {
+  final String message;
+  const PlaybackRuntimeError(this.message);
+  @override
+  String toString() => message;
+}
+
 /// 播放失败的用户侧表述。
 class PlaybackFailure {
   /// 分类结果，调用方据此决定给哪些按钮。
@@ -67,6 +76,7 @@ class PlaybackFailure {
   factory PlaybackFailure.classify(Object error) {
     final detail = switch (error) {
       PlaybackUnavailable(:final message) => message,
+      PlaybackRuntimeError(:final message) => message,
       CatalogError(:final message) => message,
       IncompleteCatalogResponse(:final message) => message,
       _ => '$error',
@@ -84,6 +94,14 @@ class PlaybackFailure {
         kind: PlaybackFailureKind.timeout,
         headline: '取片源超时了',
         hint: '网络响应太慢，稍等一下再重试。',
+        detail: detail,
+      );
+    }
+    if (error is PlaybackRuntimeError) {
+      return PlaybackFailure(
+        kind: PlaybackFailureKind.unknown,
+        headline: '播放器没能打开这一集',
+        hint: '取源已经成功，重试一次通常能恢复；一直如此可以换一集或换清晰度。',
         detail: detail,
       );
     }
@@ -165,3 +183,34 @@ class PlaybackFailure {
       error.type == DioExceptionType.receiveTimeout ||
       error.error is TimeoutException;
 }
+
+/// 首次播放失败里，哪些值得「再取一次源」——TV 没有边下边看的早通道，
+/// 整段下载/解密/校验都在首帧之前，瞬时超时或网络抖动很常见。
+/// 取消、本地缺文件、地址被拒（该换清晰度/跨源）都不在此列。
+bool isTransientFirstPlayFailure(Object error) {
+  if (error is PlaybackRuntimeError) return true;
+  final kind = PlaybackFailure.classify(error).kind;
+  return kind == PlaybackFailureKind.timeout ||
+      kind == PlaybackFailureKind.network ||
+      kind == PlaybackFailureKind.noSource ||
+      kind == PlaybackFailureKind.incomplete;
+}
+
+/// 一次性自动重试的准入条件。纯函数，便于把「不能循环/不能重试取消」钉在测试里。
+///
+/// [played] 已经出过画面就不再自动重试；[interrupted] 是生命周期切换造成的
+/// 主动取消（回到前台会自己重播）；[backgrounded] 时也不该在后台重启取源。
+bool shouldRetryFirstPlay({
+  required Object error,
+  required bool tv,
+  required bool played,
+  required bool retryUsed,
+  required bool interrupted,
+  required bool backgrounded,
+}) =>
+    tv &&
+    !played &&
+    !retryUsed &&
+    !interrupted &&
+    !backgrounded &&
+    isTransientFirstPlayFailure(error);

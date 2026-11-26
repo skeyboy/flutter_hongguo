@@ -234,16 +234,14 @@ void main() {
       );
       await t.pumpAndSettle();
       expect(t.takeException(), isNull);
-      await t.sendKeyEvent(LogicalKeyboardKey.select);
-      await t.pumpAndSettle();
-      // The video root opens the controls; confirming their retry invokes it.
+      // 错误出现时焦点直接在重试上：一次确认就重试，不再需要先打开控制栏。
       await t.sendKeyEvent(LogicalKeyboardKey.select);
       await t.pumpAndSettle();
       expect(retries, 1);
-      for (var i = 0; i < 2; i++) {
-        await t.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-        await t.pumpAndSettle();
-      }
+      expect(FocusManager.instance.primaryFocus?.debugLabel, 'tv-error-retry');
+      // 方向键仍能从重试走到选集。
+      await t.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await t.pumpAndSettle();
       await t.sendKeyEvent(LogicalKeyboardKey.select);
       await t.pumpAndSettle();
       expect(find.text('选择分集'), findsOneWidget);

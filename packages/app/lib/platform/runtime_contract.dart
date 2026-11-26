@@ -116,6 +116,17 @@ class LocalEpisode {
   }
 }
 
+/// Runtimes that can answer a detail request that is guaranteed to go online.
+/// `CatalogClient` keeps a 6-hour in-memory detail cache behind
+/// `CatalogRepository.detail`, so a resume-from-history that must learn about
+/// newly added episodes asks this instead; failures fall back to the callers,
+/// which is why implementations must not block on the network twice.
+abstract interface class DetailRefreshRuntime implements AppRuntime {
+  /// [id] must be a plain numeric series id (红果主源); other sources keep
+  /// going through [AppRuntime.catalog].
+  Future<DramaDetail> refreshDetail(String id);
+}
+
 abstract interface class LibraryCacheRuntime implements AppRuntime {
   LibraryCache get libraryCache;
 }

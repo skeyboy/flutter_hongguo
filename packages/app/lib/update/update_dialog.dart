@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:hongguo_tv/hongguo_tv.dart'
+    show TvEnvironment, TvFocusable, isRemoteBack;
 import 'package:hongguo_update/hongguo_update.dart';
 
 import 'app_release.dart';
@@ -63,6 +66,10 @@ class _UpdateDialogState extends State<UpdateDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // The phone prompt stays a Material AlertDialog. On a television the same
+    // controller, keys and sentences are laid out as one focus ring so a remote
+    // can reach every action without a pointer.
+    if (TvEnvironment.of(context)) return _tvDialog(context);
     final canInstall = controller.canInstall;
     // The number has to be the file this device would actually fetch. The feed
     // lists fifteen attachments in whatever order the release workflow wrote
@@ -198,4 +205,198 @@ class _UpdateDialogState extends State<UpdateDialog> {
       ],
     );
   }
+
+  /// The remote surface. It says the same things and calls the same controller
+  /// methods as the AlertDialog above; only the input contract differs. A
+  /// `Dialog` (not `AlertDialog`) keeps the notes scrollable at ten feet, and
+  /// every button is a [TvFocusable] with a large label, so D-pad traversal and
+  /// 确认 reach them through the app-wide `TvNavigation` policy.
+  Widget _tvDialog(BuildContext context) {
+    final canInstall = controller.canInstall;
+    final installer = currentUpdateTarget().installer(release);
+    return Focus(
+      // Back/Escape belongs to this route. Handling it here rather than leaving
+      // it to the root dispatcher means a TV prompt can never leave a stuck
+      // route behind when it is shown from a surface without that dispatcher.
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: (_, event) {
+        if (isRemoteBack(event.logicalKey)) {
+          if (event is KeyDownEvent) Navigator.of(context).maybePop();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Dialog(
+        child: SizedBox(
+          width: 960,
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              key: const Key('更新说明'),
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '发现新版本 ${release.tag}',
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '当前版本 v${AppRelease.version}，最新版本 v${release.version.versionText} · 发布于 $_published',
+                  style: const TextStyle(fontSize: 20),
+                ),
+                if (installer != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    '本机安装包约 ${(installer.bytes / 1024 / 1024).toStringAsFixed(1)} MB',
+                    style: const TextStyle(fontSize: 17),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 300,
+                  child: Scrollbar(
+                    controller: _notes,
+                    child: SingleChildScrollView(
+                      controller: _notes,
+                      child: SelectableText(
+                        release.notes,
+                        style: const TextStyle(fontSize: 18),
+                      ),
+                    ),
+                  ),
+                ),
+                if (!canInstall && release.htmlUrl.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  const Text(
+                    '这个系统不允许应用自行安装，请到发布页下载：',
+                    style: TextStyle(fontSize: 18),
+                  ),
+                  SelectableText(
+                    release.htmlUrl,
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                ListenableBuilder(
+                  listenable: controller,
+                  builder: (context, _) {
+                    final error = controller.error;
+                    final progress = controller.progress;
+                    if (error != null) {
+                      return Text(
+                        error,
+                        style: TextStyle(fontSize: 18, color: Colors.red.shade700),
+                      );
+                    }
+                    if (progress != null) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          LinearProgressIndicator(value: progress),
+                          const SizedBox(height: 4),
+                          Text(
+                            '正在下载 ${(progress * 100).toStringAsFixed(0)}%',
+                            style: const TextStyle(fontSize: 18),
+                          ),
+                        ],
+                      );
+                    }
+                    if (controller.message != null && controller.showsMessage) {
+                      return Text(
+                        controller.message!,
+                        style: const TextStyle(fontSize: 18),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+                const SizedBox(height: 20),
+                FocusTraversalGroup(
+                  policy: ReadingOrderTraversalPolicy(),
+                  child: Wrap(
+                    spacing: 18,
+                    runSpacing: 12,
+                    children: [
+                      _tvAction(
+                        key: const Key('以后再说'),
+                        label: '以后再说',
+                        // With no installer there is no primary action, so the
+                        // ring has to start somewhere reachable.
+                        autofocus: !canInstall,
+                        onActivate: () {
+                          controller.dismissOffer();
+                          Navigator.pop(context);
+                        },
+                      ),
+                      _tvAction(
+                        key: const Key('忽略本次更新'),
+                        label: '忽略本次更新',
+                        onActivate: () async {
+                          await controller.ignoreOffer();
+                          if (context.mounted) Navigator.pop(context);
+                        },
+                      ),
+                      // Leave the permission entry reachable until the switch
+                      // is really on, exactly like the phone prompt does.
+                      if (controller.installOwed)
+                        _tvAction(
+                          key: const Key('去系统设置'),
+                          label: '去系统设置',
+                          onActivate: controller.openInstallSettings,
+                        ),
+                      if (canInstall)
+                        ListenableBuilder(
+                          listenable: controller,
+                          builder: (context, _) => _tvAction(
+                            key: const Key('立即更新'),
+                            label: controller.installReady
+                                ? '立即安装'
+                                : controller.downloading
+                                ? '正在下载…'
+                                : controller.transferring
+                                ? '正在后台下载…'
+                                : '立即更新',
+                            autofocus: true,
+                            onActivate: controller.busy
+                                ? null
+                                : () async {
+                                    final plan = await controller.install();
+                                    if (plan == null || !context.mounted) {
+                                      return;
+                                    }
+                                    if (!plan.owesInstall) Navigator.pop(context);
+                                  },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _tvAction({
+    required Key key,
+    required String label,
+    required VoidCallback? onActivate,
+    bool autofocus = false,
+  }) => TvFocusable(
+    key: key,
+    label: label,
+    autofocus: autofocus,
+    onActivate: onActivate,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      child: Text(label, style: const TextStyle(fontSize: 24)),
+    ),
+  );
 }

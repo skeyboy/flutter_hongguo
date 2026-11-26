@@ -82,8 +82,10 @@ class TvNavigation extends StatelessWidget {
         : (Rect rect) => rect.top < source.bottom && rect.bottom > source.top;
     final inBand = ahead.where((entry) => band(entry.$2)).toList();
     final candidates = inBand.isEmpty ? ahead : inBand;
-    // In band: the nearest row/column wins. Out of band: line up first, then
-    // travel the least.
+    // The nearest row/column wins; ties are broken on the cross axis. Same-row
+    // chips all have an identical primary distance, so without a tie-break
+    // List.sort keeps reading order and ArrowUp from a grid cell lands on the
+    // leftmost chip in its band.
     int compare((FocusNode, Rect) a, (FocusNode, Rect) b) {
       double primary(Rect rect) => vertical
           ? rect.center.dy - source.center.dy
@@ -92,7 +94,61 @@ class TvNavigation extends StatelessWidget {
           ? rect.center.dx - source.center.dx
           : rect.center.dy - source.center.dy;
       final byPrimary = primary(a.$2).abs().compareTo(primary(b.$2).abs());
-      if (inBand.isNotEmpty || byPrimary != 0) return byPrimary;
+      if (byPrimary != 0) return byPrimary;
+      if (inBand.isEmpty) {
+        // Out of band: line up first, then travel the least.
+        return cross(a.$2).abs().compareTo(cross(b.$2).abs());
+      }
+      // In band: the candidate whose box contains the source centre is the
+      // one the viewer is pointing at. Otherwise prefer the box the source
+      // overlaps most, then the nearest edge, then the nearest centre.
+      // Two special shapes keep their old behaviour:
+      //  * a source that fully contains every in-band candidate (a wide
+      //    header entering a grid row) points at no column — reading order
+      //    picks the first cell;
+      //  * on a MiTV the centre can sit 2px from one chip's edge and 14px
+      //    from the neighbour's, where overlap and edge distance — not the
+      //    centre — decide (cell ~334px wide, chip ~161px).
+      final sourceCross = vertical ? source.center.dx : source.center.dy;
+      final sourceStart = vertical ? source.left : source.top;
+      final sourceEnd = vertical ? source.right : source.bottom;
+      bool covers(Rect rect) {
+        final start = vertical ? rect.left : rect.top;
+        final end = vertical ? rect.right : rect.bottom;
+        return start <= sourceCross && sourceCross <= end;
+      }
+
+      double overlap(Rect rect) {
+        final start = vertical ? rect.left : rect.top;
+        final end = vertical ? rect.right : rect.bottom;
+        final shared =
+            (end < sourceEnd ? end : sourceEnd) -
+            (start > sourceStart ? start : sourceStart);
+        return shared > 0 ? shared : 0;
+      }
+
+      double gap(Rect rect) {
+        final start = vertical ? rect.left : rect.top;
+        final end = vertical ? rect.right : rect.bottom;
+        if (sourceCross < start) return start - sourceCross;
+        if (sourceCross > end) return sourceCross - end;
+        return 0;
+      }
+
+      final aCovers = covers(a.$2), bCovers = covers(b.$2);
+      if (aCovers != bCovers) return aCovers ? -1 : 1;
+      if (aCovers) return cross(a.$2).abs().compareTo(cross(b.$2).abs());
+      if (candidates.every(
+        (entry) => vertical
+            ? entry.$2.left >= sourceStart && entry.$2.right <= sourceEnd
+            : entry.$2.top >= sourceStart && entry.$2.bottom <= sourceEnd,
+      )) {
+        return 0;
+      }
+      final byOverlap = overlap(b.$2).compareTo(overlap(a.$2));
+      if (byOverlap != 0) return byOverlap;
+      final byGap = gap(a.$2).compareTo(gap(b.$2));
+      if (byGap != 0) return byGap;
       return cross(a.$2).abs().compareTo(cross(b.$2).abs());
     }
 
@@ -109,6 +165,11 @@ class TvNavigation extends StatelessWidget {
 
   /// The node's visible, laid-out box in global logical coordinates, or null
   /// when it cannot be a remote target.
+  ///
+  /// Known limitation: RenderViewport does not override paintsChild, so a chip
+  /// scrolled out of TvChoiceRail's horizontal viewport keeps its layout rect
+  /// and can still be chosen by geometry. Requesting focus on it scrolls it
+  /// back into view, so focus is never invisible, but the rail may jump.
   static Rect? _globalRect(FocusNode node) {
     final context = node.context;
     if (context == null || !context.mounted) return null;

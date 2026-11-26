@@ -936,7 +936,10 @@ class CatalogClient
 
   /// Access-time sweep plus an approximate byte ceiling: a long session must
   /// not grow without bound even when every entry is still inside its TTL.
-  void _rememberDetail(String key, DramaDetail value) {
+  ///
+  /// [ttl] 让「只拿到限免前缀」的降级结果短存，这样上游恢复后同一部剧还有
+  /// 机会取到全集，而不是被 6 小时缓存钉死。
+  void _rememberDetail(String key, DramaDetail value, {Duration? ttl}) {
     final clock = now();
     for (final entry in _details.entries.toList()) {
       if (!entry.value.expires.isAfter(clock)) _forgetDetail(entry.key);
@@ -951,7 +954,7 @@ class CatalogClient
       _forgetDetail(oldest.key);
     }
     _details[key] = (
-      expires: clock.add(const Duration(hours: 6)),
+      expires: clock.add(ttl ?? const Duration(hours: 6)),
       value: value,
     );
     _detailBytes[key] = size;
@@ -961,6 +964,49 @@ class CatalogClient
   String _failureType(Object error) =>
       classifyUpstreamFailure(error)?.diagnosticId ??
       error.runtimeType.toString();
+
+  /// 官网页如今只给出 `accessible_episode_cnt` 个 vid，且 vid 换成了不透明
+  /// token；这类结果既不是全集也不能喂给只认数字 vid 的取址层。App 接口的
+  /// `video_list` 才是全集来源，所以命中任一条件就换一路再取。
+  static bool _partialDetail(DramaDetail detail) {
+    final total = detail.drama.episodeCount;
+    if (total > 0 && detail.episodes.length < total) return true;
+    return detail.episodes.any(
+      (e) => !RegExp(r'^\d{1,30}$').hasMatch(e.vid),
+    );
+  }
+
+  /// 换源时把「限免外」标记按集号带过去：两路都是 1 起编号，语义不随 vid
+  /// 格式变化。没有标记则原样返回，避免无谓地重建分集对象。
+  static DramaDetail _carryAccessibleMarkers(
+    DramaDetail chosen,
+    DramaDetail from,
+  ) {
+    final byIndex = <int, int?>{};
+    for (final episode in from.episodes) {
+      byIndex.putIfAbsent(episode.index, () => episode.accessibleCount);
+    }
+    if (byIndex.values.every((v) => v == null)) return chosen;
+    return DramaDetail(
+      chosen.drama,
+      [
+        for (final episode in chosen.episodes)
+          Episode(
+            vid: episode.vid,
+            index: episode.index,
+            title: episode.title,
+            accessibleCount: byIndex[episode.index],
+            locked: episode.locked,
+          ),
+      ],
+    );
+  }
+
+  /// 两路都拿到时取集数更多的一路；从另一路取来的结果继承限免边界标记。
+  static DramaDetail _fullerDetail(DramaDetail current, DramaDetail other) {
+    if (other.episodes.length <= current.episodes.length) return current;
+    return _carryAccessibleMarkers(other, current);
+  }
 
   Future<DramaDetail> _detail(String id) async {
     if (!RegExp(r'^\d{1,30}$').hasMatch(id)) {
@@ -982,10 +1028,15 @@ class CatalogClient
       } on Object catch (e) {
         firstError = e;
       }
-      if (result == null) {
+      if (result == null || _partialDetail(result)) {
+        // App 失败，或只拿到限免前缀/不透明 vid：官网能补就补，补不齐时
+        // 仍保留已拿到的那一路，交给下面的取全集逻辑比较。
         RequestBudget.current.check();
-        result = await _webDetailRace(id);
-        if (result != null && firstError != null) {
+        final web = await _webDetailRace(id);
+        if (web != null) {
+          result = result == null ? web : _fullerDetail(result, web);
+        }
+        if (firstError != null && result != null && web != null) {
           onDetailFallback?.call(
             'appDetail',
             'webDetailRace',
@@ -998,11 +1049,13 @@ class CatalogClient
       // 后中断），同剧的 /detail 页正常——两路并行、任一有效即用。
       RequestBudget.current.check();
       result = await _webDetailRace(id);
-      if (result == null) {
-        // 第 2 层：App 分集接口（富元数据）。
+      if (result == null || _partialDetail(result)) {
+        // 第 2 层：App 分集接口（富元数据、全集）。官网只公开限免前缀时，
+        // 这一路才是完整分集列表的来源，取集数更多的一路。
         RequestBudget.current.check();
         try {
-          result = await _appDetail(id);
+          final app = await _appDetail(id);
+          result = result == null ? app : _fullerDetail(result, app);
         } on Object catch (e) {
           firstError = e;
         }
@@ -1012,7 +1065,11 @@ class CatalogClient
       RequestBudget.current.check();
       throw firstError ?? const CatalogError('无法获取分集');
     }
-    _rememberDetail(key, result);
+    _rememberDetail(
+      key,
+      result,
+      ttl: _partialDetail(result) ? const Duration(minutes: 10) : null,
+    );
     return result;
   }
 
@@ -1097,7 +1154,7 @@ class CatalogClient
           id: id,
           title: web.seriesTitle,
           cover: web.cover,
-          episodeCount: web.vids.length,
+          episodeCount: web.episodeCount,
         ),
         [
           for (var i = 0; i < web.vids.length; i++)
@@ -1186,9 +1243,17 @@ class CatalogClient
   static DramaDetail parseWebEpisodes(String id, String html) {
     final match = RegExp(r'"vid_list"\s*:\s*\[([^\]]*)\]').firstMatch(html);
     if (match == null) throw const CatalogError('官网没有分集信息');
-    final vids = RegExp(r'\d+')
-        .allMatches(match.group(1)!)
-        .map((m) => m.group(0)!)
+    // 逐个元素校验，而不是从整段里捞 \d+：上游把 vid 换成 `v1_xxx` 这类
+    // 不透明 token 后，捞数字会把一个 vid 拆成好几个假集，制造出「分集
+    // 列表看着有 N 集、实际全是错 vid」的结果。解析失败必须可识别，交给
+    // 调用方换 App 接口，不能把假数据当成功。
+    final tokens = match.group(1)!.split(',').map((v) => v.trim()).toList();
+    if (tokens.isEmpty ||
+        tokens.any((v) => !RegExp(r'^"?\d{1,30}"?$').hasMatch(v))) {
+      throw const CatalogError('官网分集列表格式异常');
+    }
+    final vids = tokens
+        .map((v) => v.replaceFirst('"', '').replaceAll('"', ''))
         .toList();
     if (vids.isEmpty) throw const CatalogError('官网分集列表为空');
     String field(String key) {
@@ -1196,6 +1261,11 @@ class CatalogClient
           .firstMatch(html);
       return m == null ? '' : _text(jsonDecode(m.group(1)!));
     }
+
+    final declared = int.tryParse(
+      RegExp(r'"episode_cnt"\s*:\s*"?(\d+)"?').firstMatch(html)?.group(1) ??
+          '',
+    );
 
     final accessibleMatch = RegExp(r'"accessible_episode_cnt"\s*:\s*"?(\d+)"?')
         .firstMatch(html);
@@ -1208,7 +1278,8 @@ class CatalogClient
         id: id,
         title: field('series_name'),
         cover: field('series_cover'),
-        episodeCount: vids.length,
+        episodeCount:
+            declared != null && declared > vids.length ? declared : vids.length,
       ),
       [
         for (var i = 0; i < vids.length; i++)

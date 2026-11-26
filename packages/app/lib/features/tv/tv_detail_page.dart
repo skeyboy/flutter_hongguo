@@ -1,6 +1,9 @@
+import 'dart:ui' show ImageFilter;
+
 import '../../catalog/detail_fallback.dart';
 import '../../downloads/download_selection.dart';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_tv/hongguo_tv.dart';
@@ -82,6 +85,94 @@ class _TvDetailPageState extends State<TvDetailPage> {
     );
   }
 
+  /// The drama's own artwork, blurred and scrimmed, behind the whole page so
+  /// the 32px title, 21px intro and episode numbers keep their contrast on a
+  /// 10-foot screen. The layer is inert: it owns no focus node, takes no key
+  /// and swallows no pointer, so the page's focus order is the one without it.
+  Widget _backdrop(Drama drama) {
+    final value = drama.cover.trim();
+    final url = value.startsWith('//') ? 'https:$value' : value;
+    final uri = Uri.tryParse(url);
+    final imageUrl =
+        uri != null &&
+            (uri.scheme == 'https' || uri.scheme == 'http') &&
+            uri.host.isNotEmpty
+        ? url
+        : null;
+    return ExcludeFocus(
+      key: const ValueKey('tv-detail-backdrop'),
+      child: IgnorePointer(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Painted unconditionally: a missing or failed URL leaves a dark
+            // page instead of a white flash, and there is no spinner to steal
+            // the remote's attention.
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF241C2E), Color(0xFF0B0B10)],
+                ),
+              ),
+            ),
+            if (imageUrl != null)
+              ClipRect(
+                child: ImageFiltered(
+                  // Heavy blur: on a 10-foot screen the artwork is mood, not
+                  // content — any legible shape behind the 32px title reads
+                  // as noise (user report: 文字完全看不清楚).
+                  imageFilter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
+                  // Overscan hides the soft edge a full-screen blur leaves on
+                  // its boundary; ClipRect keeps it inside the page.
+                  child: Transform.scale(
+                    scale: 1.18,
+                    child: ColorFiltered(
+                      colorFilter: const ColorFilter.matrix(<double>[
+                        // Desaturate to a third and dim to ~55%: bright
+                        // posters stop punching through the scrim, and the
+                        // hue still separates this drama from a plain black
+                        // page.
+                        0.19, 0.19, 0.19, 0, 0.02, //
+                        0.19, 0.19, 0.19, 0, 0.02, //
+                        0.19, 0.19, 0.19, 0, 0.02, //
+                        0, 0, 0, 1, 0,
+                      ]),
+                      child: CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                        placeholder: (_, _) => const SizedBox.shrink(),
+                        errorWidget: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            // The artwork sets the mood; the text is the content. A flat
+            // blackout carries most of the contrast (a gradient alone leaves
+            // the bright top unreadable), the gradient keeps the bottom from
+            // feeling like a void.
+            const DecoratedBox(
+              decoration: BoxDecoration(color: Color(0x6E000000)),
+            ),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x59000000), Color(0xCC000000)],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     playNode.dispose();
@@ -116,260 +207,305 @@ class _TvDetailPageState extends State<TvDetailPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    // No Material AppBar: its leading arrow is the only way out of this route
-    // on touch, it never takes the focus ring, and on a 10-foot screen an
-    // arrow the remote cannot reach reads as decoration. The body carries an
-    // explicit 返回 target that the D-pad walk lands on.
-    body: TvNavigation(
-      child: FutureBuilder<DramaDetail>(
-        future: future,
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: TvFocusable(
-                label: '重试',
-                autofocus: true,
-                onActivate: () => setState(() {
-                  future = _open();
-                }),
-                child: Text(
-                  '加载失败：${snapshot.error}\n重试',
-                  style: const TextStyle(fontSize: 22),
+  Widget build(BuildContext context) => Theme(
+    // The page paints its own dark backdrop; inheriting the app's light theme
+    // here left dark 21-32px text on that backdrop, which is exactly the
+    // 「文字完全看不清楚」 report. A dark scheme keeps every inherited Text,
+    // icon and focus ring readable without touching each style.
+    data: ThemeData.dark(useMaterial3: true),
+    child: Scaffold(
+      backgroundColor: const Color(0xFF0B0B10),
+      // No Material AppBar: its leading arrow is the only way out of this route
+      // on touch, it never takes the focus ring, and on a 10-foot screen an
+      // arrow the remote cannot reach reads as decoration. The body carries an
+      // explicit 返回 target that the D-pad walk lands on.
+      body: TvNavigation(
+        child: FutureBuilder<DramaDetail>(
+          future: future,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(
+                child: TvFocusable(
+                  label: '重试',
+                  autofocus: true,
+                  onActivate: () => setState(() {
+                    future = _open();
+                  }),
+                  child: Text(
+                    '加载失败：${snapshot.error}\n重试',
+                    style: const TextStyle(fontSize: 22),
+                  ),
                 ),
-              ),
-            );
-          }
-          if (!snapshot.hasData) {
-            return Center(
-              child: TvFocusable(
-                label: '返回',
-                autofocus: true,
-                onActivate: () => Navigator.maybePop(context),
-                child: const Text('正在加载 · 返回', style: TextStyle(fontSize: 22)),
-              ),
-            );
-          }
-          final d = snapshot.data!;
-          final downloads = widget.runtime;
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(36),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              );
+            }
+            if (!snapshot.hasData) {
+              return Center(
+                child: TvFocusable(
+                  label: '返回',
+                  autofocus: true,
+                  onActivate: () => Navigator.maybePop(context),
+                  child: const Text(
+                    '正在加载 · 返回',
+                    style: TextStyle(fontSize: 22),
+                  ),
+                ),
+              );
+            }
+            final d = snapshot.data!;
+            final downloads = widget.runtime;
+            return Stack(
               children: [
-                if (offlineSnapshot) ...[
-                  // A snapshot is not a live read, and the page that admits it
-                  // must also give the remote the one target that asks again:
-                  // a banner with no reachable retry is a dead end but Back.
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          '网络加载失败，正在显示已保存的剧集信息',
-                          style: TextStyle(fontSize: 20),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      TvFocusable(
-                        label: '重试刷新',
-                        onActivate: () => setState(() {
-                          future = _open();
-                        }),
-                        child: const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: Text('重试刷新', style: TextStyle(fontSize: 20)),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    TvFocusable(
-                      label: '返回目录',
-                      onActivate: () => Navigator.maybePop(context),
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        child: Text('‹ 返回', style: TextStyle(fontSize: 24)),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        d.drama.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (d.drama.tagNames.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  // 题材词 as words only. The remote family has no 发现页 that
-                  // consumes a theme hand-off yet, so a focusable chip that
-                  // goes nowhere would be the fake control the design forbids;
-                  // plain text adds no target, so the documented focus order of
-                  // this page (video-detail-redesign.md §8) is unchanged.
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 8,
-                    children: [
-                      for (final name in d.drama.tagNames)
-                        Text(
-                          name,
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
+                Positioned.fill(child: _backdrop(d.drama)),
+                Positioned.fill(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(36),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (offlineSnapshot) ...[
+                          // A snapshot is not a live read, and the page that admits it
+                          // must also give the remote the one target that asks again:
+                          // a banner with no reachable retry is a dead end but Back.
+                          Row(
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  '网络加载失败，正在显示已保存的剧集信息',
+                                  style: TextStyle(fontSize: 20),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              TvFocusable(
+                                label: '重试刷新',
+                                onActivate: () => setState(() {
+                                  future = _open();
+                                }),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: Text(
+                                    '重试刷新',
+                                    style: TextStyle(fontSize: 20),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 16),
-                Text(
-                  d.drama.intro,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 21),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // An empty episode list has nothing to play or download, so
-                    // the action line offers the retry instead of a control the
-                    // remote can only land on and not use.
-                    if (d.episodes.isEmpty)
-                      TvFocusable(
-                        label: '刷新分集',
-                        autofocus: true,
-                        onActivate: () => setState(() {
-                          future = _open();
-                        }),
-                        child: const Padding(
-                          padding: EdgeInsets.all(14),
-                          child: Text(
-                            '暂无可播放的分集，可能已临时下架\n按确认刷新，或返回目录换个剧',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 22),
-                          ),
-                        ),
-                      )
-                    else
-                      TvFocusable(
-                        label: '开始观看',
-                        autofocus: true,
-                        focusNode: playNode,
-                        onActivate: () => play(d, null),
-                        child: const Padding(
-                          padding: EdgeInsets.all(14),
-                          child: Text('▶ 开始观看', style: TextStyle(fontSize: 24)),
-                        ),
-                      ),
-                    if (d.episodes.isNotEmpty &&
-                        widget.runtime is DownloadRuntime) ...[
-                      const SizedBox(width: 16),
-                      TvFocusable(
-                        label: '下载剧集',
-                        onActivate: () =>
-                            showDownloadSelection(context, widget.runtime, d),
-                        child: const Padding(
-                          padding: EdgeInsets.all(14),
-                          child: Text('下载剧集', style: TextStyle(fontSize: 20)),
-                        ),
-                      ),
-                    ],
-                    // 下载管理 gets its own target because the snackbar a phone
-                    // gets after 下载剧集 is not one the remote can reach: its
-                    // 「查看」 action never takes the focus ring, so the queue
-                    // would only be readable through 我的.
-                    if (downloads is DownloadRuntime) ...[
-                      const SizedBox(width: 16),
-                      TvFocusable(
-                        label: '下载管理',
-                        onActivate: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            settings: const RouteSettings(
-                              name: '/tv/downloads',
+                          const SizedBox(height: 16),
+                        ],
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            TvFocusable(
+                              label: '返回目录',
+                              onActivate: () => Navigator.maybePop(context),
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                child: Text(
+                                  '‹ 返回',
+                                  style: TextStyle(fontSize: 24),
+                                ),
+                              ),
                             ),
-                            builder: (_) => DownloadsPage(runtime: downloads),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Text(
+                                d.drama.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (d.drama.tagNames.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          // 题材词 as words only. The remote family has no 发现页 that
+                          // consumes a theme hand-off yet, so a focusable chip that
+                          // goes nowhere would be the fake control the design forbids;
+                          // plain text adds no target, so the documented focus order of
+                          // this page (video-detail-redesign.md §8) is unchanged.
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            children: [
+                              for (final name in d.drama.tagNames)
+                                Text(
+                                  name,
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        Text(
+                          d.drama.intro,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 21),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            // An empty episode list has nothing to play or download, so
+                            // the action line offers the retry instead of a control the
+                            // remote can only land on and not use.
+                            if (d.episodes.isEmpty)
+                              TvFocusable(
+                                label: '刷新分集',
+                                autofocus: true,
+                                onActivate: () => setState(() {
+                                  future = _open();
+                                }),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(14),
+                                  child: Text(
+                                    '暂无可播放的分集，可能已临时下架\n按确认刷新，或返回目录换个剧',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(fontSize: 22),
+                                  ),
+                                ),
+                              )
+                            else
+                              TvFocusable(
+                                label: '开始观看',
+                                autofocus: true,
+                                focusNode: playNode,
+                                onActivate: () => play(d, null),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(14),
+                                  child: Text(
+                                    '▶ 开始观看',
+                                    style: TextStyle(fontSize: 24),
+                                  ),
+                                ),
+                              ),
+                            if (d.episodes.isNotEmpty &&
+                                widget.runtime is DownloadRuntime) ...[
+                              const SizedBox(width: 16),
+                              TvFocusable(
+                                label: '下载剧集',
+                                onActivate: () => showDownloadSelection(
+                                  context,
+                                  widget.runtime,
+                                  d,
+                                ),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(14),
+                                  child: Text(
+                                    '下载剧集',
+                                    style: TextStyle(fontSize: 20),
+                                  ),
+                                ),
+                              ),
+                            ],
+                            // 下载管理 gets its own target because the snackbar a phone
+                            // gets after 下载剧集 is not one the remote can reach: its
+                            // 「查看」 action never takes the focus ring, so the queue
+                            // would only be readable through 我的.
+                            if (downloads is DownloadRuntime) ...[
+                              const SizedBox(width: 16),
+                              TvFocusable(
+                                label: '下载管理',
+                                onActivate: () => Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    settings: const RouteSettings(
+                                      name: '/tv/downloads',
+                                    ),
+                                    builder: (_) =>
+                                        DownloadsPage(runtime: downloads),
+                                  ),
+                                ),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(14),
+                                  child: Text(
+                                    '下载管理',
+                                    style: TextStyle(fontSize: 20),
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(width: 16),
+                            TvFocusable(
+                              label: '切换片源',
+                              onActivate: () => showSourceSwitch(
+                                context,
+                                widget.runtime,
+                                d.drama,
+                              ),
+                              child: const Padding(
+                                padding: EdgeInsets.all(14),
+                                child: Text(
+                                  '切换片源',
+                                  style: TextStyle(fontSize: 20),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            FavoriteButton(
+                              runtime: widget.runtime,
+                              drama: d.drama,
+                              tvLayout: true,
+                            ),
+                          ],
+                        ),
+                        if (d.episodes.isNotEmpty) ...[
+                          const SizedBox(height: 24),
+                          EpisodePager(
+                            episodes: d.episodes,
+                            currentIndex: () => currentEpisode,
+                            onSelected: (index) => play(d, index),
+                            controller: pager,
+                            rows: 4,
+                            // 122 -> 14 columns on a 1920-wide screen: the four rows
+                            // are ~357px instead of ~499px, ~28% less vertical space
+                            // while the numbers stay legible next to the 32px title.
+                            cellExtent: 122,
+                            numberFontSize: 21,
+                            pageFontSize: 16,
+                          ),
+                          if (currentEpisode >= 0) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              '已定位到上次观看的第 ${d.episodes[currentEpisode].index} 集',
+                              style: const TextStyle(fontSize: 18),
+                            ),
+                          ],
+                        ],
+                        const SizedBox(height: 32),
+                        RelatedDramasSection(
+                          runtime: widget.runtime,
+                          current: d,
+                          tvLayout: true,
+                          onOpen: (next) => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              settings: const RouteSettings(name: '/tv/detail'),
+                              builder: (_) => TvDetailPage(
+                                runtime: widget.runtime,
+                                initial: next,
+                              ),
+                            ),
                           ),
                         ),
-                        child: const Padding(
-                          padding: EdgeInsets.all(14),
-                          child: Text('下载管理', style: TextStyle(fontSize: 20)),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(width: 16),
-                    TvFocusable(
-                      label: '切换片源',
-                      onActivate: () =>
-                          showSourceSwitch(context, widget.runtime, d.drama),
-                      child: const Padding(
-                        padding: EdgeInsets.all(14),
-                        child: Text('切换片源', style: TextStyle(fontSize: 20)),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    FavoriteButton(
-                      runtime: widget.runtime,
-                      drama: d.drama,
-                      tvLayout: true,
-                    ),
-                  ],
-                ),
-                if (d.episodes.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  EpisodePager(
-                    episodes: d.episodes,
-                    currentIndex: () => currentEpisode,
-                    onSelected: (index) => play(d, index),
-                    controller: pager,
-                    rows: 4,
-                    cellExtent: 170,
-                    // The default 16/14 is a phone reading; on a 1920-wide
-                    // screen it sat two steps below this page's own 32 title
-                    // and the pager's 26 arrows (design §8, second option).
-                    numberFontSize: 26,
-                    pageFontSize: 18,
-                  ),
-                  if (currentEpisode >= 0) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      '已定位到上次观看的第 ${d.episodes[currentEpisode].index} 集',
-                      style: const TextStyle(fontSize: 18),
-                    ),
-                  ],
-                ],
-                const SizedBox(height: 32),
-                RelatedDramasSection(
-                  runtime: widget.runtime,
-                  current: d,
-                  tvLayout: true,
-                  onOpen: (next) => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      settings: const RouteSettings(name: '/tv/detail'),
-                      builder: (_) =>
-                          TvDetailPage(runtime: widget.runtime, initial: next),
+                      ],
                     ),
                   ),
                 ),
               ],
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     ),
   );

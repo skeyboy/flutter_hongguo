@@ -7,6 +7,7 @@ import 'package:hongguo_tv/hongguo_tv.dart'
     show TvEnvironment, TvFocusable, tvBuild;
 
 import '../personal/personal_library.dart';
+import '../personal/resume_detail.dart';
 import '../platform/runtime.dart';
 import '../catalog/local_library.dart';
 import '../playback/local_playlist.dart';
@@ -157,6 +158,7 @@ class _MyPageState extends State<MyPage> {
     final runtime = widget.runtime;
     DramaDetail detail;
     var start = 0;
+    var offset = record.resumeAt;
     var quality = record.quality;
     if (record.local) {
       if (runtime is! LocalMediaRuntime) throw StateError('本地播放不可用');
@@ -175,12 +177,17 @@ class _MyPageState extends State<MyPage> {
       detail = queue.detail;
       start = queue.initialPosition;
     } else {
-      final cached = runtime is LibraryCacheRuntime
-          ? await runtime.libraryCache.readDetail(record.drama.id)
-          : null;
-      detail = cached ?? await runtime.catalog.detail(record.drama.id);
-      start = detail.episodes.indexWhere((e) => e.vid == record.vid);
-      if (start < 0) throw StateError('该分集已不可用');
+      // 续播先联网：上游新增的剧集要能接着看。解析失败在这里抛出，交给
+      // _run 的统一提示；vid 失配时按集号续播，偏移只对匹配到的集有效。
+      final plan = await resolveResumeDetail(runtime, record);
+      detail = plan.detail;
+      start = plan.start;
+      offset = plan.offset;
+      if (plan.noticeCount != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已更新到 ${plan.noticeCount} 集')),
+        );
+      }
     }
     if (!mounted) return;
     await pushAppPage<void>(
@@ -190,7 +197,7 @@ class _MyPageState extends State<MyPage> {
         runtime: runtime,
         detail: detail,
         initialPosition: start,
-        initialOffset: record.resumeAt,
+        initialOffset: offset,
         cachedOnly: record.local,
         cachedQuality: quality,
       ),

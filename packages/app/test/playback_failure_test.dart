@@ -106,4 +106,124 @@ void main() {
     expect(unknown.kind, PlaybackFailureKind.unknown);
     expect(unknown.detail, contains('boom'));
   });
+
+  test('原生播放器字符串错误给出可重试的独立文案，平台消息留在详情', () {
+    final failure = PlaybackFailure.classify(
+      const PlaybackRuntimeError('MEDIA_ERROR_IO: 打开失败'),
+    );
+    expect(failure.kind, PlaybackFailureKind.unknown);
+    expect(failure.headline, contains('播放器'));
+    expect(failure.retryable, isTrue);
+    expect(failure.detail, contains('MEDIA_ERROR_IO'));
+  });
+
+  test('首播自动重试只放行瞬时故障', () {
+    for (final error in <Object>[
+      const MetadataDeadlineExceeded(),
+      DioException(
+        requestOptions: RequestOptions(path: '/'),
+        type: DioExceptionType.connectionTimeout,
+      ),
+      DioException(
+        requestOptions: RequestOptions(path: '/'),
+        type: DioExceptionType.connectionError,
+      ),
+      const PlaybackUnavailable('三层都没有地址'),
+      const IncompleteCatalogResponse('缺少 video_list'),
+      const PlaybackRuntimeError('解码失败'),
+    ]) {
+      expect(isTransientFirstPlayFailure(error), isTrue, reason: '$error');
+    }
+    for (final error in <Object>[
+      const RequestCancelled(),
+      StateError('该集本地缓存已不存在'),
+      StateError('No compatible media URL/key'),
+      const FormatException('boom'),
+    ]) {
+      expect(isTransientFirstPlayFailure(error), isFalse, reason: '$error');
+    }
+  });
+
+  test('首播自动重试是一次性的：出过画面、已重试、后台取消都不再重试', () {
+    const failure = MetadataDeadlineExceeded();
+    bool allowed({
+      required bool tv,
+      required bool played,
+      required bool retryUsed,
+      required bool interrupted,
+      required bool backgrounded,
+    }) => shouldRetryFirstPlay(
+      error: failure,
+      tv: tv,
+      played: played,
+      retryUsed: retryUsed,
+      interrupted: interrupted,
+      backgrounded: backgrounded,
+    );
+    expect(
+      allowed(
+        tv: true,
+        played: false,
+        retryUsed: false,
+        interrupted: false,
+        backgrounded: false,
+      ),
+      isTrue,
+    );
+    expect(
+      allowed(
+        tv: false,
+        played: false,
+        retryUsed: false,
+        interrupted: false,
+        backgrounded: false,
+      ),
+      isFalse,
+      reason: '手机保持原样',
+    );
+    expect(
+      allowed(
+        tv: true,
+        played: true,
+        retryUsed: false,
+        interrupted: false,
+        backgrounded: false,
+      ),
+      isFalse,
+      reason: '已经出过画面',
+    );
+    expect(
+      allowed(
+        tv: true,
+        played: false,
+        retryUsed: true,
+        interrupted: false,
+        backgrounded: false,
+      ),
+      isFalse,
+      reason: '不能循环重试',
+    );
+    expect(
+      allowed(
+        tv: true,
+        played: false,
+        retryUsed: false,
+        interrupted: true,
+        backgrounded: false,
+      ),
+      isFalse,
+      reason: '生命周期取消由回前台自己恢复',
+    );
+    expect(
+      allowed(
+        tv: true,
+        played: false,
+        retryUsed: false,
+        interrupted: false,
+        backgrounded: true,
+      ),
+      isFalse,
+      reason: '后台不重启取源',
+    );
+  });
 }

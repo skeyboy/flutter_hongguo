@@ -6,6 +6,7 @@ import android.content.res.Configuration
 import android.os.Build
 import android.util.Rational
 import android.view.KeyEvent
+import android.view.WindowManager
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -118,6 +119,26 @@ class MainActivity : AudioServiceActivity() {
             }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Android TV boxes start a system Dream (screen saver) after a period
+        // of idle *input*; a foreground video is not input, so the Activity can
+        // be stopped mid-episode and video_player pauses. Keep the window
+        // awake for the whole foreground lifetime of the TV flavor; the flag
+        // is cleared in onPause, so the screen can still sleep in background.
+        // Mobile keeps its existing PiP / audio-service behaviour.
+        if (packageName.endsWith(".tv")) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    override fun onPause() {
+        if (packageName.endsWith(".tv")) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        super.onPause()
+    }
+
     override fun onPictureInPictureModeChanged(active: Boolean, config: Configuration) {
         super.onPictureInPictureModeChanged(active, config)
         playbackChannel?.invokeMethod("pip", active)
@@ -127,6 +148,10 @@ class MainActivity : AudioServiceActivity() {
         // the user has not enabled background playback.
         playbackChannel?.invokeMethod("pip", false)
         multicastLock?.let { if (it.isHeld) it.release() }
+        // Safety net for TV teardown paths that skip onPause on some ROMs.
+        if (packageName.endsWith(".tv")) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
         super.onDestroy()
     }
 }

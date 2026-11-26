@@ -108,12 +108,16 @@ class HongguoApp extends ConsumerWidget {
           home: ref
               .watch(runtimeProvider)
               .when(
-                data: (runtime) => tvBuild
-                    ? TvLibraryPage(runtime: runtime)
-                    : UpdatePromptHost(
-                        controller: sharedUpdateController(runtime),
-                        child: LibraryPage(runtime: runtime),
-                      ),
+                data: (runtime) => UpdatePromptHost(
+                    controller: sharedUpdateController(runtime),
+                    // The same startup/resume check for both homes. The host
+                    // never builds UI of its own and only opens a prompt when
+                    // its route is current, so it cannot cover the player or
+                    // steal focus from the TV navigation ring.
+                    child: tvBuild
+                        ? TvLibraryPage(runtime: runtime)
+                        : LibraryPage(runtime: runtime),
+                  ),
                 loading: () => const Scaffold(
                   body: Center(child: CircularProgressIndicator()),
                 ),

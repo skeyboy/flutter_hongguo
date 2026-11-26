@@ -110,6 +110,10 @@ class WebEpisodeList {
   final String seriesId, seriesTitle, cover;
   final List<String> vids;
 
+  /// 上游声明的全集数（`episode_cnt`）。页面可能只给限免前缀的 `vid_list`，
+  /// 所以它与 [vids] 的长度不再必然相等；调用方据此识别「只拿到前缀」。
+  final int episodeCount;
+
   /// 官网限免展示的前缀长度；null 表示页面未给（不代表全集可播）。
   final int? accessibleEpisodes;
   const WebEpisodeList({
@@ -117,6 +121,7 @@ class WebEpisodeList {
     required this.seriesTitle,
     required this.cover,
     required this.vids,
+    required this.episodeCount,
     required this.accessibleEpisodes,
   });
 }
@@ -162,6 +167,13 @@ WebEpisodeList? parseEpisodeListHtml(String html, String seriesId) {
       ? // 限免展示数不会超过真实分集数。
         min(int.parse(accessibleText), vids.length)
       : null;
+  final declared = num.tryParse(
+        _text(
+          detail['episode_cnt'] ??
+              _map(detail['series_episode_info'])['episode_cnt'],
+        ),
+      )
+      ?.toInt();
   return WebEpisodeList(
     seriesId: actualSid,
     seriesTitle: detail['series_name'] is String
@@ -171,6 +183,8 @@ WebEpisodeList? parseEpisodeListHtml(String html, String seriesId) {
         ? detail['series_cover'] as String
         : '',
     vids: vids,
+    episodeCount:
+        declared != null && declared > vids.length ? declared : vids.length,
     accessibleEpisodes: accessible,
   );
 }

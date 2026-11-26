@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:hongguo_tv/hongguo_tv.dart' show tvBuild;
 
 import '../platform/data_root.dart';
 import '../platform/macos_window.dart';
@@ -12,9 +11,12 @@ import 'update_controller.dart';
 import 'update_dialog.dart';
 import 'update_transfer.dart';
 
-/// Updates belong to an installed app. A browser tab has no installer to run
-/// and a television is side-loaded by hand, so neither gets the feature at all.
-bool get updateSupported => !kIsWeb && !tvBuild;
+/// Updates belong to an installed app. A browser tab has no installer to run,
+/// so web is the only excluded target. Television builds still run the same
+/// check and take the same APK handoff: the TV flavor's manifest asks for
+/// REQUEST_INSTALL_PACKAGES just like the phone flavor does, and the settings
+/// page renders its update row through `TvFocusable` instead of a switch.
+bool get updateSupported => !kIsWeb;
 
 /// One controller per runtime, exactly like [castServiceFor] does: the daily
 /// throttle, the retained ETag and an undismissed offer all have to survive

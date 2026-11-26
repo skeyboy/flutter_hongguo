@@ -73,6 +73,7 @@ class _MenuAction {
 class _TvPlayerSurfaceState extends State<TvPlayerSurface> {
   final state = TvPlayerState();
   final root = FocusNode(debugLabel: 'tv-video');
+  final errorRetry = FocusNode(debugLabel: 'tv-error-retry');
   final nodes = <String, FocusNode>{};
   String panel = 'episodes';
   int menuIndex = 0;
@@ -303,11 +304,19 @@ class _TvPlayerSurfaceState extends State<TvPlayerSurface> {
     }
     if (widget.busy) return KeyEventResult.handled;
     if (widget.error != null) {
-      if (event is KeyDownEvent &&
-          (isRemoteConfirm(k) ||
-              k == LogicalKeyboardKey.arrowUp ||
-              k == LogicalKeyboardKey.arrowDown)) {
-        show();
+      // 焦点已经在错误卡片的按钮上时，方向键交给 TvNavigation 在
+      // 重试 → 选集 → 返回之间走；确认键由 TvFocusable 自己消费并激活，
+      // 这里再处理一次就会把同一次按键执行两遍。
+      if (!root.hasPrimaryFocus) return KeyEventResult.ignored;
+      if (event is KeyDownEvent) {
+        if (isRemoteConfirm(k)) {
+          // 焦点还落在播放器根节点时，确认键直接重试，不再先打开控制栏。
+          widget.retry();
+        } else if (k == LogicalKeyboardKey.arrowUp ||
+            k == LogicalKeyboardKey.arrowDown) {
+          // 保留方向键打开控制栏的入口：上一集/下一集/清晰度仍可达。
+          show();
+        }
       }
       return KeyEventResult.handled;
     }
@@ -342,19 +351,27 @@ class _TvPlayerSurfaceState extends State<TvPlayerSurface> {
   @override
   void didUpdateWidget(TvPlayerSurface old) {
     super.didUpdateWidget(old);
+    final errorAppeared = widget.error != null && old.error == null;
+    if (errorAppeared) {
+      // 错误卡片出现时回到纯画面层，让重试/选集/返回这组按钮可见。
+      state.layer = TvPlayerLayer.video;
+      idleTimer?.cancel();
+    }
     if (widget.busy && !old.busy) {
       state.layer = TvPlayerLayer.video;
       idleTimer?.cancel();
-      _focus(root);
+      if (!errorAppeared) _focus(root);
     }
     if (old.busy && !widget.busy) {
-      if (state.layer == TvPlayerLayer.controls) {
+      if (state.layer == TvPlayerLayer.controls && widget.error == null) {
         _focus(_menuNode(menuIndex));
-      } else if (state.layer != TvPlayerLayer.panel) {
+      } else if (state.layer != TvPlayerLayer.panel && !errorAppeared) {
         _focus(root);
       }
     }
-    if (state.layer == TvPlayerLayer.controls && !widget.busy) {
+    if (widget.error == null &&
+        state.layer == TvPlayerLayer.controls &&
+        !widget.busy) {
       final disabled = actions[menuIndex].action == null;
       if (disabled) menuIndex = 0;
       if (disabled ||
@@ -362,6 +379,12 @@ class _TvPlayerSurfaceState extends State<TvPlayerSurface> {
           !_menuNode(menuIndex).canRequestFocus) {
         _focus(_menuNode(menuIndex));
       }
+    }
+    if (old.error != null && widget.error == null) _focus(root);
+    // 错误出现（包括和 busy→idle 同一帧）时把焦点交给重试。排在上面所有
+    // _focus(root) 之后排队：同一帧里后请求的焦点胜出，避免根节点抢走它。
+    if (widget.error != null && (errorAppeared || (old.busy && !widget.busy))) {
+      _focus(errorRetry);
     }
   }
 
@@ -372,6 +395,7 @@ class _TvPlayerSurfaceState extends State<TvPlayerSurface> {
     state.removeListener(_update);
     state.dispose();
     root.dispose();
+    errorRetry.dispose();
     for (final n in nodes.values) {
       n.dispose();
     }
@@ -422,7 +446,9 @@ class _TvPlayerSurfaceState extends State<TvPlayerSurface> {
         onBack: back,
         child: Focus(
           focusNode: root,
-          autofocus: true,
+          // 错误态下重试按钮才是入口：根节点先入树，两个 autofocus 并存时
+          // 根节点会赢，遥控器就停在空焦点上。
+          autofocus: widget.error == null,
           onKeyEvent: key,
           child: Theme(
             data: ThemeData.dark(useMaterial3: true),
@@ -451,7 +477,12 @@ class _TvPlayerSurfaceState extends State<TvPlayerSurface> {
                               ),
                             ),
                             if (widget.error != null) ...[
-                              button('重试', widget.retry, autofocus: true),
+                              button(
+                                '重试',
+                                widget.retry,
+                                focusNode: errorRetry,
+                                autofocus: true,
+                              ),
                               button('选集', () => panelOpen('episodes')),
                             ],
                             button(

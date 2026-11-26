@@ -95,7 +95,8 @@ class NativeRuntime
         DownloadRuntime,
         MergeRuntime,
         TransferLaneRuntime,
-        PlaybackDiagnosticsRuntime {
+        PlaybackDiagnosticsRuntime,
+        DetailRefreshRuntime {
   final SettingsStore store;
   @override
   late final DownloadManager downloads;
@@ -136,6 +137,11 @@ class NativeRuntime
   bool _clientsReady = false;
   late CatalogClient _catalog;
   late VideoModelClient _model;
+
+  /// 从观看历史续播前强制在线刷新详情用的独立客户端。`CatalogClient` 的内存
+  /// 详情缓存键在客户端实例里，所以这只新实例的 `_details` 恒为空——它的
+  /// 每次 `detail(id)` 都真发网络请求，绕开 `_catalog` 里 6 小时的缓存。
+  CatalogClient? _refreshCatalog;
 
   /// 多源路由门面：上层只认 CatalogRepository，来源分派在门面内完成。
   /// P0 只有红果适配器，方法委托 primary，行为与旧 CatalogClient 一致。
@@ -306,6 +312,25 @@ class NativeRuntime
 
   @override
   CatalogRepository get catalog => _routingCatalog;
+
+  @override
+  Future<DramaDetail> refreshDetail(String id) {
+    final client = _refreshCatalog;
+    if (client != null) return client.detail(id);
+    // 与 _rebuildClients 相同的构造参数：共享 dio、签名凭据与协议设置，
+    // 只是详情缓存从零开始。设置变更时随主客户端一并重建。
+    final fresh = CatalogClient(
+      onTiming: (value) => _retain(_metadataTimings, value),
+      dio: _dio,
+      deviceId: deviceId,
+      protocol: settings,
+      signLists: settings.signLists,
+      sessionHeaders: credentials.headers,
+    );
+    _refreshCatalog = fresh;
+    return fresh.detail(id);
+  }
+
   @override
   AppSettings get settings => store.settings;
   @override
@@ -321,6 +346,8 @@ class NativeRuntime
     if (_clientsReady) {
       _catalog.close();
       _model.close();
+      _refreshCatalog?.close();
+      _refreshCatalog = null;
     }
     _dio.options.connectTimeout = Duration(seconds: settings.timeoutSeconds);
     _catalog = CatalogClient(
@@ -611,6 +638,7 @@ class NativeRuntime
     _cache.close();
     _catalog.close();
     _model.close();
+    _refreshCatalog?.close();
     await _downloads.cancel();
     _artwork.close();
     _dio.close(force: true);

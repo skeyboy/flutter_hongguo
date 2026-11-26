@@ -26,6 +26,8 @@ import '../playback/episode_reveal.dart';
 import '../playback/compact_controls.dart';
 import '../playback/playback_transport.dart';
 import '../playback/playback_failure.dart';
+import '../playback/screen_wake_lock.dart';
+import '../playback/auto_next_recovery.dart';
 import '../playback/player_center_overlay.dart';
 import '../playback/transport_player.dart';
 import '../playback/capability_preferences.dart';
@@ -107,6 +109,7 @@ class _PlayerPageState extends State<PlayerPage>
   @override
   void didPop() {
     unawaited(MacWindow.releasePlayer(this));
+    unawaited(screenWakeLock.release());
   }
 
   final playbackFocus = FocusNode(debugLabel: 'player-shortcuts');
@@ -185,11 +188,22 @@ class _PlayerPageState extends State<PlayerPage>
   final preparationStages = <String>[];
   Object? error;
 
+  /// TV 首播的一次性自动重试预算。已经自动重试过就不再自动重试，
+  /// 失败卡片交给用户；换集时重置，让新的一集有同样的机会。
+  bool _firstPlayAutoRetryUsed = false;
+
+  /// 自动连播的一次性延迟重播：上一集 platform view 拆除期间新 controller
+  /// 可能瞬时打不开，晚一点重播即可；手动重试/选集不受影响。
+  final autoNextRecovery = AutoNextRecovery();
+
   /// 「详情」是否展开。错误卡片第一眼只给一句原因，三层来源清单藏在里面。
   bool errorDetailOpen = false;
   String? audioNotice, playbackNotice;
   late final String cachedPreference;
   bool preparing = true, autoNext = true, playing = false;
+  /// TV 用 video_player 的 platform view，不带 media_kit_video 那种 wake lock。
+  /// 只在 TV 播放期间持有屏幕锁，暂停/出错/离页即释放。
+  final screenWakeLock = ScreenWakeLock();
   final episodeWorkspace = GlobalKey<EpisodeWorkspaceState>();
   final compactControls = GlobalKey<CompactControlsState>();
   final centerOverlay = GlobalKey<PlayerCenterOverlayState>();
@@ -411,6 +425,8 @@ class _PlayerPageState extends State<PlayerPage>
         }
         if (!value) _saveHistory(force: true);
         if (mounted && value != playing) _redraw(() => playing = value);
+        // 非 TV 路径由 media_kit_video 自己持有 wake lock，这里只管 TV。
+        unawaited(screenWakeLock.setActive(tvBuild && value && error == null));
       }),
     );
     subscriptions.add(
@@ -478,7 +494,20 @@ class _PlayerPageState extends State<PlayerPage>
       );
       return;
     }
-    _play(position + 1);
+    final target = position + 1;
+    autoNextRecovery.begin(target);
+    unawaited(_play(target).then((_) {
+      final failure = error;
+      if (failure == null) {
+        autoNextRecovery.settle();
+        return;
+      }
+      autoNextRecovery.fail(
+        failure,
+        active: () => mounted && position == target && !appBackground,
+        retry: (next) => _play(next),
+      );
+    }));
   }
 
   void _restoreKeyboardFocus() {
@@ -575,10 +604,23 @@ class _PlayerPageState extends State<PlayerPage>
       tvPosition = value.position;
       tvDuration = value.duration;
       playing = value.playing;
-      if (value.error != null) error = value.error;
+      // video_player 的平台错误只以字符串到达这里：包成类型后错误卡片能给出
+      // 「播放器没能打开这一集」而不是一串平台文案；取源阶段已经落下的
+      // 具体异常更精确，不要被字符串覆盖。
+      if (value.error != null && error == null) {
+        final runtimeFailure = PlaybackRuntimeError(value.error!);
+        error = runtimeFailure;
+        autoNextRecovery.fail(
+          runtimeFailure,
+          active: () => mounted && !appBackground,
+          retry: (next) => _play(next),
+        );
+      }
     });
     if (playing) _saveHistory();
     if (wasPlaying && !playing) _saveHistory(force: true);
+    // _tvChanged 只在 tvBuild 下注册，播放状态变化直接同步屏幕锁。
+    unawaited(screenWakeLock.setActive(value.playing && value.error == null));
     if (value.completed && !tvCompletionReported) {
       tvCompletionReported = true;
       _completed(true);
@@ -726,6 +768,7 @@ class _PlayerPageState extends State<PlayerPage>
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
       appBackground = true;
+      autoNextRecovery.cancel();
       returnTimer?.cancel();
       returnEligible =
           hasPlayed &&
@@ -809,6 +852,31 @@ class _PlayerPageState extends State<PlayerPage>
     return true;
   }
 
+  /// TV 首播的一次性自动重试。TV 没有边下边看的早通道，整段下载/解密/校验
+  /// 都在首帧之前，取源侧的瞬时故障很常见；这里用新的 generation 重新
+  /// prepare、重新 open，旧 ticket 的回调与播放器代次一律失效。
+  ///
+  /// 只对「还没出过画面」的瞬时失败开放一次；取消、本地缺文件、源被拒都
+  /// 不重试，后台生命周期造成的取消会在回到前台时由 _play 自己恢复。
+  bool _tryFirstPlayRetry(Object failure, int ticket, bool? resumePlaying) {
+    if (!mounted || ticket != generation) return false;
+    if (!shouldRetryFirstPlay(
+      error: failure,
+      tv: tvBuild,
+      played: hasPlayed,
+      retryUsed: _firstPlayAutoRetryUsed,
+      interrupted: preparationInterrupted,
+      backgrounded: appBackground,
+    )) {
+      return false;
+    }
+    _firstPlayAutoRetryUsed = true;
+    unawaited(
+      _play(position, resumePlaying: resumePlaying, resumeSeries: false),
+    );
+    return true;
+  }
+
   Future<void> _play(
     int selected, {
     bool? resumePlaying,
@@ -817,6 +885,7 @@ class _PlayerPageState extends State<PlayerPage>
     if (selected < 0 || selected >= detail.episodes.length) return;
     if (selected != position) {
       _resumeOffset = Duration.zero;
+      _firstPlayAutoRetryUsed = false;
       tvQualityTicket++;
       tvQualitiesLoading = false;
       tvQualitiesError = null;
@@ -834,6 +903,7 @@ class _PlayerPageState extends State<PlayerPage>
     final openClock = Stopwatch();
     var preparationDuration = Duration.zero;
     Object? startupError;
+    PlaybackJob? active;
     final keepPip = macHost && platformPlayback.platformPip.value;
     final previous = job;
     final discard = error != null;
@@ -894,7 +964,7 @@ class _PlayerPageState extends State<PlayerPage>
         if (available == null) throw StateError('该集本地缓存已不存在，连播已停止；不会自动联网下载。');
         quality = available;
       }
-      final active = widget.mergeId != null
+      active = widget.mergeId != null
           ? (widget.runtime as MergeRuntime).prepareMerged(widget.mergeId!)
           : widget.cachedOnly
           ? (widget.runtime as LocalMediaRuntime).prepareLocal(
@@ -1009,17 +1079,24 @@ class _PlayerPageState extends State<PlayerPage>
     } catch (e) {
       startupError = e;
       previous?.release();
+      // 失败的这次取源也要归还租约；否则下一次重试带着旧租约重新排队。
+      final failed = active;
+      if (failed != null && !identical(failed, previous)) failed.release();
+      if (identical(job, failed)) job = null;
       if (mounted && ticket == generation) {
         // 自动跨源：仅取源层明确「没片源 / 地址不被支持」且存在其它启用源时
         // 才换轨；网络/超时/取消这类与来源无关的错误不跨源，避免无意义搜索。
         // 换轨成功会在 _tryCrossSource 里重新 _play 并接管错误状态。
         final switched = await _tryCrossSource(e, ticket);
         if (switched) return;
+        if (_tryFirstPlayRetry(e, ticket, resumePlaying)) return;
         prefetch.clear();
         _redraw(() {
           error = e;
           preparing = false;
         });
+        // 取源/打开失败时立即释放，别让错误卡片继续占着屏幕锁。
+        unawaited(screenWakeLock.release());
       }
     } finally {
       final runtime = widget.runtime;
@@ -1113,6 +1190,8 @@ class _PlayerPageState extends State<PlayerPage>
   @override
   void dispose() {
     macPlaybackRoutes.unsubscribe(this);
+    unawaited(screenWakeLock.dispose());
+    autoNextRecovery.dispose();
     unawaited(MacWindow.releasePlayer(this));
     HardwareKeyboard.instance.removeHandler(_macEscape);
     playbackFocus.dispose();
@@ -1203,6 +1282,7 @@ class _PlayerPageState extends State<PlayerPage>
   }
 
   void _selectEpisode(int index) {
+    autoNextRecovery.cancel();
     _play(index);
     episodeWorkspace.currentState?.selected();
     compactControls.currentState?.hide();
@@ -1210,6 +1290,7 @@ class _PlayerPageState extends State<PlayerPage>
   }
 
   void _step(int offset) {
+    autoNextRecovery.cancel();
     final target = position + offset;
     if (target >= 0 && target < detail.episodes.length) {
       _play(target);
@@ -1871,6 +1952,7 @@ class _PlayerPageState extends State<PlayerPage>
   bool routeExitPending = false;
   Future<void> _exitPage() async {
     if (!mounted || routeExitPending) return;
+    autoNextRecovery.cancel();
     final route = ModalRoute.of(context);
     if (route?.isCurrent == false) return;
     routeExitPending = true;
