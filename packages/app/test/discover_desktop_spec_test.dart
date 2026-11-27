@@ -1,15 +1,17 @@
 import 'package:flutter/foundation.dart'
     show debugDefaultTargetPlatformOverride;
-import 'package:flutter/material.dart' show ChoiceChip, Scrollbar, ValueKey;
+import 'package:flutter/material.dart'
+    show ChoiceChip, Offset, Scrollable, ScrollableState, Scrollbar, Size, ValueKey;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'desktop_fakes.dart';
 
 /// The handful of §6.1 / §10 promises the desktop layer suite does not already
 /// hold: that 榜单 is a destination rather than a filter (and round-trips leave
-/// the page alone), that the mouse family's 主题 row overflows to 更多 ▾ instead
-/// of sliding sideways, that 词表缺行 speaks instead of opening an empty box, and
-/// that a multi-dimension choice keeps the drawer under the viewer's hand.
+/// the page alone), that the mouse family's 主题 row is the whole vocabulary on
+/// one sliding strip with the same controller contract as the touch family, that
+/// 词表缺行 speaks instead of opening an empty box, and that a multi-dimension
+/// choice keeps the drawer under the viewer's hand.
 void main() {
   testWidgets('榜单 is a destination: opening it writes nothing 发现 owns', (
     tester,
@@ -69,30 +71,20 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('on desktop the 主题 row overflows to a menu, not a sideways slide', (
+  testWidgets('on desktop the 主题 row slides sideways with a controller of its own', (
     tester,
-  ) async {
+    ) async {
     await mount(tester, DesktopCatalog());
     final rail = find.byKey(const ValueKey('theme-rail'));
-    // The mouse family keeps a bare `SingleChildScrollView` so a window too
-    // narrow for even the head can still wheel along it -- so a literal "no
-    // Scrollable at all" is NOT what the code offers. What it drops is the touch
-    // row's `Scrollbar`/drag-to-page controller (`_rowPhysics`): the widget that
-    // makes a sideways pull turn the level. Without it there is nothing to slide.
+    // 整词表横滑之后，这一行归入触控族同一条 controller 契约：Scrollbar 挂在
+    // 自己的 controller 上，而不是落在断言过的 PrimaryScrollController 陷阱里。
     expect(
       find.ancestor(of: rail, matching: find.byType(Scrollbar)),
-      findsNothing,
-    );
-    // And the overflow became a menu, not the end of a slide: the ninth+ 主题 is
-    // not a child of the row anywhere (a scrolled-off touch chip would still be
-    // built here), it is only behind 更多 ▾.
-    expect(find.byKey(const ValueKey('theme-rail-cate_15')), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('theme-rail-more')));
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('theme-rail-menu-cate_15')),
       findsOneWidget,
     );
+    // 溢出不再是菜单：第九个之后的 主题 也是行的孩子，整行靠水平滑动读完。
+    expect(find.byKey(const ValueKey('theme-rail-cate_15')), findsOneWidget);
+    expect(find.byKey(const ValueKey('theme-rail-more')), findsNothing);
     debugDefaultTargetPlatformOverride = null;
     expect(tester.takeException(), isNull);
   });
@@ -163,6 +155,108 @@ void main() {
     expect(find.text('≡ 更多筛选 · 1'), findsOneWidget);
     expect(catalog.filtered.last.dims.containsKey('gender'), isFalse);
     expect(catalog.filtered.last.dims['category_dim_role'], ['role_1']);
+    debugDefaultTargetPlatformOverride = null;
+    expect(tester.takeException(), isNull);
+  });
+
+  /// 三十条主题的词表在 1000 宽的行里横得足够远：第 10 枚 chip 点选后不被
+  /// clamp 顶回两端，居中的量测是真的。
+  Future<void> mountLong(WidgetTester tester) async {
+    await mount(tester, LongThemeCatalog());
+    await tester.binding.setSurfaceSize(const Size(1000, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpAndSettle();
+  }
+
+  double railPixels(WidgetTester tester) => tester
+      .state<ScrollableState>(
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('theme-rail')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      )
+      .position
+      .pixels;
+
+  double railMax(WidgetTester tester) => tester
+      .state<ScrollableState>(
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('theme-rail')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      )
+      .position
+      .maxScrollExtent;
+
+  testWidgets('点选第 10 枚 chip 后它停在行的水平中心', (tester) async {
+    await mountLong(tester);
+    final rail = find.byKey(const ValueKey('theme-rail'));
+    final chip = find.byKey(const ValueKey('theme-rail-cate_30'));
+    // 先把目标带进视口：观者必须点得到它，然后行再把读到的那一句送到中心。
+    await tester.ensureVisible(chip);
+    await tester.pumpAndSettle();
+    await tester.tap(chip);
+    await tester.pumpAndSettle();
+    final chipCenter = tester.getCenter(chip).dx;
+    final viewportCenter = tester.getRect(rail).center.dx;
+    final chipWidth = tester.getSize(chip).width;
+    expect(
+      (chipCenter - viewportCenter).abs(),
+      lessThanOrEqualTo(chipWidth / 2),
+      reason: 'chip center $chipCenter against viewport center $viewportCenter',
+    );
+    debugDefaultTargetPlatformOverride = null;
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('行两端的箭头把行滑出一段，且到边界即隐', (tester) async {
+    await mountLong(tester);
+    final rail = find.byKey(const ValueKey('theme-rail'));
+    // 箭头 hover 渐显：指针落到行上之前，行尾只有渐隐，没有按钮。
+    expect(find.byKey(const ValueKey('theme-rail-arrow-right')), findsNothing);
+    await hover(tester, rail);
+    await tester.pump();
+    final right = find.byKey(const ValueKey('theme-rail-arrow-right'));
+    expect(right, findsOneWidget);
+    await tester.tap(right);
+    await tester.pumpAndSettle();
+    expect(railPixels(tester), greaterThan(0));
+    // 滑过一段之后左端也有内容可回，左箭头就位；连点右箭头滑到尽头，右箭头隐去。
+    // （不把行拖过界：rail 拖到尽头的余量按既有仲裁交给上一级，会切类型重铺。）
+    expect(find.byKey(const ValueKey('theme-rail-arrow-left')), findsOneWidget);
+    for (var i = 0; i < 6; i++) {
+      final rightNow = find.byKey(const ValueKey('theme-rail-arrow-right'));
+      if (rightNow.evaluate().isEmpty) break;
+      await tester.tap(rightNow);
+      await tester.pumpAndSettle();
+    }
+    expect(railPixels(tester), railMax(tester));
+    expect(find.byKey(const ValueKey('theme-rail-arrow-right')), findsNothing);
+    debugDefaultTargetPlatformOverride = null;
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('减少动态效果时点选的居中即时到位', (tester) async {
+    await mountLong(tester);
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    // 先把行停在中间某处，再点一枚目标 offset 不同的 chip。
+    await tester.drag(find.byKey(const ValueKey('theme-rail')), const Offset(-400, 0));
+    await tester.pumpAndSettle();
+    final chip = find.byKey(const ValueKey('theme-rail-cate_30'));
+    await tester.tap(chip);
+    // 只泵一帧：post-frame 的 jumpTo 已经执行，没有 200ms 的滑行可等。
+    await tester.pump();
+    final jumped = railPixels(tester);
+    await tester.pumpAndSettle();
+    final settled = railPixels(tester);
+    expect(jumped, settled);
+    expect(jumped, greaterThan(0));
     debugDefaultTargetPlatformOverride = null;
     expect(tester.takeException(), isNull);
   });

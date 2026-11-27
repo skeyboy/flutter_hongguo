@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:auto_route/auto_route.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
@@ -40,11 +41,8 @@ import 'my_page.dart';
 /// read as one block and pinning the rail can never nudge the rows below it.
 const _filterRowHeight = 52.0;
 
-/// How many chips a filter row of the mouse family shows before 更多 ▾（n）takes
-/// the rest. The prototype's own limit, and the one the widest measured row can
-/// be trusted with: 主题 runs to 29 items and 设定 to 42, and a row that has to be
-/// slid sideways to be read is not a row a pointer reads.
-const _desktopRowMax = 8;
+/// 桌面二级行的行尾渐隐宽度：提示右侧还有更多题材的一小段，不是内容本身。
+const _railFadeExtent = 28.0;
 
 /// The three types, in the one place that names them: the level shared by both
 /// pages and the parent name the theme rail carries.
@@ -517,6 +515,222 @@ class _LibraryPageState extends LibraryPageStateBase {
         curve: Curves.easeOutCubic,
       ),
     );
+  }
+
+  /// 把这一页二级行里选中的 chip 动画滚到行的水平中心。一律推迟到本帧之后：
+  /// 调用点要么刚 setState（chip 重铺、宽度还没落定），要么正在重建行本身，
+  /// 只有下一帧的 RenderBox 才是可测量的目标。
+  void _centerSelectedChip(int pane, String slot, {bool onlyIfHidden = false}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _centerSelectedChipNow(pane, slot, onlyIfHidden);
+    });
+  }
+
+  /// [onlyIfHidden] 为真时只在选中 chip 不在视口内才动：切一级、恢复页签这类
+  /// 不是「正在读这一枚」的动作，不该把读着的一行硬挪到中心；点选则是明示的
+  /// 读取，总是居中。
+  void _centerSelectedChipNow(int pane, String slot, bool onlyIfHidden) {
+    final controller = rowScroll['rail-$pane'];
+    if (controller == null || !controller.hasClients) return;
+    final selected = level2At(pane, slot);
+    final content = rowContentAt('rail-$pane').currentContext;
+    if (content == null || !content.mounted) return;
+    // 按键找 chip，而不是按 index 数子项：键就是这条 rail 的公开锚点
+    // （ValueKey('theme-rail-${option.id}')），空 id 是 全部，同样有键。
+    BuildContext? chipContext;
+    void visit(Element element) {
+      if (chipContext != null) return;
+      if (element.widget.key == ValueKey('theme-rail-$selected')) {
+        chipContext = element;
+        return;
+      }
+      element.visitChildElements(visit);
+    }
+
+    content.visitChildElements(visit);
+    final found = chipContext;
+    if (found == null) return;
+    final chip = found.findRenderObject();
+    if (chip is! RenderBox || !chip.attached || !chip.hasSize) return;
+    final viewport = RenderAbstractViewport.maybeOf(chip);
+    if (viewport == null) return;
+    final position = controller.position;
+    // 观者的手正在行上拖或惯性未停时不动：一次无关的重建不抢滚动的方向盘。
+    if (position.isScrollingNotifier.value) return;
+    final revealStart = viewport.getOffsetToReveal(chip, 0.0).offset;
+    final revealEnd = viewport.getOffsetToReveal(chip, 1.0).offset;
+    // 两端对齐 offset 的中点就是「chip 中心落在视口中心」的那一格：窄 chip 时
+    // revealEnd 比 revealStart 小一个 (视口宽 - chip 宽)，中点恰好抵掉一半。
+    final target =
+        ((revealStart + revealEnd) / 2).clamp(
+          position.minScrollExtent,
+          position.maxScrollExtent,
+        );
+    if (onlyIfHidden &&
+        revealStart >= position.pixels - 0.5 &&
+        revealEnd <= position.pixels + 0.5) {
+      return;
+    }
+    if (MediaQuery.disableAnimationsOf(context)) {
+      // 减少动态效果：直接到位，不做 200ms 的滑行。
+      controller.jumpTo(target);
+    } else {
+      unawaited(
+        position.animateTo(
+          target,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    }
+  }
+
+  /// 桌面二级行的行尾渐隐与两端箭头。渐隐只在还有内容可滑时出现（滑到尽头就
+  /// 撤掉遮罩，不再虚指右边）；箭头 hover 渐显、到边界隐藏，点击一次滑约
+  /// 0.8 个视口——替被删掉的「更多 ▾」回答「右边还有什么」。
+  Widget _desktopRailDecorations(int pane, Widget strip) {
+    final rail = rowAt('rail-$pane');
+    // controller 是在铺这一帧时才第一次挂上 client 的，本帧算出的 canSlide 还
+    // 是「不可滑」：铺完补算一次，箭头与渐隐在第二帧就已就位。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _syncRailArrows(pane);
+    });
+    final canSlide = rail.hasClients &&
+        rail.position.maxScrollExtent > rail.position.minScrollExtent;
+    final hovering = railHover[pane] ?? false;
+    final (canLeft, canRight) =
+        railArrowEdges[pane] ?? (false, canSlide);
+    return MouseRegion(
+      onEnter: (_) => _setRailHover(pane, true),
+      onExit: (_) => _setRailHover(pane, false),
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) => _refreshRailArrows(pane, notification),
+        child: Stack(
+          children: [
+            // 行尾渐隐盖在内容之上：右侧还有内容时，行尾一小段淡出；滑到尽头后
+            // 渐变整段改为不透明（遮罩不再吃掉任何像素）。遮罩这一层保持常驻，
+            // 只换 shader——若是把 ShaderMask 从树里拆掉，strip 的元素会整个
+            // 重建，新 position 从 initialScrollOffset 重新挂载，行会被瞬移回 0。
+            ShaderMask(
+              shaderCallback: (bounds) => LinearGradient(
+                begin: Alignment.centerRight,
+                end: Alignment.centerLeft,
+                colors: [
+                  canSlide && canRight ? Colors.transparent : Colors.white,
+                  Colors.white,
+                ],
+                stops: [0, (_railFadeExtent / bounds.width).clamp(0.0, 1.0)],
+              ).createShader(bounds),
+              blendMode: BlendMode.dstIn,
+              child: strip,
+            ),
+            if (hovering && canSlide && canLeft)
+              Positioned(
+                left: 4,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: _railArrow(
+                    pane,
+                    key: const ValueKey('theme-rail-arrow-left'),
+                    icon: Icons.chevron_left_rounded,
+                    tooltip: '向前滑动',
+                    forward: false,
+                  ),
+                ),
+              ),
+            if (hovering && canSlide && canRight)
+              Positioned(
+                right: 4,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: _railArrow(
+                    pane,
+                    key: const ValueKey('theme-rail-arrow-right'),
+                    icon: Icons.chevron_right_rounded,
+                    tooltip: '向后滑动',
+                    forward: true,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _railArrow(
+    int pane, {
+    required Key key,
+    required IconData icon,
+    required String tooltip,
+    required bool forward,
+  }) => Tooltip(
+    key: key,
+    message: tooltip,
+    child: Material(
+      elevation: 2,
+      shape: const CircleBorder(),
+      color: Theme.of(context).colorScheme.surface,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () => _slideRailByViewport(pane, forward),
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: Icon(icon, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ),
+      ),
+    ),
+  );
+
+  void _setRailHover(int pane, bool hovering) {
+    if ((railHover[pane] ?? false) == hovering) return;
+    setState(() => railHover[pane] = hovering);
+  }
+
+  /// 只在跨过边界的那一次通知里刷新箭头与渐隐：滚动途中每一帧都 setState 会把
+  /// 这一行变成重建风暴，而箭头的答案在两次边界之间根本不变。
+  bool _refreshRailArrows(int pane, ScrollNotification notification) {
+    if (notification is! ScrollUpdateNotification &&
+        notification is! ScrollEndNotification) {
+      return false;
+    }
+    _syncRailArrows(pane);
+    return false;
+  }
+
+  void _syncRailArrows(int pane) {
+    final controller = rowScroll['rail-$pane'];
+    if (controller == null || !controller.hasClients) return;
+    final position = controller.position;
+    final canLeft = position.pixels > position.minScrollExtent + 0.5;
+    final canRight = position.pixels < position.maxScrollExtent - 0.5;
+    final previous = railArrowEdges[pane] ?? (false, false);
+    if (previous == (canLeft, canRight)) return;
+    setState(() => railArrowEdges[pane] = (canLeft, canRight));
+  }
+
+  /// 箭头的一步：约 0.8 个视口，向着点击的方向滑动。减少动态效果时跳到位。
+  void _slideRailByViewport(int pane, bool forward) {
+    final controller = rowScroll['rail-$pane'];
+    if (controller == null || !controller.hasClients) return;
+    final position = controller.position;
+    if (position.maxScrollExtent <= position.minScrollExtent) return;
+    final target = (position.pixels + (forward ? 1 : -1) * position.viewportDimension * .8)
+        .clamp(position.minScrollExtent, position.maxScrollExtent);
+    if (MediaQuery.disableAnimationsOf(context)) {
+      controller.jumpTo(target);
+    } else {
+      unawaited(
+        position.animateTo(
+          target,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    }
   }
 
   bool _onNestedScroll(ScrollNotification notification) {
@@ -1282,6 +1496,9 @@ class _LibraryPageState extends LibraryPageStateBase {
     }
     if (incoming.visited) {
       _restoreScroll(incoming, incoming.scroll);
+      // 深跳恢复同理：回到这一页时选中的题材可能停在一行被别的类型停车的地方，
+      // 不在视口里就把它居中带回来。
+      _centerSelectedChip(incoming.pane, incoming.slot, onlyIfHidden: true);
       // Coming back from 我的 only restores the view; the rows and their cursor
       // are already the ones the viewer left.
       if (!refresh) return;
@@ -2842,32 +3059,26 @@ class _LibraryPageState extends LibraryPageStateBase {
 
   /// The chips of one type's 题材, in the order the vocabulary published them.
   ///
-  /// On the mouse family the row stops at [_desktopRowMax] and puts the rest
-  /// behind 更多 ▾（n）: dragging a list sideways with a pointer is the thing this
-  /// build already refuses for paging, so a row that has to be dragged to be read
-  /// is a row that cannot be read. A choice that fell in the tail is still named
-  /// by the list's own title (`_sectionTitleAt`) -- the row does not pretend to
-  /// show what it has no room for.
+  /// All families render the whole list as one horizontally sliding strip: the
+  /// mouse family no longer truncates to a head plus 更多 ▾, because a menu that
+  /// hides the tail answers 「有哪些题材」 once while the strip answers it on
+  /// every visit -- and the centering below needs every chip to be a laid-out
+  /// child of the same row, not a word behind a popup.
   List<Widget> _themeChips(int pane, String slot, String selected) {
     final options = level2Options(pane, slot);
-    final limit = desktopHost ? _desktopRowMax : options.length;
-    final head = options.take(limit).toList();
-    final tail = options.length <= limit
-        ? const <({String id, String label})>[]
-        : options.skip(limit).toList();
     return [
       // Whatever this row is a child of is on screen rather than remembered:
       // 全部 carries the type it belongs to.
-      for (final option in head)
+      for (final option in options)
         Padding(
           padding: const EdgeInsets.only(right: 8),
           child: ChoiceChip(
             key: ValueKey('theme-rail-${option.id}'),
-            // 触控族的这条 rail 会横滑：选中的勾是 Material 3 淡入淡出的，它会改变
-            // 这枚 chip 的宽度、把后面的每一枚在一次性 reveal 之后再挪几个点。选中的
-            // 底色和加粗已经说了同一句话，所以这里把勾去掉——留在行尾的是稳定的偏移，
-            // 「点一下就被完整显示」那条承诺才有地方成立。
-            showCheckmark: !desktopHost ? false : null,
+            // 这条 rail 现在两族都会横滑：选中的勾是 Material 3 淡入淡出的，它会
+            // 改变这枚 chip 的宽度、把后面的每一枚在一次性 reveal 之后再挪几个点，
+            // 点选居中的目标也因此漂移。选中的底色和加粗已经说了同一句话，所以
+            // 这里把勾去掉——留在行尾的是稳定的偏移。
+            showCheckmark: false,
             label: Text(
               option.label,
               style: TextStyle(
@@ -2880,29 +3091,11 @@ class _LibraryPageState extends LibraryPageStateBase {
             onSelected: (_) {
               if (option.id == selected) return;
               _selectFilter('theme', option.id, pane);
+              // 点选之后这一枚就是正在读的那一句：把它滚到行内水平中心，而不是
+              // 只保证它露个头。居中延迟到本帧之后，等 level 的重铺落定。
+              _centerSelectedChip(pane, slot);
             },
             materialTapTargetSize: MaterialTapTargetSize.padded,
-          ),
-        ),
-      if (tail.isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: PopupMenuButton<String>(
-            key: const ValueKey('theme-rail-more'),
-            tooltip: '更多题材',
-            onSelected: (id) => _selectFilter('theme', id, pane),
-            itemBuilder: (context) => [
-              for (final option in tail)
-                PopupMenuItem(
-                  key: ValueKey('theme-rail-menu-${option.id}'),
-                  value: option.id,
-                  child: Text(option.label),
-                ),
-            ],
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Text('更多 ▾', style: TextStyle(fontSize: 13)),
-            ),
           ),
         ),
     ];
@@ -3138,52 +3331,59 @@ class _LibraryPageState extends LibraryPageStateBase {
       );
     } else if (themesMissing) {
       body = _vocabularyMissing(compact, slot);
-    } else if (desktopHost) {
-      // No controller of its own: the row is not something the level machinery
-      // has to reveal a chip inside, because what does not fit went to 更多 ▾
-      // rather than to the end of a slide. A window too narrow for even the head
-      // of them can still wheel along it -- and a wheel has no `dragDetails`, so
-      // it never becomes the sideways drag that turns a level.
-      body = Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-        child: SingleChildScrollView(
-          key: const ValueKey('theme-rail'),
-          scrollDirection: Axis.horizontal,
-          child: Focus(
-            canRequestFocus: false,
-            onKeyEvent: (node, event) => _onFilterKey(pane, event),
-            child: Row(children: _themeChips(pane, slot, selected)),
-          ),
-        ),
-      );
     } else {
       final rail = rowAt('rail-$pane');
+      // 换类型重铺、或从留活的页签回到这一页时，选中 chip 可能不在视口里了：把
+      // 它居中——已在视口内则一行都不动（[onlyIfHidden]）。去重按「内容|选中」
+      // 标记：箭头的边界同步在滚动途中触发的同内容重建不再把观者拖着的行拽回
+      // 选中那一枚。
+      final contentMark = '$slot|$selected';
+      if (railCenterShown[pane] != contentMark) {
+        railCenterShown[pane] = contentMark;
+        _centerSelectedChip(pane, slot, onlyIfHidden: true);
+      }
       // The row is marked with the content it holds rather than only its index:
       // entering another type refills it with the children of that type, and index
       // 0 of the new content is a different question from index 0 of the chips the
       // row is still offset by.
-      _trackBandTarget('rail-$pane', level2IndexOf(pane, slot), slot);
-      body = Scrollbar(
+      final strip = SingleChildScrollView(
+        key: const ValueKey('theme-rail'),
         controller: rail,
-        child: SingleChildScrollView(
-          key: const ValueKey('theme-rail'),
-          controller: rail,
-          scrollDirection: Axis.horizontal,
-          physics: _rowPhysics,
-          padding: EdgeInsets.symmetric(
-            horizontal: compact ? 12 : 24,
-            vertical: 4,
-          ),
-          child: Focus(
-            canRequestFocus: false,
-            onKeyEvent: (node, event) => _onFilterKey(pane, event),
-            child: Row(
-              key: rowContentAt('rail-$pane'),
-              children: _themeChips(pane, slot, selected),
-            ),
+        scrollDirection: Axis.horizontal,
+        physics: _rowPhysics,
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 12 : 24,
+          vertical: 4,
+        ),
+        child: Focus(
+          canRequestFocus: false,
+          onKeyEvent: (node, event) => _onFilterKey(pane, event),
+          child: Row(
+            key: rowContentAt('rail-$pane'),
+            children: _themeChips(pane, slot, selected),
           ),
         ),
       );
+      // 桌面族：整词表横滑之后，这一行也归入 level machinery 的 reveal/居中
+      // 契约（controller 同触控族），行尾渐隐 + hover 箭头替「更多 ▾」回答
+      // 「右边还有」。鼠标拖拽只对本行放行。
+      body = desktopHost
+          ? ScrollConfiguration(
+              behavior: ScrollConfiguration.of(context).copyWith(
+                dragDevices: const {
+                  PointerDeviceKind.mouse,
+                  PointerDeviceKind.touch,
+                  PointerDeviceKind.trackpad,
+                  PointerDeviceKind.stylus,
+                  PointerDeviceKind.invertedStylus,
+                },
+              ),
+              child: Scrollbar(
+                controller: rail,
+                child: _desktopRailDecorations(pane, strip),
+              ),
+            )
+          : Scrollbar(controller: rail, child: strip);
     }
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,

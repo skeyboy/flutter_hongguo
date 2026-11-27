@@ -218,6 +218,17 @@ abstract class LibraryPageStateBase extends State<LibraryPage> {
   final bandShown = <String, String>{};
   final bandOwed = <String>{};
 
+  /// 桌面二级行的 hover 与两端箭头可用性，按页记：两页都是活的，一枚全局布尔
+  /// 会把一页的 hover 涂到另一页的行上。箭头可见性随滚动边界变化，只在跨越
+  /// 边界的那一次通知里 setState，滚动途中不再重建行。
+  final railHover = <int, bool>{};
+  final railArrowEdges = <int, (bool, bool)>{};
+
+  /// 每页二级行上次居中所对应的「内容|选中」标记：居中只在行换成别的词表、或
+  /// 选中换枚（切一级、恢复）时才问一遍——滚动漫开的一行、以及任何同内容的
+  /// 重建，都不该被拽回选中那一枚。等价于 reveal 时代的 bandShown 去重。
+  final railCenterShown = <int, String>{};
+
   /// The same pull again, counted per page for the lists inside it rather than
   /// for the chip rows of its band: the second level runs out first, and only a
   /// drag that survives that question is asked of the first level.

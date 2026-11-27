@@ -35,19 +35,24 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('the theme row stops at eight and hands the tail to 更多 ▾', (
+  testWidgets('the theme row is the whole vocabulary, sliding sideways', (
     tester,
-  ) async {
+    ) async {
     await mount(tester, DesktopCatalog());
-    expect(find.byKey(const ValueKey('theme-rail-cate_10')), findsOneWidget);
-    // The ninth theme and 全部 make the head eight; the rest is in the menu.
-    expect(find.byKey(const ValueKey('theme-rail-cate_15')), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('theme-rail-more')));
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('theme-rail-menu-cate_15')),
-      findsOneWidget,
+    // 全部 12 枚都是行的孩子，没有第九枚之后塞进菜单的尾巴。
+    expect(find.byKey(const ValueKey('theme-rail-cate_15')), findsOneWidget);
+    expect(find.byKey(const ValueKey('theme-rail-more')), findsNothing);
+    expect(find.byKey(const ValueKey('theme-rail-menu-cate_15')), findsNothing);
+    // 行真的可滑：视口装不下整条词表，轨道上有一段可滚的长度。
+    final railScroll = tester.state<ScrollableState>(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey('theme-rail')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
     );
+    expect(railScroll.position.maxScrollExtent, greaterThan(0));
     debugDefaultTargetPlatformOverride = null;
     expect(tester.takeException(), isNull);
   });

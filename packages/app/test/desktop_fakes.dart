@@ -42,8 +42,8 @@ class DesktopCatalog extends FakeCatalog
     ),
   ];
 
-  /// Twelve of them, so the row has to give its tail to 更多 ▾ rather than ask a
-  /// pointer to slide a list sideways.
+  /// Twelve of them, so the row overflows on the test surface and the whole
+  /// vocabulary has to be read off one sideways strip -- no menu tail.
   static const themeItems = [
     CatalogFilter('玄幻', 'cate_7'),
     CatalogFilter('都市', 'cate_8'),
@@ -100,6 +100,21 @@ class DesktopCatalog extends FakeCatalog
 class UnfilteredCatalog extends DesktopCatalog {
   @override
   Future<List<CatalogDim>> filterRows(String genre) async => const [];
+}
+
+/// 三十个主题：第 10 枚 chip 远离行的两端，点选居中不被 clamp 顶回去，量得出
+/// 「选中那一枚落在行视口中心」这句话本身的成色。
+class LongThemeCatalog extends DesktopCatalog {
+  @override
+  Future<List<CatalogDim>> filterRows(String genre) async => [
+    CatalogDim(
+      key: categoryThemeKey,
+      label: catalogDimRowNames[categoryThemeKey]!,
+      items: [
+        for (var i = 1; i <= 30; i++) CatalogFilter('主题$i', 'cate_${i + 20}'),
+      ],
+    ),
+  ];
 }
 
 /// The card the hover preview reads: upstream's genre words live in
