@@ -37,6 +37,15 @@ class ReleaseContractTest(unittest.TestCase):
         for path in (self.root / 'pubspec.yaml', self.root / 'packages/app/pubspec.yaml'):
             path.write_text('version: 0.2.3+5\n')
         (self.root / '.fvmrc').write_text('{"flutter":"3.47.4"}')
+        notes_dir = self.root / 'docs'
+        notes_dir.mkdir(exist_ok=True)
+        (notes_dir / 'release-notes.md').write_text(
+            '# Hongguo $VERSION 发布日志\n'
+            '## 修改了什么\n- fixture change\n'
+            '## 修复了什么\n- fixture fix\n'
+            '## 增加了什么\n- fixture addition\n',
+            encoding='utf-8',
+        )
         # Release metadata also reads the version constant the running app
         # shows its users, so the fixture has to carry one that agrees.
         dart_dir = self.root / 'packages/app/lib/update'
@@ -111,6 +120,44 @@ class ReleaseContractTest(unittest.TestCase):
             for abi in ['armeabi-v7a', 'arm64-v8a', 'x86_64']:
                 (dist / f'Hongguo-0.2.3-android-tv-{abi}.apk').write_bytes(b'tv fixture')
             runpy.run_path(str(CI / 'validate_release.py'))
+
+    def test_release_notes_use_three_section_format(self):
+        dist = self.root / 'dist'
+        dist.mkdir()
+        for abi in ['armeabi-v7a', 'arm64-v8a', 'x86_64']:
+            (dist / f'Hongguo-0.2.3-android-{abi}.apk').write_bytes(b'fixture')
+        with patch.dict(os.environ, RELEASE_PLATFORMS='["android"]', IOS_SIGNED='false'):
+            runpy.run_path(str(CI / 'validate_release.py'))
+        notes = (self.root / 'build/release-notes.md').read_text(encoding='utf-8')
+        self.assertIn('# Hongguo 0.2.3 发布日志', notes)
+        for heading in ('## 修改了什么', '## 修复了什么', '## 增加了什么'):
+            self.assertIn(heading, notes)
+        self.assertNotIn('$VERSION', notes)
+
+    def test_release_notes_require_version_placeholder_and_sections(self):
+        dist = self.root / 'dist'
+        dist.mkdir()
+        for abi in ['armeabi-v7a', 'arm64-v8a', 'x86_64']:
+            (dist / f'Hongguo-0.2.3-android-{abi}.apk').write_bytes(b'fixture')
+        template = self.root / 'docs/release-notes.md'
+        env = patch.dict(os.environ, RELEASE_PLATFORMS='["android"]', IOS_SIGNED='false')
+        with env:
+            # 缺三段式标题：门禁拒绝，且不产出发布说明。
+            template.write_text('# Hongguo $VERSION 发布日志\n', encoding='utf-8')
+            with self.assertRaises(SystemExit):
+                runpy.run_path(str(CI / 'validate_release.py'))
+            self.assertFalse((self.root / 'build/release-notes.md').exists())
+            # 三段齐全但缺占位符：会写死版本号，同样拒绝。
+            template.write_text(
+                '# Hongguo 0.0.0 发布日志\n'
+                '## 修改了什么\n- x\n'
+                '## 修复了什么\n- y\n'
+                '## 增加了什么\n- z\n',
+                encoding='utf-8',
+            )
+            with self.assertRaises(SystemExit):
+                runpy.run_path(str(CI / 'validate_release.py'))
+            self.assertFalse((self.root / 'build/release-notes.md').exists())
 
     def test_tv_badging_gate_accepts_a_real_tv_build(self):
         from tv_package import badging_problems
