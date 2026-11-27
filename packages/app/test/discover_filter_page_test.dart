@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,6 +27,20 @@ class FilterPageCatalog extends DesktopCatalog {
     if (this.fail) throw const CatalogError('上游暂时不可用');
     if (empty) return const CatalogPage([]);
     return cursorPage(query.cursor);
+  }
+}
+
+/// A grid long enough to scroll past the band's fold threshold.
+class LongFilterPageCatalog extends FilterPageCatalog {
+  @override
+  Future<CatalogPage> browseFiltered(CatalogQuery query) async {
+    filtered.add(query);
+    lastGenre = query.genre;
+    lastSort = query.sort;
+    return CatalogPage([
+      for (var i = 0; i < 24; i++)
+        Drama(id: 'long-$i', title: '长列表故事$i', episodeCount: 12),
+    ]);
   }
 }
 
@@ -181,6 +196,69 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('filter-page-error')), findsNothing);
     expect(find.byKey(const ValueKey('filter-page-card-123')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('顶部筛选带随纵向滚动方向收展', (tester) async {
+    await mountPage(tester, LongFilterPageCatalog());
+    await openPage(tester);
+    expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
+
+    final results = find.byKey(const ValueKey('filter-page-results'));
+    await tester.drag(results, const Offset(0, -300));
+    await tester.pumpAndSettle();
+    // Down the list the band gives its height to the grid.
+    expect(find.byKey(const ValueKey('filter-page-band')), findsNothing);
+
+    await tester.drag(results, const Offset(0, 80));
+    await tester.pumpAndSettle();
+    // Any upward flick brings the filters back, not only a trip to the top.
+    expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('滚轮在横滑的题材行上横向走，不抢页面滚动', (tester) async {
+    await mountPage(tester, FilterPageCatalog());
+    await openPage(tester);
+    final row = find.descendant(
+      of: find.byKey(const ValueKey('filter-page-row-theme')),
+      matching: find.byType(SingleChildScrollView),
+    );
+    final controller = tester.widget<SingleChildScrollView>(row).controller!;
+    expect(controller.offset, 0);
+    expect(controller.position.maxScrollExtent, greaterThan(0));
+
+    final wheel = TestPointer(3, PointerDeviceKind.mouse);
+    // A hover gives the pointer a location before the scroll signal is built.
+    wheel.hover(tester.getCenter(row));
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, 160)));
+    await tester.pumpAndSettle();
+    expect(controller.offset, greaterThan(0));
+    // 信号被这一行认领，外层列表不该同时被这一滚轮带跑。
+    expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('鼠标经过筛选 chip 时整圈 rim 高亮', (tester) async {
+    await mountPage(tester, FilterPageCatalog());
+    await openPage(tester);
+    final chip = find.byKey(const ValueKey('filter-page-theme-all'));
+    final scale = find.ancestor(
+      of: chip,
+      matching: find.byType(AnimatedScale),
+    );
+    expect(tester.widget<AnimatedScale>(scale).scale, 1.0);
+
+    final pointer = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(pointer.removePointer);
+    await pointer.addPointer(location: tester.getCenter(chip));
+    await pointer.moveTo(tester.getCenter(chip));
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(tester.widget<AnimatedScale>(scale).scale, closeTo(1.04, 0.001));
+
+    await pointer.moveTo(Offset.zero);
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(tester.widget<AnimatedScale>(scale).scale, 1.0);
     expect(tester.takeException(), isNull);
   });
 }

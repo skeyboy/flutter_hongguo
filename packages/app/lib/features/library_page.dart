@@ -18,7 +18,9 @@ import '../widgets/anchored_panel.dart';
 import '../widgets/brand.dart';
 import '../widgets/drama_card.dart';
 import '../widgets/drama_cover.dart';
+import '../widgets/hover_glow.dart';
 import '../widgets/hover_peek.dart';
+import '../widgets/horizontal_wheel.dart';
 import '../widgets/sort_menu.dart';
 
 export '../widgets/brand.dart';
@@ -2929,30 +2931,36 @@ class _LibraryPageState extends LibraryPageStateBase {
       for (final option in options)
         Padding(
           padding: const EdgeInsets.only(right: 8),
-          child: ChoiceChip(
-            key: ValueKey('theme-rail-${option.id}'),
-            // 这条 rail 现在两族都会横滑：选中的勾是 Material 3 淡入淡出的，它会
-            // 改变这枚 chip 的宽度、把后面的每一枚在一次性 reveal 之后再挪几个点，
-            // 点选居中的目标也因此漂移。选中的底色和加粗已经说了同一句话，所以
-            // 这里把勾去掉——留在行尾的是稳定的偏移。
-            showCheckmark: false,
-            label: Text(
-              option.label,
-              style: TextStyle(
-                fontWeight: option.id == selected
-                    ? FontWeight.w700
-                    : FontWeight.w400,
+          // 与主线的卡片高亮同一套 rim：鼠标经过题材 chip 时抬起一档并亮边，
+          // 选中的底色与加粗仍然由 chip 自己说，触屏看不到这层邀请。
+          child: HoverGlow(
+            scale: 1.04,
+            radius: 18,
+            child: ChoiceChip(
+              key: ValueKey('theme-rail-${option.id}'),
+              // 这条 rail 现在两族都会横滑：选中的勾是 Material 3 淡入淡出的，它会
+              // 改变这枚 chip 的宽度、把后面的每一枚在一次性 reveal 之后再挪几个点，
+              // 点选居中的目标也因此漂移。选中的底色和加粗已经说了同一句话，所以
+              // 这里把勾去掉——留在行尾的是稳定的偏移。
+              showCheckmark: false,
+              label: Text(
+                option.label,
+                style: TextStyle(
+                  fontWeight: option.id == selected
+                      ? FontWeight.w700
+                      : FontWeight.w400,
+                ),
               ),
+              selected: option.id == selected,
+              onSelected: (_) {
+                if (option.id == selected) return;
+                _selectFilter('theme', option.id, pane);
+                // 点选之后这一枚就是正在读的那一句：把它滚到行内水平中心，而不是
+                // 只保证它露个头。居中延迟到本帧之后，等 level 的重铺落定。
+                _centerSelectedChip(pane, slot);
+              },
+              materialTapTargetSize: MaterialTapTargetSize.padded,
             ),
-            selected: option.id == selected,
-            onSelected: (_) {
-              if (option.id == selected) return;
-              _selectFilter('theme', option.id, pane);
-              // 点选之后这一枚就是正在读的那一句：把它滚到行内水平中心，而不是
-              // 只保证它露个头。居中延迟到本帧之后，等 level 的重铺落定。
-              _centerSelectedChip(pane, slot);
-            },
-            materialTapTargetSize: MaterialTapTargetSize.padded,
           ),
         ),
     ];
@@ -3053,17 +3061,22 @@ class _LibraryPageState extends LibraryPageStateBase {
       if (catalog is FilteredCatalogRepository)
         Padding(
           padding: const EdgeInsets.only(right: 8),
-          child: OutlinedButton(
-            key: filterChipKey,
-            focusNode: filterChipFocus,
-            onPressed: () => _openFilterPage(pane),
-            style: OutlinedButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-            ),
-            child: Text(
-              _dimCount == 0 ? '≡ 更多筛选' : '≡ 更多筛选 · $_dimCount',
-              style: const TextStyle(fontSize: 13),
+          // 入口也用 main 的 hover rim 说话：鼠标扫过时和结果卡片同一种高亮。
+          child: HoverGlow(
+            scale: 1.03,
+            radius: 8,
+            child: OutlinedButton(
+              key: filterChipKey,
+              focusNode: filterChipFocus,
+              onPressed: () => _openFilterPage(pane),
+              style: OutlinedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+              ),
+              child: Text(
+                _dimCount == 0 ? '≡ 更多筛选' : '≡ 更多筛选 · $_dimCount',
+                style: const TextStyle(fontSize: 13),
+              ),
             ),
           ),
         ),
@@ -3219,6 +3232,8 @@ class _LibraryPageState extends LibraryPageStateBase {
       // 桌面族：整词表横滑之后，这一行也归入 level machinery 的 reveal/居中
       // 契约（controller 同触控族），行尾渐隐 + hover 箭头替「更多 ▾」回答
       // 「右边还有」。鼠标拖拽只对本行放行。
+      // 滚轮进这一行就横向走：桌面读者不必去够 hover 才出现的箭头。
+      final wheeled = HorizontalWheel(controller: rail, child: strip);
       body = desktopHost
           ? ScrollConfiguration(
               behavior: ScrollConfiguration.of(context).copyWith(
@@ -3232,10 +3247,10 @@ class _LibraryPageState extends LibraryPageStateBase {
               ),
               child: Scrollbar(
                 controller: rail,
-                child: _desktopRailDecorations(pane, strip),
+                child: _desktopRailDecorations(pane, wheeled),
               ),
             )
-          : Scrollbar(controller: rail, child: strip);
+          : Scrollbar(controller: rail, child: wheeled);
     }
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,

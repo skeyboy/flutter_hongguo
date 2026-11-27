@@ -9,6 +9,8 @@ import '../navigation/app_navigation.dart';
 import '../platform/background/host_policy.dart';
 import '../platform/runtime.dart';
 import '../widgets/drama_card.dart';
+import '../widgets/horizontal_wheel.dart';
+import '../widgets/hover_glow.dart';
 import 'detail_page.dart';
 
 /// 三级内容的名字。发现页的行、抽屉与这一页共用同一张表：入口页顶栏与「内容类型」
@@ -100,6 +102,12 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
   /// 每行一个 controller，与发现页 `rowAt` 同一契约：Scrollbar 与点选居中
   /// 都要能从外面问这一行滚到哪了。
   final rowScroll = <String, ScrollController>{};
+
+  /// 顶栏筛选带随纵向列表的方向收展，与发现/榜单页同一套契约：向下看内容时
+  /// 让出高度，任意一次向上滑都把筛选项带回手边，不必滚回页首。
+  static const _collapseAfter = 40.0, _collapseBefore = 8.0;
+  bool bandCollapsed = false;
+  double _lastListOffset = 0;
 
   /// 刷新完成后的淡入。「重置系统动画偏好」下不跑动画，直接到位。
   late final AnimationController fade = AnimationController(
@@ -367,20 +375,48 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
     List<CatalogFilter> themeItems,
     List<CatalogDim> sections,
     List<String> missing,
-  ) => NotificationListener<ScrollNotification>(
-    onNotification: _onScrollNotification,
-    child: CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: _filterBand(context, themeItems, sections, missing),
+  ) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      // 筛选带与 main 的发现/榜单页同构：收起的是高度，不是筛选状态。
+      // 带外置在列表之上，收展只改变列表视口，不会改动观众正在看的 offset。
+      AnimatedSize(
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        alignment: Alignment.topCenter,
+        child: bandCollapsed
+            ? const SizedBox(width: double.infinity)
+            : _filterBand(context, themeItems, sections, missing),
+      ),
+      Expanded(
+        child: NotificationListener<ScrollNotification>(
+          onNotification: _onScrollNotification,
+          child: CustomScrollView(
+            key: const ValueKey('filter-page-results'),
+            slivers: [_resultSliver()],
+          ),
         ),
-        _resultSliver(),
-      ],
-    ),
+      ),
+    ],
   );
 
   /// 自动加载是触控端的手：桌面用显式的「加载更多」，两种节奏各有其主。
   bool _onScrollNotification(ScrollNotification notification) {
+    if (notification.depth == 0 &&
+        notification.metrics.axis == Axis.vertical &&
+        notification is ScrollUpdateNotification) {
+      final offset = notification.metrics.pixels;
+      final last = _lastListOffset;
+      _lastListOffset = offset;
+      if (!bandCollapsed && offset > last && offset > _collapseAfter) {
+        setState(() => bandCollapsed = true);
+      } else if (bandCollapsed &&
+          (offset < last || offset <= _collapseBefore)) {
+        setState(() => bandCollapsed = false);
+      }
+    }
     if (desktopLayout) return false;
     if (!settingsFor(widget.runtime).autoLoadMore) return false;
     if (notification.metrics.extentAfter < 600 &&
@@ -425,11 +461,15 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
         padding: const EdgeInsets.only(bottom: 4),
         child: Scrollbar(
           controller: rowAt(rowKey),
-          child: SingleChildScrollView(
+          // 鼠标滚轮只在这条行还有词可看时横向滑动；到尽头仍把滚轮还给页面。
+          child: HorizontalWheel(
             controller: rowAt(rowKey),
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(children: chips),
+            child: SingleChildScrollView(
+              controller: rowAt(rowKey),
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(children: chips),
+            ),
           ),
         ),
       );
@@ -445,22 +485,28 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
   }) => Builder(
     builder: (chipContext) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
-      child: ChoiceChip(
-        key: ValueKey(key),
-        label: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: chosen ? FontWeight.w700 : FontWeight.w400,
+      // main 的高亮契约同样给筛选项：鼠标经过时 chip 抬起一档、整圈 rim 亮起；
+      // 触屏不产生 hover，选中态仍是它唯一的回答。
+      child: HoverGlow(
+        scale: 1.04,
+        radius: 18,
+        child: ChoiceChip(
+          key: ValueKey(key),
+          label: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: chosen ? FontWeight.w700 : FontWeight.w400,
+            ),
           ),
+          selected: chosen,
+          onSelected: (_) {
+            onTap();
+            if (rowKey != null) _centerChip(rowKey, chipContext);
+          },
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.padded,
         ),
-        selected: chosen,
-        onSelected: (_) {
-          onTap();
-          if (rowKey != null) _centerChip(rowKey, chipContext);
-        },
-        visualDensity: VisualDensity.compact,
-        materialTapTargetSize: MaterialTapTargetSize.padded,
       ),
     ),
   );
