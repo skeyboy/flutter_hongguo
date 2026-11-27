@@ -51,7 +51,13 @@ class _TvChoiceRailState extends State<TvChoiceRail> {
       key: const ValueKey('tv-theme-scroll'),
       controller: scroll,
       scrollDirection: Axis.horizontal,
+      // The focused chip scales 1.05 and wears a glow: with a zero inset the
+      // first and last labels lose their rim to the viewport's clip. The
+      // scroll content, not an outside Padding, owns this room -- padding
+      // outside a viewport still clips at the viewport's edge.
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           for (var i = 0; i < widget.choices.length; i++)
             Padding(

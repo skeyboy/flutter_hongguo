@@ -139,6 +139,19 @@ void main() {
     );
     await tester.pumpAndSettle();
     final dynamic state = tester.state(find.byType(LibraryPage));
+    // 收展契约（榜单同款，方向驱动）：深滚后筛选带已让位；原地向上滑一小段，
+    // 带就回到手指边——不用滚回顶部。此刻的偏移就是切换题材时带走的那个。
+    await tester.drag(
+      find.byKey(
+        const ValueKey('catalog-results-categories-short_play-cate_7'),
+      ),
+      const Offset(0, 120),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('theme-rail')).hitTestable(),
+      findsOneWidget,
+    );
     final offset = state.scroll.offset as double;
     expect(offset, greaterThan(100));
 

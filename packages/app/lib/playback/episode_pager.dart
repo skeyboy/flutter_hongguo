@@ -258,15 +258,30 @@ class _EpisodePagerState extends State<EpisodePager> {
       key: const ValueKey('episode-pager-frame'),
       builder: (context, constraints) {
         final width = constraints.maxWidth;
+        // The remote's focus ring scales a cell 1.05 and glows. On TV the
+        // pager's viewport needs that room *inside* itself: a Padding outside
+        // the PageView still clips the first and last cells at its edge.
+        // Touch/desktop keep their zero-inset geometry untouched.
+        // The remote's focus ring needs a stage inside the viewport. Keep the
+        // column count derived from the full width so paging capacity stays
+        // identical to every other platform; only the cell width shrinks.
+        // Vertical room is slightly tighter than horizontal because the
+        // four-row TV pager also has to respect its compact height budget.
+        final insetX = tv ? 16.0 : 0.0;
+        final insetY = tv ? 14.0 : 0.0;
+        final contentWidth = width - 2 * insetX;
         _columns = math.max(
           1,
           ((width + widget.spacing) / (widget.cellExtent + widget.spacing))
               .floor(),
         );
-        final cellWidth = (width - (_columns - 1) * widget.spacing) / _columns;
+        final cellWidth =
+            (contentWidth - (_columns - 1) * widget.spacing) / _columns;
         final cellHeight = cellWidth / widget.aspectRatio;
         final gridHeight =
-            widget.rows * cellHeight + (widget.rows - 1) * widget.spacing;
+            widget.rows * cellHeight +
+            (widget.rows - 1) * widget.spacing +
+            2 * insetY;
         return Column(
           key: const ValueKey('episode-pager-column'),
           mainAxisSize: MainAxisSize.min,
@@ -310,7 +325,10 @@ class _EpisodePagerState extends State<EpisodePager> {
     return GridView.builder(
       key: ValueKey('episode-pager-grid-$page'),
       physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
+      padding: EdgeInsets.symmetric(
+        horizontal: tv ? 16 : 0,
+        vertical: tv ? 14 : 0,
+      ),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: _columns,
         crossAxisSpacing: widget.spacing,

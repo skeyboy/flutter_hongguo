@@ -417,11 +417,16 @@ class _LibraryPageState extends LibraryPageStateBase {
     ranking.selectBoard(hot);
   }
 
-  /// Folded once the list of the page on screen has gone past the height of the
-  /// band it is scrolling under, and unfolded again only near the top -- the gap
-  /// between the two is what stops a list a little longer than a screen from
-  /// flickering the band open and shut on every pixel.
+  /// Folded once the on-screen list is scrolled past the height of the band it
+  /// is scrolling under, and unfolded again by any upward scroll, wherever the
+  /// viewer stands. `_collapseAfter` keeps a list a little longer than a screen
+  /// from folding the band on its first pixel; `_collapseBefore` is "back at the
+  /// top", where the band shows even after an upward flick that never moved.
   static const _collapseAfter = 40.0, _collapseBefore = 8.0;
+
+  /// The last offset each feed was seen at, so the fold reads the direction of
+  /// the viewer's scroll rather than only where they stopped.
+  final _lastFoldOffset = <String, double>{};
 
   /// A row -- or a page -- that has run out of width hands the rest of the drag
   /// one level up, which is what lets 推荐 → 最新 → 榜单 be reached from inside
@@ -1141,16 +1146,20 @@ class _LibraryPageState extends LibraryPageStateBase {
   /// Driven by the on-screen list, so the fold follows the scroll instead of a
   /// tap: whatever the viewer does to the rows -- a fling, a pull-to-refresh, a
   /// swipe back to a page left deep -- is the same question answered from the
-  /// same offset.
+  /// same offset. 榜单 收展契约: down folds the whole band, up unfolds it wherever
+  /// the viewer stands -- the filter band is a flick away mid-list, not a scroll
+  /// back to the top.
   void _trackCollapse(_ThemeFeed feed) {
     if (!isOnScreen(feed) || mineOpen || rankOpen) return;
     final controller = feedScroll[feed.key];
     if (controller == null || !controller.hasClients) return;
     final offset = controller.offset;
+    final last = _lastFoldOffset.putIfAbsent(feed.key, () => 0);
+    _lastFoldOffset[feed.key] = offset;
     final collapsed = bandCollapsed[feed.pane] ?? false;
-    if (!collapsed && offset > _collapseAfter) {
+    if (!collapsed && offset > last && offset > _collapseAfter) {
       setState(() => bandCollapsed[feed.pane] = true);
-    } else if (collapsed && offset < _collapseBefore) {
+    } else if (collapsed && (offset < last || offset <= _collapseBefore)) {
       setState(() => bandCollapsed[feed.pane] = false);
     }
   }
@@ -3132,10 +3141,11 @@ class _LibraryPageState extends LibraryPageStateBase {
 
   /// The second level of the page on screen, pinned above its lists: the 题材 of
   /// the type being browsed.
-  /// It does not fold away with the top, because it is also the strip that names
-  /// whichever page a sideways swipe landed on -- and because each chip opens a
-  /// feed of its own, its loading and retry states keep a fixed height instead of
-  /// pushing the grid around.
+  /// It folds away with the band (same collapse the search box follows), but
+  /// while visible it is also the strip that names whichever page a sideways
+  /// swipe landed on -- and because each chip opens a feed of its own, its
+  /// loading and retry states keep a fixed height instead of pushing the grid
+  /// around.
   Widget _level2Row(int pane, bool compact) {
     final slot = slotOfPane(pane);
     final selected = level2At(pane, slot);
@@ -3258,20 +3268,36 @@ class _LibraryPageState extends LibraryPageStateBase {
   Widget _pane(int pane, bool compact, double viewportWidth) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      // Only what the viewer answers once folds: where to search, and the
-      // sentence about the swipe. Both filter rows stay pinned, because the
-      // rows are how the band is read while the rows it selects are being
-      // scrolled -- a type that went away with the header could only be
-      // changed again by scrolling all the way back to the top.
-      _paneTop(pane, compact, viewportWidth),
-      // The first level: which stream, which type. It is outside the handover
-      // listener below on purpose -- a pull that runs out of this row's width
-      // is not a request to turn the level it belongs to, and the type is
-      // already turned by the strip under it and by the pages themselves.
-      _choiceRow(pane, compact),
-      NotificationListener<ScrollNotification>(
-        onNotification: (notification) => _onRowScroll(pane, notification),
-        child: _level2Row(pane, compact),
+      // The whole filter band folds with the scroll, 榜单-style: down the list
+      // the band gives its height to the rows, back near the top it returns --
+      // the hysteresis in `_trackCollapse` keeps one fling from flickering it.
+      // The search field folds offstage with its state maintained, so its text
+      // and focus survive the round trip.
+      AnimatedSize(
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        alignment: Alignment.topCenter,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _paneTop(pane, compact, viewportWidth),
+            if (!(bandCollapsed[pane] ?? false)) ...[
+              // The first level: which stream, which type. It is outside the
+              // handover listener below on purpose -- a pull that runs out of
+              // this row's width is not a request to turn the level it belongs
+              // to, and the type is already turned by the strip under it and by
+              // the pages themselves.
+              _choiceRow(pane, compact),
+              NotificationListener<ScrollNotification>(
+                onNotification: (notification) =>
+                    _onRowScroll(pane, notification),
+                child: _level2Row(pane, compact),
+              ),
+            ],
+          ],
+        ),
       ),
       // Every drag of a list inside this page reaches the handover below as a
       // notification that has already been answered by the level it came from --

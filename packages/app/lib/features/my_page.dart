@@ -14,6 +14,7 @@ import '../playback/local_playlist.dart';
 import '../widgets/tv_confirm.dart';
 import 'detail_page.dart';
 import '../widgets/drama_cover.dart';
+import '../widgets/hover_zoom_cover.dart';
 import 'local_cache_page.dart';
 import 'merged_page.dart';
 import 'merge_tasks_page.dart';
@@ -473,41 +474,50 @@ class _MyPageState extends State<MyPage> {
         ],
       );
     }
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        leading: SizedBox(
-          width: 48,
-          height: 68,
-          child: DramaCover(drama: drama),
-        ),
-        title: Text(drama.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-        subtitle: record == null
-            ? Text('${drama.episodeCount} 集 · 点击查看剧集')
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_progressLine(record)),
-                  if (record.durationMs > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: LinearProgressIndicator(
-                        value: (record.positionMs / record.durationMs).clamp(
-                          0,
-                          1,
+    return HoverBuilder(
+      builder: (context, hover) => Card(
+        elevation: 0,
+        margin: const EdgeInsets.only(bottom: 10),
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 8,
+          ),
+          leading: SizedBox(
+            width: 48,
+            height: 68,
+            child: HoverZoomCover(drama: drama, hover: hover),
+          ),
+          title: Text(
+            drama.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: record == null
+              ? Text('${drama.episodeCount} 集 · 点击查看剧集')
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_progressLine(record)),
+                    if (record.durationMs > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: LinearProgressIndicator(
+                          value: (record.positionMs / record.durationMs).clamp(
+                            0,
+                            1,
+                          ),
+                          minHeight: 2,
                         ),
-                        minHeight: 2,
                       ),
-                    ),
-                ],
-              ),
-        onTap: open,
-        trailing: IconButton(
-          tooltip: removeLabel,
-          onPressed: remove,
-          icon: Icon(record == null ? Icons.favorite : Icons.close, size: 20),
+                  ],
+                ),
+          onTap: open,
+          trailing: IconButton(
+            tooltip: removeLabel,
+            onPressed: remove,
+            icon: Icon(record == null ? Icons.favorite : Icons.close, size: 20),
+          ),
         ),
       ),
     );
