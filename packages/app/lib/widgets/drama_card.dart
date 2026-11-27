@@ -96,10 +96,36 @@ class _DramaCardState extends State<DramaCard> {
                   child: Stack(
                     children: [
                       Positioned.fill(
-                        child: DramaCover(
-                          drama: widget.drama,
-                          imageProvider: widget.coverImage,
-                          allowNetwork: widget.allowNetworkCover,
+                        // The artwork answers the pointer inside its own frame:
+                        // it steps up a notch and leans toward the viewer's eye,
+                        // while the clip outside keeps the frame -- and with it
+                        // the layout and the text below -- exactly where they
+                        // were. The card's own scale is the whole item stepping
+                        // forward; this one is the picture leaning out of it.
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: AnimatedScale(
+                            duration: _duration,
+                            curve: Curves.easeOutCubic,
+                            scale: hover ? 1.08 : 1.0,
+                            child: AnimatedContainer(
+                              duration: _duration,
+                              curve: Curves.easeOutCubic,
+                              // 2px up: on a grid cover the 1.08 zoom keeps the
+                              // bottom edge covered, so the lean reads as the
+                              // artwork rising, never as a gap.
+                              transform: Matrix4.translationValues(
+                                0,
+                                hover ? -2 : 0,
+                                0,
+                              ),
+                              child: DramaCover(
+                                drama: widget.drama,
+                                imageProvider: widget.coverImage,
+                                allowNetwork: widget.allowNetworkCover,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                       if (widget.badge != null || widget.drama.episodeCount > 0)

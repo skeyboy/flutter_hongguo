@@ -99,7 +99,7 @@ class _RankCardState extends State<RankCard> {
                 0.06 *
                 (Theme.of(context).brightness == Brightness.dark ? 1.6 : 1),
           ),
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(6),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -141,10 +141,29 @@ class _RankCardState extends State<RankCard> {
               SizedBox(
                 width: 62,
                 height: 82,
-                child: DramaCover(
-                  drama: drama,
-                  imageProvider: widget.coverImage,
-                  allowNetwork: widget.allowNetworkCover,
+                // Same artwork answer as the catalog tile: zoom inside the
+                // frame, lean up 2px, clipped so nothing reaches the text.
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: AnimatedScale(
+                    duration: _duration,
+                    curve: Curves.easeOutCubic,
+                    scale: hover ? 1.08 : 1.0,
+                    child: AnimatedContainer(
+                      duration: _duration,
+                      curve: Curves.easeOutCubic,
+                      transform: Matrix4.translationValues(
+                        0,
+                        hover ? -2 : 0,
+                        0,
+                      ),
+                      child: DramaCover(
+                        drama: drama,
+                        imageProvider: widget.coverImage,
+                        allowNetwork: widget.allowNetworkCover,
+                      ),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
