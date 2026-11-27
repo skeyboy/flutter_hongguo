@@ -16,7 +16,7 @@ import '../widgets/hover_glow.dart';
 /// `play_cnt` is deliberately not shown anywhere on this card: on the 热播榜 it
 /// disagreed with the 热度 sentence by four orders of magnitude (1035 beside
 /// 「6182万热度」), and one card may state one 热度.
-class RankCard extends StatelessWidget {
+class RankCard extends StatefulWidget {
   final RankEntry entry;
   final VoidCallback onTap;
   final ImageProvider? coverImage;
@@ -28,6 +28,12 @@ class RankCard extends StatelessWidget {
     this.coverImage,
     this.allowNetworkCover = true,
   });
+  @override
+  State<RankCard> createState() => _RankCardState();
+}
+
+class _RankCardState extends State<RankCard> {
+  bool hover = false;
 
   /// 1–3 carry the weight a rank list is expected to have; below that the number
   /// is enough on its own, and a medal for 第十一名 would be decoration.
@@ -37,18 +43,31 @@ class RankCard extends StatelessWidget {
     3: Color(0xffb5764a),
   };
 
+  Duration get _duration => MediaQuery.disableAnimationsOf(context)
+      ? Duration.zero
+      : const Duration(milliseconds: 150);
+
   @override
   Widget build(BuildContext context) {
-    final drama = entry.drama;
+    final drama = widget.entry.drama;
+    final entry = widget.entry;
     final scheme = Theme.of(context).colorScheme;
     final medal = _medal[entry.position];
     final tint = _parseColor(entry.dominateColor);
     final lines = <Widget>[
-      Text(
-        drama.title.isEmpty ? '未命名短剧' : drama.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+      // The name leads: half a step larger while the pointer is on the card.
+      AnimatedDefaultTextStyle(
+        duration: _duration,
+        style: TextStyle(
+          fontSize: hover ? 17 : 16,
+          fontWeight: FontWeight.w600,
+          color: scheme.onSurface,
+        ),
+        child: Text(
+          drama.title.isEmpty ? '未命名短剧' : drama.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
       const SizedBox(height: 4),
       _MetaRow(entry: entry),
@@ -67,9 +86,10 @@ class RankCard extends StatelessWidget {
       );
     }
     return HoverGlow(
+      onHover: (value) => setState(() => hover = value),
       child: InkWell(
         key: ValueKey('rank-card-${drama.id}'),
-        onTap: onTap,
+        onTap: widget.onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
           // 占位主色, which upstream measured off the cover: a tint behind the row
@@ -123,8 +143,8 @@ class RankCard extends StatelessWidget {
                 height: 82,
                 child: DramaCover(
                   drama: drama,
-                  imageProvider: coverImage,
-                  allowNetwork: allowNetworkCover,
+                  imageProvider: widget.coverImage,
+                  allowNetwork: widget.allowNetworkCover,
                 ),
               ),
               const SizedBox(width: 12),

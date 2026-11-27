@@ -17,7 +17,7 @@ import '../widgets/hover_glow.dart';
 /// one 热度 the app is allowed to state (§8.5). What it deliberately does not carry
 /// is any of the discover page's own levels: `rankBoard` takes neither 类型 nor
 /// 题材, so tapping this switches the destination and changes nothing else.
-class RankEntryCard extends StatelessWidget {
+class RankEntryCard extends StatefulWidget {
   const RankEntryCard({
     super.key,
     required this.title,
@@ -31,9 +31,17 @@ class RankEntryCard extends StatelessWidget {
   final VoidCallback onOpen;
 
   @override
+  State<RankEntryCard> createState() => _RankEntryCardState();
+}
+
+class _RankEntryCardState extends State<RankEntryCard> {
+  bool hover = false;
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final top = entries.take(3).toList();
+    final title = widget.title;
+    final top = widget.entries.take(3).toList();
     if (top.isEmpty) return const SizedBox.shrink();
     return Padding(
       // Only the rhythm above and below: the page owns the gutter, the same way
@@ -41,13 +49,14 @@ class RankEntryCard extends StatelessWidget {
       // grid's instead of sitting 12 points further in.
       padding: const EdgeInsets.only(bottom: 6),
       child: HoverGlow(
+        onHover: (value) => setState(() => hover = value),
         child: Material(
           color: scheme.surface,
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
             key: const ValueKey('rank-entry-card'),
             borderRadius: BorderRadius.circular(12),
-            onTap: onOpen,
+            onTap: widget.onOpen,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
@@ -59,13 +68,19 @@ class RankEntryCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Flexible(
-                    child: Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 13,
+                    child: AnimatedDefaultTextStyle(
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 150),
+                      style: TextStyle(
+                        fontSize: hover ? 14 : 13,
                         fontWeight: FontWeight.w700,
+                        color: scheme.onSurface,
+                      ),
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),
@@ -92,7 +107,7 @@ class RankEntryCard extends StatelessWidget {
                   // 借一个位置。
                   InkWell(
                     key: const ValueKey('rank-entry-more'),
-                    onTap: onOpen,
+                    onTap: widget.onOpen,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 4,

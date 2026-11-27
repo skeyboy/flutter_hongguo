@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 
 /// The pointer family's invitation, shared by every list-shaped card: the card
-/// steps forward a notch, its rim catches the theme primary with a soft glow,
-/// and a top-lit sheen reads as light hitting the surface. All engine-built
-/// effects (AnimatedScale / BoxShadow / gradients) -- no runtime fragment
-/// shader, so Impeller and every desktop backend stay on their fast paths.
+/// steps forward a notch, and its whole rim -- text included -- catches the
+/// theme primary with a soft glow. All engine-built effects (AnimatedScale /
+/// BoxShadow) -- no runtime fragment shader, so Impeller and every desktop
+/// backend stay on their fast paths.
+///
+/// No sheen: light painted over artwork read as a stain the moment a cover
+/// happened to be bright. The rim alone is the statement.
 ///
 /// The touch family never sees any of it: a mouse never enters their widgets.
-/// Layout is static -- the rim and sheen are foreground layers, the scale is a
-/// transform, so neighbors never reflow.
+/// Layout is static -- the rim is a foreground layer, the scale a transform,
+/// so neighbors never reflow.
 class HoverGlow extends StatefulWidget {
   final Widget child;
 
@@ -19,15 +22,16 @@ class HoverGlow extends StatefulWidget {
   /// The rim's rounding; match the child's own border radius.
   final double radius;
 
-  /// Cover cards get a bottom shade to close the light off; text rows stop at
-  /// the top light so copy keeps its contrast.
-  final bool bottomShade;
+  /// Fired whenever the pointer crosses the card, so a card can let its own
+  /// text step forward in the same breath (the rim answers the eye, the type
+  /// answers the name).
+  final ValueChanged<bool>? onHover;
   const HoverGlow({
     super.key,
     required this.child,
     this.scale = 1.02,
     this.radius = 12,
-    this.bottomShade = false,
+    this.onHover,
   });
   @override
   State<HoverGlow> createState() => _HoverGlowState();
@@ -39,42 +43,24 @@ class _HoverGlowState extends State<HoverGlow> {
       ? Duration.zero
       : const Duration(milliseconds: 150);
 
+  void _set(bool value) {
+    if (hover == value) return;
+    setState(() => hover = value);
+    widget.onHover?.call(value);
+  }
+
   @override
   Widget build(BuildContext context) {
     final accent = Theme.of(context).colorScheme.primary;
     return MouseRegion(
-      onEnter: (_) => setState(() => hover = true),
-      onExit: (_) => setState(() => hover = false),
+      onEnter: (_) => _set(true),
+      onExit: (_) => _set(false),
       child: AnimatedScale(
         duration: _duration,
         curve: Curves.easeOutCubic,
         scale: hover ? widget.scale : 1.0,
         child: AnimatedContainer(
           duration: _duration,
-          foregroundDecoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(widget.radius),
-            border: Border.all(
-              color: hover ? accent.withValues(alpha: 0.9) : Colors.transparent,
-              width: 1.5,
-            ),
-            // A decoration can carry either a border or a gradient, not both:
-            // the sheen is a second decoration, layered over the same rim.
-            gradient: hover
-                ? LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.white.withValues(alpha: 0.12),
-                      Colors.transparent,
-                      if (widget.bottomShade)
-                        Colors.black.withValues(alpha: 0.12),
-                    ],
-                    stops: widget.bottomShade
-                        ? const [0, 0.5, 1]
-                        : const [0, 0.45],
-                  )
-                : null,
-          ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(widget.radius),
             boxShadow: hover
@@ -86,6 +72,13 @@ class _HoverGlowState extends State<HoverGlow> {
                     ),
                   ]
                 : null,
+          ),
+          foregroundDecoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(widget.radius),
+            border: Border.all(
+              color: hover ? accent.withValues(alpha: 0.9) : Colors.transparent,
+              width: 1.5,
+            ),
           ),
           child: widget.child,
         ),
