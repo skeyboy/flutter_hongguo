@@ -258,15 +258,25 @@ class _EpisodePagerState extends State<EpisodePager> {
       key: const ValueKey('episode-pager-frame'),
       builder: (context, constraints) {
         final width = constraints.maxWidth;
+        // The remote's focus ring scales a cell 1.05 and glows. On TV the
+        // pager's viewport needs that room *inside* itself: a Padding outside
+        // the PageView still clips the first and last cells at its edge.
+        // Touch/desktop keep their zero-inset geometry untouched.
+        final inset = tv ? 16.0 : 0.0;
+        final contentWidth = width - 2 * inset;
         _columns = math.max(
           1,
-          ((width + widget.spacing) / (widget.cellExtent + widget.spacing))
+          ((contentWidth + widget.spacing) /
+                  (widget.cellExtent + widget.spacing))
               .floor(),
         );
-        final cellWidth = (width - (_columns - 1) * widget.spacing) / _columns;
+        final cellWidth =
+            (contentWidth - (_columns - 1) * widget.spacing) / _columns;
         final cellHeight = cellWidth / widget.aspectRatio;
         final gridHeight =
-            widget.rows * cellHeight + (widget.rows - 1) * widget.spacing;
+            widget.rows * cellHeight +
+            (widget.rows - 1) * widget.spacing +
+            2 * inset;
         return Column(
           key: const ValueKey('episode-pager-column'),
           mainAxisSize: MainAxisSize.min,
@@ -310,7 +320,7 @@ class _EpisodePagerState extends State<EpisodePager> {
     return GridView.builder(
       key: ValueKey('episode-pager-grid-$page'),
       physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
+      padding: EdgeInsets.all(tv ? 16 : 0),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: _columns,
         crossAxisSpacing: widget.spacing,

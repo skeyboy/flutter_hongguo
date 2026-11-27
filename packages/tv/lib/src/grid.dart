@@ -35,6 +35,12 @@ class TvGrid extends StatefulWidget {
 }
 
 class _TvGridState extends State<TvGrid> {
+  /// A focused tile scales 1.05 and carries a glow. The grid gives each edge
+  /// that much room *inside* its viewport: padding outside a scroll view still
+  /// clips at the viewport's edge, and end-of-row cards are exactly where the
+  /// viewer parks the focus.
+  static const focusInset = 20.0;
+
   final scroll = ScrollController();
   final nodes = <String, FocusNode>{};
   int revision = 0;
@@ -107,15 +113,13 @@ class _TvGridState extends State<TvGrid> {
     final ticket = ++revision, id = widget.ids[index];
     logicalTarget = id;
     if (scroll.hasClients) {
-      final offset = index ~/ columns * rowHeight;
+      final offset = focusInset + index ~/ columns * rowHeight;
       final current = scroll.offset;
       final height = scroll.position.viewportDimension;
       if (offset < current || offset + rowHeight > current + height) {
         await scroll.animateTo(
-          (offset < current ? offset : offset + rowHeight - height).clamp(
-            0,
-            scroll.position.maxScrollExtent,
-          ),
+          (offset < current ? offset - focusInset : offset + rowHeight - height)
+              .clamp(0, scroll.position.maxScrollExtent),
           duration: const Duration(milliseconds: 100),
           curve: Curves.easeOut,
         );
@@ -153,16 +157,21 @@ class _TvGridState extends State<TvGrid> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _nearEnd();
         });
+        // The edge inset is inside the viewport, so the usable width is what
+        // remains after both margins; each cell still gets the same 14px
+        // gutter, which is also the room a scaled neighbour needs.
+        final contentWidth = size.maxWidth - 2 * focusInset;
         final columns = math.max(
           1,
-          ((size.maxWidth + 14) / (widget.maxExtent + 14)).ceil(),
+          ((contentWidth + 14) / (widget.maxExtent + 14)).ceil(),
         );
-        final width = (size.maxWidth - (columns - 1) * 14) / columns,
+        final width = (contentWidth - (columns - 1) * 14) / columns,
             rowHeight = width / widget.aspectRatio + 14;
         this.columns = columns;
         this.rowHeight = rowHeight;
         return GridView.builder(
           controller: scroll,
+          padding: const EdgeInsets.all(focusInset),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
             childAspectRatio: widget.aspectRatio,

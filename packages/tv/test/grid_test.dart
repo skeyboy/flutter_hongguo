@@ -39,4 +39,31 @@ void main() {
     expect(id, greaterThanOrEqualTo(12));
     await t.pumpWidget(const SizedBox());
   });
+
+  testWidgets('edge cells keep focus-scale room inside the viewport', (
+    t,
+  ) async {
+    await t.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 480,
+          height: 300,
+          child: TvNavigation(
+            child: TvGrid(
+              ids: const ['a', 'b', 'c'],
+              itemBuilder: (_, i) => const Text('card'),
+              label: (_) => 'card',
+              activate: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.pump();
+    // The ring scales 1.05 and glows; an outside Padding would still clip at
+    // the viewport edge, so the inset has to live in the scroll view itself.
+    final grid = t.widget<GridView>(find.byType(GridView));
+    expect(grid.padding, equals(const EdgeInsets.all(20)));
+    await t.pumpWidget(const SizedBox());
+  });
 }
