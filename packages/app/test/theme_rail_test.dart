@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_app/bootstrap.dart';
 import 'package:hongguo_app/features/library_page.dart';
 import 'package:hongguo_app/main.dart';
+import 'package:hongguo_app/widgets/hover_glow.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 
 import 'fakes.dart';
@@ -294,6 +296,62 @@ void main() {
     expect(find.byKey(const ValueKey('rank-page')), findsNothing);
     expect(find.byKey(const ValueKey('theme-rail')), findsOneWidget);
     expect(find.byKey(const ValueKey('theme-rail-cate_7')), findsOneWidget);
+  });
+
+  /// Hover 高亮只落在一枚 chip 上，且指针观察者和放大后的命中区是同一块：
+  /// 早先 MouseRegion 包在 AnimatedScale 外，chip 放大 4% 之后边沿会出现
+  /// 「自己的 ink 还亮着、rim 已经灭了」的两层脱节。
+  int litGlows() => find.byType(HoverGlow).evaluate().where((element) {
+        final state = (element as StatefulElement).state as dynamic;
+        return state.lit as bool;
+      }).length;
+
+  testWidgets('hover lights one chip and no row paints a scrollbar', (
+    tester,
+  ) async {
+    final catalog = RailCatalog();
+    await mount(tester, FakeRuntime(catalog), const Size(1280, 900));
+    await openCategory(tester, catalog);
+    final chip = find.byKey(const ValueKey('theme-rail-cate_7'));
+    final rail = find.byKey(const ValueKey('theme-rail'));
+    final choices = find.byKey(const ValueKey('filter-choices-categories'));
+    // 横滑照旧，但 track/thumb 不再出现在任何一条筛选行上。
+    expect(find.ancestor(of: rail, matching: find.byType(Scrollbar)), findsNothing);
+    expect(
+      find.ancestor(of: choices, matching: find.byType(Scrollbar)),
+      findsNothing,
+    );
+    expect(litGlows(), 0);
+
+    final pointer = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await pointer.addPointer(location: Offset.zero);
+    await pointer.moveTo(tester.getCenter(chip));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(litGlows(), 1);
+    final glow = find.ancestor(of: chip, matching: find.byType(HoverGlow));
+    // 亮边跟随 chip 自己的 M3 圆角（8），不再是一圈落在内侧的错位边框。
+    expect(tester.widget<HoverGlow>(glow).radius, 8);
+    final scale = find.ancestor(of: chip, matching: find.byType(AnimatedScale));
+    expect(tester.widget<AnimatedScale>(scale).scale, 1.04);
+    // 指针观察者在缩放层里面：命中区和画出来的 rim 随同一帧变化。
+    // chip 自己还带一枚 InkWell 的 MouseRegion；这里要确认的是 HoverGlow 的
+    // 那枚（带 enter/exit 回调）也在缩放层里面。
+    final regions = find.descendant(
+      of: scale,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is MouseRegion &&
+            widget.onEnter != null &&
+            widget.onExit != null &&
+            widget.cursor == MouseCursor.defer,
+      ),
+    );
+    expect(regions, findsOneWidget);
+
+    await pointer.moveTo(Offset.zero);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(litGlows(), 0);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('the keyboard selects the focused theme chip', (tester) async {

@@ -99,6 +99,10 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
   int requestToken = 0;
   Timer? refreshTimer;
 
+  /// 结果列表的 controller。换筛选条件是一次新的提问，新答案从顶部呈现；
+  /// 筛选带收展不改 offset 的契约另由 [_onScrollNotification] 负责。
+  late final ScrollController resultsScroll;
+
   /// 每行一个 controller，与发现页 `rowAt` 同一契约：Scrollbar 与点选居中
   /// 都要能从外面问这一行滚到哪了。
   final rowScroll = <String, ScrollController>{};
@@ -124,6 +128,7 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
   @override
   void initState() {
     super.initState();
+    resultsScroll = ScrollController();
     unawaited(_loadVocabulary());
     unawaited(_refresh());
   }
@@ -134,6 +139,7 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
     for (final controller in rowScroll.values) {
       controller.dispose();
     }
+    resultsScroll.dispose();
     fade.dispose();
     super.dispose();
   }
@@ -222,6 +228,9 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
           cursor = page.nextCursor;
           refreshing = false;
           error = null;
+          // 换条件后的新答案从顶部呈现；收展不改 offset 的契约不受影响。
+          _lastListOffset = 0;
+          if (resultsScroll.hasClients) resultsScroll.jumpTo(0);
           _restartFade();
         }
       });
@@ -375,31 +384,58 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
     List<CatalogFilter> themeItems,
     List<CatalogDim> sections,
     List<String> missing,
-  ) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      // 筛选带与 main 的发现/榜单页同构：收起的是高度，不是筛选状态。
-      // 带外置在列表之上，收展只改变列表视口，不会改动观众正在看的 offset。
-      AnimatedSize(
-        duration: MediaQuery.disableAnimationsOf(context)
-            ? Duration.zero
-            : const Duration(milliseconds: 150),
-        curve: Curves.easeOutCubic,
-        alignment: Alignment.topCenter,
-        child: bandCollapsed
-            ? const SizedBox(width: double.infinity)
-            : _filterBand(context, themeItems, sections, missing),
-      ),
-      Expanded(
-        child: NotificationListener<ScrollNotification>(
-          onNotification: _onScrollNotification,
-          child: CustomScrollView(
-            key: const ValueKey('filter-page-results'),
-            slivers: [_resultSliver()],
+  ) => LayoutBuilder(
+    builder: (context, bodyConstraints) {
+      // 筛选带是列表上方的固定头。窗口矮、上游又给齐了维度时，带的自然高度可能
+      // 吃掉整个 body：Expanded 分到 0 高，结果列表滑不动，Column 还在底部 overflow。
+      // 给带设高度上限，把至少一屏列表视口留出来；带内部超高时自己可滑，空间够时
+      // 仍是平坦的一块，不制造第二个滚动维度。收起的是高度，不是筛选状态；收展
+      // 只改变列表视口，不改动观众正在看的 offset。
+      const minResultsHeight = 160.0;
+      final bounded = bodyConstraints.hasBoundedHeight;
+      final maxBandHeight = bounded
+          ? (bodyConstraints.maxHeight - minResultsHeight).clamp(
+              0.0,
+              double.infinity,
+            )
+          : double.infinity;
+      Widget band() => _filterBand(context, themeItems, sections, missing);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AnimatedSize(
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: bandCollapsed
+                ? const SizedBox(width: double.infinity)
+                : bounded
+                    ? ConstrainedBox(
+                        constraints: BoxConstraints(maxHeight: maxBandHeight),
+                        // 不接 PrimaryScrollController：这是带自己的视口，跟下面
+                        // 结果列表的 offset 各管各的。
+                        child: SingleChildScrollView(
+                          primary: false,
+                          child: band(),
+                        ),
+                      )
+                    : band(),
           ),
-        ),
-      ),
-    ],
+          Expanded(
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _onScrollNotification,
+              child: CustomScrollView(
+                key: const ValueKey('filter-page-results'),
+                controller: resultsScroll,
+                slivers: [_resultSliver()],
+              ),
+            ),
+          ),
+        ],
+      );
+    },
   );
 
   /// 自动加载是触控端的手：桌面用显式的「加载更多」，两种节奏各有其主。
@@ -519,7 +555,9 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
             if (active && rowKey != null) _centerChip(rowKey, chipContext);
           },
           scale: 1.04,
-          radius: 18,
+          // M3 ChoiceChip 的外形是 RoundedRectangleBorder(8)，rim 跟着它走，
+          // 才不会在 chip 四角读成一圈错位的边框（与 library_page 题材 chip 同契约）。
+          radius: 8,
           child: ChoiceChip(
             key: ValueKey(key),
             label: Text(

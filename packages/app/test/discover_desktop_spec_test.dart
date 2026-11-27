@@ -4,6 +4,7 @@ import 'package:flutter/material.dart'
     show ChoiceChip, Offset, Scrollable, ScrollableState, Scrollbar, Size, ValueKey;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hongguo_app/widgets/horizontal_wheel.dart';
 
 import 'desktop_fakes.dart';
 
@@ -77,12 +78,18 @@ void main() {
     ) async {
     await mount(tester, DesktopCatalog());
     final rail = find.byKey(const ValueKey('theme-rail'));
-    // 整词表横滑之后，这一行归入触控族同一条 controller 契约：Scrollbar 挂在
-    // 自己的 controller 上，而不是落在断言过的 PrimaryScrollController 陷阱里。
+    // 横滑能力照旧，但不再画 track/thumb：滚动条视觉会压在 chip 的亮边上，
+    // 也让这一行多一层 hover 命中。controller 仍属于这一行自己，不落到
+    // PrimaryScrollController 的陷阱里。
     expect(
       find.ancestor(of: rail, matching: find.byType(Scrollbar)),
+      findsNothing,
+    );
+    expect(
+      find.ancestor(of: rail, matching: find.byType(HorizontalWheel)),
       findsOneWidget,
     );
+    expect(rail, findsOneWidget);
     // 溢出不再是菜单：第九个之后的 主题 也是行的孩子，整行靠水平滑动读完。
     expect(find.byKey(const ValueKey('theme-rail-cate_15')), findsOneWidget);
     expect(find.byKey(const ValueKey('theme-rail-more')), findsNothing);

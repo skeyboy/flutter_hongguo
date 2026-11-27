@@ -2892,22 +2892,21 @@ class _LibraryPageState extends LibraryPageStateBase {
       child: Row(
         children: [
           Expanded(
-            child: Scrollbar(
+            // 没有滚动条：这一行的横滑能力（拖拽、滚轮、方向键、点选居中）都还在，
+            // 只是不再画 track/thumb 去抢 chip 那一点行高和 hover 注意力。
+            child: SingleChildScrollView(
+              key: ValueKey('filter-choices-${paneName(pane)}'),
               controller: choices,
-              child: SingleChildScrollView(
-                key: ValueKey('filter-choices-${paneName(pane)}'),
-                controller: choices,
-                scrollDirection: Axis.horizontal,
-                physics: _rowPhysics,
-                padding: EdgeInsets.symmetric(
-                  horizontal: compact ? 12 : 24,
-                  vertical: 4,
-                ),
-                child: Focus(
-                  canRequestFocus: false,
-                  onKeyEvent: (node, event) => _onFilterKey(pane, event),
-                  child: Row(key: rowContentAt(rowKey), children: children),
-                ),
+              scrollDirection: Axis.horizontal,
+              physics: _rowPhysics,
+              padding: EdgeInsets.symmetric(
+                horizontal: compact ? 12 : 24,
+                vertical: 4,
+              ),
+              child: Focus(
+                canRequestFocus: false,
+                onKeyEvent: (node, event) => _onFilterKey(pane, event),
+                child: Row(key: rowContentAt(rowKey), children: children),
               ),
             ),
           ),
@@ -2932,11 +2931,13 @@ class _LibraryPageState extends LibraryPageStateBase {
         Padding(
           padding: const EdgeInsets.only(right: 8),
           // 与主线的卡片高亮同一套 rim：鼠标经过或键盘焦点落在题材 chip 上时
-          // 抬起一档并亮边；选中的底色与加粗仍由 chip 自己说。
+          // 抬起一档并亮边；选中的底色与加粗仍由 chip 自己说。半径跟 chip 的
+          // M3 外形（RoundedRectangleBorder 8）走，亮边才不会落在 chip 内侧、
+          // 读成第二道错位的边框。
           child: HoverGlow(
             focusAware: true,
             scale: 1.04,
-            radius: 18,
+            radius: 8,
             child: ChoiceChip(
               key: ValueKey('theme-rail-${option.id}'),
               // 这条 rail 现在两族都会横滑：选中的勾是 Material 3 淡入淡出的，它会
@@ -3063,10 +3064,12 @@ class _LibraryPageState extends LibraryPageStateBase {
         Padding(
           padding: const EdgeInsets.only(right: 8),
           // 入口也用 main 的 rim 说话：鼠标扫过或键盘走到它时同一种高亮。
+          // OutlinedButton 是 StadiumBorder，40 高的按钮半径是 20；亮边跟着
+          // 胶囊走，才不会在按钮里面浮出一圈小圆角。
           child: HoverGlow(
             focusAware: true,
             scale: 1.03,
-            radius: 8,
+            radius: 20,
             child: OutlinedButton(
               key: filterChipKey,
               focusNode: filterChipFocus,
@@ -3236,6 +3239,9 @@ class _LibraryPageState extends LibraryPageStateBase {
       // 「右边还有」。鼠标拖拽只对本行放行。
       // 滚轮进这一行就横向走：桌面读者不必去够 hover 才出现的箭头。
       final wheeled = HorizontalWheel(controller: rail, child: strip);
+      // 滚动条视觉（track/thumb）整条撤掉：横滑本身照旧——拖拽设备、滚轮横滑、
+      // 方向键与点选居中都在这条 controller 上，行尾渐隐和 hover 箭头仍在回答
+      // 「右边还有什么」。少一层 foregroundPainter，也不会再压到 chip 的亮边。
       body = desktopHost
           ? ScrollConfiguration(
               behavior: ScrollConfiguration.of(context).copyWith(
@@ -3247,12 +3253,9 @@ class _LibraryPageState extends LibraryPageStateBase {
                   PointerDeviceKind.invertedStylus,
                 },
               ),
-              child: Scrollbar(
-                controller: rail,
-                child: _desktopRailDecorations(pane, wheeled),
-              ),
+              child: _desktopRailDecorations(pane, wheeled),
             )
-          : Scrollbar(controller: rail, child: wheeled);
+          : wheeled;
     }
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,

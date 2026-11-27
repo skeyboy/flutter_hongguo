@@ -92,33 +92,38 @@ class _HoverGlowState extends State<HoverGlow> {
         child: child,
       );
     }
-    return MouseRegion(
-      onEnter: (_) => _setHover(true),
-      onExit: (_) => _setHover(false),
-      child: AnimatedScale(
+    // The pointer observer sits *inside* the scale: an observer wrapped around
+    // it would keep the unscaled rectangle as its hit target, so a chip that had
+    // just grown 4% would lose its rim while its own ink still read "hovered" --
+    // two highlight layers peeling apart at the edge. Scaling the observer too
+    // keeps the hit region and the painted rim on the same pixels.
+    return AnimatedScale(
+      duration: _duration,
+      curve: Curves.easeOutCubic,
+      scale: lit ? widget.scale : 1.0,
+      child: AnimatedContainer(
         duration: _duration,
-        curve: Curves.easeOutCubic,
-        scale: lit ? widget.scale : 1.0,
-        child: AnimatedContainer(
-          duration: _duration,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(widget.radius),
-            boxShadow: lit
-                ? [
-                    BoxShadow(
-                      color: accent.withValues(alpha: 0.22),
-                      blurRadius: 9,
-                    ),
-                  ]
-                : null,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(widget.radius),
+          boxShadow: lit
+              ? [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.22),
+                    blurRadius: 9,
+                  ),
+                ]
+              : null,
+        ),
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(widget.radius),
+          border: Border.all(
+            color: lit ? accent.withValues(alpha: 0.9) : Colors.transparent,
+            width: 1,
           ),
-          foregroundDecoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(widget.radius),
-            border: Border.all(
-              color: lit ? accent.withValues(alpha: 0.9) : Colors.transparent,
-              width: 1,
-            ),
-          ),
+        ),
+        child: MouseRegion(
+          onEnter: (_) => _setHover(true),
+          onExit: (_) => _setHover(false),
           child: child,
         ),
       ),

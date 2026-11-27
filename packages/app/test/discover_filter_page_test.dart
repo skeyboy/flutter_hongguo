@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_app/bootstrap.dart';
 import 'package:hongguo_app/main.dart';
+import 'package:hongguo_app/widgets/hover_glow.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 
 import 'desktop_fakes.dart' show DesktopCatalog;
@@ -43,6 +46,64 @@ class LongFilterPageCatalog extends FilterPageCatalog {
         Drama(id: 'long-$i', title: '长列表故事$i', episodeCount: 12),
     ]);
   }
+}
+
+/// 真实上游一次给齐的五个维度：桌面窗口矮一点时，筛选带的自然高度就会超过
+/// 整页可用高度——这正是 macOS 上 Column 底部 overflow 的那一类输入。
+class TallFilterPageCatalog extends FilterPageCatalog {
+  @override
+  Future<CatalogPage> browseFiltered(CatalogQuery query) async => CatalogPage([
+    for (var i = 0; i < 24; i++)
+      Drama(id: 'tall-$i', title: '长列表故事$i', episodeCount: 12),
+  ]);
+
+  @override
+  Future<List<CatalogDim>> filterRows(String genre) async => [
+    CatalogDim(
+      key: categoryThemeKey,
+      label: catalogDimRowNames[categoryThemeKey]!,
+      items: DesktopCatalog.themeItems,
+    ),
+    for (final key in const <String>[
+      'category_dim_role',
+      'category_dim_epoch',
+      'gender',
+      'online_time',
+    ])
+      CatalogDim(
+        key: key,
+        label: catalogDimRowNames[key] ?? key,
+        items: [
+          CatalogFilter('选项一', '${key}_1'),
+          CatalogFilter('选项二', '${key}_2'),
+        ],
+      ),
+  ];
+}
+
+/// 桌面尺寸下把入口页挂起来：macOS 宿主 + 矮窗口，筛选带是固定头。
+Future<void> mountDesktopPage(
+  WidgetTester tester,
+  FilterPageCatalog catalog, {
+  Size size = const Size(1000, 600),
+}) async {
+  debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+  addTearDown(() => debugDefaultTargetPlatformOverride = null);
+  await tester.binding.setSurfaceSize(size);
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  final runtime = FakeRuntime(catalog)
+    ..settings = const AppSettings(autoLoadMore: false);
+  addTearDown(runtime.dispose);
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [runtimeProvider.overrideWith((ref) async => runtime)],
+      child: const HongguoApp(),
+    ),
+  );
+  await tester.pumpAndSettle();
+  // 桌面族的入口是 `≡ 更多筛选` 按钮，键是 GlobalKey，按文案点。
+  await tester.tap(find.text('≡ 更多筛选'));
+  await tester.pumpAndSettle();
 }
 
 /// The entry page is the same full-screen page on both families; these promises
@@ -200,6 +261,33 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('桌面矮窗口下结果列表仍可滚动，筛选带不撑破页面', (tester) async {
+    await mountDesktopPage(tester, TallFilterPageCatalog());
+
+    // 结果列表有一个真正可滚的视口，而不是被固定筛选带吃到 0 高。
+    final results = find.byKey(const ValueKey('filter-page-results'));
+    final scroll = tester.state<ScrollableState>(
+      find.descendant(of: results, matching: find.byType(Scrollable)),
+    );
+    expect(tester.getSize(results).height, greaterThan(120));
+    expect(scroll.position.maxScrollExtent, greaterThan(0));
+
+    // 下滑：带让出高度，列表继续可滚，收起的是高度不是筛选状态。
+    await tester.drag(results, const Offset(0, -240));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('filter-page-band')), findsNothing);
+    expect(scroll.position.pixels, greaterThan(0));
+    expect(tester.getSize(results).height, greaterThan(160));
+
+    // 上滑：筛选项回到手边，收展契约在桌面矮窗口下一样成立。
+    await tester.drag(results, const Offset(0, 80));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
+    // 平台覆写要在测试体内还原：_verifyInvariants 先于 addTearDown 跑。
+    debugDefaultTargetPlatformOverride = null;
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('顶部筛选带随纵向滚动方向收展', (tester) async {
     await mountPage(tester, LongFilterPageCatalog());
     await openPage(tester);
@@ -215,6 +303,37 @@ void main() {
     await tester.pumpAndSettle();
     // Any upward flick brings the filters back, not only a trip to the top.
     expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('换筛选条件后结果从顶部呈现，收展本身不改 offset', (tester) async {
+    await mountPage(tester, LongFilterPageCatalog());
+    await openPage(tester);
+
+    final results = find.byKey(const ValueKey('filter-page-results'));
+    final scroll = tester.state<ScrollableState>(
+      find.descendant(of: results, matching: find.byType(Scrollable)),
+    );
+    // 滚到列表深处：带让出高度，offset > 0。
+    await tester.drag(results, const Offset(0, -300));
+    await tester.pumpAndSettle();
+    expect(scroll.position.pixels, greaterThan(0));
+    expect(find.byKey(const ValueKey('filter-page-band')), findsNothing);
+
+    // 上滑把带带回手边：收展只改视口，不改 offset。
+    await tester.drag(results, const Offset(0, 80));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
+    expect(scroll.position.pixels, greaterThan(0));
+
+    // 点题材 chip 换条件：新答案落地后从顶部呈现。
+    final chip = find.byKey(const ValueKey('filter-page-theme-cate_7'));
+    await tester.ensureVisible(chip);
+    await tester.pumpAndSettle();
+    expect(scroll.position.pixels, greaterThan(0));
+    await tester.tap(chip);
+    await tester.pumpAndSettle();
+    expect(scroll.position.pixels, 0);
     expect(tester.takeException(), isNull);
   });
 
@@ -283,6 +402,10 @@ void main() {
       matching: find.byType(AnimatedScale),
     );
     expect(tester.widget<AnimatedScale>(scale).scale, 1.0);
+    // rim 圆角跟随 M3 ChoiceChip 的 8，和 library_page 题材 chip 同一条契约；
+    // 不再是一圈落在 chip 内侧、读成错位边框的 18。
+    final glow = find.ancestor(of: chip, matching: find.byType(HoverGlow));
+    expect(tester.widget<HoverGlow>(glow).radius, 8);
 
     final pointer = await tester.createGesture(kind: PointerDeviceKind.mouse);
     addTearDown(pointer.removePointer);
