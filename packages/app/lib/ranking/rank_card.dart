@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 
-import '../widgets/drama_cover.dart';
 import '../widgets/hover_glow.dart';
+import '../widgets/hover_zoom_cover.dart';
 
 /// One row of one 榜.
 ///
@@ -141,29 +141,12 @@ class _RankCardState extends State<RankCard> {
               SizedBox(
                 width: 62,
                 height: 82,
-                // Same artwork answer as the catalog tile: zoom inside the
-                // frame, lean up 2px, clipped so nothing reaches the text.
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: AnimatedScale(
-                    duration: _duration,
-                    curve: Curves.easeOutCubic,
-                    scale: hover ? 1.08 : 1.0,
-                    child: AnimatedContainer(
-                      duration: _duration,
-                      curve: Curves.easeOutCubic,
-                      transform: Matrix4.translationValues(
-                        0,
-                        hover ? -2 : 0,
-                        0,
-                      ),
-                      child: DramaCover(
-                        drama: drama,
-                        imageProvider: widget.coverImage,
-                        allowNetwork: widget.allowNetworkCover,
-                      ),
-                    ),
-                  ),
+                // Same artwork answer as the catalog tile, shared component.
+                child: HoverZoomCover(
+                  drama: drama,
+                  imageProvider: widget.coverImage,
+                  allowNetwork: widget.allowNetworkCover,
+                  hover: hover,
                 ),
               ),
               const SizedBox(width: 12),
