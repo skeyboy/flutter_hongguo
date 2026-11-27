@@ -155,27 +155,25 @@ void main() {
   });
 
   testWidgets(
-    '≡ opens the sheet, a line changes the request and leaves it open',
+    '≡ opens the filter page, a line changes the request and the count writes back',
     (tester) async {
       final catalog = await mountMobile(tester, DesktopCatalog());
       await openNarrow(tester);
-      expect(find.byKey(const ValueKey('filter-panel')), findsOneWidget);
-      final before = catalog.browseCalls;
+      expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
       await tester.tap(
-        find.byKey(const ValueKey('filter-dim-category_dim_role-role_1')),
+        find.byKey(const ValueKey('filter-page-dim-category_dim_role-role_1')),
       );
       await tester.pumpAndSettle();
-      // 只改请求：the sheet stays under the thumb (a multi-dimension decision is
-      // made one line at a time, and closing it is the viewer's call), the page
-      // does not turn, and the dimension went into the query the list is made of.
-      expect(find.byKey(const ValueKey('filter-panel')), findsOneWidget);
+      // 只改请求：the routed page stays open, the discover list does not turn,
+      // and the dimension went into the query the grid is made of.
+      expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
       expect(catalog.filtered.last.dims['category_dim_role'], ['role_1']);
-      expect(catalog.browseCalls, before);
-      expect(find.text('≡ 1'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('filter-panel-done')));
+      // 返回发现页：page and shell read the same state object, so the count
+      // badge is already right -- no second sync pass (B1 实时写回).
+      await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
-      // `完成` -- not the pick -- is what closes it.
-      expect(find.byKey(const ValueKey('filter-panel')), findsNothing);
+      expect(find.byKey(const ValueKey('filter-page-band')), findsNothing);
+      expect(find.text('≡ 1'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -212,7 +210,7 @@ void main() {
     final rect = tester.getRect(viewport);
     await sortTo(tester, 'online_time');
     // The 档 reached the request -- and the sheet popped on the pick, which is
-    // 「one question with one answer」 and the opposite of 更多筛选's drawer.
+    // 「one question with one answer」 and the opposite of 更多筛选的入口页.
     expect(catalog.lastSort, 'online_time');
     expect(find.byKey(const ValueKey('sort-sheet')), findsNothing);
     // The chip reads the 档 actually in force...
@@ -254,10 +252,10 @@ void main() {
     expect(catalog.lastTheme, 'cate_7');
     await openNarrow(tester);
     await tester.tap(
-      find.byKey(const ValueKey('filter-dim-category_dim_role-role_1')),
+      find.byKey(const ValueKey('filter-page-dim-category_dim_role-role_1')),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('filter-panel-done')));
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(find.text('≡ 1'), findsOneWidget);
 
@@ -270,7 +268,7 @@ void main() {
     );
     expect(catalog.lastGenre, 'comic_series');
     expect(catalog.lastTheme, isNull);
-    // Back to 全部主题, and the drawer's count is empty again -- 归零, not a
+    // Back to 全部主题, and 入口页的维数 is empty again -- 归零, not a
     // second reset rule the 维度 obey differently from the 主题.
     expect(
       tester
@@ -296,9 +294,9 @@ void main() {
     // 而不是换筛选」 has something it must not disturb.
     await tapRowChip(tester, find.byKey(const ValueKey('theme-rail-cate_7')));
     await openNarrow(tester);
-    await tester.tap(find.byKey(const ValueKey('filter-dim-gender-gender_1')));
+    await tester.tap(find.byKey(const ValueKey('filter-page-dim-gender-gender_1')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('filter-panel-done')));
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
 
     final genre = catalog.lastGenre;
@@ -312,7 +310,7 @@ void main() {
     expect(find.byKey(const ValueKey('rank-page')), findsOneWidget);
     // ...and the request that made the card is untouched: `rankBoard` takes
     // neither 类型 nor 题材, so this is a trip, not a narrowing. The 主题 the
-    // viewer was on and the 维度 in the drawer both still hold.
+    // viewer was on and 入口页里的维度 both still hold.
     expect(catalog.lastGenre, genre);
     expect(catalog.lastTheme, theme);
     expect(catalog.browseCalls, browseBefore);

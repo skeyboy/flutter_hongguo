@@ -8,7 +8,6 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_core/hongguo_core.dart';
@@ -32,9 +31,14 @@ import '../ranking/ranking_controller.dart';
 import '../ranking/ranking_page.dart';
 import '../ranking/rank_entry_card.dart';
 import 'detail_page.dart';
-import 'discover_filter_panel.dart';
+import 'discover_filter_page.dart';
 import 'library/library_page_state.dart';
 import 'my_page.dart';
+
+/// The three types, in the one place that names them: the level shared by both
+/// pages and the parent name the theme rail carries. 与入口页共用同一张表，
+/// 不持有第二套译名。
+const _genreNames = discoverGenreNames;
 
 /// Both filter rows -- the choices above and the theme rail below -- hold this
 /// height in every state (chips, spinner, retry), so the two rows of one family
@@ -43,14 +47,6 @@ const _filterRowHeight = 52.0;
 
 /// 桌面二级行的行尾渐隐宽度：提示右侧还有更多题材的一小段，不是内容本身。
 const _railFadeExtent = 28.0;
-
-/// The three types, in the one place that names them: the level shared by both
-/// pages and the parent name the theme rail carries.
-const _genreNames = {
-  'short_play': '短剧',
-  'comic_series': '漫剧',
-  'ai_series': 'AI 短剧',
-};
 
 /// The 赛道 that ranks one type, which is the same domain under the ranking
 /// endpoint's own name -- upstream publishes it in `cell_selector`, and four
@@ -140,7 +136,6 @@ class _LibraryPageState extends LibraryPageStateBase {
   int _overlaySequence = 0;
   int _catalogLayerOrder = 0;
   int _suggestionsOrder = 0;
-  int _filterOrder = 0;
   int _sortOrder = 0;
   int _peekOrder = 0;
   int _activeSuggestionTicket = 0;
@@ -159,7 +154,6 @@ class _LibraryPageState extends LibraryPageStateBase {
   bool get _hasOverlays =>
       _catalogLayerOpen ||
       suggestionsPane != null ||
-      _filterLayerOpen ||
       _sortMenuOpen ||
       peekEntry != null;
 
@@ -1014,18 +1008,12 @@ class _LibraryPageState extends LibraryPageStateBase {
     }
     suggestionsEntry?.remove();
     suggestionsEntry = null;
-    filterPanelEntry?.remove();
-    filterPanelEntry = null;
-    // The sheet is a route, so it outlives this page's tree on its own: the
-    // setter is dropped so a repaint queued from a settling router cannot be
-    // delivered to a body that no longer has a page to read.
-    filterSheetSetState = null;
     peekHide?.cancel();
     _suggestionFocusSuppression?.cancel();
     peekEntry?.remove();
     peekEntry = null;
-    filterChipFocus.dispose();
     sortChipFocus.dispose();
+    filterChipFocus.dispose();
     for (final bucket in themesByGenre.values) {
       bucket.revision++;
       bucket.scope.cancel();
@@ -1057,7 +1045,6 @@ class _LibraryPageState extends LibraryPageStateBase {
     }
     router.dispose();
     viewRev.dispose();
-    themeVocabExpanded.dispose();
     super.dispose();
   }
 
@@ -1768,7 +1755,6 @@ class _LibraryPageState extends LibraryPageStateBase {
           mounted &&
           ModalRoute.of(context)?.isCurrent == true &&
           !_catalogLayerOpen &&
-          !_filterLayerOpen &&
           !_sortMenuOpen &&
           pane == destination) {
         _suppressSuggestionReopen(pane);
@@ -1783,7 +1769,6 @@ class _LibraryPageState extends LibraryPageStateBase {
     if (all) {
       _closeCatalogLayer();
       _closeSuggestions(restoreFocus: false);
-      _closeFilterPanel();
       _closeSortMenu();
       _closePeek();
       return;
@@ -1791,7 +1776,6 @@ class _LibraryPageState extends LibraryPageStateBase {
     final layers = <String, int>{
       if (_catalogLayerOpen) 'catalog': _catalogLayerOrder,
       if (suggestionsPane != null) 'suggestions': _suggestionsOrder,
-      if (_filterLayerOpen) 'filter': _filterOrder,
       if (_sortMenuOpen) 'sort': _sortOrder,
       if (peekEntry != null) 'peek': _peekOrder,
     };
@@ -1802,8 +1786,6 @@ class _LibraryPageState extends LibraryPageStateBase {
         _closeCatalogLayer();
       case 'suggestions':
         _closeSuggestions();
-      case 'filter':
-        _closeFilterPanel();
       case 'sort':
         _closeSortMenu();
       case 'peek':
@@ -2065,40 +2047,6 @@ class _LibraryPageState extends LibraryPageStateBase {
         });
       }
     }
-    // The drawer is an entry of the overlay, not of this page's tree: it is
-    // rebuilt when it is told to, and what it shows is this type's panel.
-    _repaintFilterPanel();
-  }
-
-  /// The drawer is an entry of the overlay, not of this page's tree, so it is
-  /// rebuilt when it is told to -- and everything it shows (this type's panel,
-  /// what is picked in it) is read again at that moment. The touch family's
-  /// same layer is a route, so the same telling goes to its `setState`.
-  void _repaintFilterPanel() {
-    final sheet = filterSheetSetState;
-    if (sheet != null) {
-      if (SchedulerBinding.instance.schedulerPhase ==
-          SchedulerPhase.persistentCallbacks) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && identical(filterSheetSetState, sheet)) sheet(() {});
-        });
-        return;
-      }
-      sheet(() {});
-    }
-    final entry = filterPanelEntry;
-    if (entry == null) return;
-    // Asked for inside a frame it has to wait for that frame: `markNeedsBuild`
-    // on an entry whose overlay is mid-build is an assert, and a type turned by
-    // a settling router is reached from exactly there.
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (identical(filterPanelEntry, entry)) entry.markNeedsBuild();
-      });
-      return;
-    }
-    entry.markNeedsBuild();
   }
 
   /// A choice made on one page changes that page's feed. [pane] comes from the
@@ -2204,8 +2152,8 @@ class _LibraryPageState extends LibraryPageStateBase {
     _rearmFeed(feed, preserveScroll: true);
   }
 
-  /// L2′ 的一维选中：立刻发请求，弹层留在原地。多维抽屉一次只点一个是常态，
-  /// 收起由观众的 `完成`/`Esc`/点遮罩决定，不是由「选中了」决定。
+  /// L2′ 的一维选中：立刻发请求。入口页与发现页共用这同一个写入口——
+  /// 一次只选一项是上游 `selection_type` 的实测语义，不是页面层加的限制。
   void _pickDim(String dimKey, String? itemId, int pane) {
     _reQuery(() {
       if (itemId == null) {
@@ -2216,141 +2164,41 @@ class _LibraryPageState extends LibraryPageStateBase {
         dims[dimKey] = [itemId];
       }
     }, pane);
-    _repaintFilterPanel();
   }
 
-  /// 第二行尾部的 `≡`。桌面点开的是锚在这枚 chip 下沿的浮层；触控族点开的是一条
-  /// 底部弹层——390 宽的屏上，锚在行尾的浮层没有地方开，而行本身只有 52 高。
-  /// 两族是同一层的两种形状，不是两个功能：读同一份 `rows`、写同一个 `dims`。
-  void _toggleFilterPanel() {
-    if (_filterLayerOpen) {
-      _closeFilterPanel();
-      return;
-    }
-    final bucket = themesOf(genre);
-    if (bucket.rows.isEmpty && !bucket.loading && bucket.error == null) {
-      unawaited(_loadThemes(genre));
-    }
-    if (!desktopHost) {
-      _openFilterSheet();
-      return;
-    }
-    final chip = filterChipKey.currentContext;
-    final anchor = chip == null ? null : globalRectOf(chip);
-    if (anchor == null) return;
-    _filterOrder = _nextOverlayOrder();
-    filterPanelEntry = showAnchoredPanel(
-      context: context,
-      anchor: anchor,
-      anchorProvider: () {
-        final context = filterChipKey.currentContext;
-        return context == null ? anchor : globalRectOf(context) ?? anchor;
-      },
-      id: 'filter-panel',
-      panel: (context, close) => DiscoverFilterPanel(
-        genre: genre,
-        genreLabel: _genreNames[genre] ?? genre,
-        rows: themesOf(genre).rows,
-        themeItems: themesOf(genre).values,
-        selectedTheme: theme ?? '',
-        onPickTheme: (id) {
-          _selectFilter('theme', id, destination);
-          _repaintFilterPanel();
-        },
-        themeVocabExpanded: themeVocabExpanded,
-        selected: dims,
-        loading: themesOf(genre).loading,
-        error: themesOf(genre).error,
-        onPick: (dimKey, itemId) => _pickDim(dimKey, itemId, destination),
-        onRetry: () => unawaited(_loadThemes(genre)),
-        onDone: close,
-      ),
-      onDismiss: _filterPanelClosed,
-    );
-  }
+  /// 更多筛选入口页与发现页状态之间唯一的桥。入口页不持副本：[dims] 直接交出
+  /// state 里那份 map 对象，genre/theme/sort 的写入全部走发现页自己的
+  /// `_selectFilter`/`_pickDim`——返回发现页后 `_dimCount` 与请求参数天然一致，
+  /// 不需要二次同步代码（模块 B1）。
+  DiscoverFilterBinding _filterBindingFor(int pane) =>
+      _PaneFilterBinding(this, pane);
 
-  /// The touch family's L2′: the same panel, in a sheet that stays where it was
-  /// opened. The route holds no state of its own -- it re-reads the page on every
-  /// rebuild the page asks for, so 选完留在原地 is one mechanism rather than two.
-  void _openFilterSheet() {
-    StateSetter? bound;
-    _filterOrder = _nextOverlayOrder();
+  /// 第二行尾部的 `≡`。浮层路径已整条退场：两族的同一个入口都改成把「更多筛选」
+  /// 推成一条独立路由，页内改动实时写回本页状态。
+  void _openFilterPage(int pane) {
+    // 桌面的 `F` 快捷键要焦点链才能答话：路由返回时把焦点还给打开前的控件，
+    // 否则「关掉再按 F」是一次没人接的按键。
+    // 一定还给入口 chip 自己的节点：打开瞬间的 primaryFocus 可能是 Navigator 的
+    // modal scope（点按不必然把焦点落到按钮上），把它还回去等于没还——键事件
+    // 仍旧落在路由层，桌面 F/O 两枚单键从此没人接。
+    final returnFocus = desktopHost ? filterChipFocus : null;
     unawaited(
-      showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        useSafeArea: true,
-        builder: (sheetContext) => ConstrainedBox(
-          // 原型给这块层的上限是屏高的 76%：再高就盖住了它要改的那张列表，而
-          // 「选一个看一眼」正是触控族这一层的用法。
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.76,
-          ),
-          child: SingleChildScrollView(
-            child: StatefulBuilder(
-              builder: (context, setSheetState) {
-                bound = setSheetState;
-                filterSheetSetState = setSheetState;
-                final bucket = themesOf(genre);
-                return DiscoverFilterPanel(
-                  genre: genre,
-                  genreLabel: _genreNames[genre] ?? genre,
-                  rows: bucket.rows,
-                  themeItems: bucket.values,
-                  selectedTheme: theme ?? '',
-                  onPickTheme: (id) {
-                    _selectFilter('theme', id, destination);
-                    _repaintFilterPanel();
-                  },
-                  themeVocabExpanded: themeVocabExpanded,
-                  selected: dims,
-                  loading: bucket.loading,
-                  error: bucket.error,
-                  dismissLabel: '收起',
-                  onPick: (dimKey, itemId) =>
-                      _pickDim(dimKey, itemId, destination),
-                  onRetry: () => unawaited(_loadThemes(genre)),
-                  onDone: () => Navigator.of(sheetContext).pop(),
-                );
-              },
-            ),
-          ),
+      pushAppPage<void>(
+        context,
+        AppScreen.discoverFilter,
+        (_) => DiscoverFilterPage(
+          runtime: widget.runtime,
+          binding: _filterBindingFor(pane),
         ),
       ).whenComplete(() {
-        // Only the sheet this call opened may clear the page: a second one opened
-        // over the first must not have the first's exit wipe out the live setter.
-        if (!mounted || !identical(filterSheetSetState, bound)) return;
-        _filterPanelClosed();
+        if (!mounted) return;
+        // 路由已经退场；此刻再问 `ModalRoute.isCurrent` 会读到将退未退的那一帧，
+        // 焦点就会留在 popped route 的 modal scope 上，F/O 两枚单键从此失灵。
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _restoreFocus(returnFocus);
+        });
       }),
     );
-  }
-
-  /// The one layer the tail `≡` has open, whichever family it is wearing.
-  bool get _filterLayerOpen =>
-      filterPanelEntry != null || filterSheetSetState != null;
-
-  void _closeFilterPanel() {
-    final entry = filterPanelEntry;
-    if (entry != null) {
-      entry.remove();
-      _filterPanelClosed();
-      return;
-    }
-    if (filterSheetSetState != null && Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    }
-  }
-
-  /// 抽屉走了——不管是「完成」、点遮罩还是 `Esc`——页面就不该再握着它，并把焦点还给
-  /// 那枚 chip。留着它，下一次 `F` 会去「关」一个已经不存在的层。
-  void _filterPanelClosed() {
-    filterPanelEntry = null;
-    filterSheetSetState = null;
-    _filterOrder = 0;
-    // The sheet's own route took the focus and gives it back by being popped; a
-    // keyboard focus request from here would only fight that dismissal.
-    if (desktopHost) filterChipFocus.requestFocus();
   }
 
   int get _dimCount => dims.values.where((ids) => ids.isNotEmpty).length;
@@ -3122,23 +2970,22 @@ class _LibraryPageState extends LibraryPageStateBase {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 和桌面同一个判断：只答 题材 一行的运行时没有别的维度可给，点开来的
-              // 抽屉是一间只装着「重试」的房间。
+              // 和桌面同一个判断：只答 题材 一行的运行时没有别的维度可给，
+              // 那样的入口页只是一间装着「重试」的房间，不如不画入口。
               if (catalog is FilteredCatalogRepository)
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: ActionChip(
                     // 键按页分：甩动中两页一起铺，同一个键撞两次 `find.byKey` 就会
-                    // 一次捞出两枚。所以唯一会开着抽屉的那一页（发现）拿桌面也用的那个
-                    // 短名，分类那一页后缀自己的页名——和 `filter-choices-*` 同一套
-                    // 命名。锚点句柄 `filterChipKey` 只桌面需要（浮层要问位置），触控族
-                    // 的弹层不锚在 chip 上。
+                    // 一次捞出两枚。所以唯一会开入口页的那一页（发现）拿桌面也用的
+                    // 那个短名，分类那一页后缀自己的页名——和 `filter-choices-*`
+                    // 同一套命名。
                     key: ValueKey(
                       pane == 0
                           ? 'filter-narrow'
                           : 'filter-narrow-${paneName(pane)}',
                     ),
-                    onPressed: _toggleFilterPanel,
+                    onPressed: () => _openFilterPage(pane),
                     visualDensity: VisualDensity.compact,
                     label: Text(
                       // 原型：`≡${nPicked ? ' ${nPicked}' : ''}`。数字是已经选下的维数；
@@ -3200,15 +3047,10 @@ class _LibraryPageState extends LibraryPageStateBase {
           child: OutlinedButton(
             key: filterChipKey,
             focusNode: filterChipFocus,
-            onPressed: _toggleFilterPanel,
+            onPressed: () => _openFilterPage(pane),
             style: OutlinedButton.styleFrom(
               visualDensity: VisualDensity.compact,
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              side: BorderSide(
-                color: filterPanelEntry != null
-                    ? Theme.of(context).colorScheme.outline
-                    : Theme.of(context).colorScheme.outlineVariant,
-              ),
             ),
             child: Text(
               _dimCount == 0 ? '≡ 更多筛选' : '≡ 更多筛选 · $_dimCount',
@@ -3662,9 +3504,7 @@ class _LibraryPageState extends LibraryPageStateBase {
                         _showPeek(drama, anchor, sourceContext),
                     onLeave: _schedulePeekClose,
                     dismissWhenCovered: () =>
-                        suggestionsPane == null &&
-                        !_filterLayerOpen &&
-                        !_sortMenuOpen,
+                        suggestionsPane == null && !_sortMenuOpen,
                     child: DramaCard(
                       drama: drama,
                       onTap: () => pushAppPage<void>(
@@ -3948,7 +3788,7 @@ class _LibraryPageState extends LibraryPageStateBase {
     const SingleActivator(LogicalKeyboardKey.escape): _closeOverlays,
     if (desktopHost) ...{
       const SingleActivator(LogicalKeyboardKey.keyF): _hotkey(
-        _toggleFilterPanel,
+        () => _openFilterPage(destination),
       ),
       const SingleActivator(LogicalKeyboardKey.keyO): _hotkey(
         () => sortMenuKey.currentState?.toggle(),
@@ -4054,10 +3894,6 @@ class _LibraryPageState extends LibraryPageStateBase {
     // L2′ 和 题材 同一个父亲：换了类型，那些 `cate_*` 就不再指这一页的东西了，
     // 所以跟着归零——规格要的是同一条语义，不是第二套重置规则。
     dims.clear();
-    // A drawer left open over a type that just changed shows the new type's
-    // panel with nothing picked -- the same reset the row it hangs under went
-    // through.
-    _repaintFilterPanel();
     final bucket = themesOf(slot);
     if (bucket.values.isEmpty && !bucket.loading && bucket.error == null) {
       unawaited(_loadThemes(slot));
@@ -4275,4 +4111,36 @@ class _ThemeBucket {
   String? requested;
   bool loading = false;
   String? error;
+}
+
+/// [_LibraryPageState] 与入口页之间的绑定实现：每个 setter 都委托回发现页自己的
+/// 筛选写入方法，入口页因此不造第二套语义。[pane] 由按下入口 chip 的那一行给出，
+/// 两页各有自己的行，键盘触发也只落到可见的那一页。
+class _PaneFilterBinding implements DiscoverFilterBinding {
+  final _LibraryPageState state;
+  final int pane;
+  const _PaneFilterBinding(this.state, this.pane);
+
+  @override
+  String get genre => state.genre;
+  @override
+  String? get theme => state.theme;
+  @override
+  Map<String, List<String>> get dims => state.dims;
+  @override
+  String get sort => state.sortFor(pane, state.slotOfPane(pane));
+  @override
+  void selectGenre(String genre) => state._selectFilter('genre', genre, pane);
+  @override
+  void selectTheme(String themeId) => state._selectFilter('theme', themeId, pane);
+  @override
+  void pickDim(String dimKey, String? itemId) =>
+      state._pickDim(dimKey, itemId, pane);
+  @override
+  void selectSort(String sort) => state._selectFilter('sort', sort, pane);
+  @override
+  void clearAll() => state._reQuery(() {
+    state.theme = null;
+    state.dims.clear();
+  }, pane);
 }
