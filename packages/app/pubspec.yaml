@@ -31,6 +31,9 @@ dependencies:
   dio: any
   permission_handler: any
   flutter_app_installer: any
+  # GitHub release bodies are Markdown; parse them into rich text for the TV
+  # and phone update prompts instead of reciting the raw #/- markup.
+  markdown: any
   flutter_riverpod: any
   get_it: any
   hongguo_core:

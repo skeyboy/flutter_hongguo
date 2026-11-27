@@ -173,9 +173,22 @@ String _archTag() {
   return parts.length >= 2 ? parts.last : '';
 }
 
+/// Both Android flavors share one operating system but ship different APKs and
+/// different application ids. The install/resume plumbing is identical, so every
+/// place that asks 「is this an Android device」 must include the TV flavor.
+bool isAndroidFamily(ReleasePlatform platform) =>
+    platform == ReleasePlatform.android || platform == ReleasePlatform.androidTV;
+
 /// Which attachment belongs to this device, with the Android ABIs the caller
 /// read from the platform channel.
-UpdateTarget currentUpdateTarget({List<String> abis = const []}) {
+///
+/// [isTv] is authoritative on Android: the television flavor shares the phone's
+/// operating system but installs `android-tv-<abi>.apk`, not the phone build.
+/// Without it a TV silently takes the phone APK and loses its TV-only behavior.
+UpdateTarget currentUpdateTarget({
+  List<String> abis = const [],
+  bool isTv = false,
+}) {
   const arches = {'arm64', 'x64'};
   final raw = _archTag();
   return UpdateTarget(
@@ -183,7 +196,9 @@ UpdateTarget currentUpdateTarget({List<String> abis = const []}) {
       'windows' => ReleasePlatform.windows,
       'macos' => ReleasePlatform.macOS,
       'linux' => ReleasePlatform.linux,
-      'android' => ReleasePlatform.android,
+      'android' => isTv
+          ? ReleasePlatform.androidTV
+          : ReleasePlatform.android,
       'ios' => ReleasePlatform.iOS,
       _ => ReleasePlatform.iOS,
     },

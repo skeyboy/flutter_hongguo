@@ -61,6 +61,49 @@ void main() {
     );
   });
 
+  test('a television never picks a phone APK', () {
+    // The regression that lost TV behavior: with both files published, a TV
+    // must install the television build -- never the phone build that shares
+    // the same operating system.
+    final both = releaseWith([
+      'Hongguo-0.4.0-android-tv-arm64-v8a.apk',
+      'Hongguo-0.4.0-android-arm64-v8a.apk',
+    ]);
+    expect(
+      const UpdateTarget(platform: ReleasePlatform.androidTV)
+          .installer(both)!
+          .name,
+      'Hongguo-0.4.0-android-tv-arm64-v8a.apk',
+    );
+    // Device ABI order is honored for the TV flavor too.
+    final x86 = releaseWith([
+      'Hongguo-0.4.0-android-tv-x86_64.apk',
+      'Hongguo-0.4.0-android-tv-arm64-v8a.apk',
+    ]);
+    expect(
+      const UpdateTarget(platform: ReleasePlatform.androidTV, abis: ['x86_64'])
+          .installer(x86)!
+          .name,
+      'Hongguo-0.4.0-android-tv-x86_64.apk',
+    );
+    // A phone-only release is not silently offered to a television.
+    final phoneOnly = releaseWith([
+      'Hongguo-0.4.0-android-arm64-v8a.apk',
+    ]);
+    expect(
+      const UpdateTarget(platform: ReleasePlatform.androidTV)
+          .installer(phoneOnly),
+      isNull,
+    );
+  });
+
+  test('both Android flavors are installable', () {
+    expect(
+      const UpdateTarget(platform: ReleasePlatform.androidTV).hasInstallableAsset,
+      isTrue,
+    );
+  });
+
   test('the setup program wins over the portable archive', () {
     final release = releaseWith([
       'Hongguo-0.4.0-windows-x64.zip',

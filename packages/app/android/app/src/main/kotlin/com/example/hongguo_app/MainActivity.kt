@@ -2,6 +2,7 @@ package com.example.hongguo_app
 
 import android.app.PictureInPictureParams
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.util.Rational
@@ -114,9 +115,26 @@ class MainActivity : AudioServiceActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "abi" -> result.success(Build.SUPPORTED_ABIS.toList())
+                    // Device form factor, independent of which flavor is installed.
+                    // A phone APK stranded on a TV box still reports here that it
+                    // runs on a television, so the updater can fetch the TV build
+                    // and recover instead of renewing the wrong APK forever.
+                    "isTvDevice" -> result.success(isTelevision())
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    // Whether the hardware this app runs on is a television. Uses platform
+    // capability bits rather than the installed flavor's application id, so a
+    // phone APK that landed on a TV box is still recognised as running on a TV
+    // and can update itself back to the television build.
+    private fun isTelevision(): Boolean {
+        val pm = packageManager
+        return pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
+            pm.hasSystemFeature(PackageManager.FEATURE_TELEVISION) ||
+            (resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
+                Configuration.UI_MODE_TYPE_TELEVISION
     }
 
     override fun onResume() {

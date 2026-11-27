@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:hongguo_core/hongguo_core.dart';
+import 'package:hongguo_tv/hongguo_tv.dart' show tvBuild;
 import 'package:hongguo_update/hongguo_update.dart';
 
 import 'android_update_channel.dart';
@@ -35,6 +36,27 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
   /// Whether this host may run an installer download in the background at all --
   /// the same policy the episode cache uses, read from the viewer's own setting.
   final bool Function()? systemLaneAllowed;
+
+  /// Whether this is the television flavor, which shares Android with the phone
+  /// but installs `android-tv-<abi>.apk` instead. Defaults to the build-time
+  /// flavor; injectable so a widget test can exercise both APK choices.
+  ///
+  /// The flavor alone cannot recover a phone APK that was installed on a TV box:
+  /// that build reports `tvBuild == false` forever and would renew the phone
+  /// package on every update. [deviceIsTv] asks the hardware instead; the flavor
+  /// and the hardware are OR-ed in [effectiveIsTv] so a stranded phone build
+  /// fetches the TV APK and installs its way back to the television experience.
+  final bool Function() isTv;
+
+  /// The hardware answer to 「is this a television」, independent of the flavor.
+  /// Injected so a widget test on a desktop host can simulate a TV box; the real
+  /// implementation degrades to false where no Android channel exists.
+  final Future<bool> Function() probeTvDevice;
+
+  /// Cached once: a method-channel round trip per package choice would be waste,
+  /// and the answer cannot change while the process is alive. Null means not yet
+  /// asked; false is a real answer from a phone or a desktop.
+  bool? _deviceIsTv;
 
   /// What to do with a file whose bytes matched. Injectable because the real
   /// handoff opens Finder, starts an installer, or ends this process -- and a
@@ -116,8 +138,12 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
     this.policy = const UpdatePolicy(),
     this.installerEngine,
     this.systemLaneAllowed,
+    bool Function()? isTv,
+    Future<bool> Function()? probeTvDevice,
     this.handoff = _handOffDefault,
-  }) : feed = ReleaseFeed(dio: dio, repository: AppRelease.repository);
+  })  : isTv = isTv ?? (() => tvBuild),
+        probeTvDevice = probeTvDevice ?? AndroidUpdate.isTvDevice,
+        feed = ReleaseFeed(dio: dio, repository: AppRelease.repository);
 
   static Future<void> _leaveProcess() async {
     // `flutter test` sets FLUTTER_TEST in the runner's environment; a suite on
@@ -132,9 +158,29 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
 
   bool get busy => checking || downloading || transferring;
 
+  /// The flavor OR the hardware says television. The hardware half is what
+  /// rescues a phone APK that was installed on a TV box: its flavor still says
+  /// phone, so only a device answer can make the next update fetch the TV build.
+  bool get effectiveIsTv => isTv() || (_deviceIsTv ?? false);
+
+  /// Ask the device once and cache it. A method-channel call per package choice
+  /// is waste, and a change of form factor cannot happen while the process lives.
+  Future<bool> resolveDeviceIsTv() async {
+    final cached = _deviceIsTv;
+    if (cached != null) return cached;
+    final wasTv = effectiveIsTv;
+    final value = await probeTvDevice();
+    _deviceIsTv = value;
+    // The flavor already said TV -> nothing on screen changes. Otherwise the
+    // hardware answer may have flipped the chosen package, so let the prompt
+    // rebuild its file name and the buttons.
+    if (effectiveIsTv != wasTv) notifyListeners();
+    return value;
+  }
+
   /// Whether this platform can be given an installer at all.
   bool get canInstall =>
-      offer != null && currentUpdateTarget().hasInstallableAsset;
+      offer != null && currentUpdateTarget(isTv: effectiveIsTv).hasInstallableAsset;
 
   /// Whether the line under the buttons is worth reading: a transfer running, a
   /// package waiting to be installed, or a debt still unpaid. Each of those can
@@ -154,6 +200,9 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
     if (_watchingLifecycle) return;
     _watchingLifecycle = true;
     WidgetsBinding.instance.addObserver(this);
+    // Warm the hardware answer so the first canInstall / prompt already knows
+    // whether a phone APK is running on a TV box. No-op on non-Android hosts.
+    unawaited(resolveDeviceIsTv());
     unawaited(_returnToForeground());
   }
 
@@ -182,7 +231,9 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _returnToForeground() async {
     await runQuietly();
     await settleOnReturn();
-    if (currentUpdateTarget().platform != ReleasePlatform.android) return;
+    if (!isAndroidFamily(currentUpdateTarget(isTv: effectiveIsTv).platform)) {
+      return;
+    }
     final hadDebt = await _android.hasOwedInstall();
     final word = await _android.resume();
     installOwed = await _android.hasOwedInstall();
@@ -325,9 +376,17 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
   Future<UpdateTarget> _targetForDevice() async {
     // Only an Android device has to be asked which ABI it runs; the desktop
     // builds read their own architecture out of the Dart version string.
-    final host = currentUpdateTarget();
-    if (host.platform != ReleasePlatform.android) return host;
-    return currentUpdateTarget(abis: await AndroidUpdate.supportedAbis());
+    // Both Android flavors ask -- the TV needs its ABI to pick the TV APK too.
+    final host = currentUpdateTarget(isTv: isTv());
+    if (!isAndroidFamily(host.platform)) return host;
+    // Ask the hardware, not just the flavor. A phone APK stranded on a TV box
+    // reports `isTv() == false` from its build tag but `true` from the device;
+    // the OR in effectiveIsTv makes this update fetch the TV APK back.
+    await resolveDeviceIsTv();
+    return currentUpdateTarget(
+      abis: await AndroidUpdate.supportedAbis(),
+      isTv: effectiveIsTv,
+    );
   }
 
   /// Download, verify, then hand the file to the operating system. Every return
@@ -407,7 +466,7 @@ class UpdateController extends ChangeNotifier with WidgetsBindingObserver {
     // Only where the install reads the file itself -- on the desktop the verified
     // download *is* what the viewer still has to open, so it stays.
     if (!plan.owesInstall &&
-        currentUpdateTarget().platform == ReleasePlatform.android) {
+        isAndroidFamily(currentUpdateTarget(isTv: effectiveIsTv).platform)) {
       await _journal.drop(release.tag);
     }
     // The prompt was answered: a transfer this device just handed to the system

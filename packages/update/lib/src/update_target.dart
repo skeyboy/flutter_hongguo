@@ -2,7 +2,13 @@ import 'release_info.dart';
 
 /// The builds this app ships, and therefore the ones an update can be planned
 /// for. `packages/app` maps `dart:io`'s operating-system name onto it.
-enum ReleasePlatform { windows, macOS, linux, android, iOS }
+///
+/// `androidTV` is distinct from `android` because the two flavors ship under
+/// different application ids and are packaged under different asset names
+/// (`android-tv-<abi>.apk` vs `android-<abi>.apk`). Collapsing them -- mapping a
+/// television onto plain android -- is how a TV ends up installing the phone
+/// build and loses its television-only behavior.
+enum ReleasePlatform { windows, macOS, linux, android, androidTV, iOS }
 
 /// Which attachment belongs to this device.
 ///
@@ -51,6 +57,13 @@ class UpdateTarget {
           'android-arm64-v8a.apk',
           'android-x86_64.apk',
           'android-armeabi-v7a.apk',
+        ];
+      case ReleasePlatform.androidTV:
+        return [
+          for (final abi in abis) 'android-tv-$abi.apk',
+          'android-tv-arm64-v8a.apk',
+          'android-tv-x86_64.apk',
+          'android-tv-armeabi-v7a.apk',
         ];
     }
   }

@@ -442,6 +442,57 @@ void main() {
     expect(runtime.saves, savesBefore + 2);
   });
 
+  testWidgets('markdown in the release body renders as rich text', (
+    tester,
+  ) async {
+    final runtime = FakeRuntime();
+    final body = [
+      '# Hongguo 9.9.9 发布日志',
+      '## 修改了什么',
+      '- 筛选带改为**抽屉**',
+      '- 修复 `RenderFlex overflow`',
+      '- 详见 [发布页](https://github.com/o/r/releases/tag/v9.9.9)',
+    ].join('\n');
+    final feed = _FakeFeed(
+      jsonEncode({
+        'tag_name': 'v9.9.9',
+        'name': 'Hongguo v9.9.9',
+        'body': body,
+        'prerelease': false,
+        'html_url': '',
+        'published_at': '2026-10-29T08:05:54Z',
+        'assets': [
+          for (final name in _allFiles)
+            {
+              'name': name,
+              'size': 36447668,
+              'digest': 'sha256:${'ab' * 32}',
+              'browser_download_url': 'https://objects.githubusercontent.com/$name',
+              'content_type': 'application/octet-stream',
+            },
+        ],
+      }),
+    );
+    final controller = sharedUpdateController(
+      runtime,
+      transport: Dio()..httpClientAdapter = feed,
+    );
+    await mountRoot(tester, controller);
+
+    final view = find.byKey(const Key('发布说明正文'));
+    expect(view, findsOneWidget);
+    final plain = tester.widget<SelectableText>(view).textSpan!.toPlainText();
+    // Headings and bullets are rendered, not recited as literal markers.
+    expect(plain, contains('Hongguo 9.9.9 发布日志'));
+    expect(plain, contains('抽屉'));
+    expect(plain, isNot(contains('# ')));
+    expect(plain, isNot(contains('- ')));
+    expect(plain, contains('•'));
+    expect(plain, contains('发布页'));
+    expect(plain, isNot(contains('](')));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a release without this device’s file says so', (tester) async {
     final runtime = FakeRuntime();
     final wiring = _wiring(
@@ -457,5 +508,69 @@ void main() {
     expect(wiring.feed.requests, 1);
     expect(wiring.controller.error, contains('没有适配本机的安装包'));
     expect(find.textContaining('没有适配本机的安装包'), findsOneWidget);
+  });
+
+  test('a phone-flavored APK on TV hardware updates itself back to TV', () async {
+    // The stranded-device recovery. A phone APK installed on a TV box reports
+    // `tvBuild == false` from its flavor, so the flavor alone would renew the
+    // phone build forever. The hardware probe flips effectiveIsTv, and the TV
+    // APK is then the file this device would fetch -- the install is its way
+    // back to the television experience.
+    final release = ReleaseInfo.fromJson(
+      jsonDecode(_releaseJson(files: const [
+        'Hongguo-9.9.9-android-arm64-v8a.apk',
+        'Hongguo-9.9.9-android-tv-arm64-v8a.apk',
+      ])) as Map<String, dynamic>,
+    );
+    final controller = UpdateController(
+      dio: Dio(),
+      readSettings: () => const AppSettings(),
+      writeSettings: (_) async {},
+      stageDirectory: () async => '.',
+      isTv: () => false, // flavor: this build was the phone APK
+      probeTvDevice: () async => true, // hardware: but it runs on a TV box
+    );
+    expect(release, isNotNull);
+
+    // Before the probe returns the flavor still says phone.
+    expect(controller.effectiveIsTv, isFalse);
+
+    // Ask the hardware once: effectiveIsTv flips to television. The controller
+    // feeds this into currentUpdateTarget(isTv: ...) and _targetForDevice, so on
+    // an Android host the TV APK is selected (the platform-agnostic APK choice
+    // itself is covered by update_target_test's androidTV cases).
+    await controller.resolveDeviceIsTv();
+    expect(controller.effectiveIsTv, isTrue);
+    final tvTarget = UpdateTarget(platform: ReleasePlatform.androidTV);
+    expect(tvTarget.installer(release)?.name,
+        contains('android-tv-arm64-v8a.apk'));
+
+    // Cached: a second call never asks the device again and stays on TV.
+    await controller.resolveDeviceIsTv();
+    expect(controller.effectiveIsTv, isTrue);
+  });
+
+  test('a real phone flavor stays on the phone APK', () async {
+    final release = ReleaseInfo.fromJson(
+      jsonDecode(_releaseJson(files: const [
+        'Hongguo-9.9.9-android-arm64-v8a.apk',
+        'Hongguo-9.9.9-android-tv-arm64-v8a.apk',
+      ])) as Map<String, dynamic>,
+    );
+    final controller = UpdateController(
+      dio: Dio(),
+      readSettings: () => const AppSettings(),
+      writeSettings: (_) async {},
+      stageDirectory: () async => '.',
+      isTv: () => false,
+      probeTvDevice: () async => false, // hardware agrees: genuinely a phone
+    );
+    await controller.resolveDeviceIsTv();
+    expect(controller.effectiveIsTv, isFalse);
+    final phoneTarget = UpdateTarget(platform: ReleasePlatform.android);
+    final chosen = phoneTarget.installer(release);
+    expect(chosen, isNotNull);
+    expect(chosen!.name, contains('android-arm64-v8a.apk'));
+    expect(chosen.name, isNot(contains('android-tv-')));
   });
 }

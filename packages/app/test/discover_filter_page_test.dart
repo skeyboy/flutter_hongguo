@@ -534,4 +534,85 @@ void main() {
     expect(catalog.filtered.last.cursor, 'next');
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('顶部导航栏筛选按钮收起与展开抽屉', (tester) async {
+    await mountPage(tester, FilterPageCatalog());
+    await openPage(tester);
+    // 默认展开：完整筛选带从顶部拉下。
+    expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
+    expect(find.byKey(const ValueKey('filter-page-drawer')), findsOneWidget);
+    expect(find.byKey(const ValueKey('filter-page-drawer-peek')), findsNothing);
+
+    final toggle = find.byKey(const ValueKey('filter-page-drawer-toggle'));
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    // 收起：带退场，留一条常驻窄条，结果列表仍在。
+    expect(find.byKey(const ValueKey('filter-page-band')), findsNothing);
+    expect(find.byKey(const ValueKey('filter-page-drawer-peek')), findsOneWidget);
+    expect(find.byKey(const ValueKey('filter-page-results')), findsOneWidget);
+
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    // 再点：带回来。
+    expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
+    expect(find.byKey(const ValueKey('filter-page-drawer-peek')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('收起态点常驻窄条可再次抽出抽屉', (tester) async {
+    await mountPage(tester, FilterPageCatalog());
+    await openPage(tester);
+    await tester.tap(find.byKey(const ValueKey('filter-page-drawer-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('filter-page-drawer-peek')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('filter-page-drawer-peek')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
+    expect(find.byKey(const ValueKey('filter-page-drawer-peek')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('把手上拖收起、窄条下拖展开抽屉', (tester) async {
+    await mountPage(tester, FilterPageCatalog());
+    await openPage(tester);
+    final handle = find.byKey(const ValueKey('filter-page-drawer-handle'));
+    expect(handle, findsOneWidget);
+
+    await tester.drag(handle, const Offset(0, -60));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('filter-page-band')), findsNothing);
+    expect(find.byKey(const ValueKey('filter-page-drawer-peek')), findsOneWidget);
+
+    await tester.drag(
+      find.byKey(const ValueKey('filter-page-drawer-peek')),
+      const Offset(0, 60),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('抽屉收起后结果列表仍可滚，窄条显示已选数量', (tester) async {
+    await mountPage(tester, LongFilterPageCatalog());
+    await openPage(tester);
+    await tester.tap(
+      find.byKey(const ValueKey('filter-page-dim-category_dim_role-role_1')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('filter-page-drawer-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.text('1 项已选'), findsOneWidget);
+
+    final results = find.byKey(const ValueKey('filter-page-results'));
+    final scroll = tester.state<ScrollableState>(
+      find.descendant(of: results, matching: find.byType(Scrollable)),
+    );
+    expect(scroll.position.maxScrollExtent, greaterThan(0));
+    await tester.drag(results, const Offset(0, -120));
+    await tester.pumpAndSettle();
+    expect(scroll.position.pixels, greaterThan(0));
+    expect(tester.takeException(), isNull);
+  });
 }

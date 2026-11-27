@@ -7,8 +7,9 @@ import 'package:permission_handler/permission_handler.dart';
 /// the app may install at all, `flutter_app_installer` opens the system installer
 /// for the verified APK.
 ///
-/// `hongguo/update` carries only `abi` today; the desktop builds have no handler
-/// for it, so the ABI question degrades to 「没有 Android ABI」 rather than throwing.
+/// `hongguo/update` carries `abi` and `isTvDevice`; the desktop builds have no
+/// handler for either, so the ABI question degrades to 「没有 Android ABI」 and
+/// the TV question to 「不是电视」 rather than throwing.
 class AndroidUpdate {
   static const MethodChannel channel = MethodChannel('hongguo/update');
 
@@ -21,6 +22,22 @@ class AndroidUpdate {
       return const [];
     } on MissingPluginException {
       return const [];
+    }
+  }
+
+  /// Whether the *hardware* is a television, independent of the installed flavor.
+  ///
+  /// A phone APK installed on a TV box still answers true here, which is what
+  /// lets the updater fetch the TV build and recover the television experience.
+  /// Desktop builds have no channel: the missing-plugin path says "not a TV",
+  /// so a desktop never mistakes itself for an Android television.
+  static Future<bool> isTvDevice() async {
+    try {
+      return await channel.invokeMethod<bool>('isTvDevice') ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
     }
   }
 }

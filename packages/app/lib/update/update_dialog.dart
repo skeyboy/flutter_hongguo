@@ -6,6 +6,7 @@ import 'package:hongguo_update/hongguo_update.dart';
 
 import 'app_release.dart';
 import 'install_strategy.dart';
+import 'release_notes_view.dart';
 import 'update_controller.dart';
 
 /// The prompt, and the only place the release note is ever shown.
@@ -48,10 +49,54 @@ class _UpdateDialogState extends State<UpdateDialog> {
   /// with no position attached as soon as its fade-out timer runs.
   final ScrollController _notes = ScrollController();
 
+  /// TV only: the note is a D-pad target of its own. Without a focus node the
+  /// remote's up/down walk jumps straight from the title to the action ring and
+  /// the long release body is unreadable at ten feet -- the prompt reads as
+  /// "stuck full of text". Giving it a node lets up/down scroll the body and
+  /// hands the focus back to the buttons only at the very top or bottom.
+  final FocusNode _notesFocus = FocusNode(debugLabel: '更新内容');
+
   @override
   void dispose() {
+    _notesFocus.dispose();
     _notes.dispose();
     super.dispose();
+  }
+
+  /// Consume up/down while there is still note left to read; at an edge return
+  /// `ignored` so the app-wide `TvNavigation` policy can move to the next focus
+  /// target. This is what keeps every action reachable: the body never traps
+  /// the ring, it only delays the hand-off until the text has been seen.
+  KeyEventResult _onNotesKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    final down = key == LogicalKeyboardKey.arrowDown ||
+        key == LogicalKeyboardKey.pageDown;
+    final up = key == LogicalKeyboardKey.arrowUp ||
+        key == LogicalKeyboardKey.pageUp;
+    if (!down && !up) return KeyEventResult.ignored;
+    if (!_notes.hasClients) return KeyEventResult.ignored;
+
+    final position = _notes.position;
+    final atTop = position.pixels <= position.minScrollExtent + 1;
+    final atBottom = position.pixels >= position.maxScrollExtent - 1;
+    if ((down && atBottom) || (up && atTop)) {
+      return KeyEventResult.ignored;
+    }
+    // A large body needs a step that makes progress visible without skipping a
+    // heading; page keys move a whole viewport.
+    final step = (key == LogicalKeyboardKey.pageDown ||
+            key == LogicalKeyboardKey.pageUp)
+        ? 240.0
+        : 96.0;
+    final target = (position.pixels + (down ? step : -step)).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    _notes.jumpTo(target.toDouble());
+    return KeyEventResult.handled;
   }
 
   UpdateController get controller => widget.controller;
@@ -74,7 +119,10 @@ class _UpdateDialogState extends State<UpdateDialog> {
     // The number has to be the file this device would actually fetch. The feed
     // lists fifteen attachments in whatever order the release workflow wrote
     // them, and the first of those is not ours.
-    final installer = currentUpdateTarget().installer(release);
+    // A phone APK stranded on a TV box runs this phone prompt but must show the
+    // TV package it will actually fetch back to the television experience.
+    final installer = currentUpdateTarget(isTv: controller.effectiveIsTv)
+        .installer(release);
     return AlertDialog(
       title: Text('发现新版本 ${release.tag}'),
       content: SizedBox(
@@ -100,7 +148,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
                   controller: _notes,
                   child: SingleChildScrollView(
                     controller: _notes,
-                    child: SelectableText(release.notes),
+                    child: ReleaseNotesView(markdown: release.notes),
                   ),
                 ),
               ),
@@ -213,7 +261,14 @@ class _UpdateDialogState extends State<UpdateDialog> {
   /// 确认 reach them through the app-wide `TvNavigation` policy.
   Widget _tvDialog(BuildContext context) {
     final canInstall = controller.canInstall;
-    final installer = currentUpdateTarget().installer(release);
+    // A television must name the television APK, not the phone build sharing
+    // the same operating system.
+    final installer = currentUpdateTarget(isTv: true).installer(release);
+    // 正文高度按屏幕算：给标题、版本、安装大小与底部动作环留出固定预算，
+    // 剩下的全给正文，且永远给按钮环留出位置，长文案不会再「占满」整页。
+    final notesHeight = (MediaQuery.sizeOf(context).height - 380)
+        .clamp(140.0, 420.0)
+        .toDouble();
     return Focus(
       // Back/Escape belongs to this route. Handling it here rather than leaving
       // it to the root dispatcher means a TV prompt can never leave a stuck
@@ -257,15 +312,43 @@ class _UpdateDialogState extends State<UpdateDialog> {
                   ),
                 ],
                 const SizedBox(height: 16),
+                // TV 的正文是焦点环里的一站：上/下在正文内滚动，读到两端才把
+                // 焦点交给下面的按钮（_onNotesKey）。聚焦时描一圈主色边，让
+                // 十英尺外也看得出「现在遥控器在正文上，按上下翻页」。
                 SizedBox(
-                  height: 300,
-                  child: Scrollbar(
-                    controller: _notes,
-                    child: SingleChildScrollView(
-                      controller: _notes,
-                      child: SelectableText(
-                        release.notes,
-                        style: const TextStyle(fontSize: 18),
+                  height: notesHeight,
+                  child: Focus(
+                    key: const Key('发布说明焦点'),
+                    focusNode: _notesFocus,
+                    onKeyEvent: _onNotesKey,
+                    onFocusChange: (_) => setState(() {}),
+                    child: AnimatedContainer(
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 100),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _notesFocus.hasFocus
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.transparent,
+                          width: 3,
+                        ),
+                      ),
+                      child: Scrollbar(
+                        controller: _notes,
+                        child: SingleChildScrollView(
+                          controller: _notes,
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ReleaseNotesView(
+                            markdown: release.notes,
+                            fontSize: 18,
+                          ),
+                        ),
                       ),
                     ),
                   ),

@@ -247,4 +247,56 @@ void main() {
     plugins.dispose();
     expect(await AndroidUpdate.supportedAbis(), isEmpty);
   });
+
+  test('a phone APK on TV hardware still answers true to isTvDevice', () async {
+    // The hardware answer is independent of the installed flavor. A phone build
+    // stranded on a TV box must report the television here, which is what lets
+    // the updater fetch the TV APK back instead of renewing the phone build.
+    plugins.dispose();
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(
+      AndroidUpdate.channel,
+      (call) async => switch (call.method) {
+        'isTvDevice' => true,
+        _ => null,
+      },
+    );
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(AndroidUpdate.channel, null),
+    );
+    expect(await AndroidUpdate.isTvDevice(), isTrue);
+  });
+
+  test('a desktop with no TV channel says not-a-TV, never a crash', () async {
+    plugins.dispose();
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(AndroidUpdate.channel, null);
+    expect(await AndroidUpdate.isTvDevice(), isFalse);
+  });
+
+  test('both Android flavors share the install/resume plumbing', () {
+    // The TV flavor has its own APK and application id, but the permission,
+    // intent and owed-install resume paths are the same as the phone's. Every
+    // `platform == android` gate must therefore include androidTV.
+    expect(isAndroidFamily(ReleasePlatform.android), isTrue);
+    expect(isAndroidFamily(ReleasePlatform.androidTV), isTrue);
+    expect(isAndroidFamily(ReleasePlatform.macOS), isFalse);
+    expect(isAndroidFamily(ReleasePlatform.iOS), isFalse);
+  });
+
+  test('the isTv flag only changes the target on an Android host', () {
+    // On Android the TV flavor must map to androidTV (its own APK); on every
+    // other host the flag is inert -- a desktop must not become a TV target.
+    final phone = currentUpdateTarget(isTv: false);
+    final tv = currentUpdateTarget(isTv: true);
+    if (Platform.operatingSystem == 'android') {
+      expect(phone.platform, ReleasePlatform.android);
+      expect(tv.platform, ReleasePlatform.androidTV);
+    } else {
+      expect(tv.platform, phone.platform);
+      expect(isAndroidFamily(tv.platform), isFalse);
+    }
+  });
 }

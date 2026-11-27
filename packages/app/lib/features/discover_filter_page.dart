@@ -107,11 +107,24 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
   /// 都要能从外面问这一行滚到哪了。
   final rowScroll = <String, ScrollController>{};
 
-  /// 顶栏筛选带随纵向列表的方向收展，与发现/榜单页同一套契约：向下看内容时
-  /// 让出高度，任意一次向上滑都把筛选项带回手边，不必滚回页首。
+  /// 顶部筛选抽屉：展开时从 AppBar 下方拉下，收起时只留一条常驻窄条。
+  /// 除了导航栏按钮，列表滚动方向收展（向下看内容让出高度、向上滑带回手边）
+  /// 与抽屉把手拖拽都走同一个开合入口。
   static const _collapseAfter = 40.0, _collapseBefore = 8.0;
   bool bandCollapsed = false;
   double _lastListOffset = 0;
+
+  /// 把手拖拽的累计位移（向下为正）：上拖收起、下拖展开，与列表滚动同向。
+  double _handleDragStartY = 0;
+  double _handleDragDelta = 0;
+
+  bool get drawerOpen => !bandCollapsed;
+
+  /// 抽屉开合的唯一入口：AppBar 按钮、把手、列表滚动收展都走这里。
+  void setDrawerOpen(bool open) {
+    if (drawerOpen == open) return;
+    setState(() => bandCollapsed = !open);
+  }
 
   /// 刷新完成后的淡入。「重置系统动画偏好」下不跑动画，直接到位。
   late final AnimationController fade = AnimationController(
@@ -354,6 +367,15 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
       appBar: AppBar(
         title: Text('更多筛选 · ${discoverGenreNames[genre] ?? genre}'),
         actions: [
+          IconButton(
+            key: const ValueKey('filter-page-drawer-toggle'),
+            icon: Icon(
+              Icons.filter_alt,
+              color: drawerOpen ? Theme.of(context).colorScheme.primary : null,
+            ),
+            tooltip: drawerOpen ? '收起筛选条件' : '展开筛选条件',
+            onPressed: () => setDrawerOpen(!drawerOpen),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: TextButton(
@@ -403,7 +425,14 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
               double.infinity,
             )
           : double.infinity;
-      Widget band() => _filterBand(context, themeItems, sections, missing);
+      Widget panel() => _drawerPanel(
+            context,
+            themeItems,
+            sections,
+            missing,
+            bounded: bounded,
+            maxHeight: maxBandHeight,
+          );
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -414,18 +443,8 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
             curve: Curves.easeOutCubic,
             alignment: Alignment.topCenter,
             child: bandCollapsed
-                ? const SizedBox(width: double.infinity)
-                : bounded
-                    ? ConstrainedBox(
-                        constraints: BoxConstraints(maxHeight: maxBandHeight),
-                        // 不接 PrimaryScrollController：这是带自己的视口，跟下面
-                        // 结果列表的 offset 各管各的。
-                        child: SingleChildScrollView(
-                          primary: false,
-                          child: band(),
-                        ),
-                      )
-                    : band(),
+                ? _drawerPeek(context)
+                : panel(),
           ),
           Expanded(
             child: NotificationListener<ScrollNotification>(
@@ -451,10 +470,10 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
       final last = _lastListOffset;
       _lastListOffset = offset;
       if (!bandCollapsed && offset > last && offset > _collapseAfter) {
-        setState(() => bandCollapsed = true);
+        setDrawerOpen(false);
       } else if (bandCollapsed &&
           (offset < last || offset <= _collapseBefore)) {
-        setState(() => bandCollapsed = false);
+        setDrawerOpen(true);
       }
     }
     if (desktopLayout) return false;
@@ -470,6 +489,152 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
       unawaited(_refresh(more: true));
     }
     return false;
+  }
+
+  /// 抽屉展开态：从顶部拉下的面板。把手放在滚动内容之外，拖拽不会与面板内
+  /// 部的滚动抢手势；底部圆角 + 轻阴影让它读成一张浮在结果之上的纸。
+  Widget _drawerPanel(
+    BuildContext context,
+    List<CatalogFilter> themeItems,
+    List<CatalogDim> sections,
+    List<String> missing, {
+    required bool bounded,
+    required double maxHeight,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    Widget content = _filterBand(context, themeItems, sections, missing);
+    if (bounded) {
+      // 把手约占 16px，从带的预算里扣掉，矮窗口下结果列表仍留 ≥160。
+      content = ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: (maxHeight - 20).clamp(0.0, double.infinity),
+        ),
+        // 不接 PrimaryScrollController：这是抽屉自己的视口，与结果列表各管各的。
+        child: SingleChildScrollView(primary: false, child: content),
+      );
+    }
+    return Container(
+      key: const ValueKey('filter-page-drawer'),
+      decoration: _drawerDecoration(scheme),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _drawerHandle(context, open: true),
+          content,
+        ],
+      ),
+    );
+  }
+
+  /// 收起态留一条常驻窄条：收起的是条件本身，不是入口。除 AppBar 按钮外，
+  /// 这条也能点/拖开抽屉，抽屉因此始终「抽得动」。
+  Widget _drawerPeek(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final selected = _selectedCount;
+    return Semantics(
+      button: true,
+      label: '展开筛选条件',
+      child: GestureDetector(
+        key: const ValueKey('filter-page-drawer-peek'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setDrawerOpen(true),
+        onVerticalDragStart: _onHandleDragStart,
+        onVerticalDragUpdate: _onHandleDragUpdate,
+        onVerticalDragEnd: _onHandleDragEnd,
+        child: Container(
+          decoration: _drawerDecoration(scheme),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Icon(Icons.filter_alt, size: 18, color: scheme.primary),
+              const SizedBox(width: 8),
+              const Text(
+                '筛选条件',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              if (selected > 0) ...[
+                const SizedBox(width: 6),
+                Text(
+                  '$selected 项已选',
+                  style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                ),
+              ],
+              const Spacer(),
+              Icon(
+                Icons.keyboard_arrow_down,
+                size: 18,
+                color: scheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  BoxDecoration _drawerDecoration(ColorScheme scheme) => BoxDecoration(
+        color: scheme.surface,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.shadow.withValues(alpha: 0.12),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      );
+
+  /// 把手：上拖收起、下拖展开，与结果列表滚动方向一致。
+  Widget _drawerHandle(BuildContext context, {required bool open}) => Semantics(
+        button: true,
+        label: open ? '收起筛选条件' : '展开筛选条件',
+        child: GestureDetector(
+          key: const ValueKey('filter-page-drawer-handle'),
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setDrawerOpen(!open),
+          onVerticalDragStart: _onHandleDragStart,
+          onVerticalDragUpdate: _onHandleDragUpdate,
+          onVerticalDragEnd: _onHandleDragEnd,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurfaceVariant
+                      .withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+  void _onHandleDragStart(DragStartDetails details) =>
+      _handleDragStartY = details.globalPosition.dy;
+
+  void _onHandleDragUpdate(DragUpdateDetails details) =>
+      _handleDragDelta = details.globalPosition.dy - _handleDragStartY;
+
+  void _onHandleDragEnd(DragEndDetails _) {
+    if (_handleDragDelta < -24) {
+      setDrawerOpen(false);
+    } else if (_handleDragDelta > 24) {
+      setDrawerOpen(true);
+    }
+    _handleDragDelta = 0;
+  }
+
+  /// 题材 + 各维度的已选数量（排序是档位，不计入筛选）。
+  int get _selectedCount {
+    final theme = widget.binding.theme;
+    return (theme != null && theme.isNotEmpty ? 1 : 0) +
+        widget.binding.dims.values.where((ids) => ids.isNotEmpty).length;
   }
 
   Widget _sectionLabel(String text) => Padding(

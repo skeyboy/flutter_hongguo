@@ -23,6 +23,7 @@ import 'package:hongguo_app/update/update_dialog.dart';
 import 'package:hongguo_app/update/update_host.dart';
 import 'package:hongguo_core/hongguo_core.dart';
 import 'package:hongguo_tv/hongguo_tv.dart';
+import 'package:hongguo_update/hongguo_update.dart';
 
 import 'fakes.dart';
 import 'update_fixture.dart';
@@ -63,6 +64,20 @@ class _CountingFeed implements HttpClientAdapter {
     );
   }
 }
+
+/// A release note written the way GitHub actually ships it: headings, bullets,
+/// inline code and a link. Long enough that its body must scroll on the remote.
+String _markdownNotes() => [
+  '# Hongguo 9.9.9 发布日志',
+  '',
+  '## 修改了什么',
+  '- 发现页筛选带改为**可收起**的顶部抽屉',
+  '- 修复 `SelectableText` 不换行的问题',
+  '',
+  '## 增加了什么',
+  '- 详见 [发布页](https://github.com/o/r/releases/tag/v9.9.9)',
+  for (var i = 0; i < 20; i++) '- 第 $i 条更新，正文需要遥控器翻页才能读完',
+].join('\n');
 
 class _RecordingInstall extends UpdateController {
   int installs = 0;
@@ -218,6 +233,76 @@ void main() {
     await t.pumpAndSettle();
     expect(_focus, '忽略本次更新');
 
+    await t.sendKeyEvent(LogicalKeyboardKey.escape);
+    await t.pumpAndSettle();
+    expect(find.byType(Dialog), findsNothing);
+    expect(t.takeException(), isNull);
+  });
+
+  testWidgets('TV prompt renders markdown and the remote scrolls the body', (
+    t,
+  ) async {
+    await _tvView(t);
+    final base = fixtureRelease();
+    final controller = _RecordingInstall()
+      ..offer = ReleaseInfo(
+        tag: base.tag,
+        version: base.version,
+        title: base.title,
+        notes: _markdownNotes(),
+        prerelease: base.prerelease,
+        htmlUrl: base.htmlUrl,
+        publishedAt: base.publishedAt,
+        assets: base.assets,
+      );
+    await t.pumpWidget(
+      _tvShell(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => FilledButton(
+              onPressed: () =>
+                  unawaited(showUpdateDialog(context, controller)),
+              child: const Text('打开更新提示'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.text('打开更新提示'));
+    await t.pumpAndSettle();
+
+    // Markdown is rendered, not recited: heading text is present but the
+    // leading '#', '-' and backticks are not part of the visible body.
+    expect(find.textContaining('Hongguo 9.9.9 发布日志'), findsOneWidget);
+    expect(find.textContaining('可收起'), findsOneWidget);
+    final body = find.byKey(const Key('发布说明正文'));
+    expect(body, findsOneWidget);
+    final raw = t.widget<SelectableText>(body).textSpan!.toPlainText();
+    expect(raw, isNot(contains('# ')));
+    expect(raw, isNot(contains('- ')));
+    expect(raw, contains('•'));
+    expect(raw, contains('发布页'));
+    expect(raw, isNot(contains('](')));
+
+    // The note is its own focus target; arrow down scrolls inside it while the
+    // action ring keeps its place at the bottom of the dialog.
+    final notesScroll = find.descendant(
+      of: find.byKey(const Key('更新说明')),
+      matching: find.byType(Scrollable),
+    );
+    final position = t.state<ScrollableState>(notesScroll.first).position;
+    expect(position.maxScrollExtent, greaterThan(0));
+
+    _nodeByKey(t, const Key('发布说明焦点'))!.requestFocus();
+    await t.pumpAndSettle();
+    final before = position.pixels;
+    await t.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await t.pumpAndSettle();
+    expect(position.pixels, greaterThan(before));
+
+    // Buttons are never covered by the body: the primary action is still
+    // reachable and Back still leaves the route.
+    expect(find.byKey(const Key('立即更新')), findsOneWidget);
     await t.sendKeyEvent(LogicalKeyboardKey.escape);
     await t.pumpAndSettle();
     expect(find.byType(Dialog), findsNothing);
