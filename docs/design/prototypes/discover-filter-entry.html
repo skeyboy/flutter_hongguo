@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>更多筛选入口页 · 设计原型（功能2）</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#1c1e21; --ink2:#6b7280;
+    --line:#e5e7eb; --brand:#ff3e6c; --brand-soft:#fff0f3;
+    --chip:#f2f3f5; --chip-on:#1c1e21; --chip-ink-on:#ffffff;
+    --radius:12px;
+    font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#eceef1;color:var(--ink);padding:24px;font-size:14px}
+  h1{font-size:20px;margin-bottom:4px}
+  .sub{color:var(--ink2);font-size:12px;margin-bottom:20px}
+  .stage{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap}
+  .device{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.08)}
+  .phone{width:390px}
+  .desktop{width:1120px}
+  .d-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:5}
+  .d-head .back{width:28px;height:28px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;font-size:14px}
+  .d-head .title{font-weight:700;font-size:15px}
+  .d-head .spacer{flex:1}
+  .btn-reset{font-size:12px;color:var(--brand);border:1px solid var(--brand);border-radius:999px;padding:3px 10px;cursor:pointer;background:#fff}
+  .band{padding:10px 12px 2px;background:#fff;border-bottom:1px solid var(--line)}
+  .dim-label{font-size:12px;color:var(--ink2);font-weight:600;margin:8px 0 6px}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;scroll-behavior:smooth;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:none;padding:5px 14px;border-radius:999px;background:var(--chip);font-size:13px;cursor:pointer;user-select:none;white-space:nowrap;border:1px solid transparent}
+  .chip.on{background:var(--brand-soft);color:var(--brand);border-color:var(--brand);font-weight:700}
+  .summary{display:flex;gap:8px;align-items:center;padding:8px 12px;background:#fffdf5;border-bottom:1px solid var(--line);font-size:12px;color:#8a6d1a}
+  .summary .tag{background:#fff;border:1px dashed #d9b64a;border-radius:6px;padding:1px 8px}
+  .grid{padding:12px;display:grid;gap:12px}
+  .phone .grid{grid-template-columns:repeat(2,1fr)}
+  .desktop .grid{grid-template-columns:repeat(6,1fr)}
+  .card{cursor:pointer}
+  .cover{aspect-ratio:3/4;border-radius:var(--radius);position:relative;overflow:hidden;background-size:cover;background-position:center}
+  .cover .badge{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:2px 6px;border-radius:6px}
+  .cover .free{position:absolute;top:6px;right:6px;background:var(--brand);color:#fff;font-size:10px;padding:2px 6px;border-radius:6px}
+  .card .t{font-size:13px;font-weight:600;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card .m{font-size:11px;color:var(--ink2);margin-top:2px}
+  .more{grid-column:1/-1;text-align:center;padding:10px;font-size:13px;color:var(--ink2);cursor:pointer;border:1px solid var(--line);border-radius:10px;background:#fff}
+  .empty{grid-column:1/-1;text-align:center;color:var(--ink2);padding:40px 0;font-size:13px}
+  .note{max-width:1120px;margin-top:18px;font-size:12px;color:var(--ink2);line-height:1.8;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .note b{color:var(--ink)}
+  .desktop .d-head{padding:12px 20px}
+  .desktop .band{padding:12px 20px 4px}
+  .desktop .chips{flex-wrap:wrap;overflow:visible}
+  .fade{animation:fade .25s ease}
+  @keyframes fade{from{opacity:.35}to{opacity:1}}
+</style>
+</head>
+<body>
+  <h1>「更多筛选」入口页 · 设计原型</h1>
+  <div class="sub">功能2：发现 tab「≡ 更多筛选」由浮层改为独立入口页 —— 顶部逐级分类筛选 + grid 内容随筛选实时更新 · 移动 390 / 桌面 1120 双布局 · 下方为可交互演示（数据为原型占位）</div>
+
+  <div class="stage">
+    <!-- ============ 移动端 ============ -->
+    <div class="device phone" id="app-m">
+      <div class="d-head">
+        <div class="back" onclick="history.back()" title="返回发现页">‹</div>
+        <div class="title">更多筛选 · <span data-genre-label>真人剧</span></div>
+        <div class="spacer"></div>
+        <div class="btn-reset" onclick="resetAll('m')">重置</div>
+      </div>
+      <div class="band" id="band-m"></div>
+      <div class="summary" id="sum-m"></div>
+      <div class="grid" id="grid-m"></div>
+    </div>
+
+    <!-- ============ 桌面端 ============ -->
+    <div class="device desktop" id="app-d">
+      <div class="d-head">
+        <div class="back" title="返回发现页（Esc 同效）">‹</div>
+        <div class="title">更多筛选 · <span data-genre-label>真人剧</span></div>
+        <div class="spacer"></div>
+        <div class="btn-reset" onclick="resetAll('d')">重置（Esc）</div>
+      </div>
+      <div class="band" id="band-d"></div>
+      <div class="summary" id="sum-d"></div>
+      <div class="grid" id="grid-d"></div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>交互与平台策略要点</b><br>
+    ① 顶部一级为「内容类型」（真人剧/漫剧/AI剧），切换后题材与各维度词表重新拉取，失效的选中项清空并 toast 明示；<br>
+    ② 其下按词表顺序逐级分区：题材（二级完整词表）→ 画风/状态/年代… 每维一选或「不限」，维度名用上游原文，词表没给的维度不画；<br>
+    ③ 移动端每区一行<b>横滑 chip</b>，点选后选中项自动滚动到水平中心；桌面端行宽足够时改为 wrap 平铺（≥720px 用 Wrap，否则横滑）；<br>
+    ④ 任一筛选变化：cursor 归零、旧列表淡入新结果、计数徽标与发现页「≡ n」同源回写；<br>
+    ⑤ 网格复用 DramaCard（封面/徽标/限免/集数），分页「加载更多」，错误态重试、空结果空态；<br>
+    ⑥ 排序继承发现页当前档位，页内可改三档；TV 侧栏「分类」聚合保持现状，本期 TV 仅保证路由可开可返（边界如实披露）。
+  </div>
+
+<script>
+// ===== 原型数据（占位演示，非真值）=====
+const GENRES = {
+  drama:  { label:'真人剧', themes:['都市','逆袭','甜宠','战神','神豪','重生','古装','悬疑','家庭','职场','奇幻','年代','甜虐','马甲','闪婚','隐婚','追妻','萌宝','打脸','赘婿'] },
+  comic:  { label:'漫剧',   themes:['热血','玄幻','穿越','系统','萌娃','神医','异能','末世'] },
+  ai:     { label:'AI剧',   themes:['科幻','末日','机甲','虚拟','悬疑','赛博','时空','未来'] },
+};
+const DIMS = {
+  drama:[ {key:'art',label:'画风',items:['写实','唯美','复古']},
+          {key:'status',label:'状态',items:['连载中','已完结']},
+          {key:'era',label:'年代',items:['2026','2025','2024','更早']} ],
+  comic:[ {key:'art',label:'画风',items:['日系','国漫','欧美']},
+          {key:'status',label:'状态',items:['连载中','已完结']} ],
+  ai:   [ {key:'status',label:'状态',items:['连载中','已完结']},
+          {key:'era',label:'年代',items:['2026','2025']} ],
+};
+const NAMES=['离婚后我成了顶流','重生八零当军嫂','神豪从签到开始','战神归来','闪婚老公是首富','上古至尊','末日机甲觉醒','都市超级医圣','萌宝驾到','隐婚百分百','赘婿逆袭','赛博迷城','暗恋成真','时空回溯','马甲大佬掉马','长公主在上','噬星纪元','宴总的白月光'];
+const GRADS=['linear-gradient(160deg,#ff9a9e,#fecfef)','linear-gradient(160deg,#a18cd1,#fbc2eb)','linear-gradient(160deg,#84fab0,#8fd3f4)','linear-gradient(160deg,#fbc2eb,#a6c1ee)','linear-gradient(160deg,#fddb92,#d1fdff)','linear-gradient(160deg,#ffecd2,#fcb69f)','linear-gradient(160deg,#5ee7df,#b490ca)','linear-gradient(160deg,#c79081,#dfa579)'];
+
+const state = { g:'drama', theme:'', dims:{}, sort:'online_time' };
+const SORTS = { online_time:'最新上架', hot_score:'最热', hot_collect:'最多收藏' };
+
+function vocab(g){ return { themes:GENRES[g].themes, dims:DIMS[g] }; }
+
+function renderBand(side){
+  const v = vocab(state.g);
+  const wrap = (label, chips) =>
+    `<div class="dim-label">${label}</div><div class="chips">${chips}</div>`;
+  const chipHTML = (on, txt, onclick) =>
+    `<div class="chip ${on?'on':''}" ${onclick}>${txt}</div>`;
+  let html = wrap('内容类型',
+    Object.entries(GENRES).map(([k,g]) =>
+      chipHTML(state.g===k, g.label, `onclick="pickGenre('${k}','${side}')"`)).join(''));
+  html += wrap('题材 · 二级',
+    chipHTML(state.theme==='','全部',`onclick="pickTheme('','${side}')"`) +
+    v.themes.map(t=>chipHTML(state.theme===t, t, `onclick="pickTheme('${t}','${side}')"`)).join(''));
+  for(const d of v.dims){
+    const cur = state.dims[d.key]||'';
+    html += wrap(d.label,
+      chipHTML(cur==='','不限',`onclick="pickDim('${d.key}','','${side}')"`) +
+      d.items.map(i=>chipHTML(cur===i, i, `onclick="pickDim('${d.key}','${i}','${side}')"`)).join(''));
+  }
+  html += wrap('排序',
+    Object.entries(SORTS).map(([k,l])=>
+      chipHTML(state.sort===k,l,`onclick="pickSort('${k}','${side}')"`)).join(''));
+  document.getElementById('band-'+side).innerHTML = html;
+}
+
+function dataset(){
+  // 依筛选做占位过滤：题材命中名字哈希，画风/状态/年代映射伪条件
+  const out=[];
+  let i=0;
+  for(const n of NAMES){
+    const themeOk = !state.theme || (n.length + state.theme.length) % 3 !== 0;
+    const statusOk = !(state.dims.status) || (state.dims.status==='已完结') === (i%2===0);
+    const artOk = !(state.dims.art) || (state.dims.art.length + i) % 3 !== 0;
+    const eraOk = !(state.dims.era) || (state.dims.era==='更早') === (i%4===0);
+    if(themeOk&&statusOk&&artOk&&eraOk){
+      out.push({t:n, ep:20+i*7%60, g:GRADS[i%GRADS.length],
+        badge:['上新','热映','独播'][i%3], free:i%4===0});
+    }
+    i++;
+  }
+  return out;
+}
+
+function renderGrid(side){
+  const items=dataset();
+  const g=document.getElementById('grid-'+side);
+  g.innerHTML = items.length ? items.map(it=>`
+    <div class="card fade">
+      <div class="cover" style="background-image:${it.g}">
+        <span class="badge">${it.badge}</span>${it.free?'<span class="free">限免</span>':''}
+      </div>
+      <div class="t">${it.t}</div><div class="m">全${it.ep}集 · ${SORTS[state.sort]}</div>
+    </div>`).join('')
+    + `<div class="more">加载更多（cursor 分页占位）</div>`
+    : `<div class="empty">这个组合暂时没有内容，试试放宽筛选条件。</div>`;
+  // 摘要条
+  const v=vocab(state.g);
+  const parts=[];
+  if(state.theme) parts.push('题材:'+state.theme);
+  for(const d of v.dims) if(state.dims[d.key]) parts.push(d.label+':'+state.dims[d.key]);
+  document.getElementById('sum-'+side).innerHTML =
+    `已选 <b>${parts.length}</b> 维 ${parts.map(p=>`<span class="tag">${p}</span>`).join('')} <span style="flex:1"></span> 排序 · ${SORTS[state.sort]}`;
+}
+
+function sync(side){ renderBand(side); renderGrid(side); }
+function both(fn){ fn(); sync('m'); sync('d'); }
+function centerChips(side, el){
+  // 点选后把选中 chip 滚到水平中心（与 Flutter 契约 A2/B2 同语义）
+  const row = el.parentElement;
+  const target = el.offsetLeft - (row.clientWidth - el.offsetWidth)/2;
+  row.scrollTo({left:Math.max(0,target), behavior:'smooth'});
+}
+
+function pickGenre(k,side){ both(()=>{ if(state.g!==k){ state.g=k; state.theme=''; state.dims={}; } }); }
+function pickTheme(t,side){ both(()=>state.theme=t); centerChips(side, event.currentTarget); }
+function pickDim(key,v,side){ both(()=>{ if(v) state.dims[key]=v; else delete state.dims[key]; }); centerChips(side, event.currentTarget); }
+function pickSort(k,side){ both(()=>state.sort=k); }
+function resetAll(side){ both(()=>{ state.theme=''; state.dims={}; }); }
+
+sync('m'); sync('d');
+</script>
+</body>
+</html>
