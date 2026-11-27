@@ -99,7 +99,7 @@ class _RankCardState extends State<RankCard> {
                 0.06 *
                 (Theme.of(context).brightness == Brightness.dark ? 1.6 : 1),
           ),
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(10),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

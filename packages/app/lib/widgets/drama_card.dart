@@ -65,7 +65,10 @@ class _DramaCardState extends State<DramaCard> {
           child: AnimatedContainer(
             duration: _duration,
             // The rim owns the whole item, not just the artwork: a card is one
-            // target, and a border that stops at the cover reads as two.
+            // target, and a border that stops at the cover reads as two. The
+            // padding keeps the rim off the content: artwork and type breathe
+            // inside the frame instead of touching it.
+            padding: const EdgeInsets.all(8),
             foregroundDecoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
