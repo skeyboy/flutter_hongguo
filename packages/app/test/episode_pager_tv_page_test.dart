@@ -204,6 +204,9 @@ void main() {
     final grid = tester.widget<GridView>(
       find.byKey(const ValueKey('episode-pager-grid-0')),
     );
-    expect(grid.padding, equals(const EdgeInsets.all(16)));
+    expect(
+      grid.padding,
+      equals(const EdgeInsets.symmetric(horizontal: 16, vertical: 14)),
+    );
   });
 }

@@ -262,12 +262,17 @@ class _EpisodePagerState extends State<EpisodePager> {
         // pager's viewport needs that room *inside* itself: a Padding outside
         // the PageView still clips the first and last cells at its edge.
         // Touch/desktop keep their zero-inset geometry untouched.
-        final inset = tv ? 16.0 : 0.0;
-        final contentWidth = width - 2 * inset;
+        // The remote's focus ring needs a stage inside the viewport. Keep the
+        // column count derived from the full width so paging capacity stays
+        // identical to every other platform; only the cell width shrinks.
+        // Vertical room is slightly tighter than horizontal because the
+        // four-row TV pager also has to respect its compact height budget.
+        final insetX = tv ? 16.0 : 0.0;
+        final insetY = tv ? 14.0 : 0.0;
+        final contentWidth = width - 2 * insetX;
         _columns = math.max(
           1,
-          ((contentWidth + widget.spacing) /
-                  (widget.cellExtent + widget.spacing))
+          ((width + widget.spacing) / (widget.cellExtent + widget.spacing))
               .floor(),
         );
         final cellWidth =
@@ -276,7 +281,7 @@ class _EpisodePagerState extends State<EpisodePager> {
         final gridHeight =
             widget.rows * cellHeight +
             (widget.rows - 1) * widget.spacing +
-            2 * inset;
+            2 * insetY;
         return Column(
           key: const ValueKey('episode-pager-column'),
           mainAxisSize: MainAxisSize.min,
@@ -320,7 +325,10 @@ class _EpisodePagerState extends State<EpisodePager> {
     return GridView.builder(
       key: ValueKey('episode-pager-grid-$page'),
       physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.all(tv ? 16 : 0),
+      padding: EdgeInsets.symmetric(
+        horizontal: tv ? 16 : 0,
+        vertical: tv ? 14 : 0,
+      ),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: _columns,
         crossAxisSpacing: widget.spacing,
