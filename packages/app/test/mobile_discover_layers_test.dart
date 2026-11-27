@@ -155,27 +155,25 @@ void main() {
   });
 
   testWidgets(
-    '≡ opens the sheet, a line changes the request and leaves it open',
+    '≡ opens the filter page, a line changes the request and the count writes back',
     (tester) async {
       final catalog = await mountMobile(tester, DesktopCatalog());
       await openNarrow(tester);
-      expect(find.byKey(const ValueKey('filter-panel')), findsOneWidget);
-      final before = catalog.browseCalls;
+      expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
       await tester.tap(
-        find.byKey(const ValueKey('filter-dim-category_dim_role-role_1')),
+        find.byKey(const ValueKey('filter-page-dim-category_dim_role-role_1')),
       );
       await tester.pumpAndSettle();
-      // 只改请求：the sheet stays under the thumb (a multi-dimension decision is
-      // made one line at a time, and closing it is the viewer's call), the page
-      // does not turn, and the dimension went into the query the list is made of.
-      expect(find.byKey(const ValueKey('filter-panel')), findsOneWidget);
+      // 只改请求：the routed page stays open, the discover list does not turn,
+      // and the dimension went into the query the grid is made of.
+      expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
       expect(catalog.filtered.last.dims['category_dim_role'], ['role_1']);
-      expect(catalog.browseCalls, before);
-      expect(find.text('≡ 1'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('filter-panel-done')));
+      // 返回发现页：page and shell read the same state object, so the count
+      // badge is already right -- no second sync pass (B1 实时写回).
+      await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
-      // `完成` -- not the pick -- is what closes it.
-      expect(find.byKey(const ValueKey('filter-panel')), findsNothing);
+      expect(find.byKey(const ValueKey('filter-page-band')), findsNothing);
+      expect(find.text('≡ 1'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -254,10 +252,10 @@ void main() {
     expect(catalog.lastTheme, 'cate_7');
     await openNarrow(tester);
     await tester.tap(
-      find.byKey(const ValueKey('filter-dim-category_dim_role-role_1')),
+      find.byKey(const ValueKey('filter-page-dim-category_dim_role-role_1')),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('filter-panel-done')));
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(find.text('≡ 1'), findsOneWidget);
 
@@ -296,9 +294,9 @@ void main() {
     // 而不是换筛选」 has something it must not disturb.
     await tapRowChip(tester, find.byKey(const ValueKey('theme-rail-cate_7')));
     await openNarrow(tester);
-    await tester.tap(find.byKey(const ValueKey('filter-dim-gender-gender_1')));
+    await tester.tap(find.byKey(const ValueKey('filter-page-dim-gender-gender_1')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('filter-panel-done')));
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
 
     final genre = catalog.lastGenre;

@@ -21,7 +21,10 @@ enum AppScreen {
   localEpisodes('LocalEpisodes', '/cache/episodes'),
   merged('MergedLibrary', '/merged'),
   mergeTasks('MergeTasks', '/merge/tasks'),
-  cacheMetadata('CacheMetadata', '/cache/metadata');
+  cacheMetadata('CacheMetadata', '/cache/metadata'),
+  // 发现 tab 的「更多筛选」入口页：浮层改为独立路由（模块 B）。
+  // 路由表由 AppScreen.values 统一生成，这里只登记枚举项。
+  discoverFilter('DiscoverFilter', '/discover-filter');
 
   final String routeName, path;
   const AppScreen(this.routeName, this.path);

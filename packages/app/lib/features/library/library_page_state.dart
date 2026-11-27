@@ -78,32 +78,24 @@ abstract class LibraryPageStateBase extends State<LibraryPage> {
   String? suggestionsGenre;
   Rect? suggestionAnchor;
 
-  /// L2′ 的抽屉：和搜索联想同一个做法（一条 `OverlayEntry`，锚在触发它的那枚 chip
-  /// 下面），所以换目的地、`Esc`、再开一次都走同一个 `_closeFilterPanel`。
-  OverlayEntry? filterPanelEntry;
-
-  /// 抽屉里「题材 · 二级完整词表」的展开状态。页面持有它，换一级后重画抽屉
-  /// 不会把观众刚展开的词表又收起来。
-  final ValueNotifier<bool> themeVocabExpanded = ValueNotifier<bool>(false);
-
-  /// 触控族的同一层是一条路由（底部弹层），不是浮层，所以页面握着的不是 entry
-  /// 而是它的 `setState`：抽屉里的每一次选中都改了页面，而页面重画不会重画路由。
-  /// 值为 null 就是「没开着」——判开合的地方两族一起问。
-  StateSetter? filterSheetSetState;
+  /// L2′ 的抽屉已由「更多筛选」入口页替代（模块 B1）：入口 chip 走
+  /// `pushAppPage(AppScreen.discoverFilter)`，页面内改动经
+  /// `DiscoverFilterBinding` 实时写回本 state 的同一份字段，浮层路径整条退场。
 
   /// 桌面的 L3。页面握着它的句柄只为 `O` 一枚键：开合由控件自己管。
   final GlobalKey<SortMenuState> sortMenuKey = GlobalKey<SortMenuState>();
 
-  /// 桌面的 L2′ chip：抽屉锚在它下沿，所以页面要能问出它的位置。
+  /// 桌面的 L2′ chip 的键。浮层改页后不再需要锚点位置，键保留给测试与语义
+  /// （这枚控件仍是入口本身）。
   final GlobalKey filterChipKey = GlobalKey();
 
-  /// 页面自己握着这枚 chip 的焦点节点，只为 `Esc` 那一条规格：关掉抽屉要把焦点还给
-  /// 触发它的那枚控件，而不是还给页面顶部。
+  /// 入口 chip 的焦点节点：浮层改成路由后，关页要把焦点还给这枚入口，
+  /// 否则停留在新路由的 modal scope 上，桌面 `F`/`O` 单键就没人接。
   final FocusNode filterChipFocus = FocusNode(
     debugLabel: 'discover-filter-chip',
   );
 
-  /// 排序那一枚同理——两枚都是「层借走的焦点，关的时候归还」。
+  /// 排序那一枚的焦点节点——「层借走的焦点，关的时候归还」。
   final FocusNode sortChipFocus = FocusNode(debugLabel: 'discover-sort-chip');
 
   /// 桌面卡面的 hover 预览。开合的计时在页面而不在 `HoverPeek`：鼠标从卡移进预览

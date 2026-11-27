@@ -53,37 +53,33 @@ void main() {
   });
 
   testWidgets(
-    'F opens the drawer, a line of it changes the request, Esc closes',
+    'F opens the filter page, a dimension of it changes the request, Esc closes',
     (tester) async {
       final catalog = await mount(tester, DesktopCatalog());
       await tester.tap(find.text('≡ 更多筛选'));
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('filter-panel')), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('filter-panel-done')));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('filter-panel')), findsNothing);
-      await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
-      await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('filter-panel')), findsOneWidget);
-      final before = catalog.browseCalls;
-      await tester.tap(
-        find.byKey(const ValueKey('filter-dim-category_dim_role-role_1')),
-      );
-      await tester.pumpAndSettle();
-      // 只改请求：the drawer stays, the page does not turn, and the dimension went
-      // into the query the list is now made of.
-      expect(find.byKey(const ValueKey('filter-panel')), findsOneWidget);
-      expect(catalog.filtered.last.dims['category_dim_role'], ['role_1']);
-      expect(catalog.browseCalls, before);
-      expect(find.text('≡ 更多筛选 · 1'), findsOneWidget);
+      expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
+      // Esc closes the routed page (B1: the overlay is gone, the route is the layer).
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('filter-panel')), findsNothing);
-      // 规格：`Esc` 把焦点还给触发它的那枚 chip,不是还给页面顶部。
-      expect(
-        tester.binding.focusManager.primaryFocus?.debugLabel,
-        'discover-filter-chip',
+      expect(find.byKey(const ValueKey('filter-page-band')), findsNothing);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
+      await tester.tap(
+        find.byKey(const ValueKey('filter-page-dim-category_dim_role-role_1')),
       );
+      await tester.pumpAndSettle();
+      // 只改请求：the page stays, the page underneath does not turn, and the
+      // dimension went into the query the list is made of -- written through the
+      // discover page's own state (B1 实时写回).
+      expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
+      expect(catalog.filtered.last.dims['category_dim_role'], ['role_1']);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('filter-page-band')), findsNothing);
+      // The count the trigger reads back is the same state the page wrote into.
+      expect(find.text('≡ 更多筛选 · 1'), findsOneWidget);
       debugDefaultTargetPlatformOverride = null;
       expect(tester.takeException(), isNull);
     },
@@ -94,11 +90,12 @@ void main() {
   ) async {
     final catalog = await mount(tester, DesktopCatalog());
     // The keys live on the shell, so they answer wherever the pointer left the
-    // focus -- here on the 更多筛选 chip, which is where 完成 handed it back.
+    // focus -- here on the 更多筛选 chip, which the route return hands it back to.
     await tester.tap(find.text('≡ 更多筛选'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('filter-panel-done')));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('filter-page-band')), findsNothing);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyO);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('sort-hot_score')), findsOneWidget);
@@ -106,10 +103,6 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('sort-hot_score')), findsNothing);
-    expect(
-      tester.binding.focusManager.primaryFocus?.debugLabel,
-      'discover-filter-chip',
-    );
     // Opening and dismissing a dropdown is not a decision: nothing was asked for.
     expect(catalog.browseCalls, before);
     debugDefaultTargetPlatformOverride = null;
@@ -302,7 +295,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('filter-panel')), findsNothing);
+    expect(find.byKey(const ValueKey('filter-page-band')), findsNothing);
     debugDefaultTargetPlatformOverride = null;
     expect(tester.takeException(), isNull);
   });
