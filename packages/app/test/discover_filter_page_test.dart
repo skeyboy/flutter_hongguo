@@ -48,6 +48,31 @@ class LongFilterPageCatalog extends FilterPageCatalog {
   }
 }
 
+/// 触控端自动加载用的源：首屏给 24 张且带 nextCursor（列表足够长，能滚到
+/// 「接近底部」），下一页可控地失败。盯住「失败后停止自动重试，只有显式重试
+/// 才再问一次」这条契约。
+class AutoMoreCatalog extends FilterPageCatalog {
+  bool failMore = false;
+
+  @override
+  Future<CatalogPage> browseFiltered(CatalogQuery query) async {
+    filtered.add(query);
+    lastGenre = query.genre;
+    lastSort = query.sort;
+    if (query.cursor != null && failMore) {
+      throw const CatalogError('下一页暂时不可用');
+    }
+    return CatalogPage([
+      for (var i = 0; i < 24; i++)
+        Drama(
+          id: 'auto-${query.cursor ?? 'first'}-$i',
+          title: '自动加载故事$i',
+          episodeCount: 12,
+        ),
+    ], nextCursor: query.cursor == null ? 'next' : null);
+  }
+}
+
 /// 真实上游一次给齐的五个维度：桌面窗口矮一点时，筛选带的自然高度就会超过
 /// 整页可用高度——这正是 macOS 上 Column 底部 overflow 的那一类输入。
 class TallFilterPageCatalog extends FilterPageCatalog {
@@ -109,11 +134,15 @@ Future<void> mountDesktopPage(
 /// The entry page is the same full-screen page on both families; these promises
 /// are asked on the touch family (390×844), where the chip rows are the
 /// horizontally sliding ones the contract names.
-Future<FilterPageCatalog> mountPage(WidgetTester tester, FilterPageCatalog catalog) async {
+Future<FilterPageCatalog> mountPage(
+  WidgetTester tester,
+  FilterPageCatalog catalog, {
+  bool autoLoadMore = false,
+}) async {
   await tester.binding.setSurfaceSize(const Size(390, 844));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   final runtime = FakeRuntime(catalog)
-    ..settings = const AppSettings(autoLoadMore: false);
+    ..settings = AppSettings(autoLoadMore: autoLoadMore);
   addTearDown(runtime.dispose);
   await tester.pumpWidget(
     ProviderScope(
@@ -417,6 +446,92 @@ void main() {
     await pointer.moveTo(Offset.zero);
     await tester.pump(const Duration(milliseconds: 250));
     expect(tester.widget<AnimatedScale>(scale).scale, 1.0);
+    expect(tester.takeException(), isNull);
+  });
+
+  /// 把触控端结果列表挪到「接近底部」，让 extentAfter 落到 600 以内。
+  Future<ScrollableState> nearBottom(WidgetTester tester) async {
+    final results = find.byKey(const ValueKey('filter-page-results'));
+    final scroll = tester.state<ScrollableState>(
+      find.descendant(of: results, matching: find.byType(Scrollable)),
+    );
+    scroll.position.jumpTo(scroll.position.maxScrollExtent - 100);
+    await tester.pumpAndSettle();
+    return scroll;
+  }
+
+  testWidgets('触控端接近底部自动加载下一页', (tester) async {
+    final catalog = await mountPage(
+      tester,
+      AutoMoreCatalog(),
+      autoLoadMore: true,
+    );
+    await openPage(tester);
+    expect(catalog.filtered.length, 1);
+
+    await nearBottom(tester);
+    // 自动加载用首屏给的 nextCursor 追问了第二页，卡片追加进来。
+    expect(catalog.filtered.length, 2);
+    expect(catalog.filtered.last.cursor, 'next');
+    expect(
+      find.byKey(const ValueKey('filter-page-card-auto-next-0')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('加载更多失败后停自动重试，只有显式重试才再问一次', (tester) async {
+    final catalog = AutoMoreCatalog()..failMore = true;
+    await mountPage(tester, catalog, autoLoadMore: true);
+    await openPage(tester);
+    expect(catalog.filtered.length, 1);
+
+    await nearBottom(tester);
+    // 自动加载问了第二页、失败，结果尾部露出显式重试入口。
+    expect(catalog.filtered.length, 2);
+    expect(find.byKey(const ValueKey('filter-page-more-retry')), findsOneWidget);
+
+    // 继续在底部附近滑动：不该再刷出一串注定失败的请求。
+    final scroll = await nearBottom(tester);
+    scroll.position.jumpTo(scroll.position.maxScrollExtent - 20);
+    await tester.pumpAndSettle();
+    expect(catalog.filtered.length, 2);
+
+    // 只有显式重试才再问一次，成功后重试入口退场。
+    catalog.failMore = false;
+    await tester.tap(find.byKey(const ValueKey('filter-page-more-retry')));
+    await tester.pumpAndSettle();
+    expect(catalog.filtered.length, 3);
+    expect(find.byKey(const ValueKey('filter-page-more-retry')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('换筛选清掉过期的加载更多错误，自动加载恢复', (tester) async {
+    final catalog = AutoMoreCatalog()..failMore = true;
+    await mountPage(tester, catalog, autoLoadMore: true);
+    await openPage(tester);
+
+    await nearBottom(tester);
+    expect(find.byKey(const ValueKey('filter-page-more-retry')), findsOneWidget);
+
+    // 上滑把筛选带带回手边，换一个题材——这是一次全新的提问。
+    final results = find.byKey(const ValueKey('filter-page-results'));
+    await tester.drag(results, const Offset(0, 300));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
+
+    catalog.failMore = false;
+    final chip = find.byKey(const ValueKey('filter-page-theme-cate_7'));
+    await tester.ensureVisible(chip);
+    await tester.pumpAndSettle();
+    await tester.tap(chip);
+    await tester.pumpAndSettle();
+
+    final before = catalog.filtered.length;
+    await nearBottom(tester);
+    // 新结果集里自动加载重新工作。
+    expect(catalog.filtered.length, before + 1);
+    expect(catalog.filtered.last.cursor, 'next');
     expect(tester.takeException(), isNull);
   });
 }

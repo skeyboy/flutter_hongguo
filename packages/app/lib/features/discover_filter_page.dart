@@ -228,6 +228,9 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
           cursor = page.nextCursor;
           refreshing = false;
           error = null;
+          // 新的一次提问：上一份结果留下的「加载更多失败」不再作数，否则
+          // 自动加载会一直被旧错误挡在门外。
+          moreError = null;
           // 换条件后的新答案从顶部呈现；收展不改 offset 的契约不受影响。
           _lastListOffset = 0;
           if (resultsScroll.hasClients) resultsScroll.jumpTo(0);
@@ -244,6 +247,7 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
         } else {
           refreshing = false;
           error = '内容加载失败';
+          moreError = null;
         }
       });
     }
@@ -458,7 +462,11 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
     if (notification.metrics.extentAfter < 600 &&
         cursor != null &&
         !loadingMore &&
-        !refreshing) {
+        !refreshing &&
+        // 上一次「加载更多」失败后暂停自动重试：继续在底部附近滑动不该刷出
+        // 一串注定失败的请求，重试交给显式入口（与发现页 autoPaused 同契约）。
+        // 新的筛选落地时 _refresh 会清掉它，自动加载随之恢复。
+        moreError == null) {
       unawaited(_refresh(more: true));
     }
     return false;
