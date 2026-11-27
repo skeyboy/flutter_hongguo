@@ -861,26 +861,24 @@ void main() {
     );
     await tester.drag(results, const Offset(0, -600));
     await tester.pumpAndSettle();
-    // The questions the viewer already answered scroll out with the header;
-    // the strip that names where a sideways swipe landed does not -- it moves
-    // up to the top of the page and stays hit-testable there.
+    // 榜单 收展契约: the whole band folds together -- search, choices, and the
+    // strip that names where a sideways swipe landed. The rows take the height;
+    // one upward flick brings every level back wherever the viewer stands.
     expect(tester.widget<Visibility>(top).visible, isFalse);
-    expect(rail.hitTestable(), findsOneWidget);
-    expect(
-      tester.getRect(rail).bottom,
-      lessThanOrEqualTo(tester.getRect(results).top),
-    );
-    // Back near the top the band comes down again -- offstage, not gone, so
+    expect(rail, findsNothing);
+    // Back up the band comes down again -- offstage, not gone, so
     // the search box returns with its text and its focus.
     await tester.drag(results, const Offset(0, 1400));
     await tester.pumpAndSettle();
     expect(tester.widget<Visibility>(top).visible, isTrue);
+    expect(rail.hitTestable(), findsOneWidget);
     // And a fold is not a lock: the swipe still answers the innermost level
     // from under the folded band -- the levels did not go anywhere the viewer
     // has to scroll back up to reach.
     await tester.drag(results, const Offset(0, -600));
     await tester.pumpAndSettle();
     expect(tester.widget<Visibility>(top).visible, isFalse);
+    expect(rail, findsNothing);
     await swipe(tester, 0, -300);
     expectLevel2(tester, 0, 'cate_7');
     expect(tester.takeException(), isNull);

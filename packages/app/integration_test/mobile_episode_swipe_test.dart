@@ -411,6 +411,16 @@ void main() {
       reason: 'boundary notice must auto-dismiss',
     );
 
+    // The 3.4s wait above outlives this short offline clip, so the center
+    // replay overlay has taken over the picture and would swallow the swipes
+    // below. Restart playback from the top of the current episode so the
+    // picture is live again -- same player, same position, no product change.
+    final livePlayer = _playerState(tester).player;
+    await livePlayer.seek(Duration.zero);
+    await livePlayer.play();
+    await tester.pump();
+    await _waitReady(tester);
+
     // 1h. Out-of-range at the FIRST episode: down-swipe -> '已经是第一集'.
     await _dragPicture(
       tester,

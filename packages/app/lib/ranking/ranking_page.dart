@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:hongguo_api/hongguo_api.dart';
 
 import '../features/detail_page.dart';
@@ -34,6 +35,10 @@ class RankingPage extends StatefulWidget {
 class _RankingPageState extends State<RankingPage> {
   RankingController? _own;
   late RankingController controller;
+
+  /// web sticky 模式的本页解法：筛选行常驻在滚动区外，由列表的滚动方向决定
+  /// 自己收起还是展开——下滑把屏幕让位给榜单内容，上滑瞬时回到手指边。
+  bool filtersVisible = true;
 
   @override
   void initState() {
@@ -82,45 +87,84 @@ class _RankingPageState extends State<RankingPage> {
     final boards = [
       for (final value in controller.boards) (id: value.id, label: value.label),
     ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (tracks.isEmpty)
-          const _RowSkeleton()
-        else
-          RankSelectorRow(
-            key: const ValueKey('rank-tracks'),
-            label: '赛道',
-            items: tracks,
-            selectedId: controller.track,
-            onPick: controller.selectTrack,
-            keyPrefix: 'rank-track',
-            scrollable: !desktopHost,
-            overflowAfter: _overflowAfter,
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onScrollNotification,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AnimatedSize(
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: filtersVisible
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (tracks.isEmpty)
+                        const _RowSkeleton()
+                      else
+                        RankSelectorRow(
+                          key: const ValueKey('rank-tracks'),
+                          label: '赛道',
+                          items: tracks,
+                          selectedId: controller.track,
+                          onPick: controller.selectTrack,
+                          keyPrefix: 'rank-track',
+                          scrollable: !desktopHost,
+                          overflowAfter: _overflowAfter,
+                        ),
+                      if (tracks.isNotEmpty && boards.isEmpty)
+                        // Upstream can publish a 赛道 whose sub-selector did not
+                        // come back -- one of the four samples lost the 演员
+                        // track's entirely. The row says so instead of painting
+                        // an empty tab strip.
+                        const _NoBoardsStrip()
+                      else if (tracks.isNotEmpty)
+                        RankSelectorRow(
+                          key: const ValueKey('rank-boards'),
+                          label: '榜单',
+                          items: boards,
+                          selectedId: controller.board,
+                          onPick: controller.selectBoard,
+                          keyPrefix: 'rank-board',
+                          scrollable: !desktopHost,
+                          overflowAfter: _overflowAfter,
+                        ),
+                    ],
+                  )
+                : const SizedBox(width: double.infinity),
           ),
-        if (tracks.isNotEmpty && boards.isEmpty)
-          // Upstream can publish a 赛道 whose sub-selector did not come back --
-          // one of the four samples lost the 演员 track's entirely. The row says
-          // so instead of painting an empty tab strip.
-          const _NoBoardsStrip()
-        else if (tracks.isNotEmpty)
-          RankSelectorRow(
-            key: const ValueKey('rank-boards'),
-            label: '榜单',
-            items: boards,
-            selectedId: controller.board,
-            onPick: controller.selectBoard,
-            keyPrefix: 'rank-board',
-            scrollable: !desktopHost,
-            overflowAfter: _overflowAfter,
+          _Heading(controller: controller),
+          const Divider(height: 1),
+          Expanded(
+            child: _List(controller: controller, onOpen: _open),
           ),
-        _Heading(controller: controller),
-        const Divider(height: 1),
-        Expanded(
-          child: _List(controller: controller, onOpen: _open),
-        ),
-      ],
+        ],
+      ),
     );
+  }
+
+  /// 只听竖向的用户滚动：筛选行自己的横向滑轨、发现页借来的横滚条也冒
+  /// ScrollNotification，轴过滤把它们挡在外面。停在顶部时永远展示——顶部的
+  /// 过冲回弹不是一次「上滑」，但列表确实回到了起点。
+  bool _onScrollNotification(Notification notification) {
+    if (notification is! ScrollNotification) return false;
+    if (notification.metrics.axis != Axis.vertical) return false;
+    if (notification is UserScrollNotification) {
+      final direction = notification.direction;
+      if (direction == ScrollDirection.reverse && filtersVisible) {
+        setState(() => filtersVisible = false);
+      } else if (direction == ScrollDirection.forward && !filtersVisible) {
+        setState(() => filtersVisible = true);
+      }
+    } else if (notification is ScrollUpdateNotification &&
+        notification.metrics.pixels <= notification.metrics.minScrollExtent &&
+        !filtersVisible) {
+      setState(() => filtersVisible = true);
+    }
+    return false;
   }
 
   void _open(Drama drama) => pushAppPage<void>(

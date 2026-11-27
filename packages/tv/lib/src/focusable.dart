@@ -113,24 +113,63 @@ class _TvFocusableState extends State<TvFocusable> {
         },
         child: GestureDetector(
           onTap: widget.onActivate,
-          child: AnimatedContainer(
+          // The 10-foot contract: the focused tile steps forward (a moderate
+          // scale, never clipping its 14px grid gutter), catches light on its
+          // rim and carries a soft primary glow. All engine-built effects --
+          // no runtime fragment shader, so Impeller and low-end TV GPUs never
+          // pay the Skia-fallback tax for a decoration.
+          child: AnimatedScale(
             duration: MediaQuery.disableAnimationsOf(context)
                 ? Duration.zero
-                : const Duration(milliseconds: 100),
-            padding: const EdgeInsets.all(5),
-            decoration: BoxDecoration(
-              color: widget.selected
-                  ? Theme.of(context).colorScheme.primaryContainer
-                  : null,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: node.hasFocus
-                    ? Theme.of(context).colorScheme.primary
-                    : Colors.transparent,
-                width: 3,
+                : const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
+            scale: node.hasFocus ? 1.05 : 1.0,
+            child: AnimatedContainer(
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 100),
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: widget.selected
+                    ? Theme.of(context).colorScheme.primaryContainer
+                    : null,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: node.hasFocus
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.transparent,
+                  width: 3,
+                ),
+                boxShadow: node.hasFocus
+                    ? [
+                        BoxShadow(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.40),
+                          blurRadius: 16,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : null,
               ),
+              // The "shader" garnish: a soft top-lit sheen over the focused
+              // tile, clipped to its own rim. Read as light hitting the card.
+              foregroundDecoration: node.hasFocus
+                  ? BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.white.withValues(alpha: 0.10),
+                          Colors.transparent,
+                        ],
+                        stops: const [0, 0.45],
+                      ),
+                    )
+                  : null,
+              child: ExcludeFocus(child: widget.child),
             ),
-            child: ExcludeFocus(child: widget.child),
           ),
         ),
       ),

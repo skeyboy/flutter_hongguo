@@ -170,4 +170,25 @@ void main() {
       expect(t.takeException(), isNull);
     },
   );
+  testWidgets('the rail gives the focused first and last chips room', (
+    t,
+  ) async {
+    await t.pumpWidget(
+      MaterialApp(
+        home: TvNavigation(
+          child: TvChoiceRail(
+            choices: const [TvChoice('first', '第一项'), TvChoice('last', '最后一项')],
+            selected: '',
+            onSelected: (_) {},
+          ),
+        ),
+      ),
+    );
+    expect(
+      t
+          .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
+          .padding,
+      equals(const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+    );
+  });
 }

@@ -68,23 +68,36 @@ class _RelatedDramasSectionState extends State<RelatedDramasSection> {
     if (value == null || value.items.isEmpty) return const SizedBox.shrink();
     final cardWidth = widget.tvLayout ? 168.0 : 150.0;
     final cardHeight = widget.tvLayout ? 284.0 : 268.0;
+    // The remote's focus ring grows a card 1.05 with a glow; on TV the rail
+    // keeps that room inside its own viewport, or the first and last covers
+    // lose their rim to the clip. The heading takes the same left inset so
+    // the title still lines up with the first card.
+    final railInset = widget.tvLayout ? 16.0 : 0.0;
+    final railHeight = cardHeight + (widget.tvLayout ? 20.0 : 0.0);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          value.themeName.isEmpty
-              ? value.relation
-              : '${value.relation} · ${value.themeName}',
-          style: TextStyle(
-            fontSize: widget.tvLayout ? 26 : 22,
-            fontWeight: FontWeight.w600,
+        Padding(
+          padding: EdgeInsets.only(left: railInset),
+          child: Text(
+            value.themeName.isEmpty
+                ? value.relation
+                : '${value.relation} · ${value.themeName}',
+            style: TextStyle(
+              fontSize: widget.tvLayout ? 26 : 22,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: cardHeight,
+          height: railHeight,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(
+              horizontal: railInset,
+              vertical: widget.tvLayout ? 10 : 0,
+            ),
             itemCount: value.items.length,
             separatorBuilder: (_, _) =>
                 SizedBox(width: widget.tvLayout ? 20 : 14),
