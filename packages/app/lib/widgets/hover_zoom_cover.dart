@@ -59,6 +59,7 @@ class HoverZoomCover extends StatelessWidget {
         ? Duration.zero
         : const Duration(milliseconds: 150);
     return ClipRRect(
+      key: const ValueKey('hover-zoom-frame'),
       borderRadius: BorderRadius.circular(radius),
       child: AnimatedScale(
         duration: duration,
