@@ -48,6 +48,30 @@ Future<_BoardCatalog> _openBoard(WidgetTester tester) async {
   return catalog;
 }
 
+/// Enough rows that the list really scrolls: the sticky verdict needs a board
+/// the finger can travel through, not a one-row board that only overscrolls.
+class _LongBoardCatalog extends DesktopCatalog {
+  @override
+  Future<RankPage> rankBoard({
+    String track = rankSeedTrack,
+    String? board,
+    String? cursor,
+  }) async => RankPage(
+    entries: [
+      for (var i = 0; i < 40; i++)
+        RankEntry(
+          position: i,
+          drama: Drama(id: 'd$i', title: '第$i名的故事', episodeCount: 20),
+        ),
+    ],
+    tracks: [
+      RankTrack('comic_series_rank', '真人剧', [
+        RankBoard('human_hot_play', '热播榜', selected: true),
+      ]),
+    ],
+  );
+}
+
 void main() {
   testWidgets('榜单 draws no 加载更多, even when upstream sends a cursor', (
     tester,
@@ -97,6 +121,38 @@ void main() {
     // append and it does not move the viewer off the board they named.
     expect(find.text('真人剧'), findsWidgets);
     expect(find.text('山海之间'), findsWidgets);
+    debugDefaultTargetPlatformOverride = null;
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('列表下滑收起筛选行，上滑收回（sticky 模式）', (tester) async {
+    await mount(tester, _LongBoardCatalog());
+    await tester.tap(find.text('榜单').first);
+    await tester.pumpAndSettle();
+
+    // 起点两行筛选都在。
+    expect(find.byKey(const ValueKey('rank-tracks')), findsOneWidget);
+    expect(find.byKey(const ValueKey('rank-boards')), findsOneWidget);
+
+    // 手指上滑 = 页面向下滚：筛选行让位给榜单内容。
+    await tester.drag(
+      find.byKey(const ValueKey('rank-list')),
+      const Offset(0, -300),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('rank-tracks')), findsNothing);
+    expect(find.byKey(const ValueKey('rank-boards')), findsNothing);
+    // 榜名那一行常驻，只有筛选行收起。
+    expect(find.byKey(const ValueKey('rank-heading')), findsOneWidget);
+
+    // 手指下滑 = 页面向上滚：筛选行回到手指边。
+    await tester.drag(
+      find.byKey(const ValueKey('rank-list')),
+      const Offset(0, 200),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('rank-tracks')), findsOneWidget);
+    expect(find.byKey(const ValueKey('rank-boards')), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
     expect(tester.takeException(), isNull);
   });

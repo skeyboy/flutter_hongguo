@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 
 import '../widgets/drama_cover.dart';
+import '../widgets/hover_glow.dart';
 
 /// One row of one 榜.
 ///
@@ -65,74 +66,76 @@ class RankCard extends StatelessWidget {
         ),
       );
     }
-    return InkWell(
-      key: ValueKey('rank-card-${drama.id}'),
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        // 占位主色, which upstream measured off the cover: a tint behind the row
-        // is the least it can be used for without inventing artwork.
-        color: tint?.withValues(
-          alpha:
-              0.06 *
-              (Theme.of(context).brightness == Brightness.dark ? 1.6 : 1),
-        ),
-        padding: const EdgeInsets.all(8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 44,
-              child: Column(
-                children: [
-                  Container(
-                    key: ValueKey('rank-position-${entry.position}'),
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: medal ?? scheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(
-                        medal == null ? 8 : 16,
+    return HoverGlow(
+      child: InkWell(
+        key: ValueKey('rank-card-${drama.id}'),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          // 占位主色, which upstream measured off the cover: a tint behind the row
+          // is the least it can be used for without inventing artwork.
+          color: tint?.withValues(
+            alpha:
+                0.06 *
+                (Theme.of(context).brightness == Brightness.dark ? 1.6 : 1),
+          ),
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 44,
+                child: Column(
+                  children: [
+                    Container(
+                      key: ValueKey('rank-position-${entry.position}'),
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: medal ?? scheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(
+                          medal == null ? 8 : 16,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '${entry.position}',
+                        style: TextStyle(
+                          fontSize: medal == null ? 15 : 17,
+                          fontWeight: FontWeight.w700,
+                          color: medal == null
+                              ? scheme.onSurfaceVariant
+                              : Colors.white,
+                        ),
                       ),
                     ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      '${entry.position}',
-                      style: TextStyle(
-                        fontSize: medal == null ? 15 : 17,
-                        fontWeight: FontWeight.w700,
-                        color: medal == null
-                            ? scheme.onSurfaceVariant
-                            : Colors.white,
-                      ),
-                    ),
-                  ),
-                  // 趋势 has a field upstream sends (`rec_arrow_type`) but every
-                  // card in four samples carried the same value, so its meaning is
-                  // unproven: the slot is drawn as a placeholder, never as a fake
-                  // arrow.
-                  const SizedBox(height: 6),
-                  const _TrendPlaceholder(),
-                ],
+                    // 趋势 has a field upstream sends (`rec_arrow_type`) but every
+                    // card in four samples carried the same value, so its meaning is
+                    // unproven: the slot is drawn as a placeholder, never as a fake
+                    // arrow.
+                    const SizedBox(height: 6),
+                    const _TrendPlaceholder(),
+                  ],
+                ),
               ),
-            ),
-            SizedBox(
-              width: 62,
-              height: 82,
-              child: DramaCover(
-                drama: drama,
-                imageProvider: coverImage,
-                allowNetwork: allowNetworkCover,
+              SizedBox(
+                width: 62,
+                height: 82,
+                child: DramaCover(
+                  drama: drama,
+                  imageProvider: coverImage,
+                  allowNetwork: allowNetworkCover,
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: lines,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: lines,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

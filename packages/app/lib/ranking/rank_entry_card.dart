@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 
+import '../widgets/hover_glow.dart';
+
 /// 发现页's way into 榜单, beside the destination itself.
 ///
 /// The main products keep two entrances (Netflix puts a Top 10 strip on the home
@@ -38,74 +40,76 @@ class RankEntryCard extends StatelessWidget {
       // the section title's sliver does, so the card's edge lines up with the
       // grid's instead of sitting 12 points further in.
       padding: const EdgeInsets.only(bottom: 6),
-      child: Material(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          key: const ValueKey('rank-entry-card'),
+      child: HoverGlow(
+        child: Material(
+          color: scheme.surface,
           borderRadius: BorderRadius.circular(12),
-          onTap: onOpen,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.emoji_events_outlined,
-                  size: 18,
-                  color: scheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
+          child: InkWell(
+            key: const ValueKey('rank-entry-card'),
+            borderRadius: BorderRadius.circular(12),
+            onTap: onOpen,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.emoji_events_outlined,
+                    size: 18,
+                    color: scheme.onSurfaceVariant,
                   ),
-                ),
-                const SizedBox(width: 8),
-                // 前 3 名横滚: a 390-point row has no room for three numbers and
-                // the name that owns them, and the design's answer is a strip the
-                // finger can keep pulling on rather than text that gets cut.
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (final entry in top)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: _Place(entry: entry, label: title),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                // 入口自己做自己那枚手指的目标：整张卡已经点得开，但「全部榜单 ›」
-                // 是原型写出来的那个动作，它要单独接得住一次点击，而不是只在卡上
-                // 借一个位置。
-                InkWell(
-                  key: const ValueKey('rank-entry-more'),
-                  onTap: onOpen,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 2,
-                    ),
+                  const SizedBox(width: 8),
+                  Flexible(
                     child: Text(
-                      '全部榜单 ›',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: scheme.primary,
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  // 前 3 名横滚: a 390-point row has no room for three numbers and
+                  // the name that owns them, and the design's answer is a strip the
+                  // finger can keep pulling on rather than text that gets cut.
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (final entry in top)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: _Place(entry: entry, label: title),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // 入口自己做自己那枚手指的目标：整张卡已经点得开，但「全部榜单 ›」
+                  // 是原型写出来的那个动作，它要单独接得住一次点击，而不是只在卡上
+                  // 借一个位置。
+                  InkWell(
+                    key: const ValueKey('rank-entry-more'),
+                    onTap: onOpen,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      child: Text(
+                        '全部榜单 ›',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: scheme.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
