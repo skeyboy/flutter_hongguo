@@ -1,5 +1,5 @@
 00:00 +0: loading /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/mobile_episode_swipe_test.dart
-Running Gradle task 'assembleMobileDebug'...                    
+Running Gradle task 'assembleMobileDebug'...
 WARNING: Your app uses the following plugins that apply Kotlin Gradle Plugin (KGP): flutter_app_installer
 Future versions of Flutter will fail to build if your app uses plugins that apply KGP.
 
