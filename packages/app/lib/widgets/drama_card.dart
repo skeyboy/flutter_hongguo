@@ -72,7 +72,7 @@ class _DramaCardState extends State<DramaCard> {
                 color: hover
                     ? accent.withValues(alpha: 0.9)
                     : Colors.transparent,
-                width: 1.5,
+                width: 1,
               ),
             ),
             decoration: BoxDecoration(
@@ -80,9 +80,8 @@ class _DramaCardState extends State<DramaCard> {
               boxShadow: hover
                   ? [
                       BoxShadow(
-                        color: accent.withValues(alpha: 0.35),
-                        blurRadius: 14,
-                        spreadRadius: 1,
+                        color: accent.withValues(alpha: 0.22),
+                        blurRadius: 9,
                       ),
                     ]
                   : null,

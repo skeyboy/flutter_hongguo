@@ -66,9 +66,8 @@ class _HoverGlowState extends State<HoverGlow> {
             boxShadow: hover
                 ? [
                     BoxShadow(
-                      color: accent.withValues(alpha: 0.35),
-                      blurRadius: 14,
-                      spreadRadius: 1,
+                      color: accent.withValues(alpha: 0.22),
+                      blurRadius: 9,
                     ),
                   ]
                 : null,
@@ -77,7 +76,7 @@ class _HoverGlowState extends State<HoverGlow> {
             borderRadius: BorderRadius.circular(widget.radius),
             border: Border.all(
               color: hover ? accent.withValues(alpha: 0.9) : Colors.transparent,
-              width: 1.5,
+              width: 1,
             ),
           ),
           child: widget.child,

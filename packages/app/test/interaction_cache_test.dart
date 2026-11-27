@@ -127,13 +127,19 @@ void main() {
         const Offset(0, -2500),
       );
       await tester.pumpAndSettle();
-      // The search box and the trigger row are header content and scrolled
-      // out with it; the rail is the part that pinned, and it still works.
+      // 收展契约（榜单同款）：滚下去整条筛选带让位给内容；滚回顶部，
+      // rail 回到手指边，题材照常接得住一次选择。
+      expect(find.byKey(const ValueKey('theme-rail')), findsNothing);
+      await tester.drag(
+        find.byKey(const ValueKey('catalog-results-categories-short_play-all')),
+        const Offset(0, 2500),
+      );
+      await tester.pumpAndSettle();
+      // 题材 is on the rail at every width, so it never needs a sheet.
       expect(
         find.byKey(const ValueKey('theme-rail')).hitTestable(),
         findsOneWidget,
       );
-      // 题材 is on the rail at every width, so it never needs a sheet.
       await tester.tap(find.byKey(const ValueKey('theme-rail-cate_7')));
       await tester.pump(const Duration(milliseconds: 300));
       expect(catalog.lastTheme, 'cate_7');

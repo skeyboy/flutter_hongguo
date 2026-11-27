@@ -115,7 +115,7 @@ void main() {
   }
 
   testWidgets(
-    'the strip stays with the viewer over a long scroll and keeps answering',
+    'the strip folds with the band over a long scroll and answers when it returns',
     (tester) async {
       await mount(tester, FakeRuntime(LongCatalog()), const Size(390, 844));
       await openCategories(tester);
@@ -135,12 +135,20 @@ void main() {
       await tester.pumpAndSettle();
       final dynamic state = tester.state(find.byType(LibraryPage));
       expect(state.scroll.offset as double, greaterThan(100));
-      // The questions the viewer already answered went with the header. Both
-      // filter rows stayed: the strip that names where a sideways swipe landed,
-      // and the row that says which mode and which type the list is in -- a fold
-      // that took the type with it could only be undone by scrolling all the way
-      // back to the top, which is not what a fold is for.
+      // 榜单 收展契约: down the list the whole band -- search, choices, theme
+      // strip -- steps aside and the rows take its height. Every level folds,
+      // because the viewer asked for room to read, and the questions come back
+      // the moment the list returns to the top.
       expect(tester.widget<Visibility>(top).visible, isFalse);
+      expect(
+        find.byKey(const ValueKey('filter-choices-categories')),
+        findsNothing,
+      );
+      expect(rail, findsNothing);
+      // Back near the top the band returns, and both levels still answer.
+      await tester.drag(viewport, const Offset(0, 1600));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Visibility>(top).visible, isTrue);
       final choices = find.byKey(const ValueKey('filter-choices-categories'));
       expect(choices.hitTestable(), findsOneWidget);
       expect(
@@ -148,11 +156,6 @@ void main() {
         lessThanOrEqualTo(tester.getRect(viewport).top),
       );
       expect(rail.hitTestable(), findsOneWidget);
-      expect(
-        tester.getRect(rail).bottom,
-        lessThanOrEqualTo(tester.getRect(viewport).top),
-      );
-      // And either level still answers from the folded state.
       await chooseGenre(tester, 'comic_series');
       expect(state.genre, 'comic_series');
       await tester.pumpAndSettle();
