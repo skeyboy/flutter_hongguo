@@ -196,4 +196,14 @@ void main() {
     expect(_focus(), isNotNull);
     expect(_focus(), startsWith('episode-'));
   });
+
+  testWidgets('TV episode grid keeps focus-scale room inside its viewport', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_host(_episodes(12)));
+    final grid = tester.widget<GridView>(
+      find.byKey(const ValueKey('episode-pager-grid-0')),
+    );
+    expect(grid.padding, equals(const EdgeInsets.all(16)));
+  });
 }

@@ -1,7 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hongguo_api/hongguo_api.dart';
 import 'package:hongguo_app/platform/runtime_contract.dart';
 import 'package:hongguo_app/recommendations/related_dramas.dart';
+import 'package:hongguo_app/recommendations/related_dramas_section.dart';
 
 class FakeCatalog implements CatalogRepository {
   int themesCalls = 0;
@@ -194,5 +196,27 @@ void main() {
     final retry = await loader.load(runtime, currentDrama());
     expect(catalog.browseCalls, 2);
     expect(retry.items.map((d) => d.id), ['a']);
+  });
+
+  testWidgets('TV rail keeps focus-scale room inside its own viewport', (
+    tester,
+  ) async {
+    catalog.browseItems = [drama('rec-edge')];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RelatedDramasSection(
+          runtime: runtime,
+          current: DramaDetail(drama('edge-current'), const []),
+          onOpen: (_) {},
+          tvLayout: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final rail = tester.widget<ListView>(find.byType(ListView));
+    expect(
+      rail.padding,
+      equals(const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
+    );
   });
 }
