@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hongguo_api/hongguo_api.dart';
@@ -236,6 +237,40 @@ void main() {
     expect(controller.offset, greaterThan(0));
     // 信号被这一行认领，外层列表不该同时被这一滚轮带跑。
     expect(find.byKey(const ValueKey('filter-page-band')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('键盘焦点得到同一圈高亮，方向键沿筛选行走', (tester) async {
+    await mountPage(tester, FilterPageCatalog());
+    await openPage(tester);
+    final first = find.byKey(const ValueKey('filter-page-theme-all'));
+    final second = find.byKey(const ValueKey('filter-page-theme-cate_7'));
+
+    // Tab into the row: `Focus.of` here is the chip's non-focusable observer
+    //, whose `hasFocus` covers its descendant when the real button owns focus.
+    for (var i = 0; i < 12 && !Focus.of(tester.element(first)).hasFocus; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+    }
+    expect(Focus.of(tester.element(first)).hasFocus, isTrue);
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(
+      tester.widget<AnimatedScale>(
+        find.ancestor(of: first, matching: find.byType(AnimatedScale)),
+      ).scale,
+      closeTo(1.04, 0.001),
+    );
+
+    // 左右键在行内交棒，高亮跟着焦点走；Esc 仍留给页面关闭。
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(Focus.of(tester.element(second)).hasFocus, isTrue);
+    expect(
+      tester.widget<AnimatedScale>(
+        find.ancestor(of: second, matching: find.byType(AnimatedScale)),
+      ).scale,
+      closeTo(1.04, 0.001),
+    );
     expect(tester.takeException(), isNull);
   });
 

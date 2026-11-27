@@ -452,7 +452,9 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
       if (wide || !scrollable) {
         return Padding(
           key: ValueKey('filter-page-row-$rowKey'),
-          padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+          // 焦点/鼠标高亮抬起一档并带 rim：内边距留在视口里，首尾 chip 的亮边
+          // 才不会被 Wrap 的边或横滑视口裁掉（与 main 的 TV grid inset 同因）。
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
           child: Wrap(spacing: 6, runSpacing: 4, children: chips),
         );
       }
@@ -467,7 +469,8 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
             child: SingleChildScrollView(
               controller: rowAt(rowKey),
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              // 高亮的舞台在视口内：首尾 chip 的 rim 不再贴着裁剪边。
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(children: chips),
             ),
           ),
@@ -485,27 +488,55 @@ class _DiscoverFilterPageState extends State<DiscoverFilterPage>
   }) => Builder(
     builder: (chipContext) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
-      // main 的高亮契约同样给筛选项：鼠标经过时 chip 抬起一档、整圈 rim 亮起；
-      // 触屏不产生 hover，选中态仍是它唯一的回答。
-      child: HoverGlow(
-        scale: 1.04,
-        radius: 18,
-        child: ChoiceChip(
-          key: ValueKey(key),
-          label: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: chosen ? FontWeight.w700 : FontWeight.w400,
-            ),
-          ),
-          selected: chosen,
-          onSelected: (_) {
-            onTap();
-            if (rowKey != null) _centerChip(rowKey, chipContext);
+      // 方向键在行内走焦点，和滚轮在同一条行上回答「右边还有什么」。Esc 留给
+      // 页面自己的快捷键：这里只认左右键。
+      child: Focus(
+        canRequestFocus: false,
+        onKeyEvent: (node, event) {
+          if (node.context == null ||
+              (event is! KeyDownEvent && event is! KeyRepeatEvent)) {
+            return KeyEventResult.ignored;
+          }
+          final delta = switch (event.logicalKey) {
+            LogicalKeyboardKey.arrowLeft => -1,
+            LogicalKeyboardKey.arrowRight => 1,
+            _ => 0,
+          };
+          if (delta == 0) return KeyEventResult.ignored;
+          final scope = FocusScope.of(node.context!);
+          if (delta > 0) {
+            scope.nextFocus();
+          } else {
+            scope.previousFocus();
+          }
+          return KeyEventResult.handled;
+        },
+        // 高亮同时答鼠标和键盘：键盘走到哪一枚，行就把它带到水平中心，
+        // 鼠标扫过则只亮边、不挪动行。
+        child: HoverGlow(
+          focusAware: true,
+          onFocus: (active) {
+            if (active && rowKey != null) _centerChip(rowKey, chipContext);
           },
-          visualDensity: VisualDensity.compact,
-          materialTapTargetSize: MaterialTapTargetSize.padded,
+          scale: 1.04,
+          radius: 18,
+          child: ChoiceChip(
+            key: ValueKey(key),
+            label: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: chosen ? FontWeight.w700 : FontWeight.w400,
+              ),
+            ),
+            selected: chosen,
+            onSelected: (_) {
+              onTap();
+              if (rowKey != null) _centerChip(rowKey, chipContext);
+            },
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.padded,
+          ),
         ),
       ),
     ),

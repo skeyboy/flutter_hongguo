@@ -2931,9 +2931,10 @@ class _LibraryPageState extends LibraryPageStateBase {
       for (final option in options)
         Padding(
           padding: const EdgeInsets.only(right: 8),
-          // 与主线的卡片高亮同一套 rim：鼠标经过题材 chip 时抬起一档并亮边，
-          // 选中的底色与加粗仍然由 chip 自己说，触屏看不到这层邀请。
+          // 与主线的卡片高亮同一套 rim：鼠标经过或键盘焦点落在题材 chip 上时
+          // 抬起一档并亮边；选中的底色与加粗仍由 chip 自己说。
           child: HoverGlow(
+            focusAware: true,
             scale: 1.04,
             radius: 18,
             child: ChoiceChip(
@@ -3061,8 +3062,9 @@ class _LibraryPageState extends LibraryPageStateBase {
       if (catalog is FilteredCatalogRepository)
         Padding(
           padding: const EdgeInsets.only(right: 8),
-          // 入口也用 main 的 hover rim 说话：鼠标扫过时和结果卡片同一种高亮。
+          // 入口也用 main 的 rim 说话：鼠标扫过或键盘走到它时同一种高亮。
           child: HoverGlow(
+            focusAware: true,
             scale: 1.03,
             radius: 8,
             child: OutlinedButton(
