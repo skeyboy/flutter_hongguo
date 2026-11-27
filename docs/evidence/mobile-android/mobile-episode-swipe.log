@@ -1,0 +1,60 @@
+00:00 +0: loading /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/mobile_episode_swipe_test.dart
+Running Gradle task 'assembleMobileDebug'...                    
+WARNING: Your app uses the following plugins that apply Kotlin Gradle Plugin (KGP): flutter_app_installer
+Future versions of Flutter will fail to build if your app uses plugins that apply KGP.
+
+Please check the changelogs of these plugins and upgrade to a version that supports Built-in Kotlin.
+If no such version exists, report the issue to the plugin. If necessary, here is a guide on filing
+an issue against a plugin: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-app-developers#report-incompatible-kotlin-gradle-plugin-usage-to-plugin-authors
+
+If you are a plugin author, please migrate your plugin to Built-in Kotlin using this guide: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-plugin-authors
+Running Gradle task 'assembleMobileDebug'...                       63.4s
+✓ Built build/app/outputs/flutter-apk/app-mobile-debug.apk
+Installing build/app/outputs/flutter-apk/app-mobile-debug.apk...        18.6s
+00:00 +0: F1 swipe + hint on real Android player
+00:00 +0: loading /Volumes/PSSD/own/flutter_hongguo/packages/app/integration_test/mobile_episode_swipe_test.dart
+media_kit: NativeReferenceHolder: Allocated -5476376613076227616
+00:01 +0: F1 swipe + hint on real Android player
+DEVICE_SCREENSHOT=swipe-hint-first
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 15206, handle: -5476376615223976960, id: 0}
+DEVICE_SCREENSHOT=swipe-boundary-last
+DEVICE_SCREENSHOT=swipe-boundary-first
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 0, handle: -5476376615223976960, id: 0}
+FEATURE1_CORE=passed: touch/stylus switch, mouse+horizontal+small do not; mobile hint copy only; boundary first/last notices auto-dismiss; flag persisted
+00:08 +1: F1 re-entry: hint suppressed once persisted
+00:08 +1: F1 swipe + hint on real Android player
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 15266, handle: -5476376615223683328, id: 1}
+00:08 +1: F1 re-entry: hint suppressed once persisted
+DEVICE_SCREENSHOT=reentry-no-hint
+00:09 +1: F1 swipe + hint on real Android player
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 0, handle: -5476376615223683328, id: 1}
+00:09 +1: F1 re-entry: hint suppressed once persisted
+FEATURE1_REENTRY=passed: persisted episodeSwipeHintShown suppresses the pill; swipe still works
+00:09 +2: F1 hint auto-fades after ~3s and persists
+00:09 +2: F1 swipe + hint on real Android player
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 15298, handle: -5476376615223812384, id: 2}
+00:09 +2: F1 hint auto-fades after ~3s and persists
+DEVICE_SCREENSHOT=hint-countdown
+DEVICE_SCREENSHOT=hint-faded
+00:13 +2: F1 swipe + hint on real Android player
+VideoOutput.Resize
+{rect: {top: 0, left: 0, width: 160, height: 288}, wid: 0, handle: -5476376615223812384, id: 2}
+00:13 +2: F1 hint auto-fades after ~3s and persists
+FEATURE1_FADE=passed: untouched pill disappears ~3s after ready and persists episodeSwipeHintShown
+00:13 +3: F2 search history panel: cap, delete, tap-to-search
+DEVICE_SCREENSHOT=library-initial
+DEVICE_SCREENSHOT=search-panel
+DEVICE_SCREENSHOT=search-from-history
+search-history-local-file=/data/user/0/com.example.hongguo_app/code_cache/hongguo-search-CAJBCV/search.json
+FEATURE2_HISTORY=passed: 3-row cap, per-row delete, tap-history executes search, stored on device file
+00:16 +4: F2 search recommendations: marks and tap-to-detail
+DEVICE_SCREENSHOT=search-recommendations
+DEVICE_SCREENSHOT=detail-from-suggestion
+FEATURE2_RECO=passed: recommended row shows title + mark icon and tap enters detail
+00:19 +5: (tearDownAll)
+00:19 +5: All tests passed!
